@@ -5,6 +5,7 @@
  */
 
 import { findCollisions } from "./lib/collisions.js";
+import { tokenizeJson } from "./lib/highlight.js";
 import {
   emptyFormState,
   fromEventJson,
@@ -228,7 +229,6 @@ async function startEditor(repo: string): Promise<void> {
     }
     badge.textContent = draftValid ? "✓ Ready" : "Incomplete";
     badge.className = draftValid ? "ok" : "invalid";
-    propose.textContent = isNew ? "Add event" : "Propose change";
     editDirect.disabled = !isNew && editSlug === null;
     editDirect.title =
       !isNew && editSlug === null
@@ -296,7 +296,48 @@ async function startEditor(repo: string): Promise<void> {
   });
 
   // --- event listing: contents API first, Pages feed.json fallback -------
-  const select = el<HTMLSelectElement>("event-select");
+  // Rendered as a filter-as-you-type combobox over the loaded events.
+  const combo = el<HTMLDivElement>("event-combo");
+  const comboInput = el<HTMLInputElement>("event-combo-input");
+  const comboList = el<HTMLUListElement>("event-combo-list");
+
+  function eventLabel(event: OteEvent): string {
+    const day = (event.startDate ?? "????").split("T")[0];
+    return `${day} — ${event.name ?? event.id}`;
+  }
+
+  function renderComboList(query: string): void {
+    comboList.textContent = "";
+    const q = query.trim().toLowerCase();
+    const hits = listed
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => eventLabel(entry.event).toLowerCase().includes(q))
+      .slice(0, 8);
+    comboList.hidden = hits.length === 0;
+    for (const { entry, index } of hits) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = eventLabel(entry.event);
+      // mousedown, not click: it must win over the input's blur
+      button.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        comboInput.value = eventLabel(entry.event);
+        comboList.hidden = true;
+        pickEvent(index);
+      });
+      li.append(button);
+      comboList.append(li);
+    }
+  }
+
+  comboInput.addEventListener("focus", () => renderComboList(""));
+  comboInput.addEventListener("input", () =>
+    renderComboList(comboInput.value),
+  );
+  comboInput.addEventListener("blur", () => {
+    setTimeout(() => (comboList.hidden = true), 150);
+  });
 
   async function loadEvents(): Promise<void> {
     const listing = parseContentsListing(await fetchJson(contentsApiUrl(repo)));
@@ -319,18 +360,11 @@ async function startEditor(repo: string): Promise<void> {
         );
       }
     }
-    select.textContent = "";
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent =
-      listed.length > 0 ? "Choose an event…" : "(no events found)";
-    select.append(placeholder);
-    listed.forEach(({ event }, index) => {
-      const option = document.createElement("option");
-      option.value = String(index);
-      option.textContent = `${event.startDate ?? "????"} — ${event.name ?? event.id}`;
-      select.append(option);
-    });
+    comboInput.placeholder =
+      listed.length > 0
+        ? "Type to filter, or pick an event…"
+        : "No events found in this repository";
+    comboInput.disabled = listed.length === 0;
     refresh(); // collision checks were waiting for the listing
   }
 
@@ -342,7 +376,7 @@ async function startEditor(repo: string): Promise<void> {
   )) {
     radio.addEventListener("input", () => {
       isNew = radio.value === "new";
-      select.hidden = isNew;
+      combo.hidden = isNew;
       touched = new Set();
       submitAttempted = false;
       if (isNew) {
@@ -357,8 +391,8 @@ async function startEditor(repo: string): Promise<void> {
     });
   }
 
-  select.addEventListener("input", () => {
-    const chosen = listed[Number(select.value)];
+  function pickEvent(index: number): void {
+    const chosen = listed[index];
     if (!chosen) return;
     editSlug = chosen.slug;
     state = fromEventJson(chosen.event, chosen.slug ?? "");
@@ -367,7 +401,7 @@ async function startEditor(repo: string): Promise<void> {
     touched = new Set();
     submitAttempted = false;
     render(extraFieldsFor(chosen.event, profile));
-  });
+  }
 
   // --- outputs --------------------------------------------------------------
   const fallback = el<HTMLElement>("fallback");
@@ -390,44 +424,21 @@ async function startEditor(repo: string): Promise<void> {
 
   // --- review step ----------------------------------------------------------
   const review = el<HTMLDialogElement>("review");
-  const reviewSummary = el<HTMLDListElement>("review-summary");
   const reviewJson = el<HTMLPreElement>("review-json");
 
-  function summaryRow(term: string, value: string): void {
-    if (!value) return;
-    const dt = document.createElement("dt");
-    dt.textContent = term;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    reviewSummary.append(dt, dd);
-  }
-
   function openReview(): void {
-    const event = toEventJson(state);
-    reviewSummary.textContent = "";
-    summaryRow("Event", state.name);
-    summaryRow(
-      "When",
-      [
-        state.startDate,
-        !state.allDay && state.startTime,
-        (state.endDate || state.endTime) && "→",
-        state.endDate,
-        !state.allDay && state.endTime,
-        `(${state.timezone})`,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
-    summaryRow(
-      "Where",
-      [state.venue, state.onlineUrl].filter(Boolean).join(" · "),
-    );
-    summaryRow(
-      "File",
-      `events/${state.slug}.json ${isNew ? "(new)" : "(update)"}`,
-    );
-    reviewJson.textContent = JSON.stringify(event, null, 2);
+    const json = JSON.stringify(toEventJson(state), null, 2);
+    reviewJson.textContent = "";
+    for (const token of tokenizeJson(json)) {
+      if (token.type === "plain") {
+        reviewJson.append(token.text);
+      } else {
+        const span = document.createElement("span");
+        span.className = `j-${token.type}`;
+        span.textContent = token.text;
+        reviewJson.append(span);
+      }
+    }
     review.showModal();
   }
 

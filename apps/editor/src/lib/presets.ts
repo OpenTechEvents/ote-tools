@@ -62,10 +62,10 @@ const CORE_FIELDS = [
 
 const PRESET_EXCLUSIONS: Record<string, ReadonlySet<string>> = {
   // Meetups: recurring, simple events — no cancellation workflow, no
-  // coordinates, no data-provenance metadata.
-  meetup: new Set(["status", "geo", "license", "source", "updatedAt"]),
-  // Conferences add status (cancelled/postponed matters) and geo, but still
-  // hide the provenance metadata.
+  // data-provenance metadata.
+  meetup: new Set(["status", "license", "source", "updatedAt"]),
+  // Conferences add status (cancelled/postponed matters), but still hide
+  // the provenance metadata.
   conference: new Set(["license", "source", "updatedAt"]),
   all: new Set(),
 };

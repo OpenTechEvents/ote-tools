@@ -45,9 +45,15 @@
             <span>Edit existing</span>
           </label>
         </div>
-        <select id="event-select" hidden>
-          <option value="">Loading events…</option>
-        </select>
+        <div id="event-combo" class="combo" hidden>
+          <input
+            id="event-combo-input"
+            type="text"
+            placeholder="Loading events…"
+            autocomplete="off"
+          />
+          <ul id="event-combo-list" hidden></ul>
+        </div>
         <label class="profile-switch">
           Profile
           <select id="profile-select"></select>
@@ -63,16 +69,14 @@
         <button id="edit-direct" type="button" class="secondary">
           Edit directly
         </button>
-        <button id="propose" type="button" class="primary">Add event</button>
+        <button id="propose" type="button" class="primary">
+          Review &amp; submit
+        </button>
       </div>
 
       <dialog id="review">
         <h2>Review &amp; submit</h2>
-        <dl id="review-summary"></dl>
-        <details>
-          <summary>Event JSON</summary>
-          <pre id="review-json"></pre>
-        </details>
+        <pre id="review-json"></pre>
         <p class="hint">
           This opens a prefilled GitHub issue in the target repository; a
           maintainer (or the repo's automation) turns it into a pull request.

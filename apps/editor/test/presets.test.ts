@@ -7,23 +7,22 @@ import {
 } from "../src/lib/presets.js";
 
 describe("resolveProfile", () => {
-  it("meetup hides status, geo and the advanced metadata", () => {
+  it("meetup hides status and the advanced metadata", () => {
     const resolved = resolveProfile({ profile: "meetup" });
     expect(resolved.preset).toBe("meetup");
-    for (const hidden of ["status", "geo", "license", "source", "updatedAt"]) {
+    for (const hidden of ["status", "license", "source", "updatedAt"]) {
       expect(resolved.fields.has(hidden)).toBe(false);
     }
-    for (const shown of ["name", "startDate", "timezone", "venue", "tags"]) {
+    for (const shown of ["name", "startDate", "timezone", "venue", "geo", "tags"]) {
       expect(resolved.fields.has(shown)).toBe(true);
     }
     expect(resolved.collapsedSections.size).toBe(0);
     expect(resolved.warnings).toEqual([]);
   });
 
-  it("conference adds status and geo over meetup", () => {
+  it("conference adds status over meetup", () => {
     const resolved = resolveProfile({ profile: "conference" });
     expect(resolved.fields.has("status")).toBe(true);
-    expect(resolved.fields.has("geo")).toBe(true);
     expect(resolved.fields.has("source")).toBe(false);
   });
 
