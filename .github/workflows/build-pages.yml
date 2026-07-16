@@ -71,6 +71,13 @@ jobs:
             cp -R "${{ inputs.docs-dir }}/." _site/
           fi
 
+      # The dashboard reads window.OTE_REPO before falling back to URL
+      # detection — generating it here keeps the dashboard working on
+      # custom domains, where the repo can't be derived from the URL.
+      # Placed after the docs/ copy so the generated value always wins.
+      - name: Generate config.js
+        run: printf 'window.OTE_REPO = "%s";\n' "${{ github.repository }}" > _site/config.js
+
       - name: Build feed (feed.json, feed.ics, feed.xml)
         run: node .ote-tools/packages/build-feed/dist/bin.js . --out _site
 
