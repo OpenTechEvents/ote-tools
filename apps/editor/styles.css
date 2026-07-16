@@ -251,12 +251,34 @@ header h1 {
 }
 
 #event-form summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
   padding: 0.7rem 0;
-  list-style-position: outside;
+  list-style: none; /* the native marker misaligns; we draw our own */
   user-select: none;
+}
+
+#event-form summary::-webkit-details-marker {
+  display: none;
+}
+
+#event-form summary::before {
+  content: "";
+  flex: none;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg); /* ▸ closed */
+  transition: transform 0.15s;
+}
+
+#event-form details[open] summary::before {
+  transform: rotate(45deg); /* ▾ open */
 }
 
 #event-form details[open] summary {
