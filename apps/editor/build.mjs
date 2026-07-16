@@ -1,7 +1,7 @@
 // Builds the static editor app into dist/: bundles src/main.ts for the
 // browser and copies the static shell next to it. `--serve` starts esbuild's
-// dev server on http://localhost:8000 (override with PORT) with
-// rebuild-on-request.
+// dev server on the first free port from 8000 up (or exactly PORT, if set)
+// with rebuild-on-request.
 import { copyFileSync, mkdirSync } from "node:fs";
 
 import * as esbuild from "esbuild";
@@ -30,8 +30,12 @@ for (const file of ["index.html", "styles.css"]) {
 if (serve) {
   const ctx = await esbuild.context(options);
   await ctx.watch();
-  const port = Number(process.env.PORT) || 8000;
-  await ctx.serve({ servedir: "dist", port });
+  const port = Number(process.env.PORT) || undefined;
+  const server = await ctx.serve({
+    servedir: "dist",
+    ...(port !== undefined && { port }),
+  });
+  console.log(`Editor running at http://localhost:${server.port}/`);
 } else {
   await esbuild.build(options);
 }
