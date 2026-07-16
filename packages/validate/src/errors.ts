@@ -1,5 +1,7 @@
 import type { ErrorObject } from "ajv";
 
+import { specVersion } from "./schemas.generated.js";
+
 /** A validation error with a readable path and a human-readable message. */
 export interface ValidationError {
   /** Readable field path, e.g. "events[0].startDate". "(document)" = root. */
@@ -111,6 +113,15 @@ function humanize(
       return { path, message: `is missing required property "${prop}"` };
     }
     case "const": {
+      // A specVersion this validator doesn't know is drift, not a typo: the
+      // document may be perfectly valid against a newer spec. Say so, instead
+      // of a bare "must be 0.2.0" that reads like the document is wrong.
+      if (/\/specVersion$/.test(instancePath) || instancePath === "/specVersion") {
+        return {
+          path,
+          message: `is not a spec version this validator knows (it implements OTE Spec ${specVersion}); if the spec has moved on, update @opentechevents/validate`,
+        };
+      }
       const allowed = (params as { allowedValue: unknown }).allowedValue;
       return { path, message: `must be ${JSON.stringify(allowed)}` };
     }

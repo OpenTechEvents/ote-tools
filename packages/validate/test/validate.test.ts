@@ -47,6 +47,17 @@ describe("validateEvent — invalid fixtures", () => {
     }
   });
 
+  it("a specVersion this validator doesn't know reads as drift, not as a typo", () => {
+    const { errors } = validateEvent(
+      loadFixture("invalid", "event-future-specversion.json"),
+    );
+    expect(errors).toContainEqual({
+      path: "specVersion",
+      message:
+        "is not a spec version this validator knows (it implements OTE Spec 0.2.0); if the spec has moved on, update @opentechevents/validate",
+    });
+  });
+
   it("out-of-range geo pinpoints the exact field", () => {
     const { errors } = validateEvent(loadFixture("invalid", "event-bad-geo.json"));
     expect(errors).toContainEqual({

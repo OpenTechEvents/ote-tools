@@ -1,19 +1,23 @@
-// Regenerates src/schemas.generated.ts from the vendored schemas/ directory.
-// The schemas are embedded as TypeScript constants so the package can be
-// bundled for the browser (no node:fs at runtime). Run with: pnpm gen
-import { readFileSync, writeFileSync } from "node:fs";
+// Regenerates src/schemas.generated.ts from @opentechevents/schema — the npm
+// package the spec repo publishes. The schemas are embedded as TypeScript
+// constants so this package can be bundled for the browser (no node:fs at
+// runtime), and the dependency's pinned version is what ties each release of
+// the validator to a release of the spec. Run with: pnpm gen
+//
+// Syncing with a new spec version = bump the devDependency (Dependabot opens
+// that PR), run `pnpm gen`, review the diff. The guard test
+// (test/schemas-generated.test.ts) fails until the re-embed happens, so a bump
+// can never land with stale schemas.
+import { writeFileSync } from "node:fs";
+import { eventSchema, feedSchema, specVersion } from "@opentechevents/schema";
 
-const schemasDir = new URL("../schemas/", import.meta.url);
 const outFile = new URL("../src/schemas.generated.ts", import.meta.url);
 
-function embed(filename) {
-  // Parse + re-stringify: normalizes formatting and fails fast on bad JSON.
-  const json = JSON.parse(readFileSync(new URL(filename, schemasDir), "utf8"));
-  return JSON.stringify(json, null, 2);
-}
+// Re-stringify normalizes formatting regardless of how the package ships them.
+const embed = (schema) => JSON.stringify(schema, null, 2);
 
 const banner = `// GENERATED FILE — DO NOT EDIT.
-// Source of truth: the vendored JSON files in schemas/ (see schemas/README.md).
+// Source of truth: the @opentechevents/schema package (its version is pinned in package.json).
 // Regenerate with: pnpm gen
 // A guard test (test/schemas-generated.test.ts) fails if this file drifts.
 
@@ -21,11 +25,14 @@ import type { AnySchemaObject } from "ajv";
 `;
 
 const body = `
-/** OTE v0.2 JSON Schema for Event documents (vendored, see schemas/README.md). */
-export const eventSchema: AnySchemaObject = ${embed("event.schema.json")};
+/** The OTE Spec version these schemas describe. */
+export const specVersion = ${JSON.stringify(specVersion)};
 
-/** OTE v0.2 JSON Schema for Feed documents (vendored, see schemas/README.md). */
-export const feedSchema: AnySchemaObject = ${embed("feed.schema.json")};
+/** OTE JSON Schema for Event documents (from @opentechevents/schema). */
+export const eventSchema: AnySchemaObject = ${embed(eventSchema)};
+
+/** OTE JSON Schema for Feed documents (from @opentechevents/schema). */
+export const feedSchema: AnySchemaObject = ${embed(feedSchema)};
 `;
 
 writeFileSync(outFile, banner + body);

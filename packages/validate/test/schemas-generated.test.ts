@@ -1,24 +1,26 @@
-import { readFileSync } from "node:fs";
-
+import {
+  eventSchema as specEventSchema,
+  feedSchema as specFeedSchema,
+  specVersion as specSpecVersion,
+} from "@opentechevents/schema";
 import { describe, expect, it } from "vitest";
 
-import { eventSchema, feedSchema } from "../src/schemas.generated.js";
+import { eventSchema, feedSchema, specVersion } from "../src/schemas.generated.js";
 
-const schemasDir = new URL("../schemas/", import.meta.url);
-
-function loadJson(filename: string): unknown {
-  return JSON.parse(readFileSync(new URL(filename, schemasDir), "utf8"));
-}
-
-// The generated module embeds the vendored JSON schemas so the package can be
-// bundled for the browser. If schemas/ changes without running `pnpm gen`,
-// this test fails.
+// The generated module embeds the schemas from @opentechevents/schema so the
+// package can be bundled for the browser. This is the drift guard: when the
+// dependency is bumped to a new spec release (Dependabot opens that PR), these
+// tests fail until `pnpm gen` re-embeds — stale schemas can never ship.
 describe("schemas.generated.ts", () => {
-  it("eventSchema matches schemas/event.schema.json", () => {
-    expect(eventSchema).toEqual(loadJson("event.schema.json"));
+  it("eventSchema matches @opentechevents/schema", () => {
+    expect(eventSchema).toEqual(specEventSchema);
   });
 
-  it("feedSchema matches schemas/feed.schema.json", () => {
-    expect(feedSchema).toEqual(loadJson("feed.schema.json"));
+  it("feedSchema matches @opentechevents/schema", () => {
+    expect(feedSchema).toEqual(specFeedSchema);
+  });
+
+  it("specVersion matches @opentechevents/schema", () => {
+    expect(specVersion).toBe(specSpecVersion);
   });
 });

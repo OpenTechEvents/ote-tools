@@ -31,7 +31,7 @@ describe("ote-validate CLI", () => {
   it("directory of invalid fixtures → exit 1 with per-file errors", () => {
     const io = makeIO();
     expect(runCli([join(fixturesDir, "invalid")], io)).toBe(1);
-    expect(io.outLines.at(-1)).toBe("0/6 valid");
+    expect(io.outLines.at(-1)).toBe("0/7 valid");
     expect(io.errLines.some((l) => l.startsWith("✗"))).toBe(true);
     expect(io.errLines.some((l) => l.includes("license"))).toBe(true);
   });

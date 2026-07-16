@@ -1,11 +1,14 @@
 // GENERATED FILE — DO NOT EDIT.
-// Source of truth: the vendored JSON files in schemas/ (see schemas/README.md).
+// Source of truth: the @opentechevents/schema package (its version is pinned in package.json).
 // Regenerate with: pnpm gen
 // A guard test (test/schemas-generated.test.ts) fails if this file drifts.
 
 import type { AnySchemaObject } from "ajv";
 
-/** OTE v0.2 JSON Schema for Event documents (vendored, see schemas/README.md). */
+/** The OTE Spec version these schemas describe. */
+export const specVersion = "0.2.0";
+
+/** OTE JSON Schema for Event documents (from @opentechevents/schema). */
 export const eventSchema: AnySchemaObject = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://opentechevents.org/schema/v0.2/event.schema.json",
@@ -373,7 +376,7 @@ export const eventSchema: AnySchemaObject = {
   }
 };
 
-/** OTE v0.2 JSON Schema for Feed documents (vendored, see schemas/README.md). */
+/** OTE JSON Schema for Feed documents (from @opentechevents/schema). */
 export const feedSchema: AnySchemaObject = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://opentechevents.org/schema/v0.2/feed.schema.json",
