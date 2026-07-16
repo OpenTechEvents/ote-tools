@@ -21,7 +21,7 @@ interface Control {
     | "textarea"
     | "checkbox"
     | "select"
-    | "multiselect";
+    | "chips";
   options?: string[];
   placeholder?: string;
 }
@@ -36,26 +36,40 @@ interface FieldSpec {
 }
 
 /**
- * BCP 47 tags offered in the languages dropdown. Values outside this list
- * (a loaded event may use any tag) are added to the dropdown dynamically.
+ * BCP 47 tags suggested by the languages autocomplete, with display names.
+ * Anything outside this list can still be typed and added as a chip.
  */
-const COMMON_LANGUAGES = [
-  "es",
-  "en",
-  "pt",
-  "fr",
-  "de",
-  "it",
-  "ca",
-  "eu",
-  "gl",
-  "nl",
-  "pl",
-  "ru",
-  "ja",
-  "zh",
-  "ar",
+const LANGUAGE_SUGGESTIONS: ReadonlyArray<{ code: string; name: string }> = [
+  { code: "es", name: "Spanish" },
+  { code: "en", name: "English" },
+  { code: "pt", name: "Portuguese" },
+  { code: "fr", name: "French" },
+  { code: "de", name: "German" },
+  { code: "it", name: "Italian" },
+  { code: "ca", name: "Catalan" },
+  { code: "eu", name: "Basque" },
+  { code: "gl", name: "Galician" },
+  { code: "nl", name: "Dutch" },
+  { code: "pl", name: "Polish" },
+  { code: "ru", name: "Russian" },
+  { code: "ja", name: "Japanese" },
+  { code: "zh", name: "Chinese" },
+  { code: "ar", name: "Arabic" },
+  { code: "hi", name: "Hindi" },
+  { code: "ko", name: "Korean" },
+  { code: "tr", name: "Turkish" },
 ];
+
+/** IANA timezone names for the timezone dropdown. */
+function timezoneOptions(): string[] {
+  try {
+    const zones = Intl.supportedValuesOf("timeZone");
+    return zones.includes("UTC") ? zones : ["UTC", ...zones];
+  } catch {
+    // Very old runtimes: a usable minimum, the schema validates the rest.
+    return ["UTC", "Europe/Madrid", "Europe/London", "America/New_York"];
+  }
+}
 
 const SECTION_TITLES: Record<SectionId, string> = {
   basics: "Basics",
@@ -89,15 +103,8 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   languages: {
     label: "Languages",
-    info: "Languages the event is held in, as BCP 47 tags. Leave empty when unknown. Ctrl/Cmd-click to select several.",
-    controls: [
-      {
-        key: "languages",
-        label: "",
-        kind: "multiselect",
-        options: COMMON_LANGUAGES,
-      },
-    ],
+    info: "Languages the event is held in, as BCP 47 tags. Leave empty when unknown.",
+    controls: [{ key: "languages", label: "", kind: "chips" }],
   },
   allDay: {
     label: "All-day event",
@@ -121,8 +128,10 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   timezone: {
     label: "Timezone",
     required: true,
-    note: "IANA name, e.g. Europe/Madrid.",
-    controls: [{ key: "timezone", label: "", kind: "text" }],
+    info: "IANA timezone the event's wall-clock times belong to. Defaults to your browser's.",
+    controls: [
+      { key: "timezone", label: "", kind: "select", options: timezoneOptions() },
+    ],
   },
   status: {
     label: "Status",
@@ -218,38 +227,122 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
 };
 
-function renderMultiselect(
+/**
+ * Chips-with-autocomplete control (languages): typing filters the
+ * suggestions, picking one (or pressing Enter) adds a removable chip.
+ * The state value stays a comma-separated string.
+ */
+function renderChips(
   control: Control,
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
-): HTMLSelectElement {
-  const select = document.createElement("select");
-  select.multiple = true;
-  select.size = 6;
-  select.dataset.key = control.key;
-  const current = String(state[control.key])
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "chips";
+  wrap.dataset.key = control.key;
+
+  const list = document.createElement("div");
+  list.className = "chips-list";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "chips-input";
+  input.placeholder = "Type to add… (es, en…)";
+  input.autocomplete = "off";
+  const suggest = document.createElement("ul");
+  suggest.className = "chips-suggest";
+  suggest.hidden = true;
+  wrap.append(list, suggest);
+  list.append(input);
+
+  let values = String(state[control.key])
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  // Values already on the event but missing from the common list stay usable.
-  const options = [...(control.options ?? [])];
-  for (const value of current) {
-    if (!options.includes(value)) options.push(value);
+
+  function commit(): void {
+    onInput(control.key, values.join(", "));
   }
-  for (const value of options) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = value;
-    option.selected = current.includes(value);
-    select.append(option);
+
+  function renderList(): void {
+    for (const chip of list.querySelectorAll(".chip")) chip.remove();
+    for (const value of values) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      const name = LANGUAGE_SUGGESTIONS.find((l) => l.code === value)?.name;
+      chip.append(name ? `${value} · ${name}` : value);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "chip-remove";
+      remove.setAttribute("aria-label", `Remove ${value}`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        values = values.filter((v) => v !== value);
+        renderList();
+        commit();
+      });
+      chip.append(remove);
+      list.insertBefore(chip, input);
+    }
   }
-  select.addEventListener("input", () =>
-    onInput(
-      control.key,
-      [...select.selectedOptions].map((o) => o.value).join(", "),
-    ),
-  );
-  return select;
+
+  function add(code: string): void {
+    const clean = code.trim();
+    if (!clean || values.includes(clean)) return;
+    values.push(clean);
+    input.value = "";
+    suggest.hidden = true;
+    renderList();
+    commit();
+  }
+
+  function refreshSuggestions(): void {
+    const query = input.value.trim().toLowerCase();
+    suggest.textContent = "";
+    const hits = LANGUAGE_SUGGESTIONS.filter(
+      (l) =>
+        !values.includes(l.code) &&
+        (query === "" ||
+          l.code.startsWith(query) ||
+          l.name.toLowerCase().includes(query)),
+    ).slice(0, 6);
+    suggest.hidden = hits.length === 0;
+    for (const hit of hits) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${hit.code} · ${hit.name}`;
+      // mousedown, not click: it must win over the input's blur
+      button.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        add(hit.code);
+      });
+      li.append(button);
+      suggest.append(li);
+    }
+  }
+
+  input.addEventListener("focus", refreshSuggestions);
+  input.addEventListener("input", refreshSuggestions);
+  input.addEventListener("blur", () => {
+    setTimeout(() => (suggest.hidden = true), 150);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const query = input.value.trim().toLowerCase();
+      const match = LANGUAGE_SUGGESTIONS.find(
+        (l) => l.code === query || l.name.toLowerCase() === query,
+      );
+      add(match ? match.code : input.value);
+    } else if (e.key === "Backspace" && input.value === "" && values.length) {
+      values = values.slice(0, -1);
+      renderList();
+      commit();
+    }
+  });
+
+  renderList();
+  return wrap;
 }
 
 function renderControl(
@@ -257,8 +350,8 @@ function renderControl(
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
 ): HTMLElement {
-  if (control.kind === "multiselect") {
-    return renderMultiselect(control, state, onInput);
+  if (control.kind === "chips") {
+    return renderChips(control, state, onInput);
   }
   let input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   if (control.kind === "textarea") {
@@ -266,7 +359,13 @@ function renderControl(
     input.rows = 3;
   } else if (control.kind === "select") {
     input = document.createElement("select");
-    for (const value of control.options ?? []) {
+    const options = [...(control.options ?? [])];
+    // A loaded event may carry a value outside the list; keep it selectable.
+    const current = state[control.key];
+    if (typeof current === "string" && current && !options.includes(current)) {
+      options.unshift(current);
+    }
+    for (const value of options) {
       const option = document.createElement("option");
       option.value = value;
       option.textContent = value === "" ? "(not set)" : value;
@@ -336,29 +435,39 @@ function renderField(
     const row = document.createElement("div");
     row.className = "field pair";
     row.append(...controls);
-    outer.append(label, row);
     if (fieldId === "geo") {
-      // main.ts mounts the Leaflet location picker here
+      // Map first (main.ts mounts Leaflet here), then the hint,
+      // then the coordinate inputs the map keeps in sync.
       const slot = document.createElement("div");
       slot.dataset.role = "geo-map";
-      outer.append(slot);
+      outer.append(label, slot);
+      appendNote(outer, spec.note);
+      outer.append(row);
+      appendError(outer);
+      return outer;
     }
-    appendNoteAndError(outer, spec.note);
+    outer.append(label, row);
+    appendNote(outer, spec.note);
+    appendError(outer);
     return outer;
   }
 
   field.append(label, ...controls);
-  appendNoteAndError(field, spec.note);
+  appendNote(field, spec.note);
+  appendError(field);
   return field;
 }
 
-function appendNoteAndError(field: HTMLElement, note?: string) {
+function appendNote(field: HTMLElement, note?: string) {
   if (note) {
     const p = document.createElement("p");
     p.className = "note";
     p.textContent = note;
     field.append(p);
   }
+}
+
+function appendError(field: HTMLElement) {
   const error = document.createElement("p");
   error.className = "field-error";
   field.append(error);

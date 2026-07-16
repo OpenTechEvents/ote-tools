@@ -162,7 +162,6 @@ async function startEditor(repo: string): Promise<void> {
   let listed: ListedEvent[] = [];
 
   const form = el<HTMLFormElement>("event-form");
-  const preview = el<HTMLPreElement>("json-preview");
   const badge = el<HTMLSpanElement>("valid-badge");
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
@@ -218,7 +217,6 @@ async function startEditor(repo: string): Promise<void> {
     draftValid =
       result.valid && !collisions.slugTaken && !collisions.idTaken;
 
-    preview.textContent = JSON.stringify(event, null, 2);
     updateErrors(form, shown);
     documentErrors.textContent = "";
     documentErrors.hidden =
@@ -228,7 +226,7 @@ async function startEditor(repo: string): Promise<void> {
       li.textContent = message;
       documentErrors.append(li);
     }
-    badge.textContent = draftValid ? "✓ valid" : "✗ incomplete";
+    badge.textContent = draftValid ? "✓ Ready" : "Incomplete";
     badge.className = draftValid ? "ok" : "invalid";
     propose.textContent = isNew ? "Add event" : "Propose change";
     editDirect.disabled = !isNew && editSlug === null;
@@ -390,15 +388,70 @@ async function startEditor(repo: string): Promise<void> {
     }
   }
 
+  // --- review step ----------------------------------------------------------
+  const review = el<HTMLDialogElement>("review");
+  const reviewSummary = el<HTMLDListElement>("review-summary");
+  const reviewJson = el<HTMLPreElement>("review-json");
+
+  function summaryRow(term: string, value: string): void {
+    if (!value) return;
+    const dt = document.createElement("dt");
+    dt.textContent = term;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    reviewSummary.append(dt, dd);
+  }
+
+  function openReview(): void {
+    const event = toEventJson(state);
+    reviewSummary.textContent = "";
+    summaryRow("Event", state.name);
+    summaryRow(
+      "When",
+      [
+        state.startDate,
+        !state.allDay && state.startTime,
+        (state.endDate || state.endTime) && "→",
+        state.endDate,
+        !state.allDay && state.endTime,
+        `(${state.timezone})`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+    summaryRow(
+      "Where",
+      [state.venue, state.onlineUrl].filter(Boolean).join(" · "),
+    );
+    summaryRow(
+      "File",
+      `events/${state.slug}.json ${isNew ? "(new)" : "(update)"}`,
+    );
+    reviewJson.textContent = JSON.stringify(event, null, 2);
+    review.showModal();
+  }
+
+  el<HTMLButtonElement>("review-cancel").addEventListener("click", () =>
+    review.close(),
+  );
+  el<HTMLButtonElement>("review-confirm").addEventListener("click", () => {
+    review.close();
+    follow(proposeChangeUrl(repo, toEventJson(state), isNew));
+  });
+
   propose.addEventListener("click", () => {
     if (!draftValid) {
       // First invalid attempt reveals every error instead of blocking silently.
       submitAttempted = true;
       refresh();
-      documentErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      const firstError = form.querySelector(".field-error:not(:empty)");
+      (firstError ?? documentErrors).scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
       return;
     }
-    follow(proposeChangeUrl(repo, toEventJson(state), isNew));
+    openReview();
   });
 
   editDirect.addEventListener("click", () => {

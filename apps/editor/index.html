@@ -29,61 +29,80 @@
           pattern="[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+"
           required
         />
-        <button type="submit">Load</button>
+        <button type="submit" class="primary">Load</button>
       </form>
     </section>
 
     <main id="editor" hidden>
-      <section id="mode">
-        <label>
-          <input type="radio" name="mode" value="new" checked /> New event
-        </label>
-        <label>
-          <input type="radio" name="mode" value="edit" /> Edit existing
-        </label>
+      <nav id="mode">
+        <div class="mode-toggle" role="radiogroup" aria-label="Mode">
+          <label>
+            <input type="radio" name="mode" value="new" checked />
+            <span>New event</span>
+          </label>
+          <label>
+            <input type="radio" name="mode" value="edit" />
+            <span>Edit existing</span>
+          </label>
+        </div>
         <select id="event-select" hidden>
           <option value="">Loading events…</option>
         </select>
         <label class="profile-switch">
-          Profile:
+          Profile
           <select id="profile-select"></select>
         </label>
-      </section>
+      </nav>
 
-      <div class="columns">
-        <form id="event-form" autocomplete="off"></form>
+      <form id="event-form" autocomplete="off"></form>
 
-        <aside>
-          <h2>Event JSON <span id="valid-badge"></span></h2>
-          <ul id="document-errors" hidden></ul>
-          <pre id="json-preview"></pre>
+      <ul id="document-errors" hidden></ul>
 
-          <div class="actions">
-            <button id="propose" type="button">Add event</button>
-            <button id="edit-direct" type="button">Edit directly</button>
-          </div>
-          <p class="hint">
-            The first button opens a prefilled issue in the target repo —
-            anyone can use it. <strong>Edit directly</strong> opens the file
-            on GitHub — needs push access.
-          </p>
-
-          <section id="fallback" hidden>
-            <h3>URL too long — copy manually</h3>
-            <p>
-              The prefilled URL exceeds what browsers accept. Copy the content
-              below, then paste it into the page that opens:
-            </p>
-            <textarea id="fallback-text" rows="10" readonly></textarea>
-            <div class="actions">
-              <button id="fallback-copy" type="button">Copy</button>
-              <a id="fallback-link" target="_blank" rel="noopener">
-                Open blank page
-              </a>
-            </div>
-          </section>
-        </aside>
+      <div id="action-bar">
+        <span id="valid-badge"></span>
+        <button id="edit-direct" type="button" class="secondary">
+          Edit directly
+        </button>
+        <button id="propose" type="button" class="primary">Add event</button>
       </div>
+
+      <dialog id="review">
+        <h2>Review &amp; submit</h2>
+        <dl id="review-summary"></dl>
+        <details>
+          <summary>Event JSON</summary>
+          <pre id="review-json"></pre>
+        </details>
+        <p class="hint">
+          This opens a prefilled GitHub issue in the target repository; a
+          maintainer (or the repo's automation) turns it into a pull request.
+        </p>
+        <div class="actions">
+          <button id="review-cancel" type="button" class="secondary">
+            Back
+          </button>
+          <button id="review-confirm" type="button" class="primary">
+            Open GitHub issue
+          </button>
+        </div>
+      </dialog>
+
+      <section id="fallback" hidden>
+        <h3>URL too long — copy manually</h3>
+        <p>
+          The prefilled URL exceeds what browsers accept. Copy the content
+          below, then paste it into the page that opens:
+        </p>
+        <textarea id="fallback-text" rows="10" readonly></textarea>
+        <div class="actions">
+          <button id="fallback-copy" type="button" class="secondary">
+            Copy
+          </button>
+          <a id="fallback-link" target="_blank" rel="noopener">
+            Open blank page
+          </a>
+        </div>
+      </section>
     </main>
 
     <script type="module" src="./main.js"></script>

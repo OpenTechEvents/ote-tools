@@ -1,81 +1,197 @@
+/* Mobile-first. Single column; the layout never splits — wider screens just
+   get more breathing room. */
+
 :root {
-  --border: #d0d7de;
-  --muted: #57606a;
-  --error: #cf222e;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e3e6ea;
+  --border-strong: #c9cdd3;
+  --text: #1c2128;
+  --muted: #626c77;
+  --error: #c4302f;
+  --error-bg: #fcf1f1;
   --ok: #1a7f37;
-  --accent: #0969da;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.4;
-  color: #1f2328;
+  --accent: #3556c8;
+  --accent-hover: #2a46a8;
+  --accent-soft: #eef1fb;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(28, 33, 40, 0.06), 0 4px 12px rgba(28, 33, 40, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
 }
 
 body {
   margin: 0 auto;
-  max-width: 72rem;
-  padding: 1rem;
+  max-width: 42rem;
+  padding: 1rem 1rem 6.5rem; /* room for the sticky action bar */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- header ------------------------------------------------------------- */
+
+header {
+  margin: 0.5rem 0 1rem;
 }
 
 header h1 {
-  margin-bottom: 0.25rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 #repo-banner {
   color: var(--muted);
-  margin-top: 0;
+  font-size: 0.9rem;
+  margin: 0.15rem 0 0;
 }
 
+/* --- warnings ------------------------------------------------------------ */
+
 #warnings {
-  background: #fff8c5;
-  border: 1px solid #d4a72c;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
+  background: #fff8e1;
+  border: 1px solid #e6c65c;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
   margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 #warnings p {
-  margin: 0.25rem 0;
+  margin: 0.2rem 0;
 }
 
-#mode {
-  margin-bottom: 1rem;
+/* --- repo picker ---------------------------------------------------------- */
+
+#repo-picker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+}
+
+#repo-form {
   display: flex;
-  gap: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-.columns {
-  display: grid;
-  grid-template-columns: minmax(20rem, 1fr) minmax(20rem, 1fr);
-  gap: 2rem;
-}
+@media (min-width: 30rem) {
+  #repo-form {
+    flex-direction: row;
+  }
 
-@media (max-width: 50rem) {
-  .columns {
-    grid-template-columns: 1fr;
+  #repo-form input {
+    flex: 1;
   }
 }
 
-#event-form details {
+/* --- mode / profile bar ------------------------------------------------- */
+
+#mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  margin-bottom: 0.75rem;
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.mode-toggle label {
+  position: relative;
+}
+
+.mode-toggle input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mode-toggle span {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.mode-toggle input:checked + span {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mode-toggle input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#event-select {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.profile-switch {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* --- form sections ---------------------------------------------------------- */
+
+#event-form details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.25rem 1rem;
+  margin-bottom: 0.9rem;
 }
 
 #event-form summary {
   font-weight: 600;
+  font-size: 0.95rem;
   cursor: pointer;
+  padding: 0.7rem 0;
+  list-style-position: outside;
+  user-select: none;
 }
 
+#event-form details[open] summary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.35rem;
+}
+
+/* --- fields ---------------------------------------------------------------- */
+
 .field {
-  margin: 0.6rem 0;
+  margin: 0.85rem 0;
 }
 
 .field label {
   display: block;
   font-weight: 500;
-  margin-bottom: 0.15rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
 }
 
 .field .req {
@@ -86,94 +202,64 @@ header h1 {
 .field input[type="url"],
 .field input[type="date"],
 .field input[type="time"],
-.field input[type="datetime-local"],
 .field textarea,
 .field select {
   width: 100%;
-  box-sizing: border-box;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   font: inherit;
+  background: var(--surface);
+  color: inherit;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.field input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
 }
 
 .field .note {
   color: var(--muted);
-  font-size: 0.85rem;
-  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  margin: 0.25rem 0 0;
 }
 
 .field-error {
   color: var(--error);
-  font-size: 0.85rem;
-  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  margin: 0.25rem 0 0;
+}
+
+.field-error:not(:empty) {
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
 }
 
 .field.pair {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
+  margin: 0;
 }
 
 .field.pair > div {
   flex: 1;
 }
 
-#json-preview {
-  background: #f6f8fa;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.75rem;
-  overflow-x: auto;
-  font-size: 0.85rem;
-}
-
-#valid-badge.ok {
-  color: var(--ok);
-}
-
-#valid-badge.invalid {
-  color: var(--error);
-}
-
-#document-errors {
-  color: var(--error);
-  font-size: 0.9rem;
-}
-
-.actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  margin: 0.75rem 0;
-}
-
-button {
-  font: inherit;
-  padding: 0.45rem 0.9rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: #f6f8fa;
-  cursor: pointer;
-}
-
-button#propose {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.hint {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.profile-switch {
-  margin-left: auto;
+.field.pair label {
+  font-weight: 400;
+  font-size: 0.8rem;
   color: var(--muted);
 }
 
@@ -183,11 +269,107 @@ button:disabled {
   font-weight: 400;
 }
 
-/* --- Leaflet location picker --- */
+/* --- languages chips ------------------------------------------------------- */
+
+.chips {
+  position: relative;
+}
+
+.chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.chips-list:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.chip-remove {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip-remove:hover {
+  background: rgba(53, 86, 200, 0.15);
+}
+
+.chips-input {
+  flex: 1;
+  min-width: 8rem;
+  border: none !important;
+  box-shadow: none !important;
+  min-height: 1.8rem !important;
+  padding: 0.1rem !important;
+}
+
+.chips-input:focus-visible {
+  outline: none;
+}
+
+.chips-suggest {
+  position: absolute;
+  z-index: 500;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.chips-suggest button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.chips-suggest button:hover {
+  background: var(--accent-soft);
+}
+
+/* --- Leaflet location picker ------------------------------------------------ */
+
 .geo-search {
   display: flex;
   gap: 0.5rem;
-  margin: 0.5rem 0;
+  margin: 0.4rem 0;
 }
 
 .geo-search input {
@@ -197,9 +379,10 @@ button:disabled {
 .geo-results {
   list-style: none;
   margin: 0 0 0.5rem;
-  padding: 0;
+  padding: 0.25rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .geo-results li {
@@ -212,19 +395,27 @@ button:disabled {
   text-align: left;
   border: none;
   background: none;
-  padding: 0.4rem 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
   font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .geo-results button:hover {
-  background: #f6f8fa;
+  background: var(--accent-soft);
 }
 
 .geo-map {
-  height: 16rem;
+  height: 14rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  margin-top: 0.5rem;
+  border-radius: 8px;
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 40rem) {
+  .geo-map {
+    height: 17rem;
+  }
 }
 
 .geo-pin {
@@ -238,15 +429,199 @@ button:disabled {
   cursor: grab;
 }
 
-#fallback {
-  border: 1px solid #d4a72c;
-  border-radius: 6px;
+/* geo: hint sits between the map and the coordinate inputs */
+[data-field-id="geo"] .note {
+  margin: 0.35rem 0;
+}
+
+/* --- document errors ---------------------------------------------------------- */
+
+#document-errors {
+  color: var(--error);
+  background: var(--error-bg);
+  border: 1px solid #eccfcf;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem 0.6rem 2rem;
+}
+
+/* --- action bar ------------------------------------------------------------- */
+
+#action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem max(1rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+}
+
+#action-bar > * {
+  flex: 0 0 auto;
+}
+
+#valid-badge {
+  margin-right: auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+#valid-badge.ok {
+  color: var(--ok);
+}
+
+#valid-badge.invalid {
+  color: var(--muted);
+}
+
+@media (min-width: 46rem) {
+  #action-bar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 42rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+}
+
+/* --- buttons -------------------------------------------------------------- */
+
+button {
+  font: inherit;
+  font-weight: 500;
+  min-height: 2.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+}
+
+button.secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- review dialog ------------------------------------------------------------ */
+
+#review {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
+  padding: 1.25rem;
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+#review::backdrop {
+  background: rgba(28, 33, 40, 0.45);
+}
+
+#review h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+#review-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.9rem;
+  margin: 0 0 0.9rem;
+  font-size: 0.92rem;
+}
+
+#review-summary dt {
+  color: var(--muted);
+}
+
+#review-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+#review details {
+  margin-bottom: 0.75rem;
+}
+
+#review summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+#review-json {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   padding: 0.75rem;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  max-height: 40vh;
+}
+
+#review .actions {
+  justify-content: flex-end;
+}
+
+/* --- shared bits --------------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.75rem 0 0;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#fallback {
+  background: #fff8e1;
+  border: 1px solid #e6c65c;
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+#fallback h3 {
+  margin-top: 0;
 }
 
 #fallback textarea {
   width: 100%;
-  box-sizing: border-box;
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 0.5rem;
 }

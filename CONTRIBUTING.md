@@ -84,9 +84,10 @@ What to try:
 - **No `?repo=`** → the app asks for a repository.
 - **`?repo=owner/name` of any repo without `ote.config.json`** (e.g.
   `octocat/Hello-World`) → warning banner, full form. Fill Name + Start date
-  and watch the slug/id auto-suggest, the live validation badge, and the JSON
-  preview. "Add event" opens a prefilled issue in that repo — don't submit it
-  against repos you don't own.
+  and watch the slug/id auto-suggest and the status badge in the action bar.
+  "Add event" opens the review step (summary + collapsible JSON) and from
+  there a prefilled issue in that repo — don't submit it against repos you
+  don't own.
 - **Full flow** needs a repo shaped like a template fork: `ote.config.json`
   plus `events/*.json` (copy them from `packages/build-feed/fixtures/valid/`
   into a scratch repo on your account). Then the banner shows the feed title,
