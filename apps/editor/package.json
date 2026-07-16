@@ -13,9 +13,11 @@
   },
   "dependencies": {
     "@opentechevents/build-feed": "workspace:*",
-    "@opentechevents/validate": "workspace:*"
+    "@opentechevents/validate": "workspace:*",
+    "leaflet": "^1.9.4"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.0.0",
     "esbuild": "^0.24.0",
     "typescript": "^5.5.0",

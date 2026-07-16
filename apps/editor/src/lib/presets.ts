@@ -82,6 +82,14 @@ export interface ResolvedProfile {
 
 const KNOWN_IDS = new Set(FIELD_REGISTRY.map((f) => f.id));
 
+/** Presets the UI can switch between; "custom" only when the config has one. */
+export function availablePresets(config: OteConfig | null): string[] {
+  const presets = Object.keys(PRESET_EXCLUSIONS);
+  return Array.isArray(config?.customProfile?.fields)
+    ? ["custom", ...presets]
+    : presets;
+}
+
 /**
  * Resolves which form fields the editor shows for a given ote.config.json.
  *
@@ -90,12 +98,22 @@ const KNOWN_IDS = new Set(FIELD_REGISTRY.map((f) => f.id));
  * - Otherwise `profile` picks a preset; unknown/missing profile falls back to
  *   "all" with a warning (show everything rather than silently hide fields).
  * - "all" renders the advanced section collapsed.
+ * - `override` is the UI's profile switcher: a preset name or "custom" that
+ *   takes precedence over everything in the config (no warnings — it is an
+ *   explicit user choice, not a config problem).
  */
-export function resolveProfile(config: OteConfig | null): ResolvedProfile {
+export function resolveProfile(
+  config: OteConfig | null,
+  override?: string,
+): ResolvedProfile {
   const warnings: string[] = [];
 
+  const useCustom =
+    override === undefined
+      ? Array.isArray(config?.customProfile?.fields)
+      : override === "custom";
   const customFields = config?.customProfile?.fields;
-  if (Array.isArray(customFields)) {
+  if (useCustom && Array.isArray(customFields)) {
     const fields = new Set<string>(CORE_FIELDS);
     for (const id of customFields) {
       if (KNOWN_IDS.has(id)) {
@@ -109,14 +127,16 @@ export function resolveProfile(config: OteConfig | null): ResolvedProfile {
     return { preset: "custom", fields, collapsedSections: new Set(), warnings };
   }
 
-  let preset = config?.profile;
+  let preset = override ?? config?.profile;
   if (preset === undefined) {
     if (config !== null) {
       warnings.push('no "profile" in ote.config.json, showing all fields');
     }
     preset = "all";
   } else if (!(preset in PRESET_EXCLUSIONS)) {
-    warnings.push(`unknown profile "${preset}", showing all fields`);
+    if (override === undefined) {
+      warnings.push(`unknown profile "${preset}", showing all fields`);
+    }
     preset = "all";
   }
 

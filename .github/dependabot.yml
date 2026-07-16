@@ -1,0 +1,21 @@
+# Dependency bumps as PRs. The one that matters most: @opentechevents/schema in
+# packages/validate — when the spec publishes a new schema version, the PR it
+# opens here IS the drift alarm (the schemas-generated guard test fails until
+# `pnpm gen` re-embeds, making the schema change visible in the diff).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # Routine dev tooling in one PR; the schema bump stays its own PR so the
+      # drift signal is never buried.
+      dev-tooling:
+        dependency-type: development
+        exclude-patterns:
+          - "@opentechevents/*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

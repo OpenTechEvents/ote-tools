@@ -13,7 +13,15 @@ type StateKey = keyof FormState;
 interface Control {
   key: StateKey;
   label: string;
-  kind: "text" | "url" | "date" | "time" | "textarea" | "checkbox" | "select";
+  kind:
+    | "text"
+    | "url"
+    | "date"
+    | "time"
+    | "textarea"
+    | "checkbox"
+    | "select"
+    | "multiselect";
   options?: string[];
   placeholder?: string;
 }
@@ -22,8 +30,32 @@ interface FieldSpec {
   label: string;
   required?: boolean;
   note?: string;
+  /** Longer explanation shown as an ⓘ tooltip next to the label. */
+  info?: string;
   controls: Control[];
 }
+
+/**
+ * BCP 47 tags offered in the languages dropdown. Values outside this list
+ * (a loaded event may use any tag) are added to the dropdown dynamically.
+ */
+const COMMON_LANGUAGES = [
+  "es",
+  "en",
+  "pt",
+  "fr",
+  "de",
+  "it",
+  "ca",
+  "eu",
+  "gl",
+  "nl",
+  "pl",
+  "ru",
+  "ja",
+  "zh",
+  "ar",
+];
 
 const SECTION_TITLES: Record<SectionId, string> = {
   basics: "Basics",
@@ -57,8 +89,15 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   languages: {
     label: "Languages",
-    note: "BCP 47 tags, comma-separated, e.g. es, en.",
-    controls: [{ key: "languages", label: "", kind: "text" }],
+    info: "Languages the event is held in, as BCP 47 tags. Leave empty when unknown. Ctrl/Cmd-click to select several.",
+    controls: [
+      {
+        key: "languages",
+        label: "",
+        kind: "multiselect",
+        options: COMMON_LANGUAGES,
+      },
+    ],
   },
   allDay: {
     label: "All-day event",
@@ -122,7 +161,8 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   geo: {
     label: "Coordinates",
-    note: "WGS-84 decimal degrees.",
+    note: "Search a place, click the map or drag the pin — or type WGS-84 decimal degrees.",
+    info: "Optional exact position of the venue. Consumers use it for maps and distance filters; the venue text above stays the human-readable address.",
     controls: [
       { key: "geoLat", label: "Latitude", kind: "text" },
       { key: "geoLon", label: "Longitude", kind: "text" },
@@ -132,12 +172,14 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     label: "Filename slug",
     required: true,
     note: "The event is stored as events/<slug>.json.",
+    info: "Auto-suggested from the name and date; edit freely before publishing. Must be unique in the repository — the editor checks against the existing events.",
     controls: [{ key: "slug", label: "", kind: "text" }],
   },
   id: {
     label: "Event id",
     required: true,
     note: "Stable URI, minted once and never rewritten.",
+    info: "Auto-suggested as <feed url>/events/<slug>, which is unique as long as the slug is. Consumers use it to update events instead of duplicating them, so never change it after publishing. The editor checks it against the repository's existing events; the fork's validation re-checks on every change.",
     controls: [{ key: "id", label: "", kind: "url" }],
   },
   license: {
@@ -176,11 +218,48 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
 };
 
+function renderMultiselect(
+  control: Control,
+  state: FormState,
+  onInput: (key: StateKey, value: string | boolean) => void,
+): HTMLSelectElement {
+  const select = document.createElement("select");
+  select.multiple = true;
+  select.size = 6;
+  select.dataset.key = control.key;
+  const current = String(state[control.key])
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Values already on the event but missing from the common list stay usable.
+  const options = [...(control.options ?? [])];
+  for (const value of current) {
+    if (!options.includes(value)) options.push(value);
+  }
+  for (const value of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    option.selected = current.includes(value);
+    select.append(option);
+  }
+  select.addEventListener("input", () =>
+    onInput(
+      control.key,
+      [...select.selectedOptions].map((o) => o.value).join(", "),
+    ),
+  );
+  return select;
+}
+
 function renderControl(
   control: Control,
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
 ): HTMLElement {
+  if (control.kind === "multiselect") {
+    return renderMultiselect(control, state, onInput);
+  }
   let input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   if (control.kind === "textarea") {
     input = document.createElement("textarea");
@@ -237,6 +316,14 @@ function renderField(
     req.textContent = " *";
     label.append(req);
   }
+  if (spec.info) {
+    const info = document.createElement("span");
+    info.className = "info";
+    info.textContent = " ⓘ";
+    info.title = spec.info;
+    info.tabIndex = 0; // keyboard-reachable, exposes the title
+    label.append(info);
+  }
 
   const controls = spec.controls.map((c) => renderControl(c, state, onInput));
 
@@ -250,6 +337,12 @@ function renderField(
     row.className = "field pair";
     row.append(...controls);
     outer.append(label, row);
+    if (fieldId === "geo") {
+      // main.ts mounts the Leaflet location picker here
+      const slot = document.createElement("div");
+      slot.dataset.role = "geo-map";
+      outer.append(slot);
+    }
     appendNoteAndError(outer, spec.note);
     return outer;
   }

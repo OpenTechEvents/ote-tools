@@ -18,6 +18,8 @@ const options = {
   sourcemap: true,
   minify: !serve,
   logLevel: "info",
+  // Leaflet's CSS references its control icons; inline them in main.css.
+  loader: { ".png": "dataurl" },
 };
 
 mkdirSync("dist", { recursive: true });

@@ -172,6 +172,72 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.profile-switch {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.info {
+  cursor: help;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+/* --- Leaflet location picker --- */
+.geo-search {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.geo-search input {
+  flex: 1;
+}
+
+.geo-results {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.geo-results li {
+  padding: 0;
+}
+
+.geo-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.geo-results button:hover {
+  background: #f6f8fa;
+}
+
+.geo-map {
+  height: 16rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.geo-pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transform: rotate(-45deg);
+  cursor: grab;
+}
+
 #fallback {
   border: 1px solid #d4a72c;
   border-radius: 6px;

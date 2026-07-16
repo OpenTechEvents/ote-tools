@@ -4,6 +4,7 @@
  * this file only connects them to the page.
  */
 
+import { findCollisions } from "./lib/collisions.js";
 import {
   emptyFormState,
   fromEventJson,
@@ -17,7 +18,11 @@ import {
   proposeChangeUrl,
   type LinkResult,
 } from "./lib/links.js";
-import { resolveProfile, type ResolvedProfile } from "./lib/presets.js";
+import {
+  availablePresets,
+  resolveProfile,
+  type ResolvedProfile,
+} from "./lib/presets.js";
 import {
   contentsApiUrl,
   pagesFeedUrl,
@@ -30,6 +35,7 @@ import {
 import type { FormState, ListedEvent, OteConfig, OteEvent } from "./lib/types.js";
 import { validateDraft } from "./lib/validation.js";
 import { renderForm, setAllDay, updateErrors } from "./ui/form.js";
+import { mountGeoMap, type GeoMapHandle } from "./ui/map.js";
 
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -53,6 +59,26 @@ async function fetchJson(url: string): Promise<unknown | null> {
     return (await response.json()) as unknown;
   } catch {
     return null;
+  }
+}
+
+/** Form state key → the field id its errors and "touched" state hang from. */
+function fieldIdForKey(key: keyof FormState): string {
+  switch (key) {
+    case "startTime":
+      return "startDate";
+    case "endTime":
+      return "endDate";
+    case "geoLat":
+    case "geoLon":
+      return "geo";
+    case "sourceName":
+    case "sourceUrl":
+    case "sourceLicense":
+    case "sourceRetrievedAt":
+      return "source";
+    default:
+      return key;
   }
 }
 
@@ -99,8 +125,18 @@ async function startEditor(repo: string): Promise<void> {
   } else if (config.feed?.title) {
     el("repo-banner").textContent += ` — ${config.feed.title}`;
   }
-  const profile = resolveProfile(config);
+  let profile = resolveProfile(config);
   for (const warning of profile.warnings) addWarning(warning);
+
+  // Profile switcher: the config's profile is the default, not a cage.
+  const profileSelect = el<HTMLSelectElement>("profile-select");
+  for (const preset of availablePresets(config)) {
+    const option = document.createElement("option");
+    option.value = preset;
+    option.textContent = preset;
+    option.selected = preset === profile.preset;
+    profileSelect.append(option);
+  }
 
   let branch: string | undefined;
   void fetchJson(repoApiUrl(repo)).then((meta) => {
@@ -117,6 +153,13 @@ async function startEditor(repo: string): Promise<void> {
   // Once the user touches slug/id, stop auto-suggesting over their input.
   let slugDirty = false;
   let idDirty = false;
+  // Errors only show on fields the user has interacted with, until the
+  // submit button is pressed with an invalid draft — then everything shows.
+  let touched = new Set<string>();
+  let submitAttempted = false;
+
+  // Declared before refresh() uses it; filled asynchronously by loadEvents.
+  let listed: ListedEvent[] = [];
 
   const form = el<HTMLFormElement>("event-form");
   const preview = el<HTMLPreElement>("json-preview");
@@ -130,7 +173,10 @@ async function startEditor(repo: string): Promise<void> {
     if (input) input.value = value;
   }
 
-  function refresh(): void {
+  /** Result of the last refresh, consulted by the button handlers. */
+  let draftValid = false;
+
+  function refresh(): boolean {
     if (isNew) {
       if (!slugDirty) {
         state.slug = suggestSlug(state.name, state.startDate);
@@ -144,26 +190,59 @@ async function startEditor(repo: string): Promise<void> {
     const event = toEventJson(state);
     const result = validateDraft(config, event, new Date().toISOString());
 
+    // Collisions against the repo's existing events (best-effort: the
+    // listing may still be loading or rate-limited). Always shown — they
+    // appear on auto-suggested values the user never typed.
+    const collisions = findCollisions(
+      listed,
+      state.slug,
+      state.id,
+      isNew ? null : editSlug,
+    );
+    const shown = new Map<string, string[]>();
+    for (const [field, errors] of result.fieldErrors) {
+      if (submitAttempted || touched.has(field)) shown.set(field, errors);
+    }
+    if (collisions.slugTaken) {
+      shown.set("slug", [
+        ...(shown.get("slug") ?? []),
+        `events/${state.slug}.json already exists in the repository`,
+      ]);
+    }
+    if (collisions.idTaken) {
+      shown.set("id", [
+        ...(shown.get("id") ?? []),
+        "already used by another event in this repository",
+      ]);
+    }
+    draftValid =
+      result.valid && !collisions.slugTaken && !collisions.idTaken;
+
     preview.textContent = JSON.stringify(event, null, 2);
-    updateErrors(form, result.fieldErrors);
+    updateErrors(form, shown);
     documentErrors.textContent = "";
-    documentErrors.hidden = result.documentErrors.length === 0;
+    documentErrors.hidden =
+      !submitAttempted || result.documentErrors.length === 0;
     for (const message of result.documentErrors) {
       const li = document.createElement("li");
       li.textContent = message;
       documentErrors.append(li);
     }
-    badge.textContent = result.valid ? "✓ valid" : "✗ invalid";
-    badge.className = result.valid ? "ok" : "invalid";
-    propose.disabled = !result.valid;
+    badge.textContent = draftValid ? "✓ valid" : "✗ incomplete";
+    badge.className = draftValid ? "ok" : "invalid";
+    propose.textContent = isNew ? "Add event" : "Propose change";
     editDirect.disabled = !isNew && editSlug === null;
     editDirect.title =
       !isNew && editSlug === null
         ? "This event's filename could not be determined from the feed."
         : "";
+    return draftValid;
   }
 
+  let mapHandle: GeoMapHandle | null = null;
+
   function onInput(key: keyof FormState, value: string | boolean): void {
+    touched.add(fieldIdForKey(key));
     if (key === "allDay") {
       state.allDay = value === true;
       setAllDay(form, state.allDay);
@@ -171,21 +250,55 @@ async function startEditor(repo: string): Promise<void> {
       (state as unknown as Record<string, string>)[key] = String(value);
       if (key === "slug") slugDirty = true;
       if (key === "id") idDirty = true;
+      if (key === "geoLat" || key === "geoLon") {
+        const lat = Number(state.geoLat);
+        const lon = Number(state.geoLon);
+        if (mapHandle && Number.isFinite(lat) && Number.isFinite(lon)) {
+          mapHandle.setPosition(lat, lon);
+        }
+      }
     }
     refresh();
+  }
+
+  function mountMap(): void {
+    mapHandle?.destroy();
+    mapHandle = null;
+    const slot = form.querySelector<HTMLElement>('[data-role="geo-map"]');
+    if (!slot) return;
+    const lat = Number(state.geoLat);
+    const lon = Number(state.geoLon);
+    const initial =
+      state.geoLat !== "" && Number.isFinite(lat) && Number.isFinite(lon)
+        ? { lat, lon }
+        : null;
+    mapHandle = mountGeoMap(slot, initial, (newLat, newLon) => {
+      state.geoLat = String(newLat);
+      state.geoLon = String(newLon);
+      setControlValue("geoLat", state.geoLat);
+      setControlValue("geoLon", state.geoLon);
+      touched.add("geo");
+      refresh();
+    });
   }
 
   function render(extra: ReadonlySet<string> = new Set()): void {
     renderForm(form, profile, state, extra, onInput);
     setAllDay(form, state.allDay);
+    mountMap();
     refresh();
   }
 
   render();
 
+  profileSelect.addEventListener("input", () => {
+    profile = resolveProfile(config, profileSelect.value);
+    // Filled fields stay visible even when the new profile hides them.
+    render(extraFieldsFor(toEventJson(state), profile));
+  });
+
   // --- event listing: contents API first, Pages feed.json fallback -------
   const select = el<HTMLSelectElement>("event-select");
-  let listed: ListedEvent[] = [];
 
   async function loadEvents(): Promise<void> {
     const listing = parseContentsListing(await fetchJson(contentsApiUrl(repo)));
@@ -220,6 +333,7 @@ async function startEditor(repo: string): Promise<void> {
       option.textContent = `${event.startDate ?? "????"} — ${event.name ?? event.id}`;
       select.append(option);
     });
+    refresh(); // collision checks were waiting for the listing
   }
 
   void loadEvents();
@@ -231,6 +345,8 @@ async function startEditor(repo: string): Promise<void> {
     radio.addEventListener("input", () => {
       isNew = radio.value === "new";
       select.hidden = isNew;
+      touched = new Set();
+      submitAttempted = false;
       if (isNew) {
         state = emptyFormState(state.timezone);
         editSlug = null;
@@ -250,6 +366,8 @@ async function startEditor(repo: string): Promise<void> {
     state = fromEventJson(chosen.event, chosen.slug ?? "");
     slugDirty = true;
     idDirty = true;
+    touched = new Set();
+    submitAttempted = false;
     render(extraFieldsFor(chosen.event, profile));
   });
 
@@ -273,6 +391,13 @@ async function startEditor(repo: string): Promise<void> {
   }
 
   propose.addEventListener("click", () => {
+    if (!draftValid) {
+      // First invalid attempt reveals every error instead of blocking silently.
+      submitAttempted = true;
+      refresh();
+      documentErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
     follow(proposeChangeUrl(repo, toEventJson(state), isNew));
   });
 

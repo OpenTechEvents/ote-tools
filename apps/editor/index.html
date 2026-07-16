@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OTE event editor</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./main.css" />
   </head>
   <body>
     <header>
@@ -43,6 +44,10 @@
         <select id="event-select" hidden>
           <option value="">Loading events…</option>
         </select>
+        <label class="profile-switch">
+          Profile:
+          <select id="profile-select"></select>
+        </label>
       </section>
 
       <div class="columns">
@@ -54,13 +59,13 @@
           <pre id="json-preview"></pre>
 
           <div class="actions">
-            <button id="propose" type="button">Propose change</button>
+            <button id="propose" type="button">Add event</button>
             <button id="edit-direct" type="button">Edit directly</button>
           </div>
           <p class="hint">
-            <strong>Propose change</strong> opens a prefilled issue in the
-            target repo — anyone can use it. <strong>Edit directly</strong>
-            opens the file on GitHub — needs push access.
+            The first button opens a prefilled issue in the target repo —
+            anyone can use it. <strong>Edit directly</strong> opens the file
+            on GitHub — needs push access.
           </p>
 
           <section id="fallback" hidden>

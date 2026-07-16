@@ -1,0 +1,42 @@
+# Publishes the workspace packages to npm. Manual trigger on purpose: publishing
+# is a release decision, not a side effect of merging.
+#
+# Idempotent: `pnpm publish -r` only publishes packages whose current version is
+# not on the registry yet — re-running after a partial failure is safe, and a run
+# where nothing was bumped publishes nothing. Private packages (the editor) are
+# skipped. To release: bump the version(s) in packages/*/package.json, merge, run this.
+#
+# Needs the `NPM_TOKEN` repo secret (npm automation token with publish rights on
+# the @opentechevents scope). The very first publish of each package is done by
+# hand from a clean checkout (npm requires the package to exist before repo-level
+# trust can be configured); every release after that goes through here.
+# `id-token: write` enables npm provenance — the package page then proves the
+# tarball was built from this repo by this workflow.
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm publish -r --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { FIELD_REGISTRY, resolveProfile } from "../src/lib/presets.js";
+import {
+  FIELD_REGISTRY,
+  availablePresets,
+  resolveProfile,
+} from "../src/lib/presets.js";
 
 describe("resolveProfile", () => {
   it("meetup hides status, geo and the advanced metadata", () => {
@@ -73,5 +77,43 @@ describe("resolveProfile", () => {
     const resolved = resolveProfile({ feed: { title: "x" } });
     expect(resolved.preset).toBe("all");
     expect(resolved.warnings).toHaveLength(1);
+  });
+
+  it("an override preset wins over the config, without warnings", () => {
+    const resolved = resolveProfile({ profile: "meetup" }, "conference");
+    expect(resolved.preset).toBe("conference");
+    expect(resolved.fields.has("geo")).toBe(true);
+    expect(resolved.warnings).toEqual([]);
+  });
+
+  it("an override wins over customProfile too", () => {
+    const resolved = resolveProfile(
+      { customProfile: { fields: ["source"] } },
+      "all",
+    );
+    expect(resolved.preset).toBe("all");
+    expect(resolved.fields.size).toBe(FIELD_REGISTRY.length);
+  });
+
+  it('override "custom" re-selects the config customProfile', () => {
+    const resolved = resolveProfile(
+      { profile: "meetup", customProfile: { fields: ["source"] } },
+      "custom",
+    );
+    expect(resolved.preset).toBe("custom");
+    expect(resolved.fields.has("source")).toBe(true);
+    expect(resolved.fields.has("venue")).toBe(false);
+  });
+});
+
+describe("availablePresets", () => {
+  it("offers the three presets, plus custom when the config has one", () => {
+    expect(availablePresets(null)).toEqual(["meetup", "conference", "all"]);
+    expect(availablePresets({ customProfile: { fields: [] } })).toEqual([
+      "custom",
+      "meetup",
+      "conference",
+      "all",
+    ]);
   });
 });
