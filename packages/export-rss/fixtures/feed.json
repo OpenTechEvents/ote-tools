@@ -1,0 +1,73 @@
+{
+  "specVersion": "0.2.0",
+  "title": "OTE Export Fixtures",
+  "description": "Feed covering online, in-person, hybrid, multi-day and cancelled events.",
+  "url": "https://opentechevents.example",
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "updatedAt": "2026-07-06T10:00:00Z",
+  "events": [
+    {
+      "id": "https://pyalmeria.example/eventos/2026-06-async",
+      "name": "PyAlmería — Intro to async/await",
+      "description": "Introductory talk on asynchronous Python; live examples.\nQ&A at the end.",
+      "startDate": "2026-06-11T18:30:00",
+      "endDate": "2026-06-11T20:00:00",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "online",
+      "location": { "onlineUrl": "https://meet.example/pyalmeria" },
+      "languages": ["es"],
+      "tags": ["python", "async"],
+      "updatedAt": "2026-06-01T09:00:00Z"
+    },
+    {
+      "id": "https://rustmadrid.example/meetups/2026-06",
+      "url": "https://rustmadrid.example/meetups/2026-06",
+      "name": "Rust Madrid — June meetup",
+      "description": "Talks on WASM and Rust tooling, with a deliberately long description to force iCalendar line folding in the exported output.",
+      "startDate": "2026-06-26T19:00:00",
+      "endDate": "2026-06-26T21:00:00",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "hybrid",
+      "location": {
+        "venue": "Campus Madrid, Calle de Moreno Nieto 2, Madrid",
+        "onlineUrl": "https://meet.example/rust-madrid",
+        "geo": { "lat": 40.4081, "lon": -3.7188 }
+      },
+      "languages": ["es"],
+      "tags": ["rust", "wasm"],
+      "status": "scheduled",
+      "updatedAt": "2026-06-10T18:00:00Z"
+    },
+    {
+      "id": "https://devfest-levante.example/2026",
+      "url": "https://devfest-levante.example/2026",
+      "name": "DevFest Levante 2026",
+      "description": "Two-day conference; three tracks.",
+      "startDate": "2026-10-16",
+      "endDate": "2026-10-17",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": { "venue": "Las Naves, València" },
+      "languages": ["es", "en"],
+      "tags": ["cloud", "ai", "web"]
+    },
+    {
+      "id": "https://coolconf.example/2026",
+      "url": "https://coolconf.example/2026",
+      "name": "CoolConf 2026",
+      "startDate": "2026-11-05",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": { "venue": "Valencia, Spain" },
+      "status": "cancelled",
+      "license": "CC0-1.0"
+    },
+    {
+      "id": "https://minimal.example/meetup/2026-09",
+      "name": "Minimal, but valid",
+      "startDate": "2026-09-01T18:30",
+      "timezone": "UTC"
+    }
+  ]
+}
