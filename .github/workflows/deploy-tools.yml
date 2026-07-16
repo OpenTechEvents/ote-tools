@@ -1,0 +1,70 @@
+# Deploys the central tools site to THIS repo's GitHub Pages: the editor is
+# served under /editor (matching the tools.opentechevents.org/editor?repo=…
+# URLs from DESIGN.md; /import and /publish will join it in later phases).
+#
+# One-time prerequisite: Settings → Pages → Source = "GitHub Actions".
+# Custom domain (tools.opentechevents.org) is configured there too, later —
+# the app uses relative paths, so it works on both URLs unchanged.
+#
+# Not to be confused with build-pages.yml, the reusable workflow that the
+# ote-template forks call to publish THEIR feed sites.
+name: Deploy tools site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/editor
+          cp -R apps/editor/dist/. _site/editor/
+          cat > _site/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>OpenTechEvents tools</title>
+          <h1>OpenTechEvents tools</h1>
+          <ul>
+            <li><a href="./editor/">Event editor</a> — create and edit OTE events without writing JSON</li>
+          </ul>
+          </html>
+          EOF
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
