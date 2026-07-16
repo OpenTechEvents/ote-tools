@@ -60,6 +60,50 @@
         </label>
       </nav>
 
+      <!-- Sources to prefill a NEW event from; hidden in edit mode.
+           The event page (JSON-LD) comes first: it usually carries more
+           data (attendance mode, status, languages, geo) than an ICS.
+           More options (cheat sheets…) will land here later. -->
+      <div id="new-actions">
+        <button id="jsonld-open" type="button" class="secondary">
+          Import from event page
+        </button>
+        <button id="import-open" type="button" class="secondary">
+          Import .ics
+        </button>
+      </div>
+
+      <div id="import-banner" hidden>
+        <p id="import-banner-text"></p>
+        <ul id="import-banner-warnings" hidden></ul>
+        <div id="import-submitted" hidden>
+          <p>
+            Issue opened. The event will appear in the published feed once
+            the repository's maintainers accept the PR (and Pages rebuilds).
+          </p>
+          <div class="actions">
+            <button id="import-check-feed" type="button" class="secondary">
+              Check the feed
+            </button>
+            <span id="import-check-result" class="hint"></span>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="import-prev" type="button" class="secondary">
+            ← Previous
+          </button>
+          <button id="import-next" type="button" class="secondary">
+            Next →
+          </button>
+          <button id="import-discard" type="button" class="secondary">
+            Discard this event
+          </button>
+          <button id="import-dismiss" type="button" class="secondary">
+            Dismiss all
+          </button>
+        </div>
+      </div>
+
       <form id="event-form" autocomplete="off"></form>
 
       <ul id="document-errors" hidden></ul>
@@ -91,6 +135,101 @@
         </div>
       </dialog>
 
+      <dialog id="import-dialog">
+        <h2>Import from iCalendar (.ics)</h2>
+        <p class="hint">
+          Upload the file, or fetch it from a URL. You will pick which events
+          to import; nothing is imported silently.
+        </p>
+        <p class="hint">
+          Any calendar's <code>.ics</code> works — for example a Google
+          Calendar export. On meetup.com, your group's calendar page
+          (<code>meetup.com/&lt;group&gt;/events/calendar/</code>) links it
+          as <code>https://www.meetup.com/&lt;group&gt;/events/ical/</code>.
+          Luma and guild.host offer one per calendar too. Importing a single
+          event? Its own page usually carries more data — try “Import from
+          event page” first.
+        </p>
+        <div class="import-sources">
+          <input
+            id="import-file"
+            type="file"
+            accept=".ics,text/calendar"
+            aria-label="iCalendar file"
+          />
+          <form id="import-url-form">
+            <input
+              id="import-url"
+              type="url"
+              placeholder="https://…/calendar.ics"
+              aria-label="iCalendar URL"
+            />
+            <button type="submit" class="secondary">Fetch</button>
+          </form>
+        </div>
+        <p id="import-status" class="hint" hidden></p>
+        <div id="import-warnings" hidden></div>
+        <ul id="import-list" hidden></ul>
+        <div class="actions">
+          <button id="import-cancel" type="button" class="secondary">
+            Cancel
+          </button>
+          <button id="import-confirm" type="button" class="primary" disabled>
+            Import selected
+          </button>
+        </div>
+      </dialog>
+
+      <dialog id="jsonld-dialog">
+        <h2>Import from an event page</h2>
+        <p class="hint">
+          Paste the event page's URL (Meetup, Eventbrite, Luma…). The events
+          are read from the structured data (schema.org JSON-LD) the page
+          already exposes — usually richer than an .ics export. You will
+          pick which events to import; nothing is imported silently.
+        </p>
+        <form id="jsonld-url-form">
+          <input
+            id="jsonld-url"
+            type="url"
+            placeholder="https://www.meetup.com/…/events/…/"
+            aria-label="Event page URL"
+          />
+          <button type="submit" class="secondary">Fetch</button>
+        </form>
+        <div id="jsonld-fallback">
+          <p>
+            <strong>Or paste the page's HTML.</strong> Most platforms
+            (meetup.com included) do not allow browser fetches (CORS). Open
+            the event page, copy its code (right click → “View page source”,
+            select all, copy) and paste it here — it is parsed locally,
+            nothing is sent anywhere.
+          </p>
+          <textarea
+            id="jsonld-html"
+            rows="6"
+            placeholder="Paste the page's HTML code here…"
+            aria-label="Event page HTML"
+          ></textarea>
+          <div class="actions">
+            <button id="jsonld-parse" type="button" class="secondary">
+              Read pasted HTML
+            </button>
+          </div>
+        </div>
+        <p id="jsonld-status" class="hint" hidden></p>
+        <div id="jsonld-warnings" hidden></div>
+        <ul id="jsonld-list" hidden></ul>
+        <div class="actions">
+          <button id="jsonld-cancel" type="button" class="secondary">
+            Cancel
+          </button>
+          <button id="jsonld-confirm" type="button" class="primary" disabled>
+            Import selected
+          </button>
+        </div>
+      </dialog>
+
       <section id="fallback" hidden>
         <h3>URL too long — copy manually</h3>
         <p>
@@ -108,6 +247,10 @@
         </div>
       </section>
     </main>
+
+    <footer>
+      <a id="feedback-link" target="_blank" rel="noopener">🐛 Found a bug?</a>
+    </footer>
 
     <script type="module" src="./main.js"></script>
   </body>

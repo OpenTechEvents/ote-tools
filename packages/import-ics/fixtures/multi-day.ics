@@ -1,0 +1,19 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Sched//Sched Calendar 1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:DevFest Levante 2026
+BEGIN:VEVENT
+UID:devfest-levante-2026@sched.example
+DTSTAMP:20260615T090000Z
+DTSTART;VALUE=DATE:20261016
+DTEND;VALUE=DATE:20261018
+SUMMARY:DevFest Levante 2026
+DESCRIPTION:Two days of talks and workshops on web\, cloud and ML.
+LOCATION:Palacio de Congresos\, Alicante
+URL:https://devfest-levante.example/2026
+CATEGORIES:gdg,devfest
+CATEGORIES:community
+END:VEVENT
+END:VCALENDAR

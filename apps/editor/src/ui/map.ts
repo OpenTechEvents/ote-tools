@@ -20,6 +20,55 @@ interface NominatimResult {
   lon: string;
 }
 
+async function nominatim(query: string, limit: number): Promise<NominatimResult[]> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${limit}&q=${encodeURIComponent(query)}`,
+    );
+    if (!response.ok) return [];
+    return (await response.json()) as NominatimResult[];
+  } catch {
+    return [];
+  }
+}
+
+/** First Nominatim hit for a free-text query, or null. */
+export async function geocode(
+  query: string,
+): Promise<{ lat: number; lon: number } | null> {
+  const [hit] = await nominatim(query, 1);
+  if (!hit) return null;
+  const lat = Number(hit.lat);
+  const lon = Number(hit.lon);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+
+/**
+ * Best-effort geocoding of a venue string ("name, street, city…"), used to
+ * propose a map pin for imported events that carry an address but no
+ * coordinates. Venue names confuse Nominatim, so failing the full string it
+ * retries without the leading name, then without short region codes
+ * ("…, AL"). Null when nothing matches — the caller never guesses.
+ */
+export async function geocodeVenue(
+  venue: string,
+): Promise<{ lat: number; lon: number } | null> {
+  const parts = venue.split(",").map((s) => s.trim()).filter(Boolean);
+  const variants = [venue];
+  if (parts.length > 1) variants.push(parts.slice(1).join(", "));
+  const noShort = parts.slice(1).filter((p) => p.length > 3);
+  if (noShort.length > 0) variants.push(noShort.join(", "));
+  let first = true;
+  for (const query of [...new Set(variants)]) {
+    // Nominatim's usage policy asks for at most one request per second.
+    if (!first) await new Promise((resolve) => setTimeout(resolve, 1100));
+    first = false;
+    const hit = await geocode(query);
+    if (hit !== null) return hit;
+  }
+  return null;
+}
+
 const PIN = L.divIcon({
   className: "geo-pin",
   iconSize: [18, 18],
@@ -35,6 +84,7 @@ export function mountGeoMap(
   container: HTMLElement,
   initial: { lat: number; lon: number } | null,
   onChange: (lat: number, lon: number) => void,
+  initialQuery = "",
 ): GeoMapHandle {
   // --- search box ---------------------------------------------------------
   const searchRow = document.createElement("div");
@@ -42,6 +92,8 @@ export function mountGeoMap(
   const searchInput = document.createElement("input");
   searchInput.type = "text";
   searchInput.placeholder = "Search a place (Nominatim / OpenStreetMap)…";
+  // Seeded with the venue text so the address never has to be typed twice.
+  searchInput.value = initialQuery;
   const searchButton = document.createElement("button");
   searchButton.type = "button";
   searchButton.textContent = "Search";
@@ -99,15 +151,7 @@ export function mountGeoMap(
     const loading = document.createElement("li");
     loading.textContent = "Searching…";
     results.append(loading);
-    let found: NominatimResult[] = [];
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(query)}`,
-      );
-      if (response.ok) found = (await response.json()) as NominatimResult[];
-    } catch {
-      // fall through to the empty-results message
-    }
+    const found = await nominatim(query, 5);
     results.textContent = "";
     if (found.length === 0) {
       const li = document.createElement("li");

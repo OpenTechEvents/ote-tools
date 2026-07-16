@@ -26,6 +26,12 @@ importers:
       '@opentechevents/build-feed':
         specifier: workspace:*
         version: link:../../packages/build-feed
+      '@opentechevents/import-ics':
+        specifier: workspace:*
+        version: link:../../packages/import-ics
+      '@opentechevents/import-jsonld':
+        specifier: workspace:*
+        version: link:../../packages/import-jsonld
       '@opentechevents/validate':
         specifier: workspace:*
         version: link:../../packages/validate
@@ -92,6 +98,30 @@ importers:
       '@opentechevents/validate':
         specifier: workspace:*
         version: link:../validate
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.1)
+
+  packages/import-ics:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.1)
+
+  packages/import-jsonld:
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

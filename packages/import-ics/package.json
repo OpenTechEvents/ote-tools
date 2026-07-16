@@ -1,0 +1,36 @@
+{
+  "name": "@opentechevents/import-ics",
+  "version": "0.1.0",
+  "description": "Converts an iCalendar (.ics) document into partial OTE event documents",
+  "license": "MIT",
+  "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/import-ics",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenTechEvents/ote-tools.git",
+    "directory": "packages/import-ics"
+  },
+  "bugs": "https://github.com/OpenTechEvents/ote-tools/issues",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,21 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Meetup//Meetup Events v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Events - Vue Valencia
+BEGIN:VEVENT
+DTSTAMP:20260705T080000Z
+DTSTART;TZID=Europe/Madrid:20261015T190000
+DTEND;TZID=Europe/Madrid:20261015T210000
+STATUS:CONFIRMED
+SUMMARY:Vue Valencia October
+DESCRIPTION:<p><b>Vue Valencia</b> is back!</p><p>Agenda:</p><ul><li>Doors
+  open &amp; networking</li><li>Talk: <i>Signals in Vue</i></li><li>Q&amp;A
+ </li></ul><p>RSVP at <a href="https://www.meetup.com/vue-valencia/events/3
+ 20000001/">meetup.com</a> &mdash; free entry.</p>
+LOCATION:Wayco Ruzafa\, Valencia
+URL:https://www.meetup.com/vue-valencia/events/320000001/
+UID:event_320000001@meetup.com
+END:VEVENT
+END:VCALENDAR

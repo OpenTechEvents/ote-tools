@@ -480,6 +480,46 @@ select {
   background: var(--accent-soft);
 }
 
+/* --- combobox (timezone) ---------------------------------------------------- */
+
+.combo-field {
+  position: relative;
+}
+
+.combo-suggest {
+  position: absolute;
+  z-index: 500;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.combo-suggest button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  min-height: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.combo-suggest button:hover {
+  background: var(--accent-soft);
+}
+
 /* --- Leaflet location picker ------------------------------------------------ */
 
 .geo-search {
@@ -548,6 +588,18 @@ select {
 /* geo: hint sits between the map and the coordinate inputs */
 [data-field-id="geo"] .note {
   margin: 0.35rem 0;
+}
+
+/* Venue and its map are one block: the geo field nests under the venue
+   input (ui/form.ts renders it inside), visually a continuation. */
+[data-field-id="venue"] [data-field-id="geo"] {
+  margin: 0.6rem 0 0.25rem;
+}
+
+[data-field-id="venue"] [data-field-id="geo"] > label {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 /* --- document errors ---------------------------------------------------------- */
@@ -698,6 +750,276 @@ button:focus-visible {
 
 #review .actions {
   justify-content: flex-end;
+}
+
+/* --- "new event" source toolbar -------------------------------------------------- */
+
+#new-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: -0.25rem 0 1rem;
+}
+
+/* --- detected-events list (shared by both import dialogs) ------------------------ */
+
+#jsonld-warnings {
+  background: #fff8e1;
+  border: 1px solid #e6c65c;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+#jsonld-warnings p {
+  margin: 0.2rem 0;
+}
+
+#jsonld-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+#jsonld-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#jsonld-list label:hover {
+  background: var(--accent-soft);
+}
+
+#jsonld-list input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
+#jsonld-dialog .actions {
+  justify-content: flex-end;
+}
+
+#jsonld-fallback .actions {
+  justify-content: flex-start;
+}
+
+/* --- feedback footer -------------------------------------------------------------- */
+
+footer {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+#feedback-link {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+#feedback-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* --- ICS import ----------------------------------------------------------------- */
+
+#import-dialog,
+#jsonld-dialog {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
+  padding: 1.25rem;
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+#import-dialog::backdrop,
+#jsonld-dialog::backdrop {
+  background: rgba(28, 33, 40, 0.45);
+}
+
+#import-dialog h2,
+#jsonld-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.import-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+#import-url-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#import-url-form input,
+#jsonld-url-form input {
+  flex: 1;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}
+
+#jsonld-url-form {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+#jsonld-fallback {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+#jsonld-fallback p {
+  margin: 0 0 0.5rem;
+}
+
+#jsonld-fallback textarea {
+  width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+#import-warnings {
+  background: #fff8e1;
+  border: 1px solid #e6c65c;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+#import-warnings p {
+  margin: 0.2rem 0;
+}
+
+#import-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+#import-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#import-list label:hover {
+  background: var(--accent-soft);
+}
+
+#import-list input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
+.import-past {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+#import-dialog .actions {
+  justify-content: flex-end;
+}
+
+#import-banner {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+#import-banner p {
+  margin: 0;
+  font-weight: 500;
+}
+
+#import-banner ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+#import-banner .actions {
+  flex-wrap: wrap;
+}
+
+#import-submitted {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin-top: 0.6rem;
+}
+
+#import-submitted p {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#import-check-result:not(:empty) {
+  font-size: 0.84rem;
+}
+
+/* Fields the imported ICS did not carry (markImportGaps in ui/form.ts). */
+.field.import-gap input,
+.field.import-gap textarea,
+.field.import-gap select,
+.field.import-gap .chips-list {
+  border-color: #e6c65c;
+  background: #fffdf4;
+}
+
+.import-gap-tag {
+  color: #8a6d1a;
+  font-size: 0.82rem;
+  margin: 0.25rem 0 0;
+}
+
+.import-gap-tag::before {
+  content: "⚠ ";
 }
 
 /* --- shared bits --------------------------------------------------------------- */

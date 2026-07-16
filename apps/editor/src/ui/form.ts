@@ -6,6 +6,7 @@
 
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
+import { filterZones } from "../lib/timezones.js";
 import type { FormState } from "../lib/types.js";
 
 type StateKey = keyof FormState;
@@ -21,7 +22,8 @@ interface Control {
     | "textarea"
     | "checkbox"
     | "select"
-    | "chips";
+    | "chips"
+    | "combobox";
   options?: string[];
   placeholder?: string;
 }
@@ -130,7 +132,13 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     required: true,
     info: "IANA timezone the event's wall-clock times belong to. Defaults to your browser's.",
     controls: [
-      { key: "timezone", label: "", kind: "select", options: timezoneOptions() },
+      {
+        key: "timezone",
+        label: "",
+        kind: "combobox",
+        options: timezoneOptions(),
+        placeholder: "Type to search… (Europe/Madrid)",
+      },
     ],
   },
   status: {
@@ -159,7 +167,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   venue: {
     label: "Venue",
-    note: "Human-readable physical location.",
+    note: "Human-readable place: name and address. The map below uses it to find the exact position.",
     controls: [{ key: "venue", label: "", kind: "text" }],
   },
   onlineUrl: {
@@ -169,8 +177,8 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     ],
   },
   geo: {
-    label: "Coordinates",
-    note: "Search a place, click the map or drag the pin — or type WGS-84 decimal degrees.",
+    label: "Map position",
+    note: "Search, click the map or drag the pin — or type WGS-84 decimal degrees.",
     info: "Optional exact position of the venue. Consumers use it for maps and distance filters; the venue text above stays the human-readable address.",
     controls: [
       { key: "geoLat", label: "Latitude", kind: "text" },
@@ -193,9 +201,17 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   license: {
     label: "Data license",
-    note: "Usually left empty: the event inherits the feed's license.",
+    note: "Usually left empty: the event inherits the feed's license. Suggestions are open, non-viral data licenses (SPDX ids).",
     controls: [
-      { key: "license", label: "", kind: "text", placeholder: "CC-BY-4.0" },
+      {
+        key: "license",
+        label: "",
+        kind: "combobox",
+        // Open-data licenses without share-alike/viral clauses. Free text
+        // is still accepted; the suggestions are the sane defaults.
+        options: ["CC0-1.0", "CC-BY-4.0", "PDDL-1.0", "ODC-By-1.0"],
+        placeholder: "CC-BY-4.0",
+      },
     ],
   },
   source: {
@@ -345,6 +361,80 @@ function renderChips(
   return wrap;
 }
 
+/**
+ * Type-to-filter combobox (timezone): free text commits live so the schema
+ * judges it, focusing with an empty query drops down the full option list,
+ * and typing narrows it (lib/timezones.ts ranks the hits).
+ */
+function renderCombobox(
+  control: Control,
+  state: FormState,
+  onInput: (key: StateKey, value: string | boolean) => void,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "combo-field";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.dataset.key = control.key;
+  input.autocomplete = "off";
+  if (control.placeholder) input.placeholder = control.placeholder;
+  const value = state[control.key];
+  input.value = typeof value === "string" ? value : "";
+
+  const suggest = document.createElement("ul");
+  suggest.className = "combo-suggest";
+  suggest.hidden = true;
+  wrap.append(input, suggest);
+
+  function refreshSuggestions(query: string): void {
+    suggest.textContent = "";
+    const hits = filterZones(control.options ?? [], query);
+    suggest.hidden = hits.length === 0;
+    for (const hit of hits) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = hit;
+      // mousedown, not click: it must win over the input's blur
+      button.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        input.value = hit;
+        suggest.hidden = true;
+        onInput(control.key, hit);
+      });
+      li.append(button);
+      suggest.append(li);
+    }
+  }
+
+  // Focus browses the full list; only typing narrows it — a field already
+  // holding a valid value would otherwise filter the dropdown down to itself.
+  input.addEventListener("focus", () => refreshSuggestions(""));
+  input.addEventListener("input", () => {
+    refreshSuggestions(input.value);
+    onInput(control.key, input.value);
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => (suggest.hidden = true), 150);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const first = suggest.querySelector("button");
+      if (!suggest.hidden && first) {
+        input.value = first.textContent ?? "";
+        suggest.hidden = true;
+        onInput(control.key, input.value);
+      }
+    } else if (e.key === "Escape") {
+      suggest.hidden = true;
+    }
+  });
+
+  return wrap;
+}
+
 function renderControl(
   control: Control,
   state: FormState,
@@ -352,6 +442,9 @@ function renderControl(
 ): HTMLElement {
   if (control.kind === "chips") {
     return renderChips(control, state, onInput);
+  }
+  if (control.kind === "combobox") {
+    return renderCombobox(control, state, onInput);
   }
   let input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   if (control.kind === "textarea") {
@@ -500,7 +593,15 @@ export function renderForm(
     summary.textContent = SECTION_TITLES[section];
     details.append(summary);
     for (const id of fieldIds) {
-      details.append(renderField(id, state, onInput));
+      // Venue and its map position are one place, two OTE fields: rendered
+      // as a single block (the map nests under the venue input) so the
+      // address is only ever typed once.
+      if (id === "geo" && fieldIds.includes("venue")) continue;
+      const field = renderField(id, state, onInput);
+      if (id === "venue" && fieldIds.includes("geo")) {
+        field.append(renderField("geo", state, onInput));
+      }
+      details.append(field);
     }
     root.append(details);
   }
@@ -515,6 +616,32 @@ export function updateErrors(
     const errors = fieldErrors.get(field.dataset.fieldId ?? "");
     const slot = field.querySelector<HTMLElement>(".field-error");
     if (slot) slot.textContent = errors ? errors.join("; ") : "";
+  }
+}
+
+/**
+ * Marks the fields an ICS import did not carry (DESIGN.md: the import flags
+ * the loss field by field, it never hides it). Idempotent: re-applying after
+ * a re-render restores the marks; a field outside `missing` loses its mark.
+ */
+export function markImportGaps(
+  root: HTMLElement,
+  missing: ReadonlySet<string>,
+): void {
+  for (const field of root.querySelectorAll<HTMLElement>("[data-field-id]")) {
+    const gap = missing.has(field.dataset.fieldId ?? "");
+    field.classList.toggle("import-gap", gap);
+    const tag = field.querySelector<HTMLElement>(".import-gap-tag");
+    if (gap && !tag) {
+      const p = document.createElement("p");
+      p.className = "import-gap-tag";
+      p.textContent = "Not in the imported ICS — fill in by hand if known.";
+      const slot = field.querySelector(".field-error");
+      if (slot) slot.before(p);
+      else field.append(p);
+    } else if (!gap && tag) {
+      tag.remove();
+    }
   }
 }
 

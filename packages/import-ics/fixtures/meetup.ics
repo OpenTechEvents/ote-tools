@@ -1,0 +1,41 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Meetup//Meetup Events v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-ORIGINAL-URL:https://www.meetup.com/rust-madrid/events/ical/
+X-WR-CALNAME:Events - Rust Madrid
+X-MS-OLK-FORCEINSPECTOROPEN:TRUE
+BEGIN:VEVENT
+DTSTAMP:20260705T080000Z
+DTSTART;TZID=Europe/Madrid:20260726T183000
+DTEND;TZID=Europe/Madrid:20260726T203000
+STATUS:CONFIRMED
+SUMMARY:Rust Madrid July: embedded workshop
+DESCRIPTION:Rust Madrid\nHands-on embedded Rust on the RP2040. Boards provi
+ ded\, bring a laptop with the toolchain installed.\n\nDetails: https://www
+ .meetup.com/rust-madrid/events/310000001/
+CLASS:PUBLIC
+CREATED:20260601T100000Z
+GEO:40.42272;-3.70358
+LOCATION:Campus Madrid\, Calle de Moreno Nieto 2\, Madrid
+URL:https://www.meetup.com/rust-madrid/events/310000001/
+LAST-MODIFIED:20260701T090000Z
+UID:event_310000001@meetup.com
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260705T080000Z
+DTSTART;TZID=Europe/Madrid:20260830T110000
+DURATION:PT2H30M
+STATUS:CONFIRMED
+SUMMARY:Rust Madrid August: crab & tapas social
+DESCRIPTION:Summer social\, no talks. Details: https://www.meetup.com/rust-
+ madrid/events/310000002/
+CLASS:PUBLIC
+CREATED:20260620T100000Z
+LOCATION:Mercado de San Ildefonso\, Calle Fuencarral 57\, Madrid
+URL:https://www.meetup.com/rust-madrid/events/310000002/
+LAST-MODIFIED:20260703T090000Z
+UID:event_310000002@meetup.com
+END:VEVENT
+END:VCALENDAR
