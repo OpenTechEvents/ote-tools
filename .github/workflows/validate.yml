@@ -1,0 +1,56 @@
+# Reusable workflow: validates an organizer repo's events/*.json and
+# ote.config.json. Intended as the PR check of ote-template forks:
+#
+#   jobs:
+#     validate:
+#       uses: OpenTechEvents/ote-tools/.github/workflows/validate.yml@v1
+#
+# See the repository README for the full consumer documentation.
+name: Validate OTE data
+
+on:
+  workflow_call:
+    inputs:
+      tools-ref:
+        description: >-
+          Git ref of ote-tools to run the validators from. Defaults to the
+          exact commit of this workflow file, so tools and workflow never
+          drift apart.
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout ote-tools
+        uses: actions/checkout@v4
+        with:
+          repository: OpenTechEvents/ote-tools
+          ref: ${{ inputs.tools-ref || github.job_workflow_sha }}
+          path: .ote-tools
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: .ote-tools/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: .ote-tools/pnpm-lock.yaml
+
+      - name: Build ote-tools
+        working-directory: .ote-tools
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Validate events/ and ote.config.json
+        run: node .ote-tools/packages/build-feed/dist/bin.js . --check

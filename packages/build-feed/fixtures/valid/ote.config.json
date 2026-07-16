@@ -1,0 +1,10 @@
+{
+  "feed": {
+    "title": "PyAlmería Events",
+    "description": "Monthly Python meetups in Almería.",
+    "url": "https://pyalmeria.example",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "profile": "meetup"
+}

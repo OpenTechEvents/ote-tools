@@ -1,0 +1,6 @@
+{
+  "id": "https://broken.example/events/offset",
+  "name": "Event with an offset in startDate",
+  "startDate": "2026-06-11T18:30:00+02:00",
+  "timezone": "Europe/Madrid"
+}

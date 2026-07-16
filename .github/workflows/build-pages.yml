@@ -1,0 +1,94 @@
+# Reusable workflow: builds the OTE feed (feed.json + feed.ics + feed.xml),
+# copies the organizer's static docs/ on top, and deploys the result to
+# GitHub Pages. Intended as the publish workflow of ote-template forks:
+#
+#   jobs:
+#     pages:
+#       uses: OpenTechEvents/ote-tools/.github/workflows/build-pages.yml@v1
+#       permissions:
+#         contents: read
+#         pages: write
+#         id-token: write
+#
+# The caller repo must have Pages enabled with "GitHub Actions" as the
+# source (Settings → Pages). See the repository README for details.
+name: Build and deploy OTE Pages
+
+on:
+  workflow_call:
+    inputs:
+      docs-dir:
+        description: Directory with the static dashboard to serve at the site root.
+        type: string
+        required: false
+        default: docs
+      tools-ref:
+        description: >-
+          Git ref of ote-tools to run the builder from. Defaults to the
+          exact commit of this workflow file, so tools and workflow never
+          drift apart.
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout ote-tools
+        uses: actions/checkout@v4
+        with:
+          repository: OpenTechEvents/ote-tools
+          ref: ${{ inputs.tools-ref || github.job_workflow_sha }}
+          path: .ote-tools
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: .ote-tools/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: .ote-tools/pnpm-lock.yaml
+
+      - name: Build ote-tools
+        working-directory: .ote-tools
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      # docs/ first, feed outputs second: the generated feed always wins.
+      - name: Copy static dashboard
+        run: |
+          mkdir -p _site
+          if [ -d "${{ inputs.docs-dir }}" ]; then
+            cp -R "${{ inputs.docs-dir }}/." _site/
+          fi
+
+      - name: Build feed (feed.json, feed.ics, feed.xml)
+        run: node .ote-tools/packages/build-feed/dist/bin.js . --out _site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

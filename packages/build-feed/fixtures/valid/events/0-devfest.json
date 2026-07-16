@@ -1,0 +1,13 @@
+{
+  "id": "https://devfest-almeria.example/2026",
+  "url": "https://devfest-almeria.example/2026",
+  "name": "DevFest Almería 2026",
+  "description": "Two-day conference; the filename sorts first but the startDate is the latest, so the built feed must order it last.",
+  "startDate": "2026-10-16",
+  "endDate": "2026-10-17",
+  "timezone": "Europe/Madrid",
+  "attendanceMode": "in-person",
+  "location": { "venue": "Diputación de Almería" },
+  "languages": ["es", "en"],
+  "tags": ["cloud", "web"]
+}
