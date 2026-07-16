@@ -1,0 +1,24 @@
+{
+  "name": "@opentechevents/editor",
+  "version": "0.1.0",
+  "description": "Static web editor for OTE events: form → event JSON → prefilled issue or direct edit",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --serve",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/build-feed": "workspace:*",
+    "@opentechevents/validate": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

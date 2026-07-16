@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OTE event editor</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>OTE event editor</h1>
+      <p id="repo-banner"></p>
+    </header>
+
+    <div id="warnings" hidden></div>
+
+    <!-- Shown when ?repo= is missing or invalid -->
+    <section id="repo-picker" hidden>
+      <p>
+        This editor needs a target repository. Enter the fork that holds your
+        events (<code>owner/name</code>):
+      </p>
+      <form id="repo-form">
+        <input
+          id="repo-input"
+          type="text"
+          placeholder="octocat/my-community-events"
+          pattern="[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+"
+          required
+        />
+        <button type="submit">Load</button>
+      </form>
+    </section>
+
+    <main id="editor" hidden>
+      <section id="mode">
+        <label>
+          <input type="radio" name="mode" value="new" checked /> New event
+        </label>
+        <label>
+          <input type="radio" name="mode" value="edit" /> Edit existing
+        </label>
+        <select id="event-select" hidden>
+          <option value="">Loading events…</option>
+        </select>
+      </section>
+
+      <div class="columns">
+        <form id="event-form" autocomplete="off"></form>
+
+        <aside>
+          <h2>Event JSON <span id="valid-badge"></span></h2>
+          <ul id="document-errors" hidden></ul>
+          <pre id="json-preview"></pre>
+
+          <div class="actions">
+            <button id="propose" type="button">Propose change</button>
+            <button id="edit-direct" type="button">Edit directly</button>
+          </div>
+          <p class="hint">
+            <strong>Propose change</strong> opens a prefilled issue in the
+            target repo — anyone can use it. <strong>Edit directly</strong>
+            opens the file on GitHub — needs push access.
+          </p>
+
+          <section id="fallback" hidden>
+            <h3>URL too long — copy manually</h3>
+            <p>
+              The prefilled URL exceeds what browsers accept. Copy the content
+              below, then paste it into the page that opens:
+            </p>
+            <textarea id="fallback-text" rows="10" readonly></textarea>
+            <div class="actions">
+              <button id="fallback-copy" type="button">Copy</button>
+              <a id="fallback-link" target="_blank" rel="noopener">
+                Open blank page
+              </a>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "Validates OTE Event and Feed documents against JSON Schema v0.2",
   "license": "MIT",
+  "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/validate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenTechEvents/ote-tools.git",
+    "directory": "packages/validate"
+  },
+  "bugs": "https://github.com/OpenTechEvents/ote-tools/issues",
   "type": "module",
   "exports": {
     ".": {
@@ -19,6 +26,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "gen": "node scripts/embed-schemas.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -30,5 +38,8 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
