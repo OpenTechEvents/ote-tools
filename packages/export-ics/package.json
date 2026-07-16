@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "Converts an OTE Feed into an iCalendar (.ics) document",
   "license": "MIT",
+  "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/export-ics",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenTechEvents/ote-tools.git",
+    "directory": "packages/export-ics"
+  },
+  "bugs": "https://github.com/OpenTechEvents/ote-tools/issues",
   "type": "module",
   "exports": {
     ".": {
@@ -28,5 +35,8 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
