@@ -38,6 +38,10 @@ jobs:
         run: |
           mkdir -p _site/editor
           cp -R apps/editor/dist/. _site/editor/
+          # Served at tools.opentechevents.org/dashboard-checks.js; the
+          # ote-template forks load it from their dashboard. No build step:
+          # the file is the artifact.
+          cp apps/dashboard-checks/dashboard-checks.js _site/dashboard-checks.js
           cat > _site/index.html <<'EOF'
           <!doctype html>
           <html lang="en">
