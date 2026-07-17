@@ -27,7 +27,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -40,6 +40,10 @@ jobs:
           mkdir -p _site/editor _site/preview
           cp -R apps/editor/dist/. _site/editor/
           cp -R apps/preview/dist/. _site/preview/
+          # Served at tools.opentechevents.org/dashboard-checks.js; the
+          # ote-template forks load it from their dashboard. No build step:
+          # the file is the artifact.
+          cp apps/dashboard-checks/dashboard-checks.js _site/dashboard-checks.js
           cat > _site/index.html <<'EOF'
           <!doctype html>
           <html lang="en">

@@ -1,0 +1,16 @@
+{
+  "name": "@opentechevents/dashboard-checks",
+  "version": "0.1.0",
+  "description": "Client-side setup checks + template-update banner for OTE organizer dashboards (served from tools.opentechevents.org)",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}

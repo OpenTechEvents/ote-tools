@@ -19,6 +19,20 @@ export default tseslint.config(
     },
   },
   {
+    // Served browser script: self-contained classic script, no modules.
+    files: ["apps/dashboard-checks/dashboard-checks.js"],
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        fetch: "readonly",
+        sessionStorage: "readonly",
+        Promise: "readonly",
+        module: "writable",
+      },
+    },
+  },
+  {
     files: ["**/*.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": [

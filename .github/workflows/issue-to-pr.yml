@@ -75,7 +75,7 @@ jobs:
           ref: ${{ inputs.tools-ref || github.job_workflow_sha }}
           path: .ote-tools
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: .ote-tools/package.json
 
@@ -150,7 +150,32 @@ jobs:
 
           PR_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // empty')
           if [ -z "$PR_URL" ]; then
-            PR_URL=$(gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "$TITLE" --body "$BODY")
+            # The one setup item the client-side check can't verify (it needs
+            # administration:read): "Allow GitHub Actions to create and approve
+            # pull requests". When it is off, `gh pr create` fails with a 403.
+            # Detect it here and comment on the issue with the fix instead of
+            # failing the run with an opaque error.
+            if ! PR_URL=$(gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "$TITLE" --body "$BODY" 2>"${RUNNER_TEMP}/pr-error.txt"); then
+              if grep -qiE "not permitted to create.*pull request|GitHub Actions is not permitted" "${RUNNER_TEMP}/pr-error.txt"; then
+                {
+                  echo "$COMMENT_MARKER"
+                  echo "### ⚠️ Event JSON is valid — but I can't open the pull request yet"
+                  echo ""
+                  echo "The event was validated and pushed to branch \`${BRANCH}\`, but opening the PR was blocked because **GitHub Actions isn't allowed to create pull requests** in this repository."
+                  echo ""
+                  echo "To fix it (repo admin, one time):"
+                  echo ""
+                  echo "1. Go to **Settings → Actions → General → Workflow permissions**."
+                  echo "2. Enable **Allow GitHub Actions to create and approve pull requests**."
+                  echo "3. Click **Save**."
+                  echo ""
+                  echo "Then edit this issue (any small change) to re-run — the pull request will open automatically."
+                } > "${RUNNER_TEMP}/ote-comment.md"
+                exit 0
+              fi
+              cat "${RUNNER_TEMP}/pr-error.txt" >&2
+              exit 1
+            fi
           else
             gh pr edit "$PR_URL" --title "$TITLE" --body "$BODY"
           fi
