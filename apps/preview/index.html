@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OTE feed previewer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>OTE feed previewer</h1>
+      <p id="repo-banner"></p>
+    </header>
+
+    <section id="repo-message" class="panel" hidden></section>
+
+    <main id="preview" hidden>
+      <nav class="tabs" aria-label="Feed formats">
+        <button type="button" class="tab" data-tab="json" aria-selected="true">
+          Feed (JSON)
+        </button>
+        <button type="button" class="tab" data-tab="ics" aria-selected="false">
+          Calendar (ICS)
+        </button>
+        <button type="button" class="tab" data-tab="rss" aria-selected="false">
+          RSS (XML)
+        </button>
+      </nav>
+
+      <section id="panel-json" class="tab-panel"></section>
+      <section id="panel-ics" class="tab-panel" hidden></section>
+      <section id="panel-rss" class="tab-panel" hidden></section>
+    </main>
+
+    <footer>
+      <a
+        href="https://github.com/OpenTechEvents/ote-tools/issues/new"
+        target="_blank"
+        rel="noopener"
+      >
+        Report a problem
+      </a>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

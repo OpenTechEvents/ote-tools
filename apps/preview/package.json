@@ -1,0 +1,22 @@
+{
+  "name": "@opentechevents/preview",
+  "version": "0.1.0",
+  "description": "Static feed previewer for OTE organizer forks",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --serve",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/export-rss": "workspace:*",
+    "@opentechevents/import-ics": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}

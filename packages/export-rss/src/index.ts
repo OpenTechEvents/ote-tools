@@ -1,5 +1,7 @@
 import type { OteEvent, OteEventStatus, OteFeed } from "./types.js";
 
+export { rssToPreviewFeed } from "./parse.js";
+export type { RssPreviewEvent, RssPreviewFeed } from "./parse.js";
 export type {
   OteAttendanceMode,
   OteEvent,

@@ -67,6 +67,25 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.1)
 
+  apps/preview:
+    dependencies:
+      '@opentechevents/export-rss':
+        specifier: workspace:*
+        version: link:../../packages/export-rss
+      '@opentechevents/import-ics':
+        specifier: workspace:*
+        version: link:../../packages/import-ics
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   packages/build-feed:
     dependencies:
       '@opentechevents/export-ics':

@@ -1,6 +1,7 @@
-# Deploys the central tools site to THIS repo's GitHub Pages: the editor is
-# served under /editor (matching the tools.opentechevents.org/editor?repo=…
-# URLs from DESIGN.md; /import and /publish will join it in later phases).
+# Deploys the central tools site to THIS repo's GitHub Pages: the editor and
+# feed previewer are served under /editor and /preview (matching the
+# tools.opentechevents.org/<tool>?repo=… URLs from DESIGN.md; /import and
+# /publish will join them in later phases).
 #
 # One-time prerequisite: Settings → Pages → Source = "GitHub Actions".
 # Custom domain (tools.opentechevents.org) is configured there too, later —
@@ -36,8 +37,9 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site/editor
+          mkdir -p _site/editor _site/preview
           cp -R apps/editor/dist/. _site/editor/
+          cp -R apps/preview/dist/. _site/preview/
           # Served at tools.opentechevents.org/dashboard-checks.js; the
           # ote-template forks load it from their dashboard. No build step:
           # the file is the artifact.
@@ -51,6 +53,7 @@ jobs:
           <h1>OpenTechEvents tools</h1>
           <ul>
             <li><a href="./editor/">Event editor</a> — create and edit OTE events without writing JSON</li>
+            <li><a href="./preview/">Feed previewer</a> — inspect generated JSON, ICS and RSS exports</li>
           </ul>
           </html>
           EOF
