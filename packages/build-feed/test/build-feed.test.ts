@@ -51,6 +51,26 @@ describe("buildFeed", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("materialises specVersion and the feed license onto each event", () => {
+    // Event files may omit both (the editor does); the published feed fills
+    // them so every event is a self-contained document.
+    const result = buildFeed({ config, events: [event("a.json", {})], now: NOW });
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.feed.events[0].specVersion).toBe(SPEC_VERSION);
+    expect(result.feed.events[0].license).toBe("CC-BY-4.0");
+  });
+
+  it("a per-event license wins over the feed's (not overwritten)", () => {
+    const result = buildFeed({
+      config,
+      events: [event("a.json", { license: "CC0-1.0" })],
+      now: NOW,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.feed.events[0].license).toBe("CC0-1.0");
+    expect(result.feed.license).toBe("CC-BY-4.0"); // feed unchanged
+  });
+
   it("sorts events by startDate then id, regardless of input order", () => {
     const result = buildFeed({
       config,

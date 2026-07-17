@@ -196,6 +196,21 @@ export function buildFeed(input: BuildFeedInput): BuildFeedResult {
 
   entries.sort((a, b) => compareEvents(a.event, b.event));
 
+  const feedLicense = feedConfig.license ?? "missing-license";
+
+  // Inherit-at-rest, materialise-on-publish: event files may omit specVersion
+  // and license (the editor does, so authors never restate the feed's), but
+  // every event in the PUBLISHED feed carries both, so a consumer reading a
+  // single event out of the feed gets a self-contained document. An event's
+  // own value wins (a per-event license may legitimately differ from the
+  // feed's); only the absent ones are filled. Placed first so materialised
+  // events lead with specVersion/license, like a standalone event document.
+  const materialise = (event: OteEvent): OteEvent => ({
+    specVersion: SPEC_VERSION,
+    license: feedLicense,
+    ...event,
+  });
+
   // Placeholders keep feed validation running when the config is broken, so
   // event errors are still reported in the same pass. The placeholders
   // themselves are valid; the config problems above already fail the build.
@@ -206,12 +221,12 @@ export function buildFeed(input: BuildFeedInput): BuildFeedResult {
       description: feedConfig.description,
     }),
     ...(feedConfig.url !== undefined && { url: feedConfig.url }),
-    license: feedConfig.license ?? "missing-license",
+    license: feedLicense,
     ...(feedConfig.licenseUrl !== undefined && {
       licenseUrl: feedConfig.licenseUrl,
     }),
     updatedAt: input.now,
-    events: entries.map((e) => e.event),
+    events: entries.map((e) => materialise(e.event)),
   };
 
   const result = validateFeed(feed);
