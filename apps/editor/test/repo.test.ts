@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   contentsApiUrl,
+  editorContextFromSearch,
   pagesFeedUrl,
   parseContentsListing,
   parseFeedListing,
   parseRepoParam,
+  repoFetchPlan,
   rawConfigUrl,
   slugFromId,
 } from "../src/lib/repo.js";
@@ -28,6 +30,27 @@ describe("parseRepoParam", () => {
     expect(parseRepoParam("?repo=a/b/c")).toBeNull();
     expect(parseRepoParam("?repo=../../etc")).toBeNull();
     expect(parseRepoParam("?repo=owner/name?x=1")).toBeNull();
+  });
+});
+
+describe("editorContextFromSearch / repoFetchPlan", () => {
+  it("uses generator mode without a repo and plans no GitHub fetches", () => {
+    const context = editorContextFromSearch("");
+    expect(context).toEqual({ mode: "generator" });
+    expect(repoFetchPlan(context)).toBeNull();
+  });
+
+  it("uses repo mode when ?repo= is valid", () => {
+    const context = editorContextFromSearch("?repo=octocat/my-events");
+    expect(context).toEqual({ mode: "repo", repo: "octocat/my-events" });
+    expect(repoFetchPlan(context)).toEqual({
+      configUrl:
+        "https://raw.githubusercontent.com/octocat/my-events/HEAD/ote.config.json",
+      contentsUrl:
+        "https://api.github.com/repos/octocat/my-events/contents/events",
+      pagesFeedUrl: "https://octocat.github.io/my-events/feed.json",
+      repoApiUrl: "https://api.github.com/repos/octocat/my-events",
+    });
   });
 });
 

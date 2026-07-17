@@ -36,6 +36,7 @@ import {
 import {
   directCreateUrl,
   directEditUrl,
+  eventJsonText,
   proposeChangeUrl,
   type LinkResult,
 } from "./lib/links.js";
@@ -45,13 +46,11 @@ import {
   type ResolvedProfile,
 } from "./lib/presets.js";
 import {
-  contentsApiUrl,
-  pagesFeedUrl,
+  editorContextFromSearch,
   parseContentsListing,
   parseFeedListing,
   parseRepoParam,
-  rawConfigUrl,
-  repoApiUrl,
+  repoFetchPlan,
 } from "./lib/repo.js";
 import type { FormState, ListedEvent, OteConfig, OteEvent } from "./lib/types.js";
 import { validateDraft } from "./lib/validation.js";
@@ -129,26 +128,26 @@ function extraFieldsFor(event: OteEvent, profile: ResolvedProfile): Set<string> 
   return used;
 }
 
-function showRepoPicker(): void {
-  el("repo-picker").hidden = false;
-  el<HTMLFormElement>("repo-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const repo = el<HTMLInputElement>("repo-input").value.trim();
-    location.search = `?${new URLSearchParams({ repo })}`;
-  });
-}
-
-async function startEditor(repo: string): Promise<void> {
+async function startEditor(repo: string | null): Promise<void> {
+  const hasRepo = repo !== null;
+  const repoKey = repo ?? "__standalone__";
+  const fetchPlan = repoFetchPlan(
+    repo === null ? { mode: "generator" } : { mode: "repo", repo },
+  );
   el("editor").hidden = false;
-  el("repo-banner").textContent = `Target repository: ${repo}`;
+  el("repo-banner").textContent = hasRepo
+    ? `Target repository: ${repo}`
+    : "Standalone JSON generator";
 
   // --- context: config, profile, default branch -------------------------
-  const config = (await fetchJson(rawConfigUrl(repo))) as OteConfig | null;
-  if (config === null) {
+  const config = fetchPlan !== null
+    ? ((await fetchJson(fetchPlan.configUrl)) as OteConfig | null)
+    : null;
+  if (hasRepo && config === null) {
     addWarning(
       "ote.config.json could not be fetched from the repository; showing all fields.",
     );
-  } else if (config.feed?.title) {
+  } else if (hasRepo && config?.feed?.title) {
     el("repo-banner").textContent += ` — ${config.feed.title}`;
   }
   let profile = resolveProfile(config);
@@ -165,10 +164,12 @@ async function startEditor(repo: string): Promise<void> {
   }
 
   let branch: string | undefined;
-  void fetchJson(repoApiUrl(repo)).then((meta) => {
-    const value = (meta as { default_branch?: unknown } | null)?.default_branch;
-    if (typeof value === "string") branch = value;
-  });
+  if (fetchPlan !== null) {
+    void fetchJson(fetchPlan.repoApiUrl).then((meta) => {
+      const value = (meta as { default_branch?: unknown } | null)?.default_branch;
+      if (typeof value === "string") branch = value;
+    });
+  }
 
   // --- form state --------------------------------------------------------
   let state: FormState = emptyFormState(
@@ -195,6 +196,37 @@ async function startEditor(repo: string): Promise<void> {
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
   const editDirect = el<HTMLButtonElement>("edit-direct");
+  const repoOutputActions = el<HTMLSpanElement>("repo-output-actions");
+  const generatorOutputActions = el<HTMLSpanElement>("generator-output-actions");
+  repoOutputActions.hidden = !hasRepo;
+  generatorOutputActions.hidden = hasRepo;
+
+  // Generator mode: let the organizer connect a fork so they can edit/add
+  // straight in their repository. Connecting just reloads with ?repo=owner/name,
+  // which re-enters repo mode (enabling "Edit directly" / "Review & submit").
+  const repoConnect = el<HTMLDivElement>("repo-connect");
+  repoConnect.hidden = hasRepo;
+  if (!hasRepo) {
+    const connectInput = el<HTMLInputElement>("repo-connect-input");
+    const connectError = el<HTMLParagraphElement>("repo-connect-error");
+    el<HTMLFormElement>("repo-connect-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      // Accept a pasted github.com URL as well as bare owner/repo.
+      const typed = connectInput.value
+        .trim()
+        .replace(/^https?:\/\/github\.com\//i, "")
+        .replace(/\.git$/i, "")
+        .replace(/\/+$/, "");
+      const repo = parseRepoParam(`?repo=${encodeURIComponent(typed)}`);
+      if (repo === null) {
+        connectError.textContent =
+          "Enter your repository as owner/repo — for example my-org/ote-events.";
+        connectError.hidden = false;
+        return;
+      }
+      location.search = `?repo=${repo}`;
+    });
+  }
 
   function setControlValue(key: string, value: string): void {
     const input = form.querySelector<HTMLInputElement>(`[data-key="${key}"]`);
@@ -257,7 +289,7 @@ async function startEditor(repo: string): Promise<void> {
     }
     badge.textContent = draftValid ? "✓ Ready" : "Incomplete";
     badge.className = draftValid ? "ok" : "invalid";
-    editDirect.disabled = !isNew && editSlug === null;
+    editDirect.disabled = !hasRepo || (!isNew && editSlug === null);
     editDirect.title =
       !isNew && editSlug === null
         ? "This event's filename could not be determined from the feed."
@@ -340,6 +372,10 @@ async function startEditor(repo: string): Promise<void> {
   const combo = el<HTMLDivElement>("event-combo");
   const comboInput = el<HTMLInputElement>("event-combo-input");
   const comboList = el<HTMLUListElement>("event-combo-list");
+  const editModeLabel = document
+    .querySelector<HTMLInputElement>('input[name="mode"][value="edit"]')
+    ?.closest("label");
+  if (editModeLabel instanceof HTMLElement) editModeLabel.hidden = !hasRepo;
 
   function eventLabel(event: OteEvent): string {
     const day = (event.startDate ?? "????").split("T")[0];
@@ -380,7 +416,8 @@ async function startEditor(repo: string): Promise<void> {
   });
 
   async function loadEvents(): Promise<void> {
-    const listing = parseContentsListing(await fetchJson(contentsApiUrl(repo)));
+    if (fetchPlan === null) return;
+    const listing = parseContentsListing(await fetchJson(fetchPlan.contentsUrl));
     if (listing.length > 0) {
       const events = await Promise.all(
         listing.map(async ({ slug, rawUrl }) => ({
@@ -393,7 +430,7 @@ async function startEditor(repo: string): Promise<void> {
       );
     } else {
       // Rate-limited, private or empty: try the published feed.
-      listed = parseFeedListing(await fetchJson(pagesFeedUrl(repo)));
+      listed = parseFeedListing(await fetchJson(fetchPlan.pagesFeedUrl));
       if (listed.length > 0) {
         addWarning(
           "Event list loaded from the published feed (GitHub API unavailable); filenames are inferred from event ids.",
@@ -408,7 +445,7 @@ async function startEditor(repo: string): Promise<void> {
     refresh(); // collision checks were waiting for the listing
   }
 
-  void loadEvents();
+  if (hasRepo) void loadEvents();
 
   // --- mode switch --------------------------------------------------------
   const newActions = el<HTMLDivElement>("new-actions");
@@ -487,10 +524,10 @@ async function startEditor(repo: string): Promise<void> {
     // Private browsing / quota: the session simply continues unpersisted.
     try {
       if (queue.length === 0) {
-        localStorage.removeItem(importQueueKey(repo));
+        localStorage.removeItem(importQueueKey(repoKey));
       } else {
         localStorage.setItem(
-          importQueueKey(repo),
+          importQueueKey(repoKey),
           encodeImportQueue({
             pos: queuePos,
             sourceUrl: queueSourceUrl,
@@ -889,11 +926,13 @@ async function startEditor(repo: string): Promise<void> {
   );
 
   importCheckFeed.addEventListener("click", () => {
+    if (repo === null) return;
     const id = queue[queuePos]?.submittedId;
     if (!id) return;
     importCheckResult.textContent = "Checking…";
     // Cache-busting query: Pages serves feed.json with long-lived caches.
-    void fetchJson(`${pagesFeedUrl(repo)}?t=${Date.now()}`).then((feed) => {
+    if (fetchPlan === null) return;
+    void fetchJson(`${fetchPlan.pagesFeedUrl}?t=${Date.now()}`).then((feed) => {
       if (feed === null) {
         importCheckResult.textContent =
           "Could not fetch the published feed (the Pages site may not be live yet).";
@@ -915,7 +954,9 @@ async function startEditor(repo: string): Promise<void> {
   // A queue persisted by a previous session (or reload) resumes where it was.
   const storedQueue = (() => {
     try {
-      return decodeImportQueue(localStorage.getItem(importQueueKey(repo)));
+      return decodeImportQueue(
+        localStorage.getItem(importQueueKey(repoKey)),
+      );
     } catch {
       return null;
     }
@@ -972,6 +1013,7 @@ async function startEditor(repo: string): Promise<void> {
     review.close(),
   );
   el<HTMLButtonElement>("review-confirm").addEventListener("click", () => {
+    if (repo === null) return;
     review.close();
     follow(proposeChangeUrl(repo, toEventJson(state), isNew));
     // Submitting the event currently on screen from an import session:
@@ -988,7 +1030,7 @@ async function startEditor(repo: string): Promise<void> {
     }
   });
 
-  propose.addEventListener("click", () => {
+  function revealInvalidDraft(): boolean {
     if (!draftValid) {
       // First invalid attempt reveals every error instead of blocking silently.
       submitAttempted = true;
@@ -998,17 +1040,41 @@ async function startEditor(repo: string): Promise<void> {
         behavior: "smooth",
         block: "center",
       });
-      return;
+      return false;
     }
+    return true;
+  }
+
+  propose.addEventListener("click", () => {
+    if (!revealInvalidDraft()) return;
     openReview();
   });
 
   editDirect.addEventListener("click", () => {
+    if (repo === null) return;
     if (isNew) {
       follow(directCreateUrl(repo, state.slug, toEventJson(state), branch ?? "main"));
     } else if (editSlug !== null) {
       window.open(directEditUrl(repo, editSlug, branch), "_blank", "noopener");
     }
+  });
+
+  el<HTMLButtonElement>("copy-json").addEventListener("click", () => {
+    if (!revealInvalidDraft()) return;
+    void navigator.clipboard.writeText(eventJsonText(toEventJson(state)));
+  });
+
+  el<HTMLButtonElement>("download-json").addEventListener("click", () => {
+    if (!revealInvalidDraft()) return;
+    const blob = new Blob([`${eventJsonText(toEventJson(state))}\n`], {
+      type: "application/json",
+    });
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = `${state.slug || "event"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   });
 }
 
@@ -1021,9 +1087,5 @@ el<HTMLAnchorElement>("feedback-link").href =
     },
   )}`;
 
-const repo = parseRepoParam(location.search);
-if (repo === null) {
-  showRepoPicker();
-} else {
-  void startEditor(repo);
-}
+const context = editorContextFromSearch(location.search);
+void startEditor(context.mode === "repo" ? context.repo : null);

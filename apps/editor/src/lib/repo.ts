@@ -15,6 +15,32 @@ export function parseRepoParam(search: string): string | null {
   return repo && REPO_RE.test(repo) ? repo : null;
 }
 
+export type EditorContext =
+  | { mode: "repo"; repo: string }
+  | { mode: "generator" };
+
+export function editorContextFromSearch(search: string): EditorContext {
+  const repo = parseRepoParam(search);
+  return repo === null ? { mode: "generator" } : { mode: "repo", repo };
+}
+
+export interface RepoFetchPlan {
+  configUrl: string;
+  contentsUrl: string;
+  pagesFeedUrl: string;
+  repoApiUrl: string;
+}
+
+export function repoFetchPlan(context: EditorContext): RepoFetchPlan | null {
+  if (context.mode === "generator") return null;
+  return {
+    configUrl: rawConfigUrl(context.repo),
+    contentsUrl: contentsApiUrl(context.repo),
+    pagesFeedUrl: pagesFeedUrl(context.repo),
+    repoApiUrl: repoApiUrl(context.repo),
+  };
+}
+
 /** ote.config.json in the default branch, via raw.githubusercontent (CORS open). */
 export function rawConfigUrl(repo: string): string {
   return `https://raw.githubusercontent.com/${repo}/HEAD/ote.config.json`;

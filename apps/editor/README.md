@@ -26,6 +26,18 @@ and renders an event form driven by the configured profile.
   (which knows the filenames) with the published Pages `feed.json` as
   fallback when the API is rate-limited — there, slugs are inferred from
   event ids and "edit directly" is disabled when no slug can be derived.
+- **Standalone generator**: without `?repo=`, the same form starts with the
+  default `all` preset, performs no GitHub fetches, validates locally, and
+  offers `Copy JSON` / `Download .json` instead of GitHub issue/direct-edit
+  actions.
+
+## M6a acceptance criteria
+
+- Opening `apps/editor/` without query params serves the default-preset form,
+  makes no GitHub calls, and shows Copy/Download outputs instead of issue→PR.
+- An event generated in standalone mode passes `ote-validate`.
+- Opening with `?repo=owner/name` still fetches the repo config/events and
+  keeps the existing issue→PR and direct-edit outputs.
 
 ## Development
 

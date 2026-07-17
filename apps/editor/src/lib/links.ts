@@ -18,7 +18,7 @@ export type LinkResult =
       copyText: string;
     };
 
-function issueBody(event: OteEvent, isNew: boolean): string {
+export function issueBody(event: OteEvent, isNew: boolean): string {
   const action = isNew ? "Add" : "Update";
   return [
     `${action} this event. The JSON below was generated with the OTE editor;`,
@@ -29,6 +29,15 @@ function issueBody(event: OteEvent, isNew: boolean): string {
     "```",
     "",
   ].join("\n");
+}
+
+export function eventJsonText(event: OteEvent): string {
+  return JSON.stringify(event, null, 2);
+}
+
+export function eventJsonFromIssueBody(body: string): string | null {
+  const match = /```json\n([\s\S]*?)\n```/.exec(body);
+  return match?.[1] ?? null;
 }
 
 /**

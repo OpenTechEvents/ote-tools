@@ -69,6 +69,8 @@ describe("resolveProfile", () => {
   it("missing config falls back to all without blaming the organizer", () => {
     const resolved = resolveProfile(null);
     expect(resolved.preset).toBe("all");
+    expect(resolved.fields.size).toBe(FIELD_REGISTRY.length);
+    expect(resolved.collapsedSections.has("advanced")).toBe(true);
     expect(resolved.warnings).toEqual([]);
   });
 

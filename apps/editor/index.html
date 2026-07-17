@@ -15,25 +15,47 @@
 
     <div id="warnings" hidden></div>
 
-    <!-- Shown when ?repo= is missing or invalid -->
-    <section id="repo-picker" hidden>
-      <p>
-        This editor needs a target repository. Enter the fork that holds your
-        events (<code>owner/name</code>):
-      </p>
-      <form id="repo-form">
-        <input
-          id="repo-input"
-          type="text"
-          placeholder="octocat/my-community-events"
-          pattern="[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+"
-          required
-        />
-        <button type="submit" class="primary">Load</button>
-      </form>
-    </section>
-
     <main id="editor" hidden>
+      <!-- Generator mode only: a compact, collapsed invitation to connect a
+           fork so the organizer can add/edit events straight in their
+           repository instead of only downloading JSON. Expands on click.
+           Hidden as soon as a ?repo= context is set. -->
+      <details id="repo-connect" hidden>
+        <summary id="repo-connect-summary">
+          Have a fork? Connect it to edit events directly →
+        </summary>
+        <div id="repo-connect-body">
+          <p id="repo-connect-text">
+            Enter your repository (<code>owner/repo</code>) and you can add
+            and edit events <strong>directly in it</strong> — no copy-pasting
+            JSON around.
+          </p>
+          <form id="repo-connect-form">
+            <input
+              id="repo-connect-input"
+              type="text"
+              placeholder="owner/repo"
+              aria-label="Your GitHub repository (owner/repo)"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+            />
+            <button type="submit" class="primary">Connect</button>
+          </form>
+          <p id="repo-connect-error" class="field-error" hidden></p>
+          <p id="repo-connect-help" class="hint">
+            Don't have one yet?
+            <a
+              href="https://github.com/OpenTechEvents/ote-template"
+              target="_blank"
+              rel="noopener"
+              >Fork the OTE template</a
+            >
+            to get your own events repository.
+          </p>
+        </div>
+      </details>
+
       <nav id="mode">
         <div class="mode-toggle" role="radiogroup" aria-label="Mode">
           <label>
@@ -110,12 +132,22 @@
 
       <div id="action-bar">
         <span id="valid-badge"></span>
-        <button id="edit-direct" type="button" class="secondary">
-          Edit directly
-        </button>
-        <button id="propose" type="button" class="primary">
-          Review &amp; submit
-        </button>
+        <span id="repo-output-actions">
+          <button id="edit-direct" type="button" class="secondary">
+            Edit directly
+          </button>
+          <button id="propose" type="button" class="primary">
+            Review &amp; submit
+          </button>
+        </span>
+        <span id="generator-output-actions" hidden>
+          <button id="copy-json" type="button" class="secondary">
+            Copy JSON
+          </button>
+          <button id="download-json" type="button" class="primary">
+            Download .json
+          </button>
+        </span>
       </div>
 
       <dialog id="review">

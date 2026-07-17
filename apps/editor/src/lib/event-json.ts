@@ -185,12 +185,13 @@ export function suggestSlug(name: string, startDate: string): string {
  */
 export function suggestId(
   config: OteConfig | null,
-  repo: string,
+  repo: string | null,
   slug: string,
 ): string {
   if (!slug) return "";
   const feedUrl = config?.feed?.url?.replace(/\/+$/, "");
   if (feedUrl) return `${feedUrl}/events/${slug}`;
+  if (repo === null) return `https://opentechevents.org/events/${slug}`;
   const [owner, name] = repo.split("/");
   return `https://${owner}.github.io/${name}/events/${slug}`;
 }

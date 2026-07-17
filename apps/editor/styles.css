@@ -69,30 +69,105 @@ header h1 {
   margin: 0.2rem 0;
 }
 
-/* --- repo picker ---------------------------------------------------------- */
+/* --- connect a fork (generator mode) ------------------------------------ */
 
-#repo-picker {
-  background: var(--surface);
+#repo-connect {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1.25rem;
+  background: var(--surface);
+  margin-bottom: 1rem;
 }
 
-#repo-form {
+#repo-connect-summary {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none; /* our own caret, matching the form sections */
+  user-select: none;
 }
 
-@media (min-width: 30rem) {
-  #repo-form {
-    flex-direction: row;
-  }
+#repo-connect-summary::-webkit-details-marker {
+  display: none;
+}
 
-  #repo-form input {
-    flex: 1;
-  }
+#repo-connect-summary::before {
+  content: "";
+  flex: none;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg); /* ▸ closed */
+  transition: transform 0.15s;
+}
+
+#repo-connect[open] #repo-connect-summary::before {
+  transform: rotate(45deg); /* ▾ open */
+}
+
+#repo-connect[open] #repo-connect-summary {
+  color: var(--text);
+}
+
+#repo-connect-body {
+  padding: 0 0.85rem 0.85rem;
+}
+
+#repo-connect-text {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+}
+
+#repo-connect-text code {
+  font-size: 0.85em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+
+#repo-connect-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#repo-connect-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--surface);
+}
+
+#repo-connect-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+#repo-connect-form button {
+  flex: 0 0 auto;
+}
+
+#repo-connect-error {
+  margin: 0.5rem 0 0;
+}
+
+#repo-connect-help {
+  margin: 0.5rem 0 0;
+}
+
+#repo-connect-help a {
+  color: var(--accent);
+  font-weight: 500;
 }
 
 /* --- mode / profile bar ------------------------------------------------- */
@@ -566,6 +641,13 @@ select {
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-top: 0.25rem;
+  /* Contain Leaflet's own stacking (panes, controls at z-index 1000, and the
+     GPU-composited tile pane) inside the map. Without a stacking context here,
+     those layers leak into the root context and paint over the fixed
+     #action-bar — its backdrop-filter layer otherwise loses to the map's
+     composited tiles regardless of z-index. */
+  position: relative;
+  z-index: 0;
 }
 
 @media (min-width: 40rem) {
@@ -618,6 +700,7 @@ select {
 
 #action-bar {
   position: fixed;
+  z-index: 9999;
   bottom: 0;
   left: 0;
   right: 0;
@@ -632,6 +715,12 @@ select {
 
 #action-bar > * {
   flex: 0 0 auto;
+}
+
+#repo-output-actions:not([hidden]),
+#generator-output-actions:not([hidden]) {
+  display: inline-flex;
+  gap: 0.6rem;
 }
 
 #valid-badge {
@@ -651,6 +740,7 @@ select {
 @media (min-width: 46rem) {
   #action-bar {
     left: 50%;
+    z-index: 9999;
     right: auto;
     transform: translateX(-50%);
     width: 42rem;

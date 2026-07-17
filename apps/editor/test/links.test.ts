@@ -4,6 +4,8 @@ import {
   MAX_URL_LENGTH,
   directCreateUrl,
   directEditUrl,
+  eventJsonFromIssueBody,
+  eventJsonText,
   proposeChangeUrl,
 } from "../src/lib/links.js";
 import type { OteEvent } from "../src/lib/types.js";
@@ -26,6 +28,13 @@ describe("proposeChangeUrl", () => {
     const body = url.searchParams.get("body") ?? "";
     expect(body).toContain("```json");
     expect(body).toContain('"id": "https://x.example/events/2026-06-async"');
+  });
+
+  it("uses the same JSON text as standalone copy/download outputs", () => {
+    const result = proposeChangeUrl("o/r", event, true);
+    if (result.kind !== "url") throw new Error("expected url");
+    const body = new URL(result.url).searchParams.get("body") ?? "";
+    expect(eventJsonFromIssueBody(body)).toBe(eventJsonText(event));
   });
 
   it("uses Update in the title when editing", () => {
