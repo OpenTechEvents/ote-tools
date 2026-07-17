@@ -13,6 +13,8 @@ workflows, and (phase 2) the web dashboard/editor. Design rationale lives in
 | [`@opentechevents/validate`](packages/validate/) | Validates OTE Event/Feed documents against the vendored v0.2 JSON Schema. |
 | [`@opentechevents/export-ics`](packages/export-ics/) | Valid OTE Feed → iCalendar (RFC 5545). |
 | [`@opentechevents/export-rss`](packages/export-rss/) | Valid OTE Feed → RSS 2.0. |
+| [`@opentechevents/import-ics`](packages/import-ics/) | iCalendar (`.ics`) → partial OTE event documents (review-and-complete). |
+| [`@opentechevents/import-jsonld`](packages/import-jsonld/) | schema.org Event JSON-LD in an HTML page → partial OTE event documents. |
 | [`@opentechevents/build-feed`](packages/build-feed/) | `events/*.json` + `ote.config.json` → validated `feed.json` + `feed.ics` + `feed.xml`. |
 
 All connectors are pure functions with a thin CLI on top. They never invent

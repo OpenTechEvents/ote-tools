@@ -3,6 +3,18 @@
 Converts an iCalendar (`.ics`) document into **partial** OTE event documents
 (v0.2), ready for an organizer to review and complete.
 
+Part of the [OpenTechEvents organizer kit](https://github.com/OpenTechEvents/ote-tools);
+see [DESIGN.md](https://github.com/OpenTechEvents/ote-tools/blob/main/DESIGN.md)
+for where importers fit ("Importar desde fuentes existentes").
+
+## Install
+
+```sh
+npm install @opentechevents/import-ics
+```
+
+## Usage
+
 ```ts
 import { icsToEvents } from "@opentechevents/import-ics";
 
