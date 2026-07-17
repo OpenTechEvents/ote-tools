@@ -121,6 +121,79 @@ footer {
   margin: 0;
 }
 
+.calendar-panel {
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.calendar-host {
+  min-width: 42rem;
+}
+
+.fc {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.fc .fc-toolbar {
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.05rem;
+}
+
+.fc .fc-button {
+  border-radius: var(--radius);
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: none;
+  text-transform: none;
+}
+
+.fc .fc-button-primary:not(:disabled):hover,
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.fc .fc-daygrid-event,
+.fc .fc-timegrid-event {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.fc .fc-event {
+  cursor: pointer;
+}
+
+.calendar-event-title {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .fc-daygrid-event {
+  padding: 1px 4px;
+}
+
+.fc .fc-daygrid-event .calendar-event-title,
+.fc .fc-timegrid-event .calendar-event-title {
+  color: #ffffff;
+}
+
+.fc .fc-list-event-title a,
+.fc .fc-list-event-time {
+  color: var(--text);
+}
+
 .event-list {
   display: grid;
   gap: 0.75rem;
@@ -133,7 +206,16 @@ footer {
   padding: 0.85rem;
 }
 
+.event summary {
+  cursor: pointer;
+}
+
+.event summary::marker {
+  color: var(--muted);
+}
+
 .event h3 {
+  display: inline;
   font-size: 1rem;
   line-height: 1.3;
 }
@@ -200,6 +282,45 @@ pre {
   overflow-wrap: anywhere;
   margin: 0;
   font-size: 0.82rem;
+}
+
+dialog.event-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 80px rgba(28, 33, 40, 0.25);
+  color: var(--text);
+  background: var(--surface);
+  padding: 1rem;
+}
+
+dialog.event-dialog::backdrop {
+  background: rgba(28, 33, 40, 0.45);
+}
+
+.event-dialog h2 {
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.event-dialog dl {
+  display: grid;
+  gap: 0.3rem 0.75rem;
+  grid-template-columns: max-content 1fr;
+  margin: 0.8rem 0 0;
+  font-size: 0.92rem;
+}
+
+.event-dialog dt {
+  color: var(--muted);
+}
+
+.event-dialog dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .error {

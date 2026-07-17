@@ -37,6 +37,9 @@ function all(component: IcsComponent, name: string): IcsProperty[] {
 
 const DATE_RE = /^(\d{4})(\d{2})(\d{2})$/;
 const DATETIME_RE = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/;
+const ISO_DATE_RE = /^(\d{4}-\d{2}-\d{2})$/;
+const ISO_DATETIME_RE =
+  /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(Z?)$/;
 
 type DtValue =
   | { kind: "date"; date: string }
@@ -45,6 +48,16 @@ type DtValue =
 /** `20261016` → `2026-10-16`; `20260626T190000[Z]` → wall clock. */
 function parseDtValue(prop: IcsProperty): DtValue | null {
   const value = prop.value.trim();
+  const isoDate = ISO_DATE_RE.exec(value);
+  if (isoDate) return { kind: "date", date: isoDate[1] };
+  const isoDt = ISO_DATETIME_RE.exec(value);
+  if (isoDt) {
+    return {
+      kind: "datetime",
+      wallClock: `${isoDt[1]}T${isoDt[2]}`,
+      utc: isoDt[3] === "Z",
+    };
+  }
   const date = DATE_RE.exec(value);
   if (date) return { kind: "date", date: `${date[1]}-${date[2]}-${date[3]}` };
   const dt = DATETIME_RE.exec(value);
@@ -70,6 +83,8 @@ function isIanaTzid(tzid: string): boolean {
 
 /** `20260601T090000Z` → `2026-06-01T09:00:00Z` (RFC requires the UTC form). */
 function parseUtcInstant(value: string): string | null {
+  const isoDt = ISO_DATETIME_RE.exec(value.trim());
+  if (isoDt && isoDt[3] === "Z") return `${isoDt[1]}T${isoDt[2]}Z`;
   const dt = DATETIME_RE.exec(value.trim());
   if (!dt || dt[7] !== "Z") return null;
   return `${dt[1]}-${dt[2]}-${dt[3]}T${dt[4]}:${dt[5]}:${dt[6]}Z`;
@@ -273,7 +288,7 @@ function convertVevent(vevent: IcsComponent): {
   if (url && url.value !== "") event.url = url.value;
 
   const tags = all(vevent, "CATEGORIES")
-    .flatMap((p) => splitEscaped(p.value, ","))
+    .flatMap((p) => (p.values.length > 1 ? p.values : splitEscaped(p.value, ",")))
     .map((t) => unescapeText(t).trim())
     .filter(Boolean);
   if (tags.length > 0) event.tags = tags;

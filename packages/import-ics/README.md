@@ -27,6 +27,10 @@ OTE connector it **never invents data**: any field the ICS did not (or cannot)
 carry is simply absent from the event, and a warning identifies it
 (`eventIndex` points into `events`, `field` names the OTE field).
 
+Low-level iCalendar syntax parsing is handled by
+[`ical.js`](https://github.com/mozilla-comm/ical.js); this package owns only
+the OTE mapping and warnings.
+
 The events are partial on purpose — they have no `id`, may lack `timezone`,
 and are not valid OTE documents yet. Completing them is the caller's job
 (the ote-tools editor does it with a form that marks the missing fields).
