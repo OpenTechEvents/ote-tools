@@ -6,6 +6,8 @@
 
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
+import type { TagSuggestion } from "../lib/tag-vocabulary.js";
+import { loadTagVocabulary, searchVocabulary } from "../lib/tag-vocabulary.js";
 import { filterZones } from "../lib/timezones.js";
 import type { FormState } from "../lib/types.js";
 
@@ -26,6 +28,8 @@ interface Control {
     | "combobox";
   options?: string[];
   placeholder?: string;
+  /** Autocomplete source for a "chips" control. Defaults to "languages". */
+  vocab?: "languages" | "tags";
 }
 
 interface FieldSpec {
@@ -100,13 +104,30 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   tags: {
     label: "Tags",
-    note: "Comma-separated, e.g. python, async.",
-    controls: [{ key: "tags", label: "", kind: "text" }],
+    note: "Start typing to search topics and audiences; Enter adds any tag you type.",
+    info: "Free-form topic and audience tags. Suggestions come from the ComBuildersES communities directory, but any tag is accepted — picking a suggestion just keeps the wording consistent.",
+    controls: [
+      {
+        key: "tags",
+        label: "",
+        kind: "chips",
+        vocab: "tags",
+        placeholder: "Type to add… (python, junior…)",
+      },
+    ],
   },
   languages: {
     label: "Languages",
     info: "Languages the event is held in, as BCP 47 tags. Leave empty when unknown.",
-    controls: [{ key: "languages", label: "", kind: "chips" }],
+    controls: [
+      {
+        key: "languages",
+        label: "",
+        kind: "chips",
+        vocab: "languages",
+        placeholder: "Type to add… (es, en…)",
+      },
+    ],
   },
   allDay: {
     label: "All-day event",
@@ -243,16 +264,107 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
 };
 
+/** One row the chips control can show: a chip, or a suggestion in the dropdown. */
+interface ChipView {
+  /** Canonical value stored in the state string. */
+  value: string;
+  /** Primary display text (chip body and suggestion label). */
+  label: string;
+  /** Secondary muted text in the dropdown (a category), when known. */
+  hint?: string;
+}
+
 /**
- * Chips-with-autocomplete control (languages): typing filters the
- * suggestions, picking one (or pressing Enter) adds a removable chip.
- * The state value stays a comma-separated string.
+ * The autocomplete behind a chips control. Two implementations: a static one
+ * for languages, and an async one for tags that fills in as the remote
+ * vocabulary loads. Both keep the state value a comma-separated string.
+ */
+interface ChipVocabulary {
+  /** Ranked suggestions for a query, excluding already-chosen values. */
+  search(query: string, exclude: readonly string[]): ChipView[];
+  /** How a stored value renders as a chip (falls back to the raw value). */
+  chip(value: string): ChipView;
+  /** Canonical value for a free-typed entry (Enter) — the raw text if none. */
+  commitValue(raw: string): string;
+  /** Resolves once late-loading data lands, so the control can re-render. */
+  ready?: Promise<unknown>;
+}
+
+const languageVocabulary: ChipVocabulary = {
+  search(query, exclude) {
+    const q = query.trim().toLowerCase();
+    return LANGUAGE_SUGGESTIONS.filter(
+      (l) =>
+        !exclude.includes(l.code) &&
+        (q === "" || l.code.startsWith(q) || l.name.toLowerCase().includes(q)),
+    )
+      .slice(0, 6)
+      .map((l) => ({ value: l.code, label: `${l.code} · ${l.name}` }));
+  },
+  chip(value) {
+    const name = LANGUAGE_SUGGESTIONS.find((l) => l.code === value)?.name;
+    return { value, label: name ? `${value} · ${name}` : value };
+  },
+  commitValue(raw) {
+    const q = raw.trim().toLowerCase();
+    const match = LANGUAGE_SUGGESTIONS.find(
+      (l) => l.code === q || l.name.toLowerCase() === q,
+    );
+    return match ? match.code : raw.trim();
+  },
+};
+
+// The tag vocabulary loads once, lazily, the first time a tags chips control is
+// rendered — a couple of small JSON files, cached for the session.
+let tagVocabEntries: readonly TagSuggestion[] = [];
+let tagVocabReady: Promise<unknown> | null = null;
+
+function ensureTagVocabulary(): Promise<unknown> {
+  if (!tagVocabReady) {
+    tagVocabReady = loadTagVocabulary().then((entries) => {
+      tagVocabEntries = entries;
+    });
+  }
+  return tagVocabReady;
+}
+
+const tagVocabulary: ChipVocabulary = {
+  search(query, exclude) {
+    return searchVocabulary(tagVocabEntries, query, exclude).map((s) => ({
+      value: s.id,
+      label: s.label,
+      hint: s.category || undefined,
+    }));
+  },
+  chip(value) {
+    const entry = tagVocabEntries.find((t) => t.id === value);
+    return { value, label: entry ? entry.label : value };
+  },
+  commitValue(raw) {
+    const q = raw.trim().toLowerCase();
+    const match = tagVocabEntries.find(
+      (t) => t.id.toLowerCase() === q || t.label.toLowerCase() === q,
+    );
+    return match ? match.id : raw.trim();
+  },
+  get ready() {
+    return ensureTagVocabulary();
+  },
+};
+
+/**
+ * Chips-with-autocomplete control (languages, tags): typing filters the
+ * suggestions, picking one (or pressing Enter) adds a removable chip. Values
+ * outside the vocabulary are accepted as-is. The state value stays a
+ * comma-separated string.
  */
 function renderChips(
   control: Control,
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
 ): HTMLElement {
+  const vocab = control.vocab === "tags" ? tagVocabulary : languageVocabulary;
+
   const wrap = document.createElement("div");
   wrap.className = "chips";
   wrap.dataset.key = control.key;
@@ -262,7 +374,7 @@ function renderChips(
   const input = document.createElement("input");
   input.type = "text";
   input.className = "chips-input";
-  input.placeholder = "Type to add… (es, en…)";
+  input.placeholder = control.placeholder ?? "Type to add…";
   input.autocomplete = "off";
   const suggest = document.createElement("ul");
   suggest.className = "chips-suggest";
@@ -284,8 +396,7 @@ function renderChips(
     for (const value of values) {
       const chip = document.createElement("span");
       chip.className = "chip";
-      const name = LANGUAGE_SUGGESTIONS.find((l) => l.code === value)?.name;
-      chip.append(name ? `${value} · ${name}` : value);
+      chip.append(vocab.chip(value).label);
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "chip-remove";
@@ -301,8 +412,8 @@ function renderChips(
     }
   }
 
-  function add(code: string): void {
-    const clean = code.trim();
+  function add(value: string): void {
+    const clean = value.trim();
     if (!clean || values.includes(clean)) return;
     values.push(clean);
     input.value = "";
@@ -312,25 +423,24 @@ function renderChips(
   }
 
   function refreshSuggestions(): void {
-    const query = input.value.trim().toLowerCase();
     suggest.textContent = "";
-    const hits = LANGUAGE_SUGGESTIONS.filter(
-      (l) =>
-        !values.includes(l.code) &&
-        (query === "" ||
-          l.code.startsWith(query) ||
-          l.name.toLowerCase().includes(query)),
-    ).slice(0, 6);
+    const hits = vocab.search(input.value, values);
     suggest.hidden = hits.length === 0;
     for (const hit of hits) {
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = `${hit.code} · ${hit.name}`;
+      button.append(hit.label);
+      if (hit.hint) {
+        const cat = document.createElement("span");
+        cat.className = "chips-cat";
+        cat.textContent = hit.hint;
+        button.append(cat);
+      }
       // mousedown, not click: it must win over the input's blur
       button.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        add(hit.code);
+        add(hit.value);
       });
       li.append(button);
       suggest.append(li);
@@ -345,16 +455,19 @@ function renderChips(
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const query = input.value.trim().toLowerCase();
-      const match = LANGUAGE_SUGGESTIONS.find(
-        (l) => l.code === query || l.name.toLowerCase() === query,
-      );
-      add(match ? match.code : input.value);
+      add(vocab.commitValue(input.value));
     } else if (e.key === "Backspace" && input.value === "" && values.length) {
       values = values.slice(0, -1);
       renderList();
       commit();
     }
+  });
+
+  // Tags load asynchronously: re-render chips (to gain their labels) and, if
+  // the field is focused, the dropdown once the vocabulary arrives.
+  vocab.ready?.then(() => {
+    renderList();
+    if (document.activeElement === input) refreshSuggestions();
   });
 
   renderList();

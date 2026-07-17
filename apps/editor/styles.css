@@ -460,7 +460,7 @@ select {
   font-weight: 400;
 }
 
-/* --- languages chips ------------------------------------------------------- */
+/* --- chips (languages, tags) ------------------------------------------------ */
 
 .chips {
   position: relative;
@@ -553,6 +553,15 @@ select {
 
 .chips-suggest button:hover {
   background: var(--accent-soft);
+}
+
+/* Category shown after a tag suggestion's label, muted and pushed right. */
+.chips-cat {
+  margin-left: 0.75rem;
+  float: right;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 
 /* --- combobox (timezone) ---------------------------------------------------- */
