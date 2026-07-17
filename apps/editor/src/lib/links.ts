@@ -44,10 +44,22 @@ export function proposeChangeUrl(
   const base = `https://github.com/${repo}/issues/new`;
   const title = `[ote-event] ${isNew ? "Add" : "Update"}: ${event.name ?? "(unnamed event)"}`;
   const body = issueBody(event, isNew);
-  const params = new URLSearchParams({ title, body });
+  // The `ote-event` label is what the issue-to-pr workflow keys on (it runs
+  // on issues opened/edited and filters by this label). Applying it via the
+  // URL means the issue arrives labelled, so the workflow fires on `opened` —
+  // no manual labelling, which wouldn't re-trigger it anyway (`labeled` is
+  // not one of its events). GitHub applies the param only if the label
+  // already exists in the repo; the ote-template ships it.
+  const params = new URLSearchParams({ title, body, labels: "ote-event" });
   const url = `${base}?${params}`;
   if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };
-  return { kind: "fallback", url: base, copyText: body };
+  // URL too long: the user pastes the body into a blank issue, but keep the
+  // label on the blank-issue link so the workflow still fires on open.
+  return {
+    kind: "fallback",
+    url: `${base}?${new URLSearchParams({ labels: "ote-event" })}`,
+    copyText: body,
+  };
 }
 
 /**

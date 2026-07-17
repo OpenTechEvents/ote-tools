@@ -23,6 +23,8 @@ describe("proposeChangeUrl", () => {
     const url = new URL(result.url);
     expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
     expect(url.searchParams.get("title")).toBe("[ote-event] Add: Async night");
+    // The label the issue-to-pr workflow filters on, applied on open.
+    expect(url.searchParams.get("labels")).toBe("ote-event");
     const body = url.searchParams.get("body") ?? "";
     expect(body).toContain("```json");
     expect(body).toContain('"id": "https://x.example/events/2026-06-async"');
@@ -41,7 +43,10 @@ describe("proposeChangeUrl", () => {
     const result = proposeChangeUrl("o/r", big, true);
     expect(result.kind).toBe("fallback");
     if (result.kind !== "fallback") return;
-    expect(result.url).toBe("https://github.com/o/r/issues/new");
+    // Blank-issue link still carries the label so the workflow fires on open.
+    expect(result.url).toBe(
+      "https://github.com/o/r/issues/new?labels=ote-event",
+    );
     expect(result.copyText).toContain("```json");
     expect(result.copyText).toContain('"description"');
   });
