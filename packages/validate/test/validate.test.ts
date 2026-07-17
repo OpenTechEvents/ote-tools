@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { validateEvent, validateFeed } from "../src/index.js";
+import {
+  validateEvent,
+  validateEventInFeed,
+  validateFeed,
+} from "../src/index.js";
 
 const fixturesDir = fileURLToPath(new URL("../fixtures/", import.meta.url));
 
@@ -120,10 +124,52 @@ describe("validateEvent — invalid fixtures", () => {
   });
 });
 
+describe("validateEventInFeed — feed-context rules for a single event", () => {
+  it("an event file without specVersion/license is valid (both inherited)", () => {
+    const feed = loadFixture("valid", "feed.json") as {
+      events: Record<string, unknown>[];
+    };
+    const event = feed.events[0]!;
+    expect(event.specVersion).toBeUndefined();
+    expect(event.license).toBeUndefined();
+    expect(validateEvent(event).valid).toBe(false); // standalone demands both…
+    const result = validateEventInFeed(event); // …feed context does not
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("a standalone-shaped event (with specVersion/license) is also valid", () => {
+    const result = validateEventInFeed(loadFixture("valid", "event-minimal.json"));
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("error paths are relative to the event, not the envelope", () => {
+    const result = validateEventInFeed({ name: "No id, date or timezone" });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual({
+      path: "(document)",
+      message: 'is missing required property "id"',
+    });
+    const { errors } = validateEventInFeed({
+      id: "https://example.org/events/x",
+      name: "Bad geo",
+      startDate: "2026-06-01",
+      timezone: "UTC",
+      location: { venue: "Somewhere", geo: { lat: 91, lon: 0 } },
+    });
+    expect(errors).toContainEqual({
+      path: "location.geo.lat",
+      message: "must be <= 90",
+    });
+  });
+});
+
 describe("non-object inputs", () => {
   it.each([null, "text", 42, []])("%o is invalid", (input) => {
     expect(validateEvent(input).valid).toBe(false);
     expect(validateFeed(input).valid).toBe(false);
+    expect(validateEventInFeed(input).valid).toBe(false);
   });
 });
 

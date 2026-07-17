@@ -22,7 +22,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { validateEvent } from "../../packages/validate/dist/index.js";
+import { validateEventInFeed } from "../../packages/validate/dist/index.js";
 
 const marker = process.env.OTE_COMMENT_MARKER ?? "<!-- ote-issue-to-pr -->";
 const tmp = process.env.RUNNER_TEMP ?? ".";
@@ -104,7 +104,10 @@ try {
   ]);
 }
 
-const result = validateEvent(event);
+// Feed context, not standalone: events/<slug>.json is a feed fragment that
+// inherits specVersion and license from the feed (same rules build-feed
+// --check applies — the editor deliberately omits both fields).
+const result = validateEventInFeed(event);
 if (!result.valid) {
   reject("The event JSON is not valid against the OTE event schema", [
     ...result.errors.map((e) => `- \`${e.path}\` — ${e.message}`),
