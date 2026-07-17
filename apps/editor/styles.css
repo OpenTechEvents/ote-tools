@@ -69,6 +69,25 @@ header h1 {
   margin: 0.2rem 0;
 }
 
+#config-problems {
+  background: #fff8e1;
+  border: 1px solid #e6c65c;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+#config-problems p {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+
+#config-problems ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
 /* --- repo picker ---------------------------------------------------------- */
 
 #repo-picker {
@@ -1020,6 +1039,24 @@ footer {
 
 .import-gap-tag::before {
   content: "⚠ ";
+}
+
+.inherit-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.25rem 0 0;
+}
+
+.inherit-hint::before {
+  content: "ⓘ ";
+}
+
+#review-inherited {
+  margin: 0 0 0.6rem;
+}
+
+#review-inherited::before {
+  content: "ⓘ ";
 }
 
 /* --- shared bits --------------------------------------------------------------- */

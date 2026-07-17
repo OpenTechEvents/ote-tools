@@ -4,6 +4,7 @@
  * this file only connects them to the page.
  */
 
+import { SPEC_VERSION } from "@opentechevents/build-feed";
 import { icsToEvents } from "@opentechevents/import-ics";
 import { htmlToEvents } from "@opentechevents/import-jsonld";
 
@@ -154,6 +155,13 @@ async function startEditor(repo: string): Promise<void> {
   let profile = resolveProfile(config);
   for (const warning of profile.warnings) addWarning(warning);
 
+  // The feed's license, inherited by every event that doesn't set its own.
+  // Shown to the user (license field hint, review dialog) so "empty license"
+  // reads as "inherits X", not "missing". null = config absent or licenseless
+  // (the config-problems banner covers the licenseless case separately).
+  const feedLicense =
+    typeof config?.feed?.license === "string" ? config.feed.license : null;
+
   // Profile switcher: the config's profile is the default, not a cage.
   const profileSelect = el<HTMLSelectElement>("profile-select");
   for (const preset of availablePresets(config)) {
@@ -193,12 +201,40 @@ async function startEditor(repo: string): Promise<void> {
   const form = el<HTMLFormElement>("event-form");
   const badge = el<HTMLSpanElement>("valid-badge");
   const documentErrors = el<HTMLUListElement>("document-errors");
+  const configProblems = el<HTMLDivElement>("config-problems");
   const propose = el<HTMLButtonElement>("propose");
   const editDirect = el<HTMLButtonElement>("edit-direct");
 
   function setControlValue(key: string, value: string): void {
     const input = form.querySelector<HTMLInputElement>(`[data-key="${key}"]`);
     if (input) input.value = value;
+  }
+
+  /**
+   * Live hint under the license field: when the user leaves it empty, spell
+   * out which license the event inherits from the feed (and the value), so an
+   * empty box reads as "inherits X", not "missing". No hint once the user
+   * types a per-event license — then the JSON carries that value, no
+   * inheritance happens.
+   */
+  function updateLicenseHint(): void {
+    const field = form.querySelector<HTMLElement>('[data-field-id="license"]');
+    if (!field) return;
+    let hint = field.querySelector<HTMLElement>(".inherit-hint");
+    if (state.license.trim() !== "") {
+      hint?.remove();
+      return;
+    }
+    if (!hint) {
+      hint = document.createElement("p");
+      hint.className = "inherit-hint";
+      const slot = field.querySelector(".field-error");
+      if (slot) slot.before(hint);
+      else field.append(hint);
+    }
+    hint.textContent = feedLicense
+      ? `Left empty → inherits the feed's license: ${feedLicense} (from ote.config.json).`
+      : "Left empty → would inherit the feed's license, but ote.config.json defines none yet (see the notice above).";
   }
 
   /** Result of the last refresh, consulted by the button handlers. */
@@ -255,6 +291,27 @@ async function startEditor(repo: string): Promise<void> {
       li.textContent = message;
       documentErrors.append(li);
     }
+
+    // Problems in ote.config.json (e.g. the feed has no license, so events
+    // have nothing to inherit). These are the organizer's to fix, not a
+    // contributor's, so they never block submission — but the feed the issue
+    // builds is invalid until fixed, so they are always shown, not dropped.
+    configProblems.textContent = "";
+    configProblems.hidden = result.configProblems.length === 0;
+    if (result.configProblems.length > 0) {
+      const heading = document.createElement("p");
+      heading.textContent =
+        "⚠ ote.config.json needs attention — the published feed will be invalid until this is fixed in the repository:";
+      configProblems.append(heading);
+      const list = document.createElement("ul");
+      for (const message of result.configProblems) {
+        const li = document.createElement("li");
+        li.textContent = message;
+        list.append(li);
+      }
+      configProblems.append(list);
+    }
+    updateLicenseHint();
     badge.textContent = draftValid ? "✓ Ready" : "Incomplete";
     badge.className = draftValid ? "ok" : "invalid";
     editDirect.disabled = !isNew && editSlug === null;
@@ -951,8 +1008,21 @@ async function startEditor(repo: string): Promise<void> {
   // --- review step ----------------------------------------------------------
   const review = el<HTMLDialogElement>("review");
   const reviewJson = el<HTMLPreElement>("review-json");
+  const reviewInherited = el<HTMLParagraphElement>("review-inherited");
 
   function openReview(): void {
+    // The JSON below is the events/<slug>.json file verbatim: a feed
+    // fragment. It carries no specVersion/license by design — both are
+    // inherited from the feed on publish. Spell that out so their absence in
+    // the JSON reads as "inherited", not "forgotten".
+    const inherited = [`specVersion ${SPEC_VERSION}`];
+    if (state.license.trim() === "") {
+      inherited.push(
+        `license ${feedLicense ?? "— none set in ote.config.json yet"}`,
+      );
+    }
+    reviewInherited.textContent = `Stored as events/${state.slug || "<slug>"}.json — a feed fragment. Inherited from the feed on publish: ${inherited.join(", ")}.`;
+
     const json = JSON.stringify(toEventJson(state), null, 2);
     reviewJson.textContent = "";
     for (const token of tokenizeJson(json)) {
@@ -971,7 +1041,32 @@ async function startEditor(repo: string): Promise<void> {
   el<HTMLButtonElement>("review-cancel").addEventListener("click", () =>
     review.close(),
   );
+
+  /**
+   * Reveals every field/document error (not just the touched ones) and
+   * scrolls to the first, instead of blocking silently. Used whenever an
+   * output action is refused because the draft is not valid.
+   */
+  function revealErrors(): void {
+    submitAttempted = true;
+    refresh();
+    const firstError = form.querySelector(".field-error:not(:empty)");
+    (firstError ?? documentErrors).scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }
+
   el<HTMLButtonElement>("review-confirm").addEventListener("click", () => {
+    // Final, authoritative gate: the issue is never opened unless the draft
+    // validates as OTE right now. refresh() re-runs validateDraft against the
+    // current state; the earlier propose-time check is only a fast path, this
+    // is the guarantee. If anything is off, back out to the form with errors.
+    if (!refresh()) {
+      review.close();
+      revealErrors();
+      return;
+    }
     review.close();
     follow(proposeChangeUrl(repo, toEventJson(state), isNew));
     // Submitting the event currently on screen from an import session:
@@ -989,15 +1084,9 @@ async function startEditor(repo: string): Promise<void> {
   });
 
   propose.addEventListener("click", () => {
-    if (!draftValid) {
-      // First invalid attempt reveals every error instead of blocking silently.
-      submitAttempted = true;
-      refresh();
-      const firstError = form.querySelector(".field-error:not(:empty)");
-      (firstError ?? documentErrors).scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+    // refresh() returns the live validity, so it doubles as the gate.
+    if (!refresh()) {
+      revealErrors();
       return;
     }
     openReview();
@@ -1005,6 +1094,12 @@ async function startEditor(repo: string): Promise<void> {
 
   editDirect.addEventListener("click", () => {
     if (isNew) {
+      // Creating a new file emits the same event JSON as the issue, so it
+      // gets the same guarantee: no invalid draft leaves the editor.
+      if (!refresh()) {
+        revealErrors();
+        return;
+      }
       follow(directCreateUrl(repo, state.slug, toEventJson(state), branch ?? "main"));
     } else if (editSlug !== null) {
       window.open(directEditUrl(repo, editSlug, branch), "_blank", "noopener");

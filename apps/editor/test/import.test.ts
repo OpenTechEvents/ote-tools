@@ -69,9 +69,16 @@ describe("missingFormFields", () => {
 
   it("always marks the fields ICS cannot model", () => {
     const missing = missingFormFields({ name: "X", startDate: "2026-09-10" });
-    for (const id of ["id", "attendanceMode", "languages", "license", "source"]) {
+    for (const id of ["id", "attendanceMode", "languages", "source"]) {
       expect(missing.has(id)).toBe(true);
     }
+  });
+
+  it("never marks license: it inherits from the feed, not a per-event gap", () => {
+    // A source that carries nothing must still not flag license — the feed's
+    // ote.config.json owns it, so an empty per-event license is correct.
+    const missing = missingFormFields({ name: "X", startDate: "2026-09-10" });
+    expect(missing.has("license")).toBe(false);
   });
 
   it("JSON-LD events can cover attendanceMode and languages", () => {

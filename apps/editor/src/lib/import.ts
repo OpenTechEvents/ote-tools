@@ -79,13 +79,19 @@ export function missingFormFields(event: ImportedEvent): Set<string> {
   has("attendanceMode", event.attendanceMode);
   has("languages", event.languages);
   has("updatedAt", event.updatedAt);
-  // id, license, source: no importer can carry them — id must be minted by
-  // the organizer, license inherits from the feed, provenance is the
-  // importing tool's to fill (see the import-ics / import-jsonld READMEs).
+  // id and source: no importer carries them — id must be minted by the
+  // organizer, provenance is the importing tool's to fill (see the
+  // import-ics / import-jsonld READMEs), so they are legitimately marked as
+  // gaps for the user to complete.
+  // license is different: it inherits from the feed's ote.config.json and is
+  // NOT a per-event field. An import not carrying it is not a gap — marking
+  // it would tell the user to fill something that should stay empty — so it
+  // is skipped, exactly like the editor's own derived fields (slug, allDay).
+  const NOT_A_GAP = new Set(["slug", "allDay", "license"]);
 
   const missing = new Set<string>();
   for (const def of FIELD_REGISTRY) {
-    if (def.id === "slug" || def.id === "allDay") continue;
+    if (NOT_A_GAP.has(def.id)) continue;
     if (!present.has(def.id)) missing.add(def.id);
   }
   return missing;
