@@ -1,0 +1,204 @@
+# Reusable workflow: turns an `ote-event` issue into a pull request
+# (DESIGN.md "Flujo de escritura"). Intended as the write path of
+# ote-template forks:
+#
+#   on:
+#     issues:
+#       types: [opened, edited]
+#     pull_request:
+#       types: [closed]
+#   jobs:
+#     issue-to-pr:
+#       if: github.event_name != 'issues' ||
+#           contains(github.event.issue.labels.*.name, 'ote-event')
+#       uses: OpenTechEvents/ote-tools/.github/workflows/issue-to-pr.yml@v1
+#       permissions:
+#         contents: write
+#         issues: write
+#         pull-requests: write
+#
+# On issues opened/edited (the caller filters the `ote-event` label):
+#   - extracts the event JSON from the first fenced code block of the body,
+#   - validates it with @opentechevents/validate (the same implementation
+#     the validate.yml PR check uses),
+#   - invalid → one sticky comment listing what is missing/wrong, no PR;
+#     re-edits update that same comment,
+#   - valid → commits events/<slug>.json to branch ote/issue-<number> and
+#     opens (or updates) a PR that closes the issue.
+# On pull_request closed: deletes the merged/abandoned ote/* branch; a
+# non-merged close keeps the issue open for retry.
+#
+# Runs entirely with the caller's default GITHUB_TOKEN — no extra secrets.
+# Known GitHub limitation of that token: the PRs it opens do not trigger
+# the caller's own PR workflows (e.g. validate.yml). The JSON is validated
+# here before the PR exists, so the check is not lost.
+name: OTE issue to PR
+
+on:
+  workflow_call:
+    inputs:
+      tools-ref:
+        description: >-
+          Git ref of ote-tools to run the validator from. Defaults to the
+          exact commit of this workflow file, so tools and workflow never
+          drift apart.
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  issue-to-pr:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    # Rapid re-edits of one issue race on the same branch/PR/comment: keep
+    # only the latest run per issue.
+    concurrency:
+      group: ote-issue-to-pr-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      COMMENT_MARKER: "<!-- ote-issue-to-pr -->"
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+
+      - name: Checkout ote-tools
+        uses: actions/checkout@v4
+        with:
+          repository: OpenTechEvents/ote-tools
+          ref: ${{ inputs.tools-ref || github.job_workflow_sha }}
+          path: .ote-tools
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: .ote-tools/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: .ote-tools/pnpm-lock.yaml
+
+      - name: Build the validator
+        working-directory: .ote-tools
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @opentechevents/validate build
+
+      - name: Extract and validate the event JSON
+        id: event
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          OTE_COMMENT_MARKER: ${{ env.COMMENT_MARKER }}
+        run: node .ote-tools/.github/scripts/issue-to-pr.mjs
+
+      - name: Create or update the branch and PR
+        if: steps.event.outputs.valid == 'true'
+        env:
+          SLUG: ${{ steps.event.outputs.slug }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          BRANCH="ote/issue-${ISSUE_NUMBER}"
+          FILE="events/${SLUG}.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Rebuild the branch from the default branch on every run: re-edits
+          # replace the previous proposal (including a file left behind by an
+          # earlier slug) instead of piling commits on top of it.
+          git fetch origin "$DEFAULT_BRANCH"
+          git checkout -B "$BRANCH" "origin/${DEFAULT_BRANCH}"
+
+          if git cat-file -e "origin/${DEFAULT_BRANCH}:${FILE}" 2>/dev/null; then
+            ACTION="Update"
+          else
+            ACTION="Add"
+          fi
+
+          mkdir -p events
+          cp "${RUNNER_TEMP}/ote-event.json" "$FILE"
+          git add "$FILE"
+
+          if git diff --cached --quiet; then
+            {
+              echo "$COMMENT_MARKER"
+              echo "### ✅ Event JSON is valid — already published"
+              echo ""
+              echo "\`${FILE}\` on \`${DEFAULT_BRANCH}\` already matches this proposal, so there is nothing to change."
+            } > "${RUNNER_TEMP}/ote-comment.md"
+            exit 0
+          fi
+
+          git commit -m "${ACTION} ${FILE} (issue #${ISSUE_NUMBER})"
+          git push --force origin "$BRANCH"
+
+          TITLE="${ACTION} ${FILE} (issue #${ISSUE_NUMBER})"
+          BODY="$(printf '%s\n' \
+            "${ACTION}s \`${FILE}\` from the event JSON proposed in #${ISSUE_NUMBER}." \
+            "" \
+            "The JSON was validated against the OTE event schema before this PR was opened. Merging publishes the event and closes the issue; editing the issue updates this PR." \
+            "" \
+            "Closes #${ISSUE_NUMBER}")"
+
+          PR_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // empty')
+          if [ -z "$PR_URL" ]; then
+            PR_URL=$(gh pr create --base "$DEFAULT_BRANCH" --head "$BRANCH" --title "$TITLE" --body "$BODY")
+          else
+            gh pr edit "$PR_URL" --title "$TITLE" --body "$BODY"
+          fi
+
+          {
+            echo "$COMMENT_MARKER"
+            echo "### ✅ Event JSON is valid"
+            echo ""
+            echo "Pull request: ${PR_URL} — merging it publishes \`${FILE}\`."
+            echo ""
+            echo "Editing this issue re-validates the JSON and updates the same pull request."
+          } > "${RUNNER_TEMP}/ote-comment.md"
+
+      # One sticky comment per issue, identified by the hidden marker:
+      # updated in place on every re-validation instead of stacking.
+      - name: Upsert the validation comment
+        run: |
+          set -euo pipefail
+          FILE="${RUNNER_TEMP}/ote-comment.md"
+          [ -f "$FILE" ] || exit 0
+          COMMENT_ID=$(gh api "repos/${GH_REPO}/issues/${ISSUE_NUMBER}/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"${COMMENT_MARKER}\"))][0].id // empty" \
+            | head -n 1)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api --method PATCH "repos/${GH_REPO}/issues/comments/${COMMENT_ID}" \
+              -F "body=@${FILE}" --silent
+          else
+            gh api --method POST "repos/${GH_REPO}/issues/${ISSUE_NUMBER}/comments" \
+              -F "body=@${FILE}" --silent
+          fi
+
+  # The branch is disposable transport: merged → published, closed without
+  # merge → the issue stays open and a re-edit recreates it.
+  delete-branch:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      startsWith(github.event.pull_request.head.ref, 'ote/') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Delete the ote/* branch
+        run: |
+          gh api --method DELETE \
+            "repos/${{ github.repository }}/git/refs/heads/${HEAD_REF}" \
+            || echo "Branch already deleted"
