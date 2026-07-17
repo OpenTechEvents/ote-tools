@@ -13,7 +13,7 @@ code, comments, tests, commits and docs (see [CLAUDE.md](CLAUDE.md)).
 
 ```sh
 pnpm install
-pnpm build        # tsc for the packages, esbuild bundle for the editor
+pnpm build        # tsc for the packages, esbuild bundles for static apps
 ```
 
 ## Repository layout
@@ -24,6 +24,7 @@ pnpm build        # tsc for the packages, esbuild bundle for the editor
 | `packages/build-feed` | Assembles `events/*.json` + `ote.config.json` → `feed.json` | vitest + fixtures |
 | `packages/export-ics` / `export-rss` | `feed.json` → ICS / RSS | vitest + fixtures |
 | `apps/editor` | Static web editor (form → event JSON → issue/PR links) | vitest for `src/lib/`; UI by hand |
+| `apps/preview` | Static feed previewer (`feed.json`, `feed.ics`, `feed.xml` → readable tabs) | typecheck + UI by hand |
 | `.github/workflows` | CI, reusable workflows for forks, deploys, npm publish | see below |
 
 ## Everyday commands (repo root)
@@ -106,13 +107,25 @@ description, there is no browser test suite.
 Note the editor talks to real external services (GitHub raw/API, OSM tiles,
 Nominatim search) even in dev.
 
+## Testing the previewer (apps/preview)
+
+```sh
+pnpm --filter @opentechevents/preview dev
+```
+
+Open the printed URL with `?repo=owner/name`. The app first tries the fork's
+GitHub Pages exports (`feed.json`, `feed.ics`, `feed.xml`) and falls back to
+the same filenames at the repository root on the default branch via
+`raw.githubusercontent.com`.
+
 ## Workflows
 
 - **CI** (`ci.yml`): lint + build + test on every push/PR. Green CI is the
   bar for merging.
-- **Deploy tools site** (`deploy-tools.yml`): publishes the editor to this
-  repo's Pages (`/editor`) on every push to `main`. Verify after merge:
-  <https://opentechevents.github.io/ote-tools/editor/>.
+- **Deploy tools site** (`deploy-tools.yml`): publishes the static tools to
+  this repo's Pages (`/editor`, `/preview`) on every push to `main`. Verify
+  after merge: <https://opentechevents.github.io/ote-tools/editor/> and
+  <https://opentechevents.github.io/ote-tools/preview/>.
 - **Reusable workflows for forks** (`validate.yml`, `build-pages.yml`):
   called by ote-template forks via `uses:`. Test changes against a scratch
   fork pointing `uses:` at your branch (`...@your-branch`) before merging —
