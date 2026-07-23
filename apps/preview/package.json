@@ -19,8 +19,8 @@
     "@opentechevents/import-ics": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "esbuild": "^0.24.0",
-    "typescript": "^5.5.0"
+    "@types/node": "^26.1.1",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2"
   }
 }
