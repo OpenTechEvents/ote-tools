@@ -66,10 +66,10 @@ jobs:
       COMMENT_MARKER: "<!-- ote-issue-to-pr -->"
     steps:
       - name: Checkout caller repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout ote-tools
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: OpenTechEvents/ote-tools
           ref: ${{ inputs.tools-ref || github.job_workflow_sha }}
