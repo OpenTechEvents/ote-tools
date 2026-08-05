@@ -133,3 +133,15 @@ the same filenames at the repository root on the default branch via
 - **Publish to npm** (`publish.yml`): manual (`workflow_dispatch`), publishes
   whatever workspace versions aren't on the registry yet. Releasing = bump
   `version` in the package(s), merge, run the workflow.
+
+### Versioning
+
+The published packages track the OTE spec minor they implement: the packages
+that speak v0.3 are versioned `0.3.x`, and they move together, in one release,
+even when a package has no changes of its own. So `@opentechevents/validate`
+0.3.x validates against spec v0.3 — no lookup table needed. Patch releases are
+ours to spend on fixes within that spec minor; the next spec minor moves every
+package to the matching minor. Versions are therefore not per-package semver:
+a package can jump minors (0.1.0 → 0.3.0) with no breaking change of its own.
+The apps (`apps/*`) are `private: true`, never published, and keep their own
+versions.

@@ -1,6 +1,6 @@
 {
   "name": "@opentechevents/import-jsonld",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Extracts schema.org Event JSON-LD from an HTML page into partial OTE event documents",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/import-jsonld",
