@@ -32,7 +32,7 @@
     "@opentechevents/validate": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
+    "@types/node": "^22.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },

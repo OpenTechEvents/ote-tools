@@ -28,6 +28,12 @@ updates:
       # until the whole suite ships 7.x, then migrate apps/preview on purpose.
       - dependency-name: "@fullcalendar/*"
         update-types: ["version-update:semver-major"]
+      # @types/node describes the runtime we actually run on, so it tracks
+      # `engines` (Node 22) instead of the newest release — ahead of the
+      # runtime it would type-check APIs that do not exist in production.
+      # Raise this together with engines and the workflows' node-version.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
