@@ -193,8 +193,8 @@ importers:
         version: 3.0.1(ajv@8.20.0)
     devDependencies:
       '@opentechevents/schema':
-        specifier: link:../../../opentechevents-spec
-        version: link:../../../opentechevents-spec
+        specifier: 0.3.0
+        version: 0.3.0
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -591,6 +591,9 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
+
+  '@opentechevents/schema@0.3.0':
+    resolution: {integrity: sha512-4lW8hs+tk0ZziUBOHexr0+PIfQm5P7TD11tUJgN1tGI5ldvYpmvRisY8gcZm0lBTVtjACeZ8xQH5OA89gEX09A==}
 
   '@rollup/rollup-android-arm-eabi@4.62.2':
     resolution: {integrity: sha512-6o7ZLZK+BeenkZCFNDXqpbjw9bD6nuWonvS/lwQJp7NoVVxm6p3qE7qQ5jGuBjiFsgvqjD8mZAU5oWxTmbOeOg==}
@@ -1630,6 +1633,8 @@ snapshots:
   '@humanwhocodes/retry@0.4.3': {}
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
+
+  '@opentechevents/schema@0.3.0': {}
 
   '@rollup/rollup-android-arm-eabi@4.62.2':
     optional: true
