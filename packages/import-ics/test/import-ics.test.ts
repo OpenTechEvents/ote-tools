@@ -31,8 +31,8 @@ describe("icsToEvents · Google Calendar export", () => {
   it("maps the timed event's fields, unfolding and unescaping TEXT", () => {
     const [event] = events;
     expect(event.name).toBe("Python meetup: asyncio in production");
-    expect(event.startDate).toBe("2026-09-10T19:00:00");
-    expect(event.endDate).toBe("2026-09-10T21:00:00");
+    expect(event.startDate).toBe("2026-09-10T19:00");
+    expect(event.endDate).toBe("2026-09-10T21:00");
     expect(event.timezone).toBe("Europe/Madrid");
     expect(event.description).toBe(
       "Monthly session on asyncio in production: pitfalls, patterns and a live demo.\nBring your laptop; Q&A at the end.",
@@ -48,7 +48,13 @@ describe("icsToEvents · Google Calendar export", () => {
     const [, allDay] = events;
     expect(allDay.startDate).toBe("2026-11-05");
     expect(allDay.endDate).toBeUndefined();
-    expect(allDay.timezone).toBeUndefined();
+  });
+
+  it("all-day event: timezone inferred from the calendar's X-WR-TIMEZONE, with a warning", () => {
+    const [, allDay] = events;
+    expect(allDay.timezone).toBe("Europe/Madrid");
+    const warned = warnings.find((w) => w.eventIndex === 1 && w.field === "timezone");
+    expect(warned?.message).toContain("X-WR-TIMEZONE");
   });
 
   it("empty DESCRIPTION:/LOCATION: lines mean absent, not empty string", () => {
@@ -83,22 +89,46 @@ describe("icsToEvents · Meetup feed", () => {
 
   it("derives endDate from DURATION when DTEND is absent", () => {
     const [, social] = events;
-    expect(social.startDate).toBe("2026-08-30T11:00:00");
-    expect(social.endDate).toBe("2026-08-30T13:30:00");
+    expect(social.startDate).toBe("2026-08-30T11:00");
+    expect(social.endDate).toBe("2026-08-30T13:30");
   });
 
   it("no timezone warnings: both events carry an IANA TZID", () => {
     expect(warnings.some((w) => w.field === "timezone")).toBe(false);
   });
+
+  it("ORGANIZER's CN maps to organizers[].name, email withheld by default", () => {
+    const [workshop] = events;
+    expect(workshop.organizers).toEqual([{ name: "Rust Madrid" }]);
+    const warned = warnings.find((w) => w.eventIndex === 0 && w.field === "organizers");
+    expect(warned?.message).toContain('sourceVisibility: "public"');
+  });
+
+  it('sourceVisibility: "public" also imports the organizer email', () => {
+    const result = icsToEvents(fixture("meetup.ics"), { sourceVisibility: "public" });
+    expect(result.events[0].organizers).toEqual([
+      { name: "Rust Madrid", email: "hola@rustmadrid.example" },
+    ]);
+    expect(
+      result.warnings.some((w) => w.eventIndex === 0 && w.field === "organizers"),
+    ).toBe(false);
+  });
 });
 
 describe("icsToEvents · multi-day all-day conference", () => {
-  const { events } = icsToEvents(fixture("multi-day.ics"));
+  const { events, warnings } = icsToEvents(fixture("multi-day.ics"));
 
   it("converts exclusive DTEND to the inclusive OTE endDate (-1 day)", () => {
     const [conf] = events;
     expect(conf.startDate).toBe("2026-10-16");
     expect(conf.endDate).toBe("2026-10-17");
+  });
+
+  it("no X-WR-TIMEZONE on this calendar: all-day timezone defaults to UTC, with a warning", () => {
+    const [conf] = events;
+    expect(conf.timezone).toBe("UTC");
+    const warned = warnings.find((w) => w.eventIndex === 0 && w.field === "timezone");
+    expect(warned?.message).toContain("no X-WR-TIMEZONE");
   });
 
   it("accumulates repeated CATEGORIES into tags", () => {
@@ -111,7 +141,7 @@ describe("icsToEvents · recurring event (RRULE)", () => {
 
   it("imports only the first occurrence and warns instead of expanding", () => {
     expect(events).toHaveLength(1);
-    expect(events[0].startDate).toBe("2026-07-07T19:00:00");
+    expect(events[0].startDate).toBe("2026-07-07T19:00");
     const recurring = warnings.find(
       (w) => w.eventIndex === 0 && w.message.includes("not expanded"),
     );
@@ -125,34 +155,45 @@ describe("icsToEvents · edge cases", () => {
 
   it("floating time: wall clock kept, timezone absent + warning", () => {
     const [floating] = events;
-    expect(floating.startDate).toBe("2026-09-01T18:00:00");
+    expect(floating.startDate).toBe("2026-09-01T18:00");
     expect(floating.timezone).toBeUndefined();
     expect(fieldsWarned(warnings, 0).has("timezone")).toBe(true);
   });
 
-  it("STATUS:TENTATIVE is ambiguous: status absent + warning", () => {
-    expect(events[0].status).toBeUndefined();
-    expect(fieldsWarned(warnings, 0).has("status")).toBe(true);
+  it("STATUS:TENTATIVE maps directly to OTE's tentative status", () => {
+    expect(events[0].status).toBe("tentative");
+    expect(fieldsWarned(warnings, 0).has("status")).toBe(false);
   });
 
   it("non-IANA (Windows) TZID: wall clock kept, timezone absent + warning", () => {
     const [, outlook] = events;
-    expect(outlook.startDate).toBe("2026-09-15T17:00:00");
+    expect(outlook.startDate).toBe("2026-09-15T17:00");
     expect(outlook.timezone).toBeUndefined();
     expect(fieldsWarned(warnings, 1).has("timezone")).toBe(true);
   });
 
   it("Z-suffixed times map to timezone UTC; nested VALARM is ignored", () => {
     const [, , utc] = events;
-    expect(utc.startDate).toBe("2026-09-20T10:00:00");
-    expect(utc.endDate).toBe("2026-09-20T11:30:00");
+    expect(utc.startDate).toBe("2026-09-20T10:00");
+    expect(utc.endDate).toBe("2026-09-20T11:30");
     expect(utc.timezone).toBe("UTC");
+  });
+
+  it("ORGANIZER without a CN (display name) cannot be imported: no name to use", () => {
+    const [, , utc] = events;
+    expect(utc.organizers).toBeUndefined();
+    expect(fieldsWarned(warnings, 2).has("organizers")).toBe(true);
   });
 
   it("missing SUMMARY: name absent + warning", () => {
     const [, , , nameless] = events;
     expect(nameless.name).toBeUndefined();
     expect(fieldsWarned(warnings, 3).has("name")).toBe(true);
+  });
+
+  it("all-day, no X-WR-TIMEZONE on this calendar: defaults to UTC", () => {
+    const [, , , nameless] = events;
+    expect(nameless.timezone).toBe("UTC");
   });
 });
 
@@ -183,6 +224,57 @@ describe("icsToEvents · HTML description (Meetup-style)", () => {
     const plain = icsToEvents(fixture("meetup.ics"));
     expect(plain.events[0].description).toContain("Hands-on embedded Rust");
     expect(plain.warnings.some((w) => w.field === "description")).toBe(false);
+  });
+});
+
+describe("icsToEvents · allDayTimezonePolicy override (H003)", () => {
+  it("an explicit policy wins over the calendar's own X-WR-TIMEZONE", () => {
+    const { events, warnings } = icsToEvents(fixture("google-calendar.ics"), {
+      allDayTimezonePolicy: "America/Bogota",
+    });
+    const [, allDay] = events;
+    expect(allDay.timezone).toBe("America/Bogota");
+    const warned = warnings.find((w) => w.eventIndex === 1 && w.field === "timezone");
+    expect(warned?.message).toContain("explicit allDayTimezonePolicy");
+  });
+});
+
+describe("icsToEvents · TZID validated against the real IANA enum, not a shape regex", () => {
+  it("a plausible-looking but nonexistent zone is rejected, not trusted", () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:fake-tz-1@example.com",
+      "DTSTAMP:20260701T000000Z",
+      "DTSTART;TZID=Europe/Atlantida:20260901T180000",
+      "SUMMARY:Bogus timezone",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const { events, warnings } = icsToEvents(ics);
+    expect(events[0].timezone).toBeUndefined();
+    const warned = warnings.find((w) => w.eventIndex === 0 && w.field === "timezone");
+    expect(warned?.message).toContain('"Europe/Atlantida" is not an IANA timezone');
+  });
+});
+
+describe("icsToEvents · IMAGE (RFC 7986)", () => {
+  it("maps IMAGE to image[] when present", () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:with-image-1@example.com",
+      "DTSTAMP:20260701T000000Z",
+      "DTSTART:20260901T180000Z",
+      "SUMMARY:Event with a poster",
+      "IMAGE;VALUE=URI:https://example.org/poster.png",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const { events } = icsToEvents(ics);
+    expect(events[0].image).toEqual(["https://example.org/poster.png"]);
   });
 });
 

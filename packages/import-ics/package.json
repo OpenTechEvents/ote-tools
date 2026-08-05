@@ -34,6 +34,7 @@
     "access": "public"
   },
   "dependencies": {
-    "ical.js": "^2.2.1"
+    "ical.js": "^2.2.1",
+    "@opentechevents/validate": "workspace:*"
   }
 }

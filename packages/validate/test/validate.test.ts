@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  checkEventRecommended,
+  checkFeedRecommended,
   validateEvent,
   validateEventInFeed,
   validateFeed,
@@ -29,16 +31,22 @@ describe("validateEvent — valid fixtures", () => {
 });
 
 describe("validateFeed — valid fixtures", () => {
-  it("feed.json is valid", () => {
-    const result = validateFeed(loadFixture("valid", "feed.json"));
+  const feedFiles = readdirSync(join(fixturesDir, "valid")).filter(
+    (f) => f.startsWith("feed") && f.endsWith(".json"),
+  );
+
+  it.each(feedFiles)("%s is valid", (file) => {
+    const result = validateFeed(loadFixture("valid", file));
     expect(result.errors).toEqual([]);
     expect(result.valid).toBe(true);
   });
 });
 
+// Files prefixed "feed-" are Feed documents (feed-level structural rules like
+// duplicate event ids or inherited textLanguage); everything else is an Event.
 describe("validateEvent — invalid fixtures", () => {
-  const invalidFiles = readdirSync(join(fixturesDir, "invalid")).filter((f) =>
-    f.endsWith(".json"),
+  const invalidFiles = readdirSync(join(fixturesDir, "invalid")).filter(
+    (f) => f.endsWith(".json") && !f.startsWith("feed-"),
   );
 
   it.each(invalidFiles)("%s is invalid with readable errors", (file) => {
@@ -58,7 +66,7 @@ describe("validateEvent — invalid fixtures", () => {
     expect(errors).toContainEqual({
       path: "specVersion",
       message:
-        "is not a spec version this validator knows (it implements OTE Spec 0.2.0); if the spec has moved on, update @opentechevents/validate",
+        "is not a spec version this validator knows (it implements OTE Spec 0.3.0); if the spec has moved on, update @opentechevents/validate",
     });
   });
 
@@ -124,6 +132,22 @@ describe("validateEvent — invalid fixtures", () => {
   });
 });
 
+describe("validateFeed — invalid fixtures", () => {
+  const invalidFeedFiles = readdirSync(join(fixturesDir, "invalid")).filter(
+    (f) => f.startsWith("feed-") && f.endsWith(".json"),
+  );
+
+  it.each(invalidFeedFiles)("%s is invalid with readable errors", (file) => {
+    const result = validateFeed(loadFixture("invalid", file));
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    for (const error of result.errors) {
+      expect(error.path).toBeTruthy();
+      expect(error.message).toBeTruthy();
+    }
+  });
+});
+
 describe("validateEventInFeed — feed-context rules for a single event", () => {
   it("an event file without specVersion/license is valid (both inherited)", () => {
     const feed = loadFixture("valid", "feed.json") as {
@@ -170,6 +194,28 @@ describe("non-object inputs", () => {
     expect(validateEvent(input).valid).toBe(false);
     expect(validateFeed(input).valid).toBe(false);
     expect(validateEventInFeed(input).valid).toBe(false);
+  });
+});
+
+describe("checkEventRecommended / checkFeedRecommended — quality profile, not validity", () => {
+  it("a minimal-but-valid event still fails the recommended profile", () => {
+    const event = loadFixture("valid", "event-minimal.json");
+    expect(validateEvent(event).valid).toBe(true);
+    expect(checkEventRecommended(event).valid).toBe(false);
+  });
+
+  it("a fully-described event satisfies the recommended profile too", () => {
+    const event = loadFixture("valid", "event-online.json");
+    expect(validateEvent(event).valid).toBe(true);
+    expect(checkEventRecommended(event).valid).toBe(true);
+  });
+
+  it("checkFeedRecommended reports readable warnings, same shape as validateFeed", () => {
+    const result = checkFeedRecommended(loadFixture("valid", "feed.json"));
+    for (const warning of result.errors) {
+      expect(warning.path).toBeTruthy();
+      expect(warning.message).toBeTruthy();
+    }
   });
 });
 

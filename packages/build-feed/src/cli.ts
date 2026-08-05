@@ -4,7 +4,12 @@ import { join, relative, resolve } from "node:path";
 import { feedToIcs } from "@opentechevents/export-ics";
 import { feedToRss } from "@opentechevents/export-rss";
 
-import { buildFeed, type BuildProblem, type EventFileInput } from "./index.js";
+import {
+  buildFeed,
+  resolveEventInheritance,
+  type BuildProblem,
+  type EventFileInput,
+} from "./index.js";
 
 export interface CliIO {
   out: (line: string) => void;
@@ -129,13 +134,14 @@ export function runCli(
   const result = buildFeed({ config: config ?? {}, events, now });
 
   if (!result.ok || parseFailures > 0) {
-    // A config that failed to parse already got its own line; drop the
-    // follow-on problems buildFeed reports against the {} placeholder.
-    const problems = result.ok
-      ? []
-      : result.problems.filter(
-          (p) => config !== undefined || p.file !== CONFIG_FILE,
-        );
+    // A config that failed to parse already got its own line; drop ALL
+    // follow-on problems buildFeed reports against the {} placeholder — not
+    // just ones naming ote.config.json. With `license` now optional (D029),
+    // the placeholder's missing license would otherwise cascade into a
+    // "missing license" problem on every real event file that relies on
+    // feed-level inheritance, which is noise caused by the broken config,
+    // not a real problem with those files.
+    const problems = result.ok || config === undefined ? [] : result.problems;
     printProblems(problems, io);
     const total = parseFailures + problems.length;
     io.err(`Build failed: ${total} problem${total === 1 ? "" : "s"}`);
@@ -150,11 +156,16 @@ export function runCli(
     return 0;
   }
 
+  // feed.json keeps the un-resolved feed (inheritance stays implicit, valid
+  // per schema); feed.ics/feed.xml need each event's effective values
+  // resolved first — those exporters read organizers/textLanguage/license
+  // per event directly, with no notion of feed-level inheritance themselves.
+  const resolvedFeed = resolveEventInheritance(feed);
   const outDir = resolve(args.out ?? join(root, "dist"));
   const outputs: Array<[string, string]> = [
     ["feed.json", JSON.stringify(feed, null, 2) + "\n"],
-    ["feed.ics", feedToIcs(feed)],
-    ["feed.xml", feedToRss(feed)],
+    ["feed.ics", feedToIcs(resolvedFeed)],
+    ["feed.xml", feedToRss(resolvedFeed)],
   ];
   try {
     mkdirSync(outDir, { recursive: true });

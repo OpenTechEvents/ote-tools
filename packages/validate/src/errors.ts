@@ -25,7 +25,7 @@ function humanPath(instancePath: string): string {
 }
 
 const WALL_CLOCK_MESSAGE =
-  "must be a date (YYYY-MM-DD) or a local date-time (YYYY-MM-DDTHH:MM[:SS]); a UTC offset is never allowed here — use `timezone` instead";
+  "must be a date (YYYY-MM-DD) or a local date-time (YYYY-MM-DDTHH:MM, no seconds); a UTC offset is never allowed here — use `timezone` instead";
 
 const DATE_FORM_MESSAGE =
   "startDate and endDate must use the same form: both all-day dates or both local date-times";
@@ -42,7 +42,7 @@ const PATTERN_MESSAGES: Array<[RegExp, string]> = [
   [/\/license$/, "must be an SPDX identifier (e.g. CC-BY-4.0) or a URL"],
   [/\/languages\/\d+$/, "must be a BCP 47 language tag (e.g. es, en-US)"],
   [/\/id$/, "must be a URI (e.g. https://example.org/events/2026-06)"],
-  [/\/(url|onlineUrl|licenseUrl)$/, "must be an http(s) URL"],
+  [/\/(url|onlineUrl|licenseUrl|waitlistUrl)$/, "must be an http(s) URL"],
 ];
 
 const DATE_PATTERN_PATHS = ["#/$defs/date/pattern", "#/$defs/dateTime/pattern"];
@@ -78,7 +78,11 @@ function humanize(
   const { keyword, instancePath, schemaPath, params } = err;
 
   // location.anyOf: "missing venue" + "missing onlineUrl" + "anyOf" → one single message.
-  if (/\$defs\/location/.test(schemaPath) && /anyOf/.test(schemaPath)) {
+  // Keyed on instancePath (not schemaPath): Ajv compiles $defs.location as its
+  // own extracted schema (it's grown large enough, with `address`, to trigger
+  // this), so errors inside it report schemaPath relative to that extracted
+  // root (e.g. "#/anyOf/0/required") — the "$defs/location" text is gone.
+  if (/(^|\.)location$/.test(humanPath(instancePath)) && /anyOf/.test(schemaPath)) {
     return { path: humanPath(instancePath), message: LOCATION_MESSAGE };
   }
 
@@ -145,6 +149,16 @@ function humanize(
     }
     case "format": {
       const format = (params as { format: string }).format;
+      // $defs.date carries both `pattern` and `format: "date"`; $defs.dateTime
+      // carries both `pattern` and `format: "ote-local-date-time"`. Either
+      // format check fires alongside the pattern check on the same malformed
+      // value — WALL_CLOCK_MESSAGE already covers this path once.
+      if (
+        (format === "date" || format === "ote-local-date-time") &&
+        wallClockFailures.has(instancePath)
+      ) {
+        return null;
+      }
       return { path, message: `must be a valid ${format}` };
     }
     case "minLength":

@@ -1,5 +1,5 @@
 /**
- * Structural types for OTE v0.2 documents, as produced by this importer.
+ * Structural types for OTE v0.3 documents, as produced by this importer.
  *
  * Deliberately duplicated in each connector package instead of shared: the
  * packages are independent and the types are structural, so any valid OTE
@@ -22,11 +22,40 @@ export interface OteLocation {
   geo?: OteGeo;
 }
 
+export interface OteOrganizer {
+  name: string;
+  url?: string;
+  email?: string;
+  type?: "organization" | "person";
+}
+
+export interface OteImageEntry {
+  url: string;
+  alt?: string;
+}
+
+export interface OteOffer {
+  name?: string;
+  price?: number;
+  currency?: string;
+  url?: string;
+  availability?: "in-stock" | "sold-out";
+  opensAt?: string;
+  closesAt?: string;
+}
+
+export interface OtePartOf {
+  id: string;
+  name?: string;
+}
+
 export type OteEventStatus =
   | "scheduled"
+  | "tentative"
   | "cancelled"
   | "postponed"
-  | "rescheduled";
+  | "rescheduled"
+  | "moved-online";
 
 export type OteAttendanceMode = "in-person" | "online" | "hybrid";
 
@@ -36,7 +65,12 @@ export interface PartialOteEvent {
   url?: string;
   name?: string;
   description?: string;
-  /** IANA zone. Absent when the source only gave a UTC offset (not a zone). */
+  /**
+   * IANA zone. For timed events, absent when the source only gave a UTC
+   * offset (not a zone). For all-day (date-only startDate) events, ALWAYS
+   * set (OTE requires timezone even for all-day) via htmlToEvents'
+   * allDayTimezonePolicy — see its doc comment.
+   */
   timezone?: string;
   /** Wall-clock: a date (all-day) or a local date-time. Never carries an offset. */
   startDate?: string;
@@ -47,6 +81,14 @@ export interface PartialOteEvent {
   languages?: string[];
   tags?: string[];
   status?: OteEventStatus;
+  /** From schema.org organizer — the source is a public page, so email (when given) is imported directly. */
+  organizers?: OteOrganizer[];
+  /** From schema.org image; ImageObject.caption becomes alt. */
+  image?: (string | OteImageEntry)[];
+  /** From schema.org offers. */
+  offers?: OteOffer[];
+  /** From schema.org superEvent, when it carries a usable id (its own @id or url). */
+  partOf?: OtePartOf;
 }
 
 /**
@@ -65,4 +107,17 @@ export interface ImportWarning {
 export interface ImportResult {
   events: PartialOteEvent[];
   warnings: ImportWarning[];
+}
+
+export interface HtmlToEventsOptions {
+  /**
+   * OTE requires `timezone` even for all-day events (a date-only
+   * `startDate`), but schema.org gives no timezone data at all for one —
+   * there's no page-level hint to fall back to the way iCalendar has
+   * X-WR-TIMEZONE (see @opentechevents/import-ics's H003 policy, which this
+   * mirrors for consistency). Default: `"UTC"`, always with a warning since
+   * it's always an inference. Pass a real IANA zone to override when you
+   * know the event's actual locale.
+   */
+  allDayTimezonePolicy?: string;
 }
