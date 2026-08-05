@@ -16,6 +16,11 @@ pnpm install
 pnpm build        # tsc for the packages, esbuild bundles for static apps
 ```
 
+`pnpm build` is not optional here: the packages import each other through the
+`dist/*.d.ts` files it emits, so on an unbuilt clone `pnpm typecheck` fails
+with `TS2307: Cannot find module '@opentechevents/…'` in the first package
+that depends on another. Build first and it goes away — nothing is broken.
+
 ## Repository layout
 
 | Path | What | How it's tested |

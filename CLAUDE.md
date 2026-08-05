@@ -17,4 +17,9 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   it into TypeScript; a guard test fails if the embed drifts from the dependency.
   Never fetch the schema at runtime.
 - Tests: `pnpm test` at the root. Every new package ships fixtures and tests.
+- Build before type-checking a fresh clone or worktree: packages depend on each
+  other through `dist/*.d.ts`, so `pnpm typecheck` (and any single-package
+  `tsc`) fails with TS2307 "cannot find module '@opentechevents/…'" until
+  `pnpm build` has run. That error means the workspace is unbuilt, not broken —
+  never "fix" it by touching imports. CI never hits it: it builds first.
 - Convention: connectors never invent data; absent field = absent + warning.
