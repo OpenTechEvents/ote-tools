@@ -15,6 +15,19 @@ updates:
         dependency-type: development
         exclude-patterns:
           - "@opentechevents/*"
+    ignore:
+      # typescript-eslint 8.x refuses to run against the TS 7 API, so a TS 7
+      # bump breaks `pnpm lint` for the whole repo. Hold TypeScript at 5.x/6.x
+      # until typescript-eslint ships TS >=7 support
+      # (https://github.com/typescript-eslint/typescript-eslint/issues/10940).
+      - dependency-name: typescript
+        versions: [">=7"]
+      # FullCalendar 7 is a re-architecture, not a bump: @fullcalendar/core
+      # became a types-only package with a new @full-ui/headless-calendar peer,
+      # and daygrid/list/timegrid have no stable 7.x release yet. Skip majors
+      # until the whole suite ships 7.x, then migrate apps/preview on purpose.
+      - dependency-name: "@fullcalendar/*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
