@@ -133,7 +133,7 @@ describe("fromEventJson / round-trip", () => {
   });
 });
 
-describe("fromEventJson / toEventJson — v0.3 fields with no form UI yet", () => {
+describe("toEventJson / fromEventJson — v0.3 fields", () => {
   const withNewFields: OteEvent = {
     id: "https://x.example/events/devfest",
     name: "DevFest",
@@ -146,41 +146,102 @@ describe("fromEventJson / toEventJson — v0.3 fields with no form UI yet", () =
     cfp: { url: "https://x.example/cfp" },
     eligibility: { type: "open" },
     partOf: { id: "https://x.example/series" },
-  } as unknown as OteEvent;
+  };
 
-  it("captures fields with no UI into extraFieldsJson instead of dropping them", () => {
+  it("prefills form state from an event with all 7 fields", () => {
     const state = fromEventJson(withNewFields, "devfest");
-    expect(state.extraFieldsJson).not.toBe("");
-    expect(JSON.parse(state.extraFieldsJson)).toEqual({
-      textLanguage: "es",
-      organizers: [{ name: "GDG Madrid", email: "hola@gdgmadrid.example" }],
-      image: ["https://x.example/poster.png"],
-      offers: [{ price: 0, currency: "EUR" }],
-      cfp: { url: "https://x.example/cfp" },
-      eligibility: { type: "open" },
-      partOf: { id: "https://x.example/series" },
-    });
+    expect(state.textLanguage).toBe("es");
+    expect(state.organizers).toEqual([
+      { name: "GDG Madrid", url: "", email: "hola@gdgmadrid.example", type: "" },
+    ]);
+    expect(state.image).toEqual([
+      { url: "https://x.example/poster.png", alt: "" },
+    ]);
+    expect(state.offers).toEqual([
+      {
+        name: "",
+        price: "0",
+        currency: "EUR",
+        url: "",
+        availability: "",
+        waitlistUrl: "",
+        opensAt: "",
+        closesAt: "",
+      },
+    ]);
+    expect(state.cfpUrl).toBe("https://x.example/cfp");
+    expect(state.eligibilityType).toBe("open");
+    expect(state.partOfId).toBe("https://x.example/series");
   });
 
-  it("round-trips them unchanged even though the form never rendered them", () => {
-    const state = fromEventJson(withNewFields, "devfest");
-    expect(toEventJson(state)).toEqual(withNewFields);
-  });
-
-  it("events without any of these fields get an empty extraFieldsJson", () => {
-    const state = fromEventJson(
-      { id: "https://x.example/e", name: "X", startDate: "2026-01-01", timezone: "UTC" },
-      "e",
+  it("round-trips a full v0.3 fixture unchanged", () => {
+    expect(toEventJson(fromEventJson(withNewFields, "devfest"))).toEqual(
+      withNewFields,
     );
-    expect(state.extraFieldsJson).toBe("");
   });
 
-  it("a corrupted extraFieldsJson is ignored, not thrown", () => {
+  it("events without any of these fields emit none of them", () => {
     const state = emptyFormState();
     state.name = "X";
-    state.extraFieldsJson = "{ not json";
-    expect(() => toEventJson(state)).not.toThrow();
-    expect(toEventJson(state)).toEqual({ name: "X" });
+    const event = toEventJson(state) as unknown as Record<string, unknown>;
+    for (const key of [
+      "textLanguage",
+      "organizers",
+      "image",
+      "offers",
+      "cfp",
+      "eligibility",
+      "partOf",
+    ]) {
+      expect(event[key]).toBeUndefined();
+    }
+  });
+
+  it("an image with alt text stays an object; without alt collapses to a bare string", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.image = [
+      { url: "https://x.example/a.png", alt: "" },
+      { url: "https://x.example/b.png", alt: "Cartel" },
+    ];
+    expect(toEventJson(state).image).toEqual([
+      "https://x.example/a.png",
+      { url: "https://x.example/b.png", alt: "Cartel" },
+    ]);
+  });
+
+  it("drops fully-empty repeater rows", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.organizers = [{ name: "", url: "", email: "", type: "" }];
+    expect(toEventJson(state).organizers).toBeUndefined();
+  });
+
+  it("offers price 0 is kept, distinct from an unset price", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.offers = [
+      {
+        name: "Free",
+        price: "0",
+        currency: "EUR",
+        url: "",
+        availability: "",
+        waitlistUrl: "",
+        opensAt: "",
+        closesAt: "",
+      },
+    ];
+    expect(toEventJson(state).offers).toEqual([
+      { name: "Free", price: 0, currency: "EUR" },
+    ]);
+  });
+
+  it("cfp checkboxes are omitted when unchecked, not emitted as false", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.cfpUrl = "https://x.example/cfp";
+    expect(toEventJson(state).cfp).toEqual({ url: "https://x.example/cfp" });
   });
 });
 

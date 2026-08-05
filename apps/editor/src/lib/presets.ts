@@ -40,6 +40,13 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
   { id: "onlineUrl", section: "where" },
   { id: "slug", section: "identity", required: true },
   { id: "id", section: "identity", required: true },
+  { id: "textLanguage", section: "advanced" },
+  { id: "organizers", section: "advanced" },
+  { id: "image", section: "advanced" },
+  { id: "eligibility", section: "advanced" },
+  { id: "offers", section: "advanced" },
+  { id: "cfp", section: "advanced" },
+  { id: "partOf", section: "advanced" },
   { id: "license", section: "advanced" },
   { id: "source", section: "advanced" },
   { id: "updatedAt", section: "advanced" },
@@ -62,10 +69,12 @@ const CORE_FIELDS = [
 
 const PRESET_EXCLUSIONS: Record<string, ReadonlySet<string>> = {
   // Meetups: recurring, simple events — no cancellation workflow, no
-  // data-provenance metadata.
-  meetup: new Set(["status", "license", "source", "updatedAt"]),
-  // Conferences add status (cancelled/postponed matters), but still hide
-  // the provenance metadata.
+  // data-provenance metadata, no call-for-proposals workflow (that's a
+  // conference thing; DESIGN.md: "un organizador de meetups no necesita
+  // ver campos de CFP").
+  meetup: new Set(["status", "license", "source", "updatedAt", "cfp"]),
+  // Conferences add status (cancelled/postponed matters) and cfp, but still
+  // hide the provenance metadata.
   conference: new Set(["license", "source", "updatedAt"]),
   all: new Set(),
 };

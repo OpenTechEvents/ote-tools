@@ -28,24 +28,38 @@ export function emptyFormState(timezone = ""): FormState {
     sourceLicense: "",
     sourceRetrievedAt: "",
     updatedAt: "",
-    extraFieldsJson: "",
+    textLanguage: "",
+    organizers: [],
+    image: [],
+    offers: [],
+    cfpUrl: "",
+    cfpOpensAt: "",
+    cfpClosesAt: "",
+    cfpCoversTravel: false,
+    cfpCoversAccommodation: false,
+    eligibilityType: "",
+    eligibilityNote: "",
+    eligibilityUrl: "",
+    partOfId: "",
+    partOfName: "",
+    partOfUrl: "",
+    partOfType: "",
   };
 }
 
-/**
- * v0.3 event fields this form has no dedicated UI for yet. Carried through
- * FormState.extraFieldsJson untouched (see fromEventJson/toEventJson) so
- * editing an event that already has them never silently deletes them.
- */
-const PASSTHROUGH_KEYS = [
-  "organizers",
-  "image",
-  "offers",
-  "cfp",
-  "eligibility",
-  "partOf",
-  "textLanguage",
-] as const;
+/** A repeater row where every field is still "". */
+function isRowEmpty(row: object): boolean {
+  return Object.values(row).every((v) => v === "");
+}
+
+/** Drops "" fields from a repeater row; a required-but-empty one is left for the schema to flag. */
+function cleanRow(row: object): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== "") out[key] = value as string;
+  }
+  return out;
+}
 
 function splitList(value: string): string[] {
   return value
@@ -126,20 +140,51 @@ export function toEventJson(state: FormState): OteEvent {
   if (Object.keys(source).length > 0) event.source = source;
 
   set("updatedAt", state.updatedAt);
+  set("textLanguage", state.textLanguage);
 
-  // v0.3 fields this form has no UI for (see PASSTHROUGH_KEYS): restored
-  // as-is rather than dropped. Corrupted/foreign state (never written by
-  // this editor) is ignored rather than crashing the form.
-  if (state.extraFieldsJson) {
-    try {
-      const extra = JSON.parse(state.extraFieldsJson) as Record<string, unknown>;
-      for (const key of PASSTHROUGH_KEYS) {
-        if (extra[key] !== undefined) event[key] = extra[key];
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const organizers = state.organizers
+    .filter((row) => !isRowEmpty(row))
+    .map((row) => cleanRow(row));
+  if (organizers.length > 0) event.organizers = organizers;
+
+  // Bare URL when there's no alt text (the common case, and what every 0.2
+  // document already looks like); an object only when alt earns its keep.
+  const image = state.image
+    .filter((row) => !isRowEmpty(row))
+    .map((row) => (row.alt ? { url: row.url, alt: row.alt } : row.url));
+  if (image.length > 0) event.image = image;
+
+  const offers = state.offers
+    .filter((row) => !isRowEmpty(row))
+    .map((row) => {
+      const offer = cleanRow(row) as Record<string, unknown>;
+      if (row.price !== "") offer.price = numberOrRaw(row.price);
+      return offer;
+    });
+  if (offers.length > 0) event.offers = offers;
+
+  const cfp: Record<string, unknown> = {};
+  if (state.cfpUrl) cfp.url = state.cfpUrl;
+  if (state.cfpOpensAt) cfp.opensAt = state.cfpOpensAt;
+  if (state.cfpClosesAt) cfp.closesAt = state.cfpClosesAt;
+  // Unchecked stays absent rather than asserting false: "not covered" is a
+  // claim the organizer hasn't necessarily made just by leaving a box empty.
+  if (state.cfpCoversTravel) cfp.coversTravel = true;
+  if (state.cfpCoversAccommodation) cfp.coversAccommodation = true;
+  if (Object.keys(cfp).length > 0) event.cfp = cfp;
+
+  const eligibility: Record<string, unknown> = {};
+  if (state.eligibilityType) eligibility.type = state.eligibilityType;
+  if (state.eligibilityNote) eligibility.note = state.eligibilityNote;
+  if (state.eligibilityUrl) eligibility.url = state.eligibilityUrl;
+  if (Object.keys(eligibility).length > 0) event.eligibility = eligibility;
+
+  const partOf: Record<string, unknown> = {};
+  if (state.partOfId) partOf.id = state.partOfId;
+  if (state.partOfName) partOf.name = state.partOfName;
+  if (state.partOfUrl) partOf.url = state.partOfUrl;
+  if (state.partOfType) partOf.type = state.partOfType;
+  if (Object.keys(partOf).length > 0) event.partOf = partOf;
 
   return event as unknown as OteEvent;
 }
@@ -161,11 +206,6 @@ function splitWallClock(value: string | undefined): {
 export function fromEventJson(json: OteEvent, slug: string): FormState {
   const start = splitWallClock(json.startDate);
   const end = splitWallClock(json.endDate);
-  const source = json as unknown as Record<string, unknown>;
-  const extra: Record<string, unknown> = {};
-  for (const key of PASSTHROUGH_KEYS) {
-    if (source[key] !== undefined) extra[key] = source[key];
-  }
   return {
     slug,
     id: json.id ?? "",
@@ -192,7 +232,40 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     sourceLicense: json.source?.license ?? "",
     sourceRetrievedAt: json.source?.retrievedAt ?? "",
     updatedAt: json.updatedAt ?? "",
-    extraFieldsJson: Object.keys(extra).length > 0 ? JSON.stringify(extra) : "",
+    textLanguage: json.textLanguage ?? "",
+    organizers: (json.organizers ?? []).map((o) => ({
+      name: o.name ?? "",
+      url: o.url ?? "",
+      email: o.email ?? "",
+      type: o.type ?? "",
+    })),
+    image: (json.image ?? []).map((entry) =>
+      typeof entry === "string"
+        ? { url: entry, alt: "" }
+        : { url: entry.url, alt: entry.alt ?? "" },
+    ),
+    offers: (json.offers ?? []).map((o) => ({
+      name: o.name ?? "",
+      price: o.price !== undefined ? String(o.price) : "",
+      currency: o.currency ?? "",
+      url: o.url ?? "",
+      availability: o.availability ?? "",
+      waitlistUrl: o.waitlistUrl ?? "",
+      opensAt: o.opensAt ?? "",
+      closesAt: o.closesAt ?? "",
+    })),
+    cfpUrl: json.cfp?.url ?? "",
+    cfpOpensAt: json.cfp?.opensAt ?? "",
+    cfpClosesAt: json.cfp?.closesAt ?? "",
+    cfpCoversTravel: json.cfp?.coversTravel === true,
+    cfpCoversAccommodation: json.cfp?.coversAccommodation === true,
+    eligibilityType: json.eligibility?.type ?? "",
+    eligibilityNote: json.eligibility?.note ?? "",
+    eligibilityUrl: json.eligibility?.url ?? "",
+    partOfId: json.partOf?.id ?? "",
+    partOfName: json.partOf?.name ?? "",
+    partOfUrl: json.partOf?.url ?? "",
+    partOfType: json.partOf?.type ?? "",
   };
 }
 

@@ -30,9 +30,8 @@ export interface ImportedEvent {
   tags?: string[];
   status?: string;
   updatedAt?: string;
-  // v0.3 fields the connectors can now carry but this form has no UI for yet
-  // (see FormState.extraFieldsJson) — kept here for type accuracy, not
-  // treated as "missing" by missingFormFields since neither is a form field.
+  // v0.3 fields the connectors can carry; the form has real UI for these now
+  // (see FIELD_REGISTRY / missingFormFields below).
   organizers?: unknown[];
   image?: unknown[];
   offers?: unknown[];
@@ -86,9 +85,15 @@ export function missingFormFields(event: ImportedEvent): Set<string> {
   has("attendanceMode", event.attendanceMode);
   has("languages", event.languages);
   has("updatedAt", event.updatedAt);
+  has("organizers", event.organizers);
+  has("image", event.image);
+  has("offers", event.offers);
+  has("partOf", event.partOf);
   // id, license, source: no importer can carry them — id must be minted by
   // the organizer, license inherits from the feed, provenance is the
   // importing tool's to fill (see the import-ics / import-jsonld READMEs).
+  // cfp, eligibility, textLanguage: no importer produces them either (no
+  // iCal or schema.org equivalent) — always marked missing, correctly.
 
   const missing = new Set<string>();
   for (const def of FIELD_REGISTRY) {
@@ -207,9 +212,11 @@ export function decodeImportQueue(raw: string | null): ImportQueue | null {
  */
 export function formHasContent(state: FormState): boolean {
   const auto = new Set(["slug", "id", "timezone"]);
-  return Object.entries(state).some(
-    ([key, value]) => typeof value === "string" && value !== "" && !auto.has(key),
-  );
+  return Object.entries(state).some(([key, value]) => {
+    if (auto.has(key)) return false;
+    if (typeof value === "string") return value !== "";
+    return Array.isArray(value) && value.length > 0;
+  });
 }
 
 /** Hostname suffix → platform display name, for source provenance. */

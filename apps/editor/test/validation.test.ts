@@ -80,4 +80,40 @@ describe("validateDraft", () => {
     expect(result.valid).toBe(true);
     expect(result.configProblems).toEqual([]);
   });
+
+  it("cfp/eligibility/partOf/organizers errors map to their form fields", () => {
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        cfp: { opensAt: "2026-05-01T00:00:00+02:00" }, // missing required url
+        eligibility: { note: "x" }, // missing required type
+        partOf: { name: "Series" }, // missing required id
+        organizers: [{ url: "https://x.example" }], // missing required name
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors.has("cfp")).toBe(true);
+    expect(result.fieldErrors.has("eligibility")).toBe(true);
+    expect(result.fieldErrors.has("partOf")).toBe(true);
+    expect(result.fieldErrors.has("organizers")).toBe(true);
+  });
+
+  it("offers/image/textLanguage errors map to their form fields", () => {
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        textLanguage: "not a valid tag!!",
+        image: ["not-a-url"],
+        offers: [{ price: -5 }],
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors.has("textLanguage")).toBe(true);
+    expect(result.fieldErrors.has("image")).toBe(true);
+    expect(result.fieldErrors.has("offers")).toBe(true);
+  });
 });

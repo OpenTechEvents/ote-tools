@@ -440,6 +440,7 @@ select {
 
 .field.pair {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   margin: 0;
 }
@@ -562,6 +563,78 @@ select {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 400;
+}
+
+/* --- repeaters (organizers, image, offers) ---------------------------------- */
+
+.repeater .note {
+  margin-top: -0.1rem;
+}
+
+.repeater-item {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 2.2rem 0.6rem 0.6rem;
+  margin: 0.5rem 0;
+  background: var(--bg);
+}
+
+.repeater-item-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.repeater-item-fields > div,
+.repeater-item-fields > input,
+.repeater-item-fields > select {
+  flex: 1 1 130px;
+}
+
+.repeater-item-fields label {
+  display: block;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.repeater-item-fields input,
+.repeater-item-fields select {
+  width: 100%;
+  min-height: 2.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--surface);
+  color: inherit;
+}
+
+.repeater-remove {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.repeater-remove:hover {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.repeater-add {
+  min-height: 2.2rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
 }
 
 /* --- combobox (timezone) ---------------------------------------------------- */

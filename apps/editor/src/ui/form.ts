@@ -19,6 +19,8 @@ interface Control {
   kind:
     | "text"
     | "url"
+    | "email"
+    | "number"
     | "date"
     | "time"
     | "textarea"
@@ -82,7 +84,7 @@ const SECTION_TITLES: Record<SectionId, string> = {
   when: "When",
   where: "Where",
   identity: "File & id",
-  advanced: "Advanced: data metadata",
+  advanced: "Advanced",
 };
 
 const FIELD_SPECS: Record<string, FieldSpec> = {
@@ -240,6 +242,78 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
         // is still accepted; the suggestions are the sane defaults.
         options: ["CC0-1.0", "CC-BY-4.0", "PDDL-1.0", "ODC-By-1.0"],
         placeholder: "CC-BY-4.0",
+      },
+    ],
+  },
+  textLanguage: {
+    label: "Text language",
+    info: "BCP 47 tag for the language this event's own name/description are written in. Leave empty when unknown.",
+    controls: [
+      {
+        key: "textLanguage",
+        label: "",
+        kind: "combobox",
+        options: LANGUAGE_SUGGESTIONS.map((l) => l.code),
+        placeholder: "es",
+      },
+    ],
+  },
+  eligibility: {
+    label: "Eligibility",
+    note: "Who may attend, when it isn't simply open to anyone.",
+    controls: [
+      {
+        key: "eligibilityType",
+        label: "Type",
+        kind: "select",
+        options: ["", "open", "members-only", "approval-required", "restricted"],
+      },
+      {
+        key: "eligibilityNote",
+        label: "Note",
+        kind: "text",
+        placeholder: "Members of the Rust Girona Discord",
+      },
+      { key: "eligibilityUrl", label: "URL", kind: "url" },
+    ],
+  },
+  cfp: {
+    label: "Call for proposals",
+    note: "Only for events accepting talk/workshop submissions.",
+    controls: [
+      { key: "cfpUrl", label: "URL", kind: "url" },
+      {
+        key: "cfpOpensAt",
+        label: "Opens at",
+        kind: "text",
+        placeholder: "2026-05-01T00:00:00+02:00",
+      },
+      {
+        key: "cfpClosesAt",
+        label: "Closes at",
+        kind: "text",
+        placeholder: "2026-07-15T23:59:59+02:00",
+      },
+      { key: "cfpCoversTravel", label: "Covers travel", kind: "checkbox" },
+      {
+        key: "cfpCoversAccommodation",
+        label: "Covers accommodation",
+        kind: "checkbox",
+      },
+    ],
+  },
+  partOf: {
+    label: "Part of (series)",
+    note: "Links this occurrence to a recurring series or multi-part event.",
+    controls: [
+      { key: "partOfId", label: "Series id (URL)", kind: "url" },
+      { key: "partOfName", label: "Name", kind: "text" },
+      { key: "partOfUrl", label: "URL", kind: "url" },
+      {
+        key: "partOfType",
+        label: "Type",
+        kind: "select",
+        options: ["", "series", "multipart"],
       },
     ],
   },
@@ -556,6 +630,211 @@ function renderCombobox(
   return wrap;
 }
 
+interface RepeaterItemField {
+  key: string;
+  label: string;
+  kind: "text" | "url" | "email" | "number" | "select";
+  options?: string[];
+  placeholder?: string;
+}
+
+interface RepeaterSpec {
+  label: string;
+  addLabel: string;
+  note?: string;
+  info?: string;
+  itemFields: readonly RepeaterItemField[];
+}
+
+export type RepeaterKey = "organizers" | "image" | "offers";
+
+const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
+  organizers: {
+    label: "Organizers",
+    addLabel: "+ Add organizer",
+    info: "Who runs the event. Declaring this REPLACES the feed's own organizers list for this event, it does not add to it.",
+    itemFields: [
+      { key: "name", label: "Name", kind: "text" },
+      { key: "url", label: "URL", kind: "url", placeholder: "https://…" },
+      { key: "email", label: "Email", kind: "email", placeholder: "hola@…" },
+      {
+        key: "type",
+        label: "Type",
+        kind: "select",
+        options: ["", "organization", "person"],
+      },
+    ],
+  },
+  image: {
+    label: "Images",
+    addLabel: "+ Add image",
+    note: "First image is the primary one — poster or cover.",
+    itemFields: [
+      { key: "url", label: "URL", kind: "url", placeholder: "https://…" },
+      { key: "alt", label: "Alt text", kind: "text" },
+    ],
+  },
+  offers: {
+    label: "Offers (tickets)",
+    addLabel: "+ Add offer",
+    itemFields: [
+      {
+        key: "name",
+        label: "Name",
+        kind: "text",
+        placeholder: "General admission",
+      },
+      { key: "price", label: "Price", kind: "number", placeholder: "0" },
+      { key: "currency", label: "Currency", kind: "text", placeholder: "EUR" },
+      { key: "url", label: "URL", kind: "url" },
+      {
+        key: "availability",
+        label: "Availability",
+        kind: "select",
+        options: ["", "in-stock", "sold-out"],
+      },
+      { key: "waitlistUrl", label: "Waitlist URL", kind: "url" },
+      {
+        key: "opensAt",
+        label: "Opens at",
+        kind: "text",
+        placeholder: "2026-05-01T00:00:00+02:00",
+      },
+      {
+        key: "closesAt",
+        label: "Closes at",
+        kind: "text",
+        placeholder: "2026-07-15T23:59:59+02:00",
+      },
+    ],
+  },
+};
+
+function renderRepeaterItemControl(
+  field: RepeaterItemField,
+  row: Record<string, string>,
+  onChange: (key: string, value: string) => void,
+): HTMLElement {
+  let input: HTMLInputElement | HTMLSelectElement;
+  if (field.kind === "select") {
+    input = document.createElement("select");
+    for (const value of field.options ?? []) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value === "" ? "(not set)" : value;
+      input.append(option);
+    }
+  } else {
+    input = document.createElement("input");
+    input.type = field.kind;
+  }
+  if (field.placeholder && "placeholder" in input) {
+    input.placeholder = field.placeholder;
+  }
+  input.value = row[field.key] ?? "";
+  input.addEventListener("input", () => onChange(field.key, input.value));
+
+  if (!field.label) return input;
+  const wrap = document.createElement("div");
+  const label = document.createElement("label");
+  label.textContent = field.label;
+  wrap.append(label, input);
+  return wrap;
+}
+
+/**
+ * Repeatable group of sub-fields (organizers/image/offers): each row is a
+ * card with the field's itemFields as inputs, plus add/remove buttons.
+ * Follows the same self-contained-subtree pattern renderChips uses above —
+ * it keeps `items` in closure and re-renders only its own rows, committing
+ * the array via onArrayChange. main.ts only calls renderForm again on
+ * profile/event switches, not on every keystroke, so this control cannot
+ * rely on being re-mounted to reflect its own edits.
+ */
+function renderRepeaterField(
+  fieldId: RepeaterKey,
+  initial: readonly Record<string, string>[],
+  onArrayChange: (key: RepeaterKey, items: Record<string, string>[]) => void,
+): HTMLElement {
+  const spec = REPEATER_SPECS[fieldId];
+  const items: Record<string, string>[] = initial.map((row) => ({ ...row }));
+
+  const field = document.createElement("div");
+  field.className = "field repeater";
+  field.dataset.fieldId = fieldId;
+
+  const label = document.createElement("label");
+  label.textContent = spec.label;
+  if (spec.info) {
+    const info = document.createElement("span");
+    info.className = "info";
+    info.textContent = " ⓘ";
+    info.title = spec.info;
+    info.tabIndex = 0;
+    label.append(info);
+  }
+  field.append(label);
+  appendNote(field, spec.note);
+
+  const list = document.createElement("div");
+  field.append(list);
+
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.className = "repeater-add";
+  addButton.textContent = spec.addLabel;
+  field.append(addButton);
+  appendError(field);
+
+  function commit(): void {
+    onArrayChange(fieldId, items);
+  }
+
+  function renderRows(): void {
+    list.textContent = "";
+    items.forEach((row, index) => {
+      const item = document.createElement("div");
+      item.className = "repeater-item";
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "repeater-remove";
+      remove.setAttribute("aria-label", `Remove ${spec.label} #${index + 1}`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        items.splice(index, 1);
+        renderRows();
+        commit();
+      });
+
+      const fields = document.createElement("div");
+      fields.className = "repeater-item-fields";
+      for (const itemField of spec.itemFields) {
+        fields.append(
+          renderRepeaterItemControl(itemField, row, (key, value) => {
+            row[key] = value;
+            commit();
+          }),
+        );
+      }
+
+      item.append(remove, fields);
+      list.append(item);
+    });
+  }
+
+  addButton.addEventListener("click", () => {
+    const row: Record<string, string> = {};
+    for (const itemField of spec.itemFields) row[itemField.key] = "";
+    items.push(row);
+    renderRows();
+    commit();
+  });
+
+  renderRows();
+  return field;
+}
+
 function renderControl(
   control: Control,
   state: FormState,
@@ -698,6 +977,7 @@ export function renderForm(
   state: FormState,
   extraFields: ReadonlySet<string>,
   onInput: (key: StateKey, value: string | boolean) => void,
+  onArrayInput: (key: RepeaterKey, items: Record<string, string>[]) => void,
 ): void {
   root.textContent = "";
   for (const section of SECTIONS) {
@@ -718,6 +998,19 @@ export function renderForm(
       // as a single block (the map nests under the venue input) so the
       // address is only ever typed once.
       if (id === "geo" && fieldIds.includes("venue")) continue;
+      // organizers/image/offers are arrays of objects, not a single
+      // FormState string/boolean — they get their own repeater renderer
+      // instead of the generic Control-per-field path.
+      if (id === "organizers" || id === "image" || id === "offers") {
+        details.append(
+          renderRepeaterField(
+            id,
+            state[id] as unknown as Record<string, string>[],
+            onArrayInput,
+          ),
+        );
+        continue;
+      }
       const field = renderField(id, state, onInput);
       if (id === "venue" && fieldIds.includes("geo")) {
         field.append(renderField("geo", state, onInput));

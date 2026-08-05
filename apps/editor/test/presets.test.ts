@@ -51,12 +51,36 @@ describe("resolveProfile", () => {
 
   it("customProfile with unknown fields ignores them with a warning", () => {
     const resolved = resolveProfile({
-      customProfile: { fields: ["cfp", "sponsors", "tags"] },
+      customProfile: { fields: ["sponsors", "workshops", "tags"] },
     });
     expect(resolved.fields.has("tags")).toBe(true);
-    expect(resolved.fields.has("cfp" as never)).toBe(false);
+    expect(resolved.fields.has("sponsors" as never)).toBe(false);
     expect(resolved.warnings).toHaveLength(2);
-    expect(resolved.warnings[0]).toContain('"cfp"');
+    expect(resolved.warnings[0]).toContain('"sponsors"');
+  });
+
+  it("meetup hides cfp; conference and all show it", () => {
+    expect(resolveProfile({ profile: "meetup" }).fields.has("cfp")).toBe(false);
+    expect(resolveProfile({ profile: "conference" }).fields.has("cfp")).toBe(
+      true,
+    );
+    expect(resolveProfile({ profile: "all" }).fields.has("cfp")).toBe(true);
+  });
+
+  it("meetup and conference both show organizers/image/eligibility/offers/partOf/textLanguage", () => {
+    for (const preset of ["meetup", "conference"]) {
+      const resolved = resolveProfile({ profile: preset });
+      for (const field of [
+        "organizers",
+        "image",
+        "eligibility",
+        "offers",
+        "partOf",
+        "textLanguage",
+      ]) {
+        expect(resolved.fields.has(field)).toBe(true);
+      }
+    }
   });
 
   it("unknown profile falls back to all with a warning", () => {

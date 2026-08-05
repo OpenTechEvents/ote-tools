@@ -22,10 +22,40 @@ export interface OteConfig {
   customProfile?: { fields?: string[] };
 }
 
+/** One row of the `organizers` repeater. "" means "not filled in". */
+export interface OrganizerRow {
+  name: string;
+  url: string;
+  email: string;
+  type: string;
+}
+
+/** One row of the `image` repeater. "" means "not filled in". */
+export interface ImageRow {
+  url: string;
+  alt: string;
+}
+
+/** One row of the `offers` repeater. "" means "not filled in". */
+export interface OfferRow {
+  name: string;
+  price: string;
+  currency: string;
+  url: string;
+  availability: string;
+  waitlistUrl: string;
+  opensAt: string;
+  closesAt: string;
+}
+
 /**
- * Flat, all-string form model. "" means "not filled in" and is omitted from
- * the generated event JSON. Dates and times are kept apart so the form can
- * use native date/time inputs; tags and languages are comma-separated.
+ * Mostly a flat, all-string form model: "" means "not filled in" and is
+ * omitted from the generated event JSON. Dates and times are kept apart so
+ * the form can use native date/time inputs; tags and languages are
+ * comma-separated. The three genuinely-repeatable v0.3 fields
+ * (organizers/image/offers) are the exception — arrays of row objects,
+ * still "" = unset within each row, coerced in toEventJson like every other
+ * field.
  */
 export interface FormState {
   slug: string;
@@ -53,15 +83,22 @@ export interface FormState {
   sourceLicense: string;
   sourceRetrievedAt: string;
   updatedAt: string;
-  /**
-   * JSON-encoded blob of v0.3 fields this form has no UI for yet
-   * (organizers, image, offers, cfp, eligibility, partOf, textLanguage) —
-   * "" when none are present. Round-tripped as-is by toEventJson/
-   * fromEventJson so editing an event that already has them (from import,
-   * or hand-edited JSON) never silently deletes them; see PASSTHROUGH_KEYS
-   * in event-json.ts.
-   */
-  extraFieldsJson: string;
+  textLanguage: string;
+  organizers: OrganizerRow[];
+  image: ImageRow[];
+  offers: OfferRow[];
+  cfpUrl: string;
+  cfpOpensAt: string;
+  cfpClosesAt: string;
+  cfpCoversTravel: boolean;
+  cfpCoversAccommodation: boolean;
+  eligibilityType: string;
+  eligibilityNote: string;
+  eligibilityUrl: string;
+  partOfId: string;
+  partOfName: string;
+  partOfUrl: string;
+  partOfType: string;
 }
 
 /** An event as listed from the target repo, with the filename-derived slug. */

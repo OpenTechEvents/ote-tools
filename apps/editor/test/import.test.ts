@@ -85,6 +85,24 @@ describe("missingFormFields", () => {
     expect(missing.has("languages")).toBe(false);
     expect(missing.has("id")).toBe(true); // never importable
   });
+
+  it("organizers/image/offers/partOf carried by the importer are not marked missing", () => {
+    const missing = missingFormFields({
+      name: "X",
+      startDate: "2026-09-10T18:00:00",
+      organizers: [{ name: "PyAlmería" }],
+      image: ["https://x.example/poster.png"],
+      offers: [{ price: 0 }],
+      partOf: { id: "https://x.example/series" },
+    });
+    for (const id of ["organizers", "image", "offers", "partOf"]) {
+      expect(missing.has(id)).toBe(false);
+    }
+    // No importer has an equivalent for these — always missing.
+    for (const id of ["cfp", "eligibility", "textLanguage"]) {
+      expect(missing.has(id)).toBe(true);
+    }
+  });
 });
 
 describe("importedToFormState (event page JSON-LD → M6a prefill)", () => {
@@ -237,6 +255,12 @@ describe("formHasContent", () => {
   it("any user-facing field counts as content", () => {
     const state = emptyFormState("Europe/Madrid");
     state.name = "Typed by hand";
+    expect(formHasContent(state)).toBe(true);
+  });
+
+  it("a filled-in organizer/image row counts as content too", () => {
+    const state = emptyFormState("Europe/Madrid");
+    state.organizers = [{ name: "PyAlmería", url: "", email: "", type: "" }];
     expect(formHasContent(state)).toBe(true);
   });
 });

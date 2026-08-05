@@ -59,6 +59,7 @@ import {
   renderForm,
   setAllDay,
   updateErrors,
+  type RepeaterKey,
 } from "./ui/form.js";
 import { geocodeVenue, mountGeoMap, type GeoMapHandle } from "./ui/map.js";
 
@@ -102,6 +103,21 @@ function fieldIdForKey(key: keyof FormState): string {
     case "sourceLicense":
     case "sourceRetrievedAt":
       return "source";
+    case "cfpUrl":
+    case "cfpOpensAt":
+    case "cfpClosesAt":
+    case "cfpCoversTravel":
+    case "cfpCoversAccommodation":
+      return "cfp";
+    case "eligibilityType":
+    case "eligibilityNote":
+    case "eligibilityUrl":
+      return "eligibility";
+    case "partOfId":
+    case "partOfName":
+    case "partOfUrl":
+    case "partOfType":
+      return "partOf";
     default:
       return key;
   }
@@ -125,6 +141,13 @@ function extraFieldsFor(event: OteEvent, profile: ResolvedProfile): Set<string> 
   add("tags", event.tags);
   add("languages", event.languages);
   add("attendanceMode", event.attendanceMode);
+  add("organizers", event.organizers);
+  add("image", event.image);
+  add("offers", event.offers);
+  add("cfp", event.cfp);
+  add("eligibility", event.eligibility);
+  add("partOf", event.partOf);
+  add("textLanguage", event.textLanguage);
   return used;
 }
 
@@ -324,6 +347,14 @@ async function startEditor(repo: string | null): Promise<void> {
     saveCurrentItem(); // no-op unless an import banner is on screen
   }
 
+  function onArrayInput(key: RepeaterKey, items: Record<string, string>[]): void {
+    touched.add(key);
+    if (importMissing?.delete(key)) markImportGaps(form, importMissing);
+    (state as unknown as Record<string, unknown>)[key] = items;
+    refresh();
+    saveCurrentItem();
+  }
+
   function mountMap(): void {
     mapHandle?.destroy();
     mapHandle = null;
@@ -352,7 +383,7 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   function render(extra: ReadonlySet<string> = new Set()): void {
-    renderForm(form, profile, state, extra, onInput);
+    renderForm(form, profile, state, extra, onInput, onArrayInput);
     setAllDay(form, state.allDay);
     markImportGaps(form, importMissing ?? new Set());
     mountMap();
