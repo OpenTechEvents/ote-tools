@@ -30,6 +30,13 @@ export interface ImportedEvent {
   tags?: string[];
   status?: string;
   updatedAt?: string;
+  // v0.3 fields the connectors can now carry but this form has no UI for yet
+  // (see FormState.extraFieldsJson) — kept here for type accuracy, not
+  // treated as "missing" by missingFormFields since neither is a form field.
+  organizers?: unknown[];
+  image?: unknown[];
+  offers?: unknown[];
+  partOf?: unknown;
 }
 
 export interface ImportedWarning {

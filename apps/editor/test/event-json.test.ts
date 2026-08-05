@@ -24,15 +24,15 @@ describe("toEventJson", () => {
     expect(event.license).toBeUndefined();
   });
 
-  it("combines date + time into a wall-clock date-time with seconds", () => {
+  it("combines date + time into a seconds-less wall-clock date-time", () => {
     const state = emptyFormState("Europe/Madrid");
     state.startDate = "2026-06-11";
     state.startTime = "18:30";
     state.endDate = "2026-06-11";
     state.endTime = "20:00";
     const event = toEventJson(state);
-    expect(event.startDate).toBe("2026-06-11T18:30:00");
-    expect(event.endDate).toBe("2026-06-11T20:00:00");
+    expect(event.startDate).toBe("2026-06-11T18:30");
+    expect(event.endDate).toBe("2026-06-11T20:00");
   });
 
   it("all-day events emit date-only for both dates", () => {
@@ -51,7 +51,7 @@ describe("toEventJson", () => {
     state.startDate = "2026-06-11";
     state.startTime = "18:30";
     state.endTime = "20:00";
-    expect(toEventJson(state).endDate).toBe("2026-06-11T20:00:00");
+    expect(toEventJson(state).endDate).toBe("2026-06-11T20:00");
   });
 
   it("splits tags and languages on commas, dropping blanks", () => {
@@ -93,8 +93,8 @@ describe("fromEventJson / round-trip", () => {
     id: "https://pyalmeria.example/eventos/2026-06-async",
     name: "Intro to async/await",
     description: "Introductory talk.",
-    startDate: "2026-06-11T18:30:00",
-    endDate: "2026-06-11T20:00:00",
+    startDate: "2026-06-11T18:30",
+    endDate: "2026-06-11T20:00",
     timezone: "Europe/Madrid",
     attendanceMode: "online",
     location: { onlineUrl: "https://meet.example/pyalmeria" },
@@ -130,6 +130,57 @@ describe("fromEventJson / round-trip", () => {
     const state = fromEventJson(allDay, "devfest");
     expect(state.allDay).toBe(true);
     expect(toEventJson(state)).toEqual(allDay);
+  });
+});
+
+describe("fromEventJson / toEventJson — v0.3 fields with no form UI yet", () => {
+  const withNewFields: OteEvent = {
+    id: "https://x.example/events/devfest",
+    name: "DevFest",
+    startDate: "2026-10-15",
+    timezone: "Europe/Madrid",
+    textLanguage: "es",
+    organizers: [{ name: "GDG Madrid", email: "hola@gdgmadrid.example" }],
+    image: ["https://x.example/poster.png"],
+    offers: [{ price: 0, currency: "EUR" }],
+    cfp: { url: "https://x.example/cfp" },
+    eligibility: { type: "open" },
+    partOf: { id: "https://x.example/series" },
+  } as unknown as OteEvent;
+
+  it("captures fields with no UI into extraFieldsJson instead of dropping them", () => {
+    const state = fromEventJson(withNewFields, "devfest");
+    expect(state.extraFieldsJson).not.toBe("");
+    expect(JSON.parse(state.extraFieldsJson)).toEqual({
+      textLanguage: "es",
+      organizers: [{ name: "GDG Madrid", email: "hola@gdgmadrid.example" }],
+      image: ["https://x.example/poster.png"],
+      offers: [{ price: 0, currency: "EUR" }],
+      cfp: { url: "https://x.example/cfp" },
+      eligibility: { type: "open" },
+      partOf: { id: "https://x.example/series" },
+    });
+  });
+
+  it("round-trips them unchanged even though the form never rendered them", () => {
+    const state = fromEventJson(withNewFields, "devfest");
+    expect(toEventJson(state)).toEqual(withNewFields);
+  });
+
+  it("events without any of these fields get an empty extraFieldsJson", () => {
+    const state = fromEventJson(
+      { id: "https://x.example/e", name: "X", startDate: "2026-01-01", timezone: "UTC" },
+      "e",
+    );
+    expect(state.extraFieldsJson).toBe("");
+  });
+
+  it("a corrupted extraFieldsJson is ignored, not thrown", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.extraFieldsJson = "{ not json";
+    expect(() => toEventJson(state)).not.toThrow();
+    expect(toEventJson(state)).toEqual({ name: "X" });
   });
 });
 

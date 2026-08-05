@@ -1,18 +1,19 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { KeywordDefinition } from "ajv";
 import ajvFormats from "ajv-formats";
-// customFormats/customKeywords/annotationKeywords carry real validator
-// functions (not JSON-serializable schema data), so — unlike eventSchema/
-// feedSchema — they are imported directly from @opentechevents/schema at
-// runtime rather than embedded via `pnpm gen`. This is why the package is a
-// runtime dependency (not devDependencies-only, as under v0.2): Ajv needs
-// these functions available whenever this module runs, not just at codegen
-// time. There is no drift guard for these three because there is no copy to
-// drift — the import always reflects whatever version is installed.
-import { annotationKeywords, customFormats, customKeywords } from "@opentechevents/schema";
 
 // CJS↔ESM interop: at runtime the default binding IS the plugin; TS types it as a namespace.
 const addFormats = ajvFormats as unknown as typeof ajvFormats.default;
+
+// customFormats/customKeywords/annotationKeywords carry real validator
+// functions (not JSON-serializable schema data), so — unlike eventSchema/
+// feedSchema — they can't be embedded as JSON. They also can't be imported
+// live from @opentechevents/schema at runtime: that package's own index.js
+// uses Node's createRequire, which breaks any browser bundle depending on
+// this package (e.g. apps/editor's esbuild build, platform: "browser").
+// validators.generated.ts vendors their exact source at codegen time
+// instead — see scripts/embed-schemas.mjs for the full rationale.
+import { annotationKeywords, customFormats, customKeywords } from "./validators.generated.js";
 
 import { formatAjvErrors, type ValidationError } from "./errors.js";
 import { specVersion } from "./schemas.generated.js";

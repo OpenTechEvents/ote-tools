@@ -1,13 +1,19 @@
 # @opentechevents/validate
 
 Validates OTE **Event** and **Feed** documents against JSON Schema **v0.3**.
-The two validity schemas are embedded at build time (`pnpm gen`, see
-`src/schemas.generated.ts`) so they never need a runtime fetch. v0.3 also
-requires registering real validator functions Ajv can't run without
-(`customFormats`, `customKeywords`, `annotationKeywords`) — those are imported
-directly from `@opentechevents/schema` at runtime instead (they can't be
-embedded as data), which is why this package depends on it at runtime, not
-just as a devDependency the way it did under v0.2.
+Everything is embedded at build time (`pnpm gen`): the two validity schemas
+and two recommended (quality) schemas as JSON data
+(`src/schemas.generated.ts`), and v0.3's real validator functions Ajv can't
+run without — `customFormats`, `customKeywords`, `annotationKeywords` — as
+vendored source (`src/validators.generated.ts`, verbatim from
+`@opentechevents/schema`'s own code, not reimplemented). Nothing is fetched,
+and nothing is imported from `@opentechevents/schema` at runtime — it stays a
+devDependency, used only by `pnpm gen`. This matters because
+`@opentechevents/validate` is also bundled for the browser (e.g. by
+`apps/editor`'s esbuild build); `@opentechevents/schema`'s own package uses
+Node's `createRequire` to load its JSON files, which breaks under
+`platform: "browser"` — vendoring its logic at codegen time avoids dragging
+that into every consumer's bundle.
 
 > `@opentechevents/schema@0.3.0` isn't published to npm yet — v0.3 is still a
 > draft in the sibling `opentechevents-spec` repo. `package.json` currently

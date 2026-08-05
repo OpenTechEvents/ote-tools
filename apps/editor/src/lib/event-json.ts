@@ -28,8 +28,24 @@ export function emptyFormState(timezone = ""): FormState {
     sourceLicense: "",
     sourceRetrievedAt: "",
     updatedAt: "",
+    extraFieldsJson: "",
   };
 }
+
+/**
+ * v0.3 event fields this form has no dedicated UI for yet. Carried through
+ * FormState.extraFieldsJson untouched (see fromEventJson/toEventJson) so
+ * editing an event that already has them never silently deletes them.
+ */
+const PASSTHROUGH_KEYS = [
+  "organizers",
+  "image",
+  "offers",
+  "cfp",
+  "eligibility",
+  "partOf",
+  "textLanguage",
+] as const;
 
 function splitList(value: string): string[] {
   return value
@@ -38,21 +54,18 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
-/** "18:30" → "18:30:00"; anything else is passed through for the schema to judge. */
-function normalizeTime(time: string): string {
-  return /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : time;
-}
-
 /**
  * Combines the form's date/time parts into a schema wall-clock string.
- * All-day → "YYYY-MM-DD"; timed → "YYYY-MM-DDTHH:MM:SS". A timed date
- * without a time is emitted date-only so live validation flags the mismatch
- * instead of the editor inventing a time.
+ * All-day → "YYYY-MM-DD"; timed → "YYYY-MM-DDTHH:MM" (OTE's dateTime is
+ * deliberately seconds-less: "the hour on a poster, never a technical
+ * instant" — native <input type="time"> already gives HH:MM, nothing to
+ * strip or pad). A timed date without a time is emitted date-only so live
+ * validation flags the mismatch instead of the editor inventing a time.
  */
 function wallClock(date: string, time: string, allDay: boolean): string {
   if (!date) return "";
   if (allDay || !time) return date;
-  return `${date}T${normalizeTime(time)}`;
+  return `${date}T${time}`;
 }
 
 /** Numeric form input → number; non-numeric text is kept for the schema to reject. */
@@ -113,6 +126,21 @@ export function toEventJson(state: FormState): OteEvent {
   if (Object.keys(source).length > 0) event.source = source;
 
   set("updatedAt", state.updatedAt);
+
+  // v0.3 fields this form has no UI for (see PASSTHROUGH_KEYS): restored
+  // as-is rather than dropped. Corrupted/foreign state (never written by
+  // this editor) is ignored rather than crashing the form.
+  if (state.extraFieldsJson) {
+    try {
+      const extra = JSON.parse(state.extraFieldsJson) as Record<string, unknown>;
+      for (const key of PASSTHROUGH_KEYS) {
+        if (extra[key] !== undefined) event[key] = extra[key];
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return event as unknown as OteEvent;
 }
 
@@ -133,6 +161,11 @@ function splitWallClock(value: string | undefined): {
 export function fromEventJson(json: OteEvent, slug: string): FormState {
   const start = splitWallClock(json.startDate);
   const end = splitWallClock(json.endDate);
+  const source = json as unknown as Record<string, unknown>;
+  const extra: Record<string, unknown> = {};
+  for (const key of PASSTHROUGH_KEYS) {
+    if (source[key] !== undefined) extra[key] = source[key];
+  }
   return {
     slug,
     id: json.id ?? "",
@@ -159,6 +192,7 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     sourceLicense: json.source?.license ?? "",
     sourceRetrievedAt: json.source?.retrievedAt ?? "",
     updatedAt: json.updatedAt ?? "",
+    extraFieldsJson: Object.keys(extra).length > 0 ? JSON.stringify(extra) : "",
   };
 }
 

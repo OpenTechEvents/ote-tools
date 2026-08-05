@@ -20,10 +20,10 @@ import {
 // dependency is bumped to a new spec release (Dependabot opens that PR), these
 // tests fail until `pnpm gen` re-embeds — stale schemas can never ship.
 //
-// customFormats/customKeywords/annotationKeywords are NOT covered here: they
-// carry real validator functions, so src/index.ts imports them directly from
-// @opentechevents/schema at runtime instead of embedding them — there is no
-// copy to drift, the import always reflects whatever is installed.
+// customFormats/customKeywords/annotationKeywords are covered by the
+// companion guard test in validators-generated.test.ts instead: they carry
+// real validator functions, vendored (not embedded as JSON) into
+// src/validators.generated.ts — see scripts/embed-schemas.mjs.
 describe("schemas.generated.ts", () => {
   it("eventSchema matches @opentechevents/schema", () => {
     expect(eventSchema).toEqual(specEventSchema);

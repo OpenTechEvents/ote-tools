@@ -185,9 +185,6 @@ importers:
 
   packages/validate:
     dependencies:
-      '@opentechevents/schema':
-        specifier: link:../../../opentechevents-spec
-        version: link:../../../opentechevents-spec
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
@@ -195,6 +192,9 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
     devDependencies:
+      '@opentechevents/schema':
+        specifier: link:../../../opentechevents-spec
+        version: link:../../../opentechevents-spec
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
