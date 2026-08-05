@@ -1,18 +1,28 @@
 import type {
+  HtmlToEventsOptions,
   ImportResult,
   ImportWarning,
   OteAttendanceMode,
   OteEventStatus,
+  OteImageEntry,
+  OteOffer,
+  OteOrganizer,
+  OtePartOf,
   PartialOteEvent,
 } from "./types.js";
 
 export type {
+  HtmlToEventsOptions,
   ImportResult,
   ImportWarning,
   OteAttendanceMode,
   OteEventStatus,
   OteGeo,
+  OteImageEntry,
   OteLocation,
+  OteOffer,
+  OteOrganizer,
+  OtePartOf,
   PartialOteEvent,
 } from "./types.js";
 
@@ -100,12 +110,15 @@ interface ParsedDate {
 function parseSchemaDate(value: string): ParsedDate | null {
   const m = DT_RE.exec(value.trim());
   if (!m) return null;
-  const [, date, time, seconds, zone] = m;
+  const [, date, time, , zone] = m;
   if (time === undefined) {
     return { wallClock: date, utc: false, offset: false, dateOnly: true };
   }
+  // OTE's dateTime is deliberately seconds-less ("the hour on a poster, never
+  // a technical instant"): any seconds in the source are truncated, not
+  // rounded — a format conversion, not the kind of loss that gets a warning.
   return {
-    wallClock: `${date}T${time}:${seconds ?? "00"}`,
+    wallClock: `${date}T${time}`,
     utc: zone === "Z",
     offset: zone !== undefined && zone !== "Z",
     dateOnly: false,
@@ -123,10 +136,21 @@ const STATUS_MAP: Record<string, OteEventStatus> = {
   EventCancelled: "cancelled",
   EventPostponed: "postponed",
   EventRescheduled: "rescheduled",
+  EventMovedOnline: "moved-online",
 };
 
-/** schema.org properties OTE does not model — flagged when present. */
-const UNMODELED_PROPS = ["image", "organizer", "offers", "performer"] as const;
+const AVAILABILITY_MAP: Record<string, "in-stock" | "sold-out"> = {
+  InStock: "in-stock",
+  SoldOut: "sold-out",
+};
+
+/**
+ * schema.org properties OTE does not model — flagged when present.
+ * `image`/`organizer`/`offers` used to be here too; v0.3 added real OTE
+ * fields for all three, so they now get dedicated mapping (mapImages,
+ * mapOrganizers, mapOffers) instead of a generic drop warning.
+ */
+const UNMODELED_PROPS = ["performer"] as const;
 
 interface EventWarning {
   field?: string;
@@ -199,7 +223,143 @@ function mapLocation(
   if (Object.keys(location).length > 0) event.location = location;
 }
 
-function mapEvent(node: JsonObject): {
+/**
+ * schema.org organizer → organizers[]. Unlike import-ics (where a private or
+ * link-shared .ics might expose an email its owner never meant to publish),
+ * this connector's source is always a page the user is viewing in a
+ * browser — a public web page — so an organizer email present in its JSON-LD
+ * is imported directly, no visibility gate needed.
+ */
+function mapOrganizers(raw: unknown, warnings: EventWarning[]): OteOrganizer[] | undefined {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const organizers: OteOrganizer[] = [];
+  let sawUnnamed = false;
+  for (const entry of entries) {
+    if (typeof entry === "string") {
+      const name = asString(entry);
+      if (name) organizers.push({ name });
+      continue;
+    }
+    if (typeof entry !== "object" || entry === null) continue;
+    const node = entry as JsonObject;
+    const name = asString(node.name);
+    if (!name) {
+      sawUnnamed = true;
+      continue;
+    }
+    const organizer: OteOrganizer = { name };
+    const url = asString(node.url);
+    if (url) organizer.url = url;
+    const email = asString(node.email);
+    if (email) organizer.email = email.replace(/^mailto:/i, "");
+    const types = Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
+    if (types.some((t) => typeof t === "string" && bareEnum(t) === "Person")) {
+      organizer.type = "person";
+    }
+    organizers.push(organizer);
+  }
+  if (sawUnnamed) {
+    warnings.push({
+      field: "organizers",
+      message: "an organizer had no name — could not import; add it by hand",
+    });
+  }
+  return organizers.length > 0 ? organizers : undefined;
+}
+
+/** schema.org image (bare string, ImageObject, or an array of either) → image[]. */
+function mapImages(raw: unknown): (string | OteImageEntry)[] | undefined {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const images: (string | OteImageEntry)[] = [];
+  for (const entry of entries) {
+    if (typeof entry === "string") {
+      const url = asString(entry);
+      if (url) images.push(url);
+      continue;
+    }
+    if (typeof entry !== "object" || entry === null) continue;
+    const node = entry as JsonObject;
+    const url = asString(node.url) ?? asString(node["@id"]);
+    if (!url) continue;
+    // schema.org has no "alt" property; `caption` is the closest analog
+    // (also what Google reads), per the spec's own image[].alt mapping table.
+    const alt = asString(node.caption) ?? asString(node.name);
+    images.push(alt ? { url, alt } : url);
+  }
+  return images.length > 0 ? images : undefined;
+}
+
+/** schema.org Offer (or an array) → offers[]. */
+function mapOffers(raw: unknown, warnings: EventWarning[]): OteOffer[] | undefined {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const offers: OteOffer[] = [];
+  for (const entry of entries) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const node = entry as JsonObject;
+    const offer: OteOffer = {};
+    const name = asString(node.name);
+    if (name) offer.name = name;
+    const price = asNumber(node.price);
+    if (price !== undefined) offer.price = price;
+    const currency = asString(node.priceCurrency);
+    if (currency) offer.currency = currency;
+    const url = asString(node.url);
+    if (url) offer.url = url;
+    const availability = asString(node.availability);
+    if (availability !== undefined) {
+      const mapped = AVAILABILITY_MAP[bareEnum(availability)];
+      if (mapped !== undefined) offer.availability = mapped;
+      // Other schema.org availability values (PreOrder, BackOrder, …) have
+      // no OTE equivalent (only in-stock/sold-out exist) — left unmapped,
+      // not worth a warning for a field that was itself never required.
+    }
+    for (const [schemaKey, oteKey] of [
+      ["validFrom", "opensAt"],
+      ["validThrough", "closesAt"],
+    ] as const) {
+      const instant = asString(node[schemaKey]);
+      if (instant === undefined) continue;
+      // offers[].opensAt/closesAt is an instant: it REQUIRES an offset,
+      // unlike startDate/endDate's wall clock. A schema.org date with no
+      // offset can't become one without inventing data.
+      if (/(Z|[+-]\d{2}:?\d{2})$/.test(instant)) {
+        offer[oteKey] = instant;
+      } else {
+        warnings.push({
+          field: `offers.${oteKey}`,
+          message: `${schemaKey} "${instant}" has no UTC offset — an instant needs one; set it by hand`,
+        });
+      }
+    }
+    if (offer.name || offer.price !== undefined || offer.url || offer.currency) {
+      offers.push(offer);
+    }
+  }
+  return offers.length > 0 ? offers : undefined;
+}
+
+/**
+ * schema.org superEvent → partOf. Only usable when it carries something that
+ * can serve as partOf.id (a URI): its own @id, or its url. A bare name with
+ * neither is not enough — partOf.id is required, and inventing a URI from a
+ * name would be exactly the kind of data this connector must never invent.
+ */
+function mapPartOf(raw: unknown): OtePartOf | undefined {
+  if (typeof raw === "string") {
+    return /^https?:\/\//i.test(raw) ? { id: raw } : undefined;
+  }
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const node = raw as JsonObject;
+  const id = asString(node["@id"]) ?? asString(node.url);
+  if (!id) return undefined;
+  const name = asString(node.name);
+  return name ? { id, name } : { id };
+}
+
+function mapEvent(
+  node: JsonObject,
+  allDayTimezonePolicy: string,
+): {
   event: PartialOteEvent;
   warnings: EventWarning[];
 } {
@@ -247,7 +407,20 @@ function mapEvent(node: JsonObject): {
       continue;
     }
     event[key] = parsed.wallClock;
-    if (parsed.dateOnly || key === "endDate") continue;
+    if (parsed.dateOnly) {
+      // OTE requires timezone even for all-day events, but schema.org gives
+      // no timezone data for a date-only value at all — always an
+      // inference, so always warn (see HtmlToEventsOptions.allDayTimezonePolicy).
+      if (key === "startDate") {
+        event.timezone = allDayTimezonePolicy;
+        warnings.push({
+          field: "timezone",
+          message: `all-day event: the source gives no timezone for a date-only value — inferred "${allDayTimezonePolicy}"; override if this event isn't actually in that zone`,
+        });
+      }
+      continue;
+    }
+    if (key === "endDate") continue;
     if (parsed.utc) {
       event.timezone = "UTC";
     } else if (!timezoneWarned) {
@@ -284,7 +457,8 @@ function mapEvent(node: JsonObject): {
     if (mapped !== undefined) {
       event.status = mapped;
     } else {
-      // e.g. EventMovedOnline: OTE does not model it — absent + warning.
+      // Any other schema.org eventStatus value has no OTE equivalent at
+      // all — absent + warning, never a guess.
       warnings.push({
         field: "status",
         message: `eventStatus "${status}" has no OTE equivalent`,
@@ -312,6 +486,34 @@ function mapEvent(node: JsonObject): {
     .filter(Boolean);
   if (tags.length > 0) event.tags = tags;
 
+  if (node.organizer !== undefined) {
+    const organizers = mapOrganizers(node.organizer, warnings);
+    if (organizers) event.organizers = organizers;
+  }
+
+  if (node.image !== undefined) {
+    const images = mapImages(node.image);
+    if (images) event.image = images;
+  }
+
+  if (node.offers !== undefined) {
+    const offers = mapOffers(node.offers, warnings);
+    if (offers) event.offers = offers;
+  }
+
+  if (node.superEvent !== undefined) {
+    const partOf = mapPartOf(node.superEvent);
+    if (partOf) {
+      event.partOf = partOf;
+    } else {
+      warnings.push({
+        field: "partOf",
+        message:
+          "superEvent has no usable id (@id or url) — could not import; add partOf by hand",
+      });
+    }
+  }
+
   for (const prop of UNMODELED_PROPS) {
     if (node[prop] !== undefined) {
       warnings.push({
@@ -335,9 +537,13 @@ function mapEvent(node: JsonObject): {
  * invents data: every field the page did not carry (or OTE does not model)
  * is absent and identified by a warning.
  */
-export function htmlToEvents(html: string): ImportResult {
+export function htmlToEvents(
+  html: string,
+  options: HtmlToEventsOptions = {},
+): ImportResult {
   const events: PartialOteEvent[] = [];
   const warnings: ImportWarning[] = [];
+  const allDayTimezonePolicy = options.allDayTimezonePolicy ?? "UTC";
 
   const nodes: JsonObject[] = [];
   for (const block of extractJsonLdBlocks(html)) {
@@ -359,7 +565,7 @@ export function htmlToEvents(html: string): ImportResult {
   // Pages sometimes repeat the same event in several blocks; keep the first.
   const seen = new Set<string>();
   for (const node of nodes) {
-    const { event, warnings: eventWarnings } = mapEvent(node);
+    const { event, warnings: eventWarnings } = mapEvent(node, allDayTimezonePolicy);
     const key = `${event.name ?? ""}|${event.startDate ?? ""}|${event.url ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);

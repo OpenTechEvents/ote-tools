@@ -2,7 +2,7 @@
 
 Extracts the schema.org Events an HTML page exposes as
 `<script type="application/ld+json">` (Meetup, Eventbrite, Luma, guild.host…)
-and converts them into **partial** OTE event documents (v0.2), ready for an
+and converts them into **partial** OTE event documents (v0.3), ready for an
 organizer to review and complete.
 
 Part of the [OpenTechEvents organizer kit](https://github.com/OpenTechEvents/ote-tools);
@@ -21,6 +21,14 @@ npm install @opentechevents/import-jsonld
 import { htmlToEvents } from "@opentechevents/import-jsonld";
 
 const { events, warnings } = htmlToEvents(pageHtml);
+
+// Optional second argument:
+htmlToEvents(pageHtml, {
+  // How to fill `timezone` for all-day events (a date-only startDate), which
+  // schema.org gives no timezone data for at all. Default: "UTC". Pass a
+  // real IANA zone to override when you know the event's actual locale.
+  allDayTimezonePolicy: "Europe/Madrid",
+});
 ```
 
 `htmlToEvents` is a pure function: no network, no DOM, no clock, never
@@ -46,7 +54,7 @@ BreadcrumbList…) and malformed JSON blocks are skipped **without noise**;
 only "the page has no Event at all" warns. The same event repeated across
 blocks is deduplicated (by name + startDate + url).
 
-## Mapping (schema.org → OTE v0.2)
+## Mapping (schema.org → OTE v0.3)
 
 | schema.org | OTE |
 | --- | --- |
@@ -55,28 +63,56 @@ blocks is deduplicated (by name + startDate + url).
 | `url` | `url` (the editor derives an `id` proposal from it downstream) |
 | `startDate` / `endDate` | `startDate` / `endDate` + `timezone` (see below) |
 | `eventAttendanceMode` | `attendanceMode` (`Offline`→`in-person`, `Online`→`online`, `Mixed`→`hybrid`) |
-| `eventStatus` | `status` (`EventScheduled`→`scheduled`, `EventCancelled`→`cancelled`, `EventPostponed`→`postponed`, `EventRescheduled`→`rescheduled`) |
+| `eventStatus` | `status` (`EventScheduled`→`scheduled`, `EventCancelled`→`cancelled`, `EventPostponed`→`postponed`, `EventRescheduled`→`rescheduled`, `EventMovedOnline`→`moved-online`) |
 | `location` `Place` | `location.venue` (name + streetAddress) and `location.geo` |
 | `location` `VirtualLocation` | `location.onlineUrl` |
 | `inLanguage` | `languages` |
 | `keywords` | `tags` |
+| `organizer` | `organizers[]` — `name`, `url`, `email` (see below), `@type: Person`→`type: "person"` |
+| `image` (bare string or `ImageObject`) | `image[]` — `ImageObject.caption` becomes `alt` |
+| `offers` | `offers[]` — `price`, `priceCurrency`→`currency`, `url`, `availability` (`InStock`→`in-stock`, `SoldOut`→`sold-out`), `validFrom`/`validThrough`→`opensAt`/`closesAt` (only when they carry a UTC offset — see below) |
+| `superEvent` | `partOf` — only when it carries a usable id (its own `@id` or `url`) |
+
+`cfp` and `eligibility` have no schema.org equivalent at all, so this
+importer never sets them.
 
 ## Decisions worth knowing
 
 - **Offsets are not timezones.** schema.org dates come as ISO 8601 with a
   UTC offset (`2025-10-25T08:30:00+02:00`); OTE wants local wall-clock time
   plus an IANA zone, and `+02:00` does not identify one (Madrid, Paris and
-  Cairo all match at times). The local part is kept and `timezone` stays
+  Cairo all match at times). The local part is kept (truncated to `HH:MM` —
+  OTE's `dateTime` is deliberately seconds-less) and `timezone` stays
   pending, with a warning. `Z` is the exception — UTC is a real IANA zone.
   Dates without any zone information get the same warning.
+- **All-day events (a date-only `startDate`) still need a `timezone` in
+  OTE**, but schema.org gives no timezone data for one at all — unlike
+  iCalendar, there's no calendar-level hint to fall back to (see
+  `@opentechevents/import-ics`'s analogous `X-WR-TIMEZONE` policy). This
+  importer's policy: default to `"UTC"`, always with a warning since it's
+  always an inference; pass `allDayTimezonePolicy` to override with a
+  known-correct zone.
 - **Truncated descriptions are flagged.** Meetup cuts the JSON-LD
   description short with an ellipsis; it is imported as-is plus a warning
   telling the organizer to complete it from the event page.
-- **`eventStatus` values OTE does not model** (e.g. `EventMovedOnline`)
-  yield no `status` + a warning — never a guess. Same for unknown
-  `eventAttendanceMode` values.
-- **Properties OTE does not model** (`image`, `organizer`, `offers`,
-  `performer`) are flagged when present so the loss is visible, per the
-  DESIGN.md rule: the import points out what it drops, field by field.
+- **`eventStatus`/`eventAttendanceMode` values OTE does not model** yield no
+  `status`/`attendanceMode` + a warning — never a guess.
+- **`organizer` email is imported directly, no visibility gate.** Unlike
+  `@opentechevents/import-ics` (where a private or link-shared `.ics` might
+  expose an email its owner never meant to publish), this connector's input
+  is always a page the user is viewing in a browser — a public page by
+  construction — so there's no equivalent privacy concern to gate on.
+- **`offers[].opensAt`/`closesAt` require a UTC offset.** They're OTE
+  *instants*, unlike `startDate`'s wall clock — a schema.org `validFrom`/
+  `validThrough` with no offset can't become one without inventing data, so
+  it's left absent + warned instead.
+- **`superEvent` needs a real id to become `partOf`.** `partOf.id` is
+  required and must be a URI; a bare name with no `@id` or `url` isn't
+  enough to build one without inventing data.
+- **`cfp`, `eligibility` and `performer`** have no schema.org equivalent at
+  all (`performer` specifically has no OTE field to map to), so none of them
+  are ever set; `performer`'s presence is still flagged as unmodeled, since
+  unlike the other two it's a real schema.org property being silently
+  dropped.
 - **No `id` is ever derived.** An OTE id is a URI the organizer mints under
   their own domain; every event carries a warning saying so.

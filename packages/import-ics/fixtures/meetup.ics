@@ -20,6 +20,7 @@ CREATED:20260601T100000Z
 GEO:40.42272;-3.70358
 LOCATION:Campus Madrid\, Calle de Moreno Nieto 2\, Madrid
 URL:https://www.meetup.com/rust-madrid/events/310000001/
+ORGANIZER;CN=Rust Madrid:mailto:hola@rustmadrid.example
 LAST-MODIFIED:20260701T090000Z
 UID:event_310000001@meetup.com
 END:VEVENT

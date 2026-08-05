@@ -53,6 +53,15 @@ export interface FormState {
   sourceLicense: string;
   sourceRetrievedAt: string;
   updatedAt: string;
+  /**
+   * JSON-encoded blob of v0.3 fields this form has no UI for yet
+   * (organizers, image, offers, cfp, eligibility, partOf, textLanguage) —
+   * "" when none are present. Round-tripped as-is by toEventJson/
+   * fromEventJson so editing an event that already has them (from import,
+   * or hand-edited JSON) never silently deletes them; see PASSTHROUGH_KEYS
+   * in event-json.ts.
+   */
+  extraFieldsJson: string;
 }
 
 /** An event as listed from the target repo, with the filename-derived slug. */

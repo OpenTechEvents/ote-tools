@@ -1,5 +1,5 @@
 {
-  "specVersion": "0.2.0",
+  "specVersion": "0.3.0",
   "title": "OTE Export Fixtures",
   "description": "Feed covering online, in-person, hybrid, multi-day and cancelled events.",
   "url": "https://opentechevents.example",
@@ -11,13 +11,19 @@
       "id": "https://pyalmeria.example/eventos/2026-06-async",
       "name": "PyAlmería — Intro to async/await",
       "description": "Introductory talk on asynchronous Python; live examples.\nQ&A at the end.",
-      "startDate": "2026-06-11T18:30:00",
-      "endDate": "2026-06-11T20:00:00",
+      "startDate": "2026-06-11T18:30",
+      "endDate": "2026-06-11T20:00",
       "timezone": "Europe/Madrid",
       "attendanceMode": "online",
       "location": { "onlineUrl": "https://meet.example/pyalmeria" },
       "languages": ["es"],
+      "textLanguage": "es",
       "tags": ["python", "async"],
+      "organizers": [
+        { "name": "PyAlmería", "email": "hola@pyalmeria.example" },
+        { "name": "Community co-host" }
+      ],
+      "image": ["https://pyalmeria.example/img/2026-06.png"],
       "updatedAt": "2026-06-01T09:00:00Z"
     },
     {
@@ -25,8 +31,8 @@
       "url": "https://rustmadrid.example/meetups/2026-06",
       "name": "Rust Madrid — June meetup",
       "description": "Talks on WASM and Rust tooling, with a deliberately long description to force iCalendar line folding in the exported output.",
-      "startDate": "2026-06-26T19:00:00",
-      "endDate": "2026-06-26T21:00:00",
+      "startDate": "2026-06-26T19:00",
+      "endDate": "2026-06-26T21:00",
       "timezone": "Europe/Madrid",
       "attendanceMode": "hybrid",
       "location": {
@@ -50,7 +56,27 @@
       "attendanceMode": "in-person",
       "location": { "venue": "Las Naves, València" },
       "languages": ["es", "en"],
-      "tags": ["cloud", "ai", "web"]
+      "tags": ["cloud", "ai", "web"],
+      "cfp": {
+        "url": "https://devfest-levante.example/2026/cfp",
+        "closesAt": "2026-07-15T23:59:59+02:00"
+      },
+      "eligibility": {
+        "type": "restricted",
+        "note": "18+ only, ID checked at the door"
+      },
+      "offers": [
+        {
+          "name": "General",
+          "price": 45,
+          "currency": "EUR",
+          "url": "https://devfest-levante.example/2026/entradas"
+        }
+      ],
+      "partOf": {
+        "id": "https://devfest.example/series",
+        "name": "DevFest"
+      }
     },
     {
       "id": "https://coolconf.example/2026",
@@ -68,6 +94,14 @@
       "name": "Minimal, but valid",
       "startDate": "2026-09-01T18:30",
       "timezone": "UTC"
+    },
+    {
+      "id": "https://pydata-madrid.example/2026-07",
+      "name": "PyData Madrid: now online",
+      "startDate": "2026-07-20T18:00",
+      "timezone": "Europe/Madrid",
+      "status": "moved-online",
+      "location": { "onlineUrl": "https://meet.example/pydata-madrid" }
     }
   ]
 }

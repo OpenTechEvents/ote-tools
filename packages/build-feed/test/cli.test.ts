@@ -48,7 +48,7 @@ describe("ote-build-feed CLI", () => {
     expect(feed.events.at(-1).name).toBe("DevFest Almería 2026");
 
     expect(readFileSync(join(out, "feed.ics"), "utf8")).toContain("BEGIN:VCALENDAR");
-    expect(readFileSync(join(out, "feed.xml"), "utf8")).toContain('<rss version="2.0">');
+    expect(readFileSync(join(out, "feed.xml"), "utf8")).toContain('<rss version="2.0"');
     expect(io.outLines.at(-1)).toContain("3 events");
   });
 
@@ -66,10 +66,13 @@ describe("ote-build-feed CLI", () => {
     expect(runCli([invalidProject, "--check"], io)).toBe(1);
     const err = io.errLines.join("\n");
     expect(err).toContain("✗ ote.config.json");
-    expect(err).toContain("feed.license: is required");
     expect(err).toContain("feed.licenseUrl:");
     expect(err).toContain("✗ events/bad-offset.json");
     expect(err).toContain("startDate:");
+    // The fixture's config has no feed.license, and neither event declares
+    // its own — D029 fails the build for both, since there's no license to
+    // fall back to for either of them.
+    expect(err).toContain('"license"');
     expect(err).toContain("✗ events/missing-name.json");
     expect(err).toContain('"name"');
     expect(io.errLines.at(-1)).toMatch(/^Build failed: \d+ problems$/);

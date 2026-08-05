@@ -1,7 +1,7 @@
 {
   "name": "@opentechevents/validate",
   "version": "0.1.0",
-  "description": "Validates OTE Event and Feed documents against JSON Schema v0.2",
+  "description": "Validates OTE Event and Feed documents against JSON Schema v0.3",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/validate",
   "repository": {
@@ -34,7 +34,7 @@
     "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
-    "@opentechevents/schema": "0.2.0",
+    "@opentechevents/schema": "0.3.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"

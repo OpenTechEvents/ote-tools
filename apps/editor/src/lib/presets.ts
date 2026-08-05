@@ -94,7 +94,8 @@ export function availablePresets(config: OteConfig | null): string[] {
  * Resolves which form fields the editor shows for a given ote.config.json.
  *
  * - `customProfile.fields` wins over `profile`: core fields + the listed ids.
- *   Unknown ids (e.g. "cfp", not in schema v0.2) are skipped with a warning.
+ *   Unknown ids (e.g. "cfp" — a real v0.3 field, but this form has no input
+ *   for it yet; see FormState.extraFieldsJson) are skipped with a warning.
  * - Otherwise `profile` picks a preset; unknown/missing profile falls back to
  *   "all" with a warning (show everything rather than silently hide fields).
  * - "all" renders the advanced section collapsed.
@@ -120,7 +121,7 @@ export function resolveProfile(
         fields.add(id);
       } else {
         warnings.push(
-          `customProfile field "${id}" is not supported by this editor (schema v0.2) and was ignored`,
+          `customProfile field "${id}" is not supported by this editor's form yet and was ignored`,
         );
       }
     }

@@ -33,6 +33,15 @@ export default tseslint.config(
     },
   },
   {
+    // Vendored codegen output (`pnpm gen`): plain JS copied verbatim from
+    // @opentechevents/schema, so it carries a @ts-nocheck header and is not
+    // authored here. Guard tests, not lint rules, keep it honest.
+    files: ["**/*.generated.ts"],
+    rules: {
+      "@typescript-eslint/ban-ts-comment": "off",
+    },
+  },
+  {
     files: ["**/*.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": [

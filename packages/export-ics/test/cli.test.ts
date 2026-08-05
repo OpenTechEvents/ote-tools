@@ -34,7 +34,7 @@ describe("ote-export-ics CLI", () => {
     const out = join(mkdtempSync(join(tmpdir(), "ote-export-ics-")), "feed.ics");
     expect(runCli([fixture, out], io)).toBe(0);
     expect(readFileSync(out, "utf8")).toContain("BEGIN:VCALENDAR");
-    expect(io.outLines[0]).toContain("5 events");
+    expect(io.outLines[0]).toContain("6 events");
   });
 
   it("invalid feed → exit 1 with validation errors", () => {

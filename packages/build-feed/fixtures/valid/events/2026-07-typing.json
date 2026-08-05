@@ -2,8 +2,8 @@
   "id": "https://pyalmeria.example/eventos/2026-07-typing",
   "url": "https://pyalmeria.example/eventos/2026-07-typing",
   "name": "Static typing in Python",
-  "startDate": "2026-07-09T18:30:00",
-  "endDate": "2026-07-09T20:00:00",
+  "startDate": "2026-07-09T18:30",
+  "endDate": "2026-07-09T20:00",
   "timezone": "Europe/Madrid",
   "attendanceMode": "hybrid",
   "location": {

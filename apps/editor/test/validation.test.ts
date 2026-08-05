@@ -13,7 +13,7 @@ const config = {
 const validEvent: OteEvent = {
   id: "https://x.example/events/2026-06-async",
   name: "Async night",
-  startDate: "2026-06-11T18:30:00",
+  startDate: "2026-06-11T18:30",
   timezone: "Europe/Madrid",
 };
 
@@ -63,8 +63,11 @@ describe("validateDraft", () => {
   });
 
   it("config problems are kept apart from event problems", () => {
+    // license is present (so D029 doesn't also fail the event itself over a
+    // missing license neither side declares) but licenseUrl is malformed —
+    // a config-only problem, isolated from the event's own validity.
     const result = validateDraft(
-      { feed: { title: "no license" } },
+      { feed: { title: "T", license: "CC-BY-4.0", licenseUrl: "not-a-url" } },
       validEvent,
       NOW,
     );

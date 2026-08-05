@@ -1,7 +1,13 @@
 import { validateFeed } from "@opentechevents/validate";
 import { describe, expect, it } from "vitest";
 
-import { buildFeed, SPEC_VERSION, type EventFileInput } from "../src/index.js";
+import {
+  buildFeed,
+  resolveEventInheritance,
+  SPEC_VERSION,
+  type EventFileInput,
+  type OteFeed,
+} from "../src/index.js";
 
 const NOW = "2026-07-16T10:00:00Z";
 
@@ -21,7 +27,7 @@ function event(file: string, overrides: Record<string, unknown>): EventFileInput
     json: {
       id: `https://community.example/events/${file}`,
       name: `Event ${file}`,
-      startDate: "2026-08-01T18:00:00",
+      startDate: "2026-08-01T18:00",
       timezone: "Europe/Madrid",
       ...overrides,
     },
@@ -56,13 +62,13 @@ describe("buildFeed", () => {
       config,
       events: [
         event("z-first.json", { startDate: "2026-12-01" }),
-        event("a-last.json", { startDate: "2026-01-05T10:00:00" }),
+        event("a-last.json", { startDate: "2026-01-05T10:00" }),
       ],
       now: NOW,
     });
     if (!result.ok) throw new Error("expected ok");
     expect(result.feed.events.map((e) => e.startDate)).toEqual([
-      "2026-01-05T10:00:00",
+      "2026-01-05T10:00",
       "2026-12-01",
     ]);
   });
@@ -99,15 +105,42 @@ describe("buildFeed", () => {
     expect(problems[0].path).toBe("feed");
   });
 
-  it("missing title/license in the feed block → per-field problems", () => {
+  it("missing title in the feed block → a problem, even with no events", () => {
     const problems = problemsOf(
       buildFeed({ config: { feed: {} }, events: [], now: NOW }),
     );
-    expect(problems.map((p) => p.path).sort()).toEqual([
-      "feed.license",
-      "feed.title",
-    ]);
+    expect(problems.map((p) => p.path)).toEqual(["feed.title"]);
     expect(problems.every((p) => p.file === "ote.config.json")).toBe(true);
+  });
+
+  it("missing feed.license with no events is fine (D029 is vacuously satisfied)", () => {
+    const result = buildFeed({
+      config: { feed: { title: "Unlicensed feed" } },
+      events: [],
+      now: NOW,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("missing feed.license WITH an event that also has none → D029 fails the build", () => {
+    const problems = problemsOf(
+      buildFeed({
+        config: { feed: { title: "Unlicensed feed" } },
+        events: [event("events/no-license.json", {})],
+        now: NOW,
+      }),
+    );
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.some((p) => p.file === "events/no-license.json")).toBe(true);
+  });
+
+  it("missing feed.license WITH every event declaring its own → builds fine", () => {
+    const result = buildFeed({
+      config: { feed: { title: "Unlicensed feed" } },
+      events: [event("events/licensed.json", { license: "CC0-1.0" })],
+      now: NOW,
+    });
+    expect(result.ok).toBe(true);
   });
 
   it("schema constraints on config values map back to feed.<field>", () => {
@@ -129,7 +162,7 @@ describe("buildFeed", () => {
   it("config problems and event problems are reported together", () => {
     const problems = problemsOf(
       buildFeed({
-        config: { feed: { title: "T" } },
+        config: { feed: {} }, // missing title: still unconditionally required
         events: [event("events/bad.json", { timezone: undefined })],
         now: NOW,
       }),
@@ -176,5 +209,122 @@ describe("buildFeed", () => {
     if (!result.ok) throw new Error("expected ok");
     expect(result.feed.events).toEqual([]);
     expect(validateFeed(result.feed).errors).toEqual([]);
+  });
+});
+
+describe("buildFeed — v0.3 feed-level config fields", () => {
+  it("reads textLanguage and organizers from the config's feed block", () => {
+    const result = buildFeed({
+      config: {
+        feed: {
+          ...config.feed,
+          textLanguage: "es",
+          organizers: [{ name: "PyAlmería", email: "hola@pyalmeria.example" }],
+        },
+      },
+      events: [event("a.json", {})],
+      now: NOW,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.feed.textLanguage).toBe("es");
+    expect(result.feed.organizers).toEqual([
+      { name: "PyAlmería", email: "hola@pyalmeria.example" },
+    ]);
+  });
+
+  it("reads translations from the config's feed block", () => {
+    const result = buildFeed({
+      config: {
+        feed: {
+          ...config.feed,
+          textLanguage: "es",
+          translations: { en: { title: "Test Events (EN)" } },
+        },
+      },
+      events: [event("a.json", {})],
+      now: NOW,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.feed.translations).toEqual({ en: { title: "Test Events (EN)" } });
+  });
+
+  it("feed.organizers must be an array", () => {
+    const problems = problemsOf(
+      buildFeed({
+        config: { feed: { ...config.feed, organizers: "not-an-array" } },
+        events: [],
+        now: NOW,
+      }),
+    );
+    expect(problems).toContainEqual({
+      file: "ote.config.json",
+      path: "feed.organizers",
+      message: "must be an array",
+    });
+  });
+
+  it("feed.translations must be an object", () => {
+    const problems = problemsOf(
+      buildFeed({
+        config: { feed: { ...config.feed, translations: "not-an-object" } },
+        events: [],
+        now: NOW,
+      }),
+    );
+    expect(problems).toContainEqual({
+      file: "ote.config.json",
+      path: "feed.translations",
+      message: "must be an object",
+    });
+  });
+});
+
+describe("resolveEventInheritance", () => {
+  const feed: OteFeed = {
+    specVersion: SPEC_VERSION,
+    title: "Test Events",
+    license: "CC-BY-4.0",
+    textLanguage: "es",
+    organizers: [{ name: "Feed-level org" }],
+    updatedAt: NOW,
+    events: [
+      {
+        id: "https://example.org/events/inherits-everything",
+        name: "Inherits everything",
+        startDate: "2026-08-01T18:00",
+        timezone: "Europe/Madrid",
+      },
+      {
+        id: "https://example.org/events/declares-its-own",
+        name: "Declares its own",
+        startDate: "2026-08-02T18:00",
+        timezone: "Europe/Madrid",
+        license: "CC0-1.0",
+        textLanguage: "en",
+        organizers: [{ name: "Event-level org" }],
+      },
+    ],
+  };
+
+  it("fills in organizers/textLanguage/license from the feed when an event has none", () => {
+    const resolved = resolveEventInheritance(feed);
+    const [inherits] = resolved.events;
+    expect(inherits!.license).toBe("CC-BY-4.0");
+    expect(inherits!.textLanguage).toBe("es");
+    expect(inherits!.organizers).toEqual([{ name: "Feed-level org" }]);
+  });
+
+  it("an event's own values fully replace the feed's — never merged", () => {
+    const resolved = resolveEventInheritance(feed);
+    const [, declaresOwn] = resolved.events;
+    expect(declaresOwn!.license).toBe("CC0-1.0");
+    expect(declaresOwn!.textLanguage).toBe("en");
+    expect(declaresOwn!.organizers).toEqual([{ name: "Event-level org" }]);
+  });
+
+  it("leaves the original feed object's events untouched (does not mutate)", () => {
+    resolveEventInheritance(feed);
+    expect(feed.events[0]!.license).toBeUndefined();
+    expect(feed.events[0]!.organizers).toBeUndefined();
   });
 });

@@ -26,7 +26,7 @@ describe("feedToRss", () => {
 
   it("produces an RSS 2.0 channel with feed metadata", () => {
     expect(rss.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n')).toBe(true);
-    expect(rss).toContain('<rss version="2.0">');
+    expect(rss).toContain('<rss version="2.0"');
     expect(rss).toContain("<title>OTE Export Fixtures</title>");
     expect(rss).toContain("<link>https://opentechevents.example</link>");
     expect(rss).toContain(
@@ -79,7 +79,7 @@ describe("feedToRss", () => {
   it("dates and location go in the body, per the standards mapping", () => {
     const online = itemFor("https://pyalmeria.example/eventos/2026-06-async");
     expect(online).toContain(
-      "When:&lt;/strong&gt; 2026-06-11 18:30:00 – 2026-06-11 20:00:00 (Europe/Madrid)",
+      "When:&lt;/strong&gt; 2026-06-11 18:30 – 2026-06-11 20:00 (Europe/Madrid)",
     );
     expect(online).toContain(
       "&lt;a href=&quot;https://meet.example/pyalmeria&quot;&gt;",
@@ -109,5 +109,66 @@ describe("feedToRss", () => {
     expect(online).toContain("Q&amp;amp;A");
     // Newline in description becomes <br/> in the embedded HTML.
     expect(online).toContain("&lt;br/&gt;");
+  });
+
+  it("declares the media and dc namespaces on the root element", () => {
+    expect(rss).toContain('xmlns:media="http://search.yahoo.com/mrss/"');
+    expect(rss).toContain('xmlns:dc="http://purl.org/dc/elements/1.1/"');
+  });
+
+  it("first organizer with an email becomes <author>; others are dropped from that element", () => {
+    const item = itemFor("https://pyalmeria.example/eventos/2026-06-async");
+    expect(item).toContain("<author>hola@pyalmeria.example (PyAlmería)</author>");
+    expect(item.match(/<author>/g)).toHaveLength(1);
+    expect(item).not.toContain("<dc:creator>");
+  });
+
+  it("organizers with no email at all fall back to <dc:creator>", () => {
+    const feedNoEmail: OteFeed = {
+      ...feed,
+      events: [{ ...feed.events[0]!, organizers: [{ name: "No Email Org" }] }],
+    };
+    const item = feedToRss(feedNoEmail).split("<item>")[1]!;
+    expect(item).toContain("<dc:creator>No Email Org</dc:creator>");
+    expect(item).not.toContain("<author>");
+  });
+
+  it("image[].alt maps to <media:content><media:description>", () => {
+    const item = itemFor("https://pyalmeria.example/eventos/2026-06-async");
+    expect(item).toContain(
+      '<media:content url="https://pyalmeria.example/img/2026-06.png" medium="image">',
+    );
+    expect(item).toContain("<media:description>Event poster</media:description>");
+  });
+
+  it("cfp/eligibility/offers/partOf fold into the item body as unlabeled paragraphs", () => {
+    const item = itemFor("https://devfest-levante.example/2026");
+    expect(item).toContain("Call for proposals:");
+    expect(item).toContain("devfest-levante.example/2026/cfp");
+    expect(item).toContain("Eligibility: restricted");
+    expect(item).toContain("Tickets:");
+    expect(item).toContain("General");
+    expect(item).toContain("Part of: DevFest");
+  });
+
+  it("moved-online: title prefixed, status visible in the body", () => {
+    const item = itemFor("https://pydata-madrid.example/2026-07");
+    expect(item).toContain("<title>[Moved online] PyData Madrid: now online</title>");
+    expect(item).toContain("Status:&lt;/strong&gt; moved-online");
+  });
+
+  it("feed.textLanguage maps to channel <language>", () => {
+    expect(rss).not.toContain("<language>"); // fixture feed has no textLanguage set
+    const withLanguage = feedToRss({ ...feed, textLanguage: "es" });
+    expect(withLanguage).toContain("<language>es</language>");
+  });
+
+  it("feed.license absent (D029): <copyright> is omitted, not guessed", () => {
+    const withoutLicense = feedToRss({
+      ...feed,
+      license: undefined,
+      events: feed.events.map((e) => ({ ...e, license: "CC0-1.0" })),
+    });
+    expect(withoutLicense).not.toContain("<copyright>");
   });
 });
