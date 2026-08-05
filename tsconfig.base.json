@@ -4,6 +4,12 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
+    // TypeScript 6 no longer pulls every @types/* package in node_modules into
+    // the global scope on its own; ambient types have to be named. Everything
+    // here is written for Node (the browser-facing tsconfigs add DOM via
+    // `lib`), and package-scoped types like @types/leaflet come in through
+    // their imports, not from here.
+    "types": ["node"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
