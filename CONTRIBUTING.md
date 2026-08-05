@@ -120,8 +120,8 @@ the same filenames at the repository root on the default branch via
 
 ## Workflows
 
-- **CI** (`ci.yml`): lint + build + test on every push/PR. Green CI is the
-  bar for merging.
+- **CI** (`ci.yml`): lint + build + typecheck + test on every push/PR. Green CI
+  is the bar for merging.
 - **Deploy tools site** (`deploy-tools.yml`): publishes the static tools to
   this repo's Pages (`/editor`, `/preview`) on every push to `main`. Verify
   after merge: <https://opentechevents.github.io/ote-tools/editor/> and

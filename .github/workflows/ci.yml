@@ -18,4 +18,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
+      # Not redundant with build: the apps are bundled by esbuild, which strips
+      # types without checking them, and the packages' tsc runs only over src/.
+      # This is the only step that type-checks the tests and the app sources.
+      - run: pnpm typecheck
       - run: pnpm test
