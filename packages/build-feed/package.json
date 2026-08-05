@@ -1,6 +1,6 @@
 {
   "name": "@opentechevents/build-feed",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Assembles, validates and exports an OTE Feed from events/*.json and ote.config.json",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/build-feed",
