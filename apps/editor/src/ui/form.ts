@@ -170,11 +170,14 @@ interface Control {
     | "checkbox"
     | "select"
     | "chips"
-    | "combobox";
+    | "combobox"
+    | "instant";
   options?: string[];
   placeholder?: string;
   /** Autocomplete source for a "chips" control. Defaults to "languages". */
   vocab?: "languages" | "tags";
+  /** Longer explanation shown as an ⓘ tooltip next to this sub-field's own label. */
+  info?: string;
   /** Hidden unless the named sibling control's current value is one of `values`. */
   visibleWhen?: { key: StateKey; values: readonly string[] };
 }
@@ -225,12 +228,14 @@ function timezoneOptions(): string[] {
 }
 
 const SECTION_TITLES: Record<SectionId, string> = {
-  basics: "Basics",
+  what: "What",
   when: "When",
   where: "Where",
-  identity: "File & id",
-  advanced: "Advanced",
+  who: "Who",
+  tickets: "Tickets",
+  cfp: "Call for proposals",
   translations: "Translations",
+  metadata: "File & metadata",
 };
 
 const FIELD_SPECS: Record<string, FieldSpec> = {
@@ -425,6 +430,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
         label: "Type",
         kind: "select",
         options: ["", "open", "members-only", "approval-required", "restricted"],
+        info: "open needs nothing below; the other options should have a Note and/or URL explaining how to qualify.",
       },
       {
         key: "eligibilityNote",
@@ -435,6 +441,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
           key: "eligibilityType",
           values: ["members-only", "approval-required", "restricted"],
         },
+        info: "Plain-text explanation of who qualifies.",
       },
       {
         key: "eligibilityUrl",
@@ -444,6 +451,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
           key: "eligibilityType",
           values: ["members-only", "approval-required", "restricted"],
         },
+        info: "Where to read the full requirements or request access.",
       },
     ],
   },
@@ -452,24 +460,30 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     note: "Only for events accepting talk/workshop submissions.",
     info: "The one OTE field with no equivalent in ICS, RSS or plain schema.org — it exists because \"which conferences are still accepting proposals\" is a question only the organizer can answer today.",
     controls: [
-      { key: "cfpUrl", label: "URL", kind: "url" },
+      { key: "cfpUrl", label: "URL", kind: "url", info: "Where speakers submit a proposal." },
       {
         key: "cfpOpensAt",
         label: "Opens at",
-        kind: "text",
-        placeholder: "2026-05-01T00:00:00+02:00",
+        kind: "instant",
+        info: "When submissions start being accepted.",
       },
       {
         key: "cfpClosesAt",
         label: "Closes at",
-        kind: "text",
-        placeholder: "2026-07-15T23:59:59+02:00",
+        kind: "instant",
+        info: "Submission deadline — after this, cfpUrl should stop accepting new ones.",
       },
-      { key: "cfpCoversTravel", label: "Covers travel", kind: "checkbox" },
+      {
+        key: "cfpCoversTravel",
+        label: "Covers travel",
+        kind: "checkbox",
+        info: "Whether accepted speakers get their travel costs covered.",
+      },
       {
         key: "cfpCoversAccommodation",
         label: "Covers accommodation",
         kind: "checkbox",
+        info: "Whether accepted speakers get lodging covered.",
       },
     ],
   },
@@ -478,14 +492,30 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     note: "Links this occurrence to a recurring series or multi-part event.",
     info: "A reference to the series, not a recurrence rule — OTE doesn't generate dates. A monthly meetup gets one event file per month, and each one points here at the same series id.",
     controls: [
-      { key: "partOfId", label: "Series id (URL)", kind: "url" },
-      { key: "partOfName", label: "Name", kind: "text" },
-      { key: "partOfUrl", label: "URL", kind: "url" },
+      {
+        key: "partOfId",
+        label: "Series id (URL)",
+        kind: "url",
+        info: "The series' own id — the same value repeated across every occurrence, so consumers can group them.",
+      },
+      {
+        key: "partOfName",
+        label: "Name",
+        kind: "text",
+        info: "The series' name, e.g. \"Rust Girona Meetup\" for the occurrence \"Rust Girona Meetup #12\" — not this occurrence's own name.",
+      },
+      {
+        key: "partOfUrl",
+        label: "URL",
+        kind: "url",
+        info: "A page describing the series as a whole, not this specific occurrence.",
+      },
       {
         key: "partOfType",
         label: "Type",
         kind: "select",
         options: ["", "series", "multipart"],
+        info: "series for a recurring event (a monthly meetup); multipart for one event split across sessions (a multi-day workshop).",
       },
     ],
   },
@@ -494,14 +524,29 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     note: "Only when the event was imported from elsewhere.",
     info: "Where THIS DATA came from — required when the event was imported or aggregated, skipped when the organizer is describing their own event (they're already the source).",
     controls: [
-      { key: "sourceName", label: "Name", kind: "text" },
-      { key: "sourceUrl", label: "URL", kind: "url" },
-      { key: "sourceLicense", label: "License", kind: "text" },
+      {
+        key: "sourceName",
+        label: "Name",
+        kind: "text",
+        info: "Where this data was imported from — a platform name (\"Meetup\") or organization.",
+      },
+      {
+        key: "sourceUrl",
+        label: "URL",
+        kind: "url",
+        info: "The exact page or feed this event's data was read from.",
+      },
+      {
+        key: "sourceLicense",
+        label: "License",
+        kind: "text",
+        info: "The license the SOURCE data was published under, if stated — not this file's own license (see License above).",
+      },
       {
         key: "sourceRetrievedAt",
         label: "Retrieved at",
-        kind: "text",
-        placeholder: "2026-06-01T05:00:00Z",
+        kind: "instant",
+        info: "When this data was fetched — set automatically by the import flow; edit only if importing by hand.",
       },
     ],
   },
@@ -509,14 +554,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     label: "Updated at",
     note: "Instant the event's data last changed (ISO-8601 with offset).",
     info: "Not when the EVENT happens or moves (that's Start/End changing) — when this file's DATA last changed, so a consumer can sync only what's new. Leave empty rather than guessing; absent means unknown, not \"never changed\".",
-    controls: [
-      {
-        key: "updatedAt",
-        label: "",
-        kind: "text",
-        placeholder: "2026-06-10T18:00:00Z",
-      },
-    ],
+    controls: [{ key: "updatedAt", label: "", kind: "instant" }],
   },
 };
 
@@ -855,9 +893,11 @@ function renderCombobox(
 interface RepeaterItemField {
   key: string;
   label: string;
-  kind: "text" | "url" | "email" | "number" | "select";
+  kind: "text" | "url" | "email" | "number" | "select" | "instant";
   options?: string[];
   placeholder?: string;
+  /** Longer explanation shown as an ⓘ tooltip next to this sub-field's own label. */
+  info?: string;
   /** Hidden unless the named sibling field's current value (within the same row) is one of `values`. */
   visibleWhen?: { key: string; values: readonly string[] };
 }
@@ -878,14 +918,32 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
     addLabel: "+ Add organizer",
     info: "Who runs the event. Declaring this REPLACES the feed's own organizers list for this event, it does not add to it.",
     itemFields: [
-      { key: "name", label: "Name", kind: "text" },
-      { key: "url", label: "URL", kind: "url", placeholder: "https://…" },
-      { key: "email", label: "Email", kind: "email", placeholder: "hola@…" },
+      {
+        key: "name",
+        label: "Name",
+        kind: "text",
+        info: "As attendees would recognize it — the group or person's usual name.",
+      },
+      {
+        key: "url",
+        label: "URL",
+        kind: "url",
+        placeholder: "https://…",
+        info: "Website or profile for this organizer. Leave empty if they don't have one.",
+      },
+      {
+        key: "email",
+        label: "Email",
+        kind: "email",
+        placeholder: "hola@…",
+        info: "Contact address for this organizer, only if it should be public.",
+      },
       {
         key: "type",
         label: "Type",
         kind: "select",
         options: ["", "organization", "person"],
+        info: "Organization or individual person — lets consumers pick the right icon or label.",
       },
     ],
   },
@@ -909,44 +967,203 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         label: "Name",
         kind: "text",
         placeholder: "General admission",
+        info: "What this tier is called — \"General admission\", \"Early bird\", \"Student\"…",
       },
-      { key: "price", label: "Price", kind: "number", placeholder: "0" },
-      { key: "currency", label: "Currency", kind: "text", placeholder: "EUR" },
-      { key: "url", label: "URL", kind: "url" },
+      {
+        key: "price",
+        label: "Price",
+        kind: "number",
+        placeholder: "0",
+        info: "0 means free. Leave empty only when the price itself is unknown — that's not the same as free.",
+      },
+      {
+        key: "currency",
+        label: "Currency",
+        kind: "text",
+        placeholder: "EUR",
+        info: "ISO 4217 code (EUR, USD…) — expected alongside a non-zero price.",
+      },
+      {
+        key: "url",
+        label: "URL",
+        kind: "url",
+        info: "Where to buy or register for this specific tier.",
+      },
       {
         key: "availability",
         label: "Availability",
         kind: "select",
         options: ["", "in-stock", "sold-out"],
+        info: "sold-out reveals a Waitlist URL below. Leave empty when unknown.",
       },
       {
         key: "waitlistUrl",
         label: "Waitlist URL",
         kind: "url",
         visibleWhen: { key: "availability", values: ["sold-out"] },
+        info: "Where interested people can join the waitlist once this tier sells out.",
       },
       {
         key: "opensAt",
         label: "Opens at",
-        kind: "text",
-        placeholder: "2026-05-01T00:00:00+02:00",
+        kind: "instant",
+        info: "When this tier becomes available for purchase — not the event's own start.",
       },
       {
         key: "closesAt",
         label: "Closes at",
-        kind: "text",
-        placeholder: "2026-07-15T23:59:59+02:00",
+        kind: "instant",
+        info: "When this tier stops being available (sale ends) — not the event's own end.",
       },
     ],
   },
 };
 
+/** Local `datetime-local` value ("YYYY-MM-DDTHH:mm") for a stored ISO instant, or "" if unset/unparseable. */
+function isoToLocalDatetimeValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * A `datetime-local` value has no offset, so per the ECMAScript Date-string
+ * spec it parses as the BROWSER's own local time — the fallback used when
+ * the event has no (or an invalid) timezone of its own to interpret it in.
+ */
+function localDatetimeValueToIso(value: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toISOString();
+}
+
+/**
+ * UTC instant for a wall-clock `datetime-local` value as read in the named
+ * IANA `zone` — e.g. an organizer in Tokyo entering a CFP deadline for an
+ * event whose own Timezone (When) is `America/New_York` gets the New York
+ * offset, not their own. Falls back to the browser's own zone when `zone`
+ * is empty or invalid (`Intl` throws on an unrecognized zone name).
+ *
+ * No offset table or extra dependency needed: guess the instant as if the
+ * typed value were already UTC, ask `Intl.DateTimeFormat` what that guess
+ * looks like when displayed in `zone`, and correct the guess by however far
+ * off that display is from the original wall-clock value.
+ */
+function zonedDatetimeToIso(value: string, zone: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
+  if (!m) return "";
+  if (!zone) return localDatetimeValueToIso(value);
+  try {
+    const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    const parts = dtf.formatToParts(new Date(guess));
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
+    const zonedAsUtc = Date.UTC(
+      get("year"),
+      get("month") - 1,
+      get("day"),
+      get("hour"),
+      get("minute"),
+      get("second"),
+    );
+    return new Date(guess - (zonedAsUtc - guess)).toISOString();
+  } catch {
+    return localDatetimeValueToIso(value);
+  }
+}
+
+/** Inverse of `zonedDatetimeToIso`: the `datetime-local` value an ISO instant displays as in `zone`. */
+function isoToZonedDatetimeValue(iso: string, zone: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  if (!zone) return isoToLocalDatetimeValue(iso);
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const parts = dtf.formatToParts(d);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+    return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+  } catch {
+    return isoToLocalDatetimeValue(iso);
+  }
+}
+
+/** Native datetime-local picker for an `instant` field, with a live "what's actually stored" preview. */
+function renderInstantInput(
+  id: string,
+  isoValue: string,
+  onChange: (iso: string) => void,
+  getZone: () => string,
+): { element: HTMLElement; input: HTMLInputElement } {
+  const wrap = document.createElement("div");
+  wrap.className = "instant-field";
+  const input = document.createElement("input");
+  input.type = "datetime-local";
+  input.id = id;
+  input.value = isoToZonedDatetimeValue(isoValue, getZone());
+  const preview = document.createElement("p");
+  preview.className = "note instant-preview";
+  const updatePreview = (iso: string) => {
+    preview.textContent = iso
+      ? `UTC: ${iso} (entered in ${getZone() || "your device's timezone"})`
+      : "";
+  };
+  updatePreview(isoValue);
+  // `getZone()` is re-read on every keystroke, not captured once at mount —
+  // main.ts doesn't re-render the whole form when Timezone (When) changes,
+  // so a closed-over string would go stale the moment the organizer edits
+  // Timezone after this field is already on screen.
+  input.addEventListener("input", () => {
+    const iso = zonedDatetimeToIso(input.value, getZone());
+    updatePreview(iso);
+    onChange(iso);
+  });
+  wrap.append(input, preview);
+  return { element: wrap, input };
+}
+
 function renderRepeaterItemControl(
   field: RepeaterItemField,
   row: Record<string, string>,
   onChange: (key: string, value: string) => void,
+  getZone: () => string,
   describedBy?: string,
 ): { element: HTMLElement; input: HTMLInputElement | HTMLSelectElement } {
+  if (field.kind === "instant") {
+    const rendered = renderInstantInput(
+      nextId(field.key),
+      row[field.key] ?? "",
+      (iso) => onChange(field.key, iso),
+      getZone,
+    );
+    if (describedBy) rendered.input.setAttribute("aria-describedby", describedBy);
+    if (!field.label) return rendered;
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.htmlFor = rendered.input.id;
+    label.textContent = field.label;
+    if (field.info) label.append(renderInfoToggle(field.info));
+    wrap.append(label, rendered.element);
+    return { element: wrap, input: rendered.input };
+  }
+
   let input: HTMLInputElement | HTMLSelectElement;
   if (field.kind === "select") {
     input = document.createElement("select");
@@ -973,8 +1190,16 @@ function renderRepeaterItemControl(
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.textContent = field.label;
+  if (field.info) label.append(renderInfoToggle(field.info));
   wrap.append(label, input);
   return { element: wrap, input };
+}
+
+/** A blank row for a repeater field, seeded with every itemField at "". */
+function emptyRepeaterRow(key: RepeaterKey): Record<string, string> {
+  const row: Record<string, unknown> = { translations: {} };
+  for (const itemField of REPEATER_SPECS[key].itemFields) row[itemField.key] = "";
+  return row as unknown as Record<string, string>;
 }
 
 /**
@@ -990,6 +1215,7 @@ function renderRepeaterField(
   fieldId: RepeaterKey,
   initial: readonly Record<string, string>[],
   onArrayChange: (key: RepeaterKey, items: Record<string, string>[]) => void,
+  getZone: () => string,
 ): HTMLElement {
   const spec = REPEATER_SPECS[fieldId];
   const items: Record<string, string>[] = initial.map((row) => ({ ...row }));
@@ -1050,6 +1276,7 @@ function renderRepeaterField(
             row[key] = value;
             commit();
           },
+          getZone,
           errorId,
         ),
       );
@@ -1067,9 +1294,7 @@ function renderRepeaterField(
   }
 
   addButton.addEventListener("click", () => {
-    const row: Record<string, unknown> = { translations: {} };
-    for (const itemField of spec.itemFields) row[itemField.key] = "";
-    items.push(row as unknown as Record<string, string>);
+    items.push(emptyRepeaterRow(fieldId));
     renderRows();
     commit();
   });
@@ -1422,6 +1647,7 @@ function renderLanguageCard(
  */
 function renderTranslationsSection(
   state: FormState,
+  onInput: (key: StateKey, value: string | boolean) => void,
   onCommit: (patch: TranslationsPatch) => void,
 ): { element: HTMLElement; refresh: () => void } {
   const activeLangs = new Set(translationLanguages(state));
@@ -1441,6 +1667,10 @@ function renderTranslationsSection(
     ),
   );
   field.append(label);
+
+  // textLanguage lives here, not as its own section: it's a prerequisite
+  // for everything else in this card (the note below refers to it).
+  field.append(renderField("textLanguage", state, onInput));
 
   const langNote = document.createElement("p");
   langNote.className = "note";
@@ -1505,22 +1735,26 @@ function renderTranslationsSection(
         ),
       );
     }
-    list.append(
-      renderLanguagePicker(
-        () => [...(state.textLanguage ? [state.textLanguage] : []), ...activeLangs],
-        (lang) => {
-          const exists = [...activeLangs].some(
-            (l) => l.toLowerCase() === lang.toLowerCase(),
-          );
-          const isTextLanguage =
-            state.textLanguage !== "" &&
-            lang.toLowerCase() === state.textLanguage.toLowerCase();
-          if (exists || isTextLanguage) return;
-          activeLangs.add(lang);
-          renderCards();
-        },
-      ),
-    );
+    // Adding a translation needs something to translate FROM — gated on
+    // textLanguage, not just explained by langNote above.
+    if (state.textLanguage !== "") {
+      list.append(
+        renderLanguagePicker(
+          () => [...(state.textLanguage ? [state.textLanguage] : []), ...activeLangs],
+          (lang) => {
+            const exists = [...activeLangs].some(
+              (l) => l.toLowerCase() === lang.toLowerCase(),
+            );
+            const isTextLanguage =
+              state.textLanguage !== "" &&
+              lang.toLowerCase() === state.textLanguage.toLowerCase();
+            if (exists || isTextLanguage) return;
+            activeLangs.add(lang);
+            renderCards();
+          },
+        ),
+      );
+    }
   }
 
   renderLangNote();
@@ -1545,6 +1779,24 @@ function renderControl(
   }
   if (control.kind === "combobox") {
     return renderCombobox(control, state, onInput);
+  }
+  if (control.kind === "instant") {
+    const current = state[control.key];
+    const rendered = renderInstantInput(
+      nextId(control.key),
+      typeof current === "string" ? current : "",
+      (iso) => onInput(control.key, iso),
+      () => state.timezone,
+    );
+    rendered.input.dataset.key = control.key;
+    if (!control.label) return rendered;
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.htmlFor = rendered.input.id;
+    label.textContent = control.label;
+    if (control.info) label.append(renderInfoToggle(control.info));
+    wrap.append(label, rendered.element);
+    return { element: wrap, input: rendered.input };
   }
   let input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   if (control.kind === "textarea") {
@@ -1588,6 +1840,7 @@ function renderControl(
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.textContent = control.label;
+  if (control.info) label.append(renderInfoToggle(control.info));
   wrap.append(label, input);
   return { element: wrap, input };
 }
@@ -1651,6 +1904,25 @@ function renderField(
       noteId = appendNote(outer, spec.note);
       outer.append(row);
       errorId = appendError(outer);
+      // The map is the primary way to set a position — typing raw decimal
+      // degrees by hand is the rare case, so it isn't invited by default.
+      // readOnly (not disabled) keeps the values focusable/copyable and
+      // still shows whatever the map writes via main.ts's existing sync.
+      for (const c of controls) {
+        if (c.input instanceof HTMLInputElement) c.input.readOnly = true;
+      }
+      const manualToggle = document.createElement("button");
+      manualToggle.type = "button";
+      manualToggle.className = "link-button";
+      manualToggle.textContent = "Enter coordinates manually";
+      manualToggle.addEventListener("click", () => {
+        for (const c of controls) {
+          if (c.input instanceof HTMLInputElement) c.input.readOnly = false;
+        }
+        controls[0]?.input.focus();
+        manualToggle.remove();
+      });
+      outer.append(manualToggle);
     } else {
       outer.append(label, row);
       noteId = appendNote(outer, spec.note);
@@ -1670,6 +1942,203 @@ function renderField(
   const describedBy = describedByOf(noteId, errorId);
   if (describedBy) controls[0]?.input.setAttribute("aria-describedby", describedBy);
   return field;
+}
+
+/** Whether a field (FIELD_SPECS or repeater) already has something in it. */
+function fieldHasData(id: string, state: FormState): boolean {
+  switch (id) {
+    case "organizers":
+      return state.organizers.length > 0;
+    case "image":
+      return state.image.length > 0;
+    case "eligibility":
+      return !!(state.eligibilityType || state.eligibilityNote || state.eligibilityUrl);
+    case "partOf":
+      return !!(state.partOfId || state.partOfName || state.partOfUrl || state.partOfType);
+    case "source":
+      return !!(state.sourceName || state.sourceUrl || state.sourceLicense || state.sourceRetrievedAt);
+    case "venue":
+      return state.venue !== "" || state.geoLat !== "" || state.geoLon !== "";
+    default: {
+      const spec = FIELD_SPECS[id];
+      return spec ? spec.controls.some((c) => state[c.key] !== "" && state[c.key] !== false) : false;
+    }
+  }
+}
+
+function fieldLabel(id: string): string {
+  return id === "organizers" || id === "image"
+    ? REPEATER_SPECS[id as RepeaterKey].label
+    : FIELD_SPECS[id].label;
+}
+
+/** Resets a FIELD_SPECS field's own state back to unset — used by a chip's "×". */
+function clearField(
+  id: string,
+  onInput: (key: StateKey, value: string | boolean) => void,
+): void {
+  // venue and its map position are one field to the organizer; clearing one clears both.
+  if (id === "venue") {
+    onInput("geoLat", "");
+    onInput("geoLon", "");
+  }
+  for (const c of FIELD_SPECS[id].controls) onInput(c.key, c.kind === "checkbox" ? false : "");
+}
+
+/** Wraps `inner` with a "×" button styled like a repeater row's, calling `onRemove` when clicked. */
+function wrapRemovable(inner: HTMLElement, label: string, onRemove: () => void): HTMLElement {
+  const block = document.createElement("div");
+  block.className = "advanced-block";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "repeater-remove";
+  remove.setAttribute("aria-label", `Remove ${label}`);
+  remove.textContent = "×";
+  remove.addEventListener("click", onRemove);
+  block.append(inner, remove);
+  return block;
+}
+
+/** Makes `dependentIds` visible only while the named driver field's current value is one of `values`. */
+interface FieldDependency {
+  driverId: string;
+  values: readonly string[];
+}
+
+/**
+ * A section made of chips: required fields always render, unremovable; the
+ * rest start as "+ Add" buttons and become removable blocks once clicked
+ * (or, for a loaded event, once they already have data). `recommendedIds`
+ * get a visually distinct chip, sorted first — a nudge, not an auto-expand,
+ * so the section's very first render never shows more than what's
+ * required. `dependents` optionally ties some ids to another id in the same
+ * section (e.g. Venue/Online URL to Attendance mode): while the driver is
+ * active with a value outside `values`, the dependent's chip isn't offered
+ * and an already-added dependent block hides (never clears) — same
+ * never-lose-data precedent as `linkVisibility`. Self-contained like
+ * renderRepeaterField/renderTranslationsSection: owns `active` in closure
+ * and re-renders only its own subtree.
+ */
+function renderChippableSection(
+  fieldIds: readonly string[],
+  requiredIds: ReadonlySet<string>,
+  recommendedIds: ReadonlySet<string>,
+  state: FormState,
+  onInput: (key: StateKey, value: string | boolean) => void,
+  onArrayInput: (key: RepeaterKey, items: Record<string, string>[]) => void,
+  dependents?: Record<string, FieldDependency>,
+  onRebuilt?: () => void,
+): HTMLElement {
+  const active = new Set(
+    fieldIds.filter((id) => requiredIds.has(id) || fieldHasData(id, state)),
+  );
+  const blockElements = new Map<string, HTMLElement>();
+
+  const container = document.createElement("div");
+  const blocksRoot = document.createElement("div");
+  const picker = document.createElement("div");
+  picker.className = "advanced-picker";
+  container.append(blocksRoot, picker);
+
+  function isApplicable(id: string): boolean {
+    const dep = dependents?.[id];
+    if (!dep) return true;
+    if (!active.has(dep.driverId)) return true; // driver not added: unconstrained
+    const driverValue = state[dep.driverId as StateKey];
+    // Empty means "unknown" (e.g. attendanceMode's own note: never assume
+    // in-person) — unconstrained, same as the driver not being added yet.
+    if (driverValue === "") return true;
+    return typeof driverValue === "string" && dep.values.includes(driverValue);
+  }
+
+  function applyDependentVisibility(): void {
+    for (const [id, el] of blockElements) el.hidden = !isApplicable(id);
+  }
+
+  function wireDependencyDrivers(): void {
+    if (!dependents) return;
+    for (const driverId of new Set(Object.values(dependents).map((d) => d.driverId))) {
+      const driverInput = blockElements
+        .get(driverId)
+        ?.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-key="${driverId}"]`);
+      driverInput?.addEventListener("input", () => {
+        applyDependentVisibility();
+        renderPicker();
+      });
+    }
+  }
+
+  function renderOne(id: string): HTMLElement {
+    let inner: HTMLElement;
+    if (id === "organizers" || id === "image") {
+      inner = renderRepeaterField(
+        id,
+        state[id] as unknown as Record<string, string>[],
+        onArrayInput,
+        () => state.timezone,
+      );
+    } else if (id === "venue") {
+      inner = renderField("venue", state, onInput);
+      inner.append(renderField("geo", state, onInput));
+    } else {
+      inner = renderField(id, state, onInput);
+    }
+    if (requiredIds.has(id)) return inner;
+
+    return wrapRemovable(inner, fieldLabel(id), () => {
+      active.delete(id);
+      if (id === "organizers" || id === "image") onArrayInput(id as RepeaterKey, []);
+      else clearField(id, onInput);
+      renderBlocks();
+      renderPicker();
+    });
+  }
+
+  function renderBlocks(): void {
+    blocksRoot.textContent = "";
+    blockElements.clear();
+    for (const id of fieldIds) {
+      if (!active.has(id)) continue;
+      const el = renderOne(id);
+      blockElements.set(id, el);
+      blocksRoot.append(el);
+    }
+    applyDependentVisibility();
+    wireDependencyDrivers();
+    onRebuilt?.();
+  }
+
+  function renderPicker(): void {
+    picker.textContent = "";
+    const notActive = fieldIds.filter((id) => !active.has(id) && isApplicable(id));
+    const ordered = [
+      ...notActive.filter((id) => recommendedIds.has(id)),
+      ...notActive.filter((id) => !recommendedIds.has(id)),
+    ];
+    for (const id of ordered) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = recommendedIds.has(id) ? "repeater-add recommended" : "repeater-add";
+      button.textContent = `+ ${fieldLabel(id)}`;
+      button.addEventListener("click", () => {
+        active.add(id);
+        // A repeater chip only ever appears while its array is empty (see
+        // `active`'s seeding above) — seed one row so the organizer can
+        // start typing immediately instead of finding an empty block with
+        // its own separate "+ Add" button to click first.
+        if (id === "organizers" || id === "image") {
+          onArrayInput(id as RepeaterKey, [emptyRepeaterRow(id as RepeaterKey)]);
+        }
+        renderBlocks();
+        renderPicker();
+      });
+      picker.append(button);
+    }
+  }
+
+  renderBlocks();
+  renderPicker();
+  return container;
 }
 
 /** Appends the note, if any, and returns its id for aria-describedby — null when there's no note. */
@@ -1715,6 +2184,8 @@ export function renderForm(
   onInput: (key: StateKey, value: string | boolean) => void,
   onArrayInput: (key: RepeaterKey, items: Record<string, string>[]) => void,
   onTranslationsCommit: (patch: TranslationsPatch) => void,
+  /** Called whenever Venue's block (re)appears or disappears — main.ts uses it to (re)mount the geo map, since it can no longer assume the map slot exists right after renderForm returns. */
+  onWhereRebuilt: () => void,
 ): {
   refreshTranslations: () => void;
   sections: { id: SectionId; title: string }[];
@@ -1722,6 +2193,23 @@ export function renderForm(
   root.textContent = "";
   let refreshTranslations: () => void = () => {};
   const renderedSections: { id: SectionId; title: string }[] = [];
+
+  // Deliberately small — a nudge for the picker's chip styling, not an
+  // auto-expand. Every other non-required field starts as a plain chip.
+  const RECOMMENDED: Partial<Record<SectionId, ReadonlySet<string>>> = {
+    what: new Set(["description"]),
+    where: new Set(["attendanceMode"]),
+  };
+  // Venue/Online URL only make sense for one attendance mode each; while
+  // Attendance mode is set to something that rules one out, its chip isn't
+  // offered and an already-added block hides (never clears) — see
+  // renderChippableSection's `dependents` param.
+  const WHERE_DEPENDENTS: Record<string, FieldDependency> = {
+    venue: { driverId: "attendanceMode", values: ["in-person", "hybrid"] },
+    onlineUrl: { driverId: "attendanceMode", values: ["online", "hybrid"] },
+  };
+  const WHEN_BUNDLED = ["allDay", "startDate", "endDate", "timezone"];
+
   for (const section of SECTIONS) {
     const fieldIds = FIELD_REGISTRY.filter(
       (f) =>
@@ -1737,38 +2225,83 @@ export function renderForm(
     const summary = document.createElement("summary");
     summary.textContent = SECTION_TITLES[section];
     details.append(summary);
-    for (const id of fieldIds) {
-      // Venue and its map position are one place, two OTE fields: rendered
-      // as a single block (the map nests under the venue input) so the
-      // address is only ever typed once.
-      if (id === "geo" && fieldIds.includes("venue")) continue;
-      // organizers/image/offers are arrays of objects, not a single
-      // FormState string/boolean — they get their own repeater renderer
-      // instead of the generic Control-per-field path.
-      if (id === "organizers" || id === "image" || id === "offers") {
-        details.append(
-          renderRepeaterField(
-            id,
-            state[id] as unknown as Record<string, string>[],
-            onArrayInput,
-          ),
+
+    const requiredIds = new Set(
+      FIELD_REGISTRY.filter((f) => f.section === section && f.required).map((f) => f.id),
+    );
+
+    if (section === "tickets") {
+      // A single repeater field — the section itself starting closed
+      // already gives the "hidden until wanted" effect, and each row has
+      // its own "×" already, so removing every offer needs no extra
+      // block-level control (unlike cfp below, which has no rows of its
+      // own to remove).
+      details.append(
+        renderRepeaterField(
+          "offers",
+          state.offers as unknown as Record<string, string>[],
+          onArrayInput,
+          () => state.timezone,
+        ),
+      );
+    } else if (section === "cfp") {
+      const cfpRoot = document.createElement("div");
+      const renderCfp = () => {
+        cfpRoot.textContent = "";
+        cfpRoot.append(
+          wrapRemovable(renderField("cfp", state, onInput), FIELD_SPECS.cfp.label, () => {
+            clearField("cfp", onInput);
+            renderCfp();
+          }),
         );
-        continue;
-      }
+      };
+      renderCfp();
+      details.append(cfpRoot);
+    } else if (section === "translations") {
       // translations reads/writes several state slices at once and has no
-      // single FormState key of its own — its own bespoke renderer, same
-      // precedent as the repeater fields above.
-      if (id === "translations") {
-        const section = renderTranslationsSection(state, onTranslationsCommit);
-        refreshTranslations = section.refresh;
-        details.append(section.element);
-        continue;
+      // single FormState key of its own — its own bespoke renderer.
+      const t = renderTranslationsSection(state, onInput, onTranslationsCommit);
+      refreshTranslations = t.refresh;
+      details.append(t.element);
+    } else if (section === "when") {
+      // allDay/startDate/endDate/timezone are one structural unit (allDay
+      // changes how start/end render) — never separately chippable.
+      for (const id of WHEN_BUNDLED) {
+        if (fieldIds.includes(id)) details.append(renderField(id, state, onInput));
       }
-      const field = renderField(id, state, onInput);
-      if (id === "venue" && fieldIds.includes("geo")) {
-        field.append(renderField("geo", state, onInput));
-      }
-      details.append(field);
+      const rest = fieldIds.filter((id) => !WHEN_BUNDLED.includes(id));
+      details.append(
+        renderChippableSection(rest, requiredIds, new Set(), state, onInput, onArrayInput),
+      );
+    } else if (section === "where") {
+      // Venue and its map position are one place, two OTE fields — geo is
+      // rendered nested under venue inside renderChippableSection, not as
+      // its own chip.
+      const chippable = fieldIds.filter((id) => id !== "geo");
+      details.append(
+        renderChippableSection(
+          chippable,
+          requiredIds,
+          RECOMMENDED.where ?? new Set(),
+          state,
+          onInput,
+          onArrayInput,
+          WHERE_DEPENDENTS,
+          onWhereRebuilt,
+        ),
+      );
+    } else {
+      // what, who, metadata
+      details.append(
+        renderChippableSection(
+          fieldIds,
+          requiredIds,
+          RECOMMENDED[section] ?? new Set(),
+          state,
+          onInput,
+          onArrayInput,
+        ),
+      );
     }
     root.append(details);
   }
@@ -1813,12 +2346,15 @@ export function markImportGaps(
   }
 }
 
-/** Enables/disables the time inputs when "all-day" is toggled. */
+/** Hides (not just disables) the time inputs when "all-day" is toggled — a time genuinely doesn't apply, not just "currently unavailable". */
 export function setAllDay(root: HTMLElement, allDay: boolean): void {
   for (const key of ["startTime", "endTime"]) {
     const input = root.querySelector<HTMLInputElement>(
       `input[data-key="${key}"]`,
     );
-    if (input) input.disabled = allDay;
+    if (!input) continue;
+    input.disabled = allDay;
+    const wrap = input.closest<HTMLElement>("div");
+    if (wrap) wrap.hidden = allDay;
   }
 }

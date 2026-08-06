@@ -16,9 +16,10 @@ describe("resolveProfile", () => {
     for (const shown of ["name", "startDate", "timezone", "venue", "geo", "tags"]) {
       expect(resolved.fields.has(shown)).toBe(true);
     }
-    // translations always renders collapsed; advanced only under "all".
-    expect(resolved.collapsedSections.has("translations")).toBe(true);
-    expect(resolved.collapsedSections.has("advanced")).toBe(false);
+    // Sections with no required field always render collapsed.
+    for (const collapsed of ["where", "who", "tickets", "cfp", "translations"] as const) {
+      expect(resolved.collapsedSections.has(collapsed)).toBe(true);
+    }
     expect(resolved.warnings).toEqual([]);
   });
 
@@ -28,10 +29,19 @@ describe("resolveProfile", () => {
     expect(resolved.fields.has("source")).toBe(false);
   });
 
-  it("all shows every field with the advanced section collapsed", () => {
+  it("all shows every field", () => {
     const resolved = resolveProfile({ profile: "all" });
     expect(resolved.fields.size).toBe(FIELD_REGISTRY.length);
-    expect(resolved.collapsedSections.has("advanced")).toBe(true);
+  });
+
+  it("collapsedSections is the same {where, who, tickets, cfp, translations} for every preset, and never includes what/when/metadata (they have a required field)", () => {
+    const expected = ["cfp", "tickets", "translations", "where", "who"].sort();
+    for (const profile of ["meetup", "conference", "all"]) {
+      const resolved = resolveProfile({ profile });
+      expect([...resolved.collapsedSections].sort()).toEqual(expected);
+    }
+    const custom = resolveProfile({ customProfile: { fields: [] } });
+    expect([...custom.collapsedSections].sort()).toEqual(expected);
   });
 
   it("customProfile wins over profile: core + listed fields", () => {
@@ -107,7 +117,7 @@ describe("resolveProfile", () => {
     const resolved = resolveProfile(null);
     expect(resolved.preset).toBe("all");
     expect(resolved.fields.size).toBe(FIELD_REGISTRY.length);
-    expect(resolved.collapsedSections.has("advanced")).toBe(true);
+    expect(resolved.collapsedSections.has("where")).toBe(true);
     expect(resolved.warnings).toEqual([]);
   });
 

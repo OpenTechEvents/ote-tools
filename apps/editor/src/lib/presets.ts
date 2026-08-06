@@ -1,13 +1,16 @@
 import type { OteConfig } from "./types.js";
 
-/** Form sections, in render order. */
+/** Form sections, in render order — grouped by what an organizer is
+ * answering ("what", "when", "where", "who"…), not by schema shape. */
 export const SECTIONS = [
-  "basics",
+  "what",
   "when",
   "where",
-  "identity",
-  "advanced",
+  "who",
+  "tickets",
+  "cfp",
   "translations",
+  "metadata",
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number];
@@ -25,11 +28,13 @@ export interface FieldDef {
  * schema grows (CFP, sponsors…).
  */
 export const FIELD_REGISTRY: readonly FieldDef[] = [
-  { id: "name", section: "basics", required: true },
-  { id: "description", section: "basics" },
-  { id: "url", section: "basics" },
-  { id: "tags", section: "basics" },
-  { id: "languages", section: "basics" },
+  { id: "name", section: "what", required: true },
+  { id: "description", section: "what" },
+  { id: "url", section: "what" },
+  { id: "tags", section: "what" },
+  { id: "languages", section: "what" },
+  { id: "image", section: "what" },
+  { id: "partOf", section: "what" },
   { id: "allDay", section: "when" },
   { id: "startDate", section: "when", required: true },
   { id: "endDate", section: "when" },
@@ -39,21 +44,19 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
   { id: "venue", section: "where" },
   { id: "geo", section: "where" },
   { id: "onlineUrl", section: "where" },
-  { id: "slug", section: "identity", required: true },
-  { id: "id", section: "identity", required: true },
-  { id: "textLanguage", section: "advanced" },
-  { id: "organizers", section: "advanced" },
-  { id: "image", section: "advanced" },
-  { id: "eligibility", section: "advanced" },
-  { id: "offers", section: "advanced" },
-  { id: "cfp", section: "advanced" },
-  { id: "partOf", section: "advanced" },
-  { id: "license", section: "advanced" },
-  { id: "source", section: "advanced" },
-  { id: "updatedAt", section: "advanced" },
+  { id: "organizers", section: "who" },
+  { id: "eligibility", section: "who" },
+  { id: "offers", section: "tickets" },
+  { id: "cfp", section: "cfp" },
   // Not excluded by any preset (see PRESET_EXCLUSIONS below): translating an
   // event is an optional pass any organizer might want, not a preset concern.
+  { id: "textLanguage", section: "translations" },
   { id: "translations", section: "translations" },
+  { id: "slug", section: "metadata", required: true },
+  { id: "id", section: "metadata", required: true },
+  { id: "license", section: "metadata" },
+  { id: "source", section: "metadata" },
+  { id: "updatedAt", section: "metadata" },
 ] as const;
 
 /**
@@ -87,13 +90,25 @@ export interface ResolvedProfile {
   /** Preset the resolution is based on ("custom" when customProfile won). */
   preset: string;
   fields: ReadonlySet<string>;
-  /** Sections rendered collapsed ("Advanced: …" in the "all" preset). */
+  /** Sections rendered collapsed by default (those with no required field). */
   collapsedSections: ReadonlySet<SectionId>;
   /** Non-fatal config problems to surface in the UI. */
   warnings: string[];
 }
 
 const KNOWN_IDS = new Set(FIELD_REGISTRY.map((f) => f.id));
+
+/**
+ * Sections with no `required` field start collapsed under every preset —
+ * derived from FIELD_REGISTRY rather than a hardcoded list, so it stays
+ * correct as fields move between sections.
+ */
+const SECTIONS_WITH_REQUIRED = new Set(
+  FIELD_REGISTRY.filter((f) => f.required).map((f) => f.section),
+);
+const DEFAULT_COLLAPSED_SECTIONS = new Set<SectionId>(
+  SECTIONS.filter((s) => !SECTIONS_WITH_REQUIRED.has(s)),
+);
 
 /** Presets the UI can switch between; "custom" only when the config has one. */
 export function availablePresets(config: OteConfig | null): string[] {
@@ -143,7 +158,7 @@ export function resolveProfile(
     return {
       preset: "custom",
       fields,
-      collapsedSections: new Set(["translations"]),
+      collapsedSections: new Set(DEFAULT_COLLAPSED_SECTIONS),
       warnings,
     };
   }
@@ -166,7 +181,6 @@ export function resolveProfile(
   for (const def of FIELD_REGISTRY) {
     if (!excluded.has(def.id)) fields.add(def.id);
   }
-  const collapsedSections = new Set<SectionId>(["translations"]);
-  if (preset === "all") collapsedSections.add("advanced");
+  const collapsedSections = new Set(DEFAULT_COLLAPSED_SECTIONS);
   return { preset, fields, collapsedSections, warnings };
 }

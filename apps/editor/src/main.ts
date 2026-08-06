@@ -334,6 +334,8 @@ async function startEditor(repo: string | null): Promise<void> {
     "description",
     "eligibilityNote",
     "partOfName",
+    // Gates whether a translation can be added at all — see renderTranslationsSection.
+    "textLanguage",
   ]);
 
   function onInput(key: keyof FormState, value: string | boolean): void {
@@ -435,6 +437,7 @@ async function startEditor(repo: string | null): Promise<void> {
       onInput,
       onArrayInput,
       onTranslationsCommit,
+      mountMap,
     );
     refreshTranslations = rendered.refreshTranslations;
     renderSectionNav(rendered.sections);
