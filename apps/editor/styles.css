@@ -263,6 +263,7 @@ header h1 {
 @media (min-width: 40rem) {
   #section-nav {
     display: flex;
+    justify-content: center;
     gap: 0.4rem;
   }
 

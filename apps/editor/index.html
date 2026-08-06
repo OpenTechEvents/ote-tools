@@ -16,16 +16,16 @@
     <div id="warnings" hidden></div>
 
     <main id="editor" hidden>
-      <!-- Generator mode only: connect a fork so the organizer can add/edit
-           events straight in their repository instead of only downloading
-           JSON. Opened via the "Have a fork?" button. Hidden as soon as a
-           ?repo= context is set. -->
+      <!-- Generator mode only: connect an existing feed (repository) so the
+           organizer can add/edit its events directly instead of only
+           downloading JSON one at a time. Opened via the "Connect a feed"
+           button. Hidden as soon as a ?repo= context is set. -->
       <dialog id="repo-connect">
-        <h2 id="repo-connect-summary">Connect your fork</h2>
+        <h2 id="repo-connect-summary">Connect a feed</h2>
         <p id="repo-connect-text">
-          Enter your repository (<code>owner/repo</code>) and you can add
-          and edit events <strong>directly in it</strong> — no copy-pasting
-          JSON around.
+          Enter the feed's repository (<code>owner/repo</code>) and you can
+          add and edit its events <strong>directly in it</strong> — no
+          copy-pasting JSON around.
         </p>
         <form id="repo-connect-form">
           <input
@@ -41,14 +41,21 @@
         </form>
         <p id="repo-connect-error" class="field-error" hidden></p>
         <p id="repo-connect-help" class="hint">
-          Don't have one yet?
+          New to this?
+          <a
+            href="?repo=OpenTechEvents/ote-template"
+            target="_blank"
+            rel="noopener"
+            >Explore an example feed</a
+          >
+          to see how editing existing events works, or
           <a
             href="https://github.com/OpenTechEvents/ote-template"
             target="_blank"
             rel="noopener"
-            >Fork the OTE template</a
+            >fork the OTE template</a
           >
-          to get your own events repository.
+          to get your own.
         </p>
         <div class="actions">
           <button id="repo-connect-cancel" type="button" class="secondary">
@@ -96,7 +103,7 @@
           </label>
         </div>
         <button id="repo-connect-open" type="button" class="secondary" hidden>
-          Have a fork?
+          Connect a feed
         </button>
         <div id="event-combo" class="combo" hidden>
           <input

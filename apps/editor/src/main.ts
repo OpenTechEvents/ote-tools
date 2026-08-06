@@ -242,9 +242,10 @@ async function startEditor(repo: string | null): Promise<void> {
   repoOutputActions.hidden = !hasRepo;
   generatorOutputActions.hidden = hasRepo;
 
-  // Generator mode: let the organizer connect a fork so they can edit/add
-  // straight in their repository. Connecting just reloads with ?repo=owner/name,
-  // which re-enters repo mode (enabling "Edit directly" / "Review & submit").
+  // Generator mode: let the organizer connect an existing feed so they can
+  // edit/add straight in its repository. Connecting just reloads with
+  // ?repo=owner/name, which re-enters repo mode (enabling "Edit directly" /
+  // "Review & submit").
   const repoConnectOpen = el<HTMLButtonElement>("repo-connect-open");
   const repoConnectDialog = el<HTMLDialogElement>("repo-connect");
   repoConnectOpen.hidden = hasRepo;

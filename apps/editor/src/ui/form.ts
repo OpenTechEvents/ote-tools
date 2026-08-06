@@ -233,9 +233,9 @@ const SECTION_TITLES: Record<SectionId, string> = {
   where: "Where",
   who: "Who",
   tickets: "Tickets",
-  cfp: "Call for proposals",
+  cfp: "C4P",
   translations: "Translations",
-  metadata: "File & metadata",
+  metadata: "Metadata",
 };
 
 const FIELD_SPECS: Record<string, FieldSpec> = {
