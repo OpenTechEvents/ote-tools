@@ -178,13 +178,26 @@ async function startEditor(repo: string | null): Promise<void> {
   for (const warning of profile.warnings) addWarning(warning);
 
   // Profile switcher: the config's profile is the default, not a cage.
-  const profileSelect = el<HTMLSelectElement>("profile-select");
+  // A segmented control (styled like the New/Edit mode toggle) rather than
+  // a <select> — every preset and the active one are visible at a glance,
+  // making "this pre-filters your fields" obvious.
+  const profileToggle = el<HTMLDivElement>("profile-toggle");
   for (const preset of availablePresets(config)) {
-    const option = document.createElement("option");
-    option.value = preset;
-    option.textContent = preset;
-    option.selected = preset === profile.preset;
-    profileSelect.append(option);
+    const label = document.createElement("label");
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "profile";
+    radio.value = preset;
+    radio.checked = preset === profile.preset;
+    const span = document.createElement("span");
+    span.textContent = preset;
+    label.append(radio, span);
+    profileToggle.append(label);
+    radio.addEventListener("input", () => {
+      profile = resolveProfile(config, radio.value);
+      // Filled fields stay visible even when the new profile hides them.
+      render(extraFieldsFor(toEventJson(state), profile));
+    });
   }
 
   let branch: string | undefined;
@@ -201,6 +214,8 @@ async function startEditor(repo: string | null): Promise<void> {
   );
   let isNew = true;
   let editSlug: string | null = null;
+  // Snapshot of the event as loaded, for "Revert changes" while editing.
+  let loadedSnapshot: FormState | null = null;
   // Once the user touches slug/id, stop auto-suggesting over their input.
   let slugDirty = false;
   let idDirty = false;
@@ -218,6 +233,7 @@ async function startEditor(repo: string | null): Promise<void> {
   const form = el<HTMLFormElement>("event-form");
   const sectionNav = el<HTMLElement>("section-nav");
   const badge = el<HTMLButtonElement>("valid-badge");
+  const resetButton = el<HTMLButtonElement>("reset-draft");
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
   const editDirect = el<HTMLButtonElement>("edit-direct");
@@ -229,9 +245,14 @@ async function startEditor(repo: string | null): Promise<void> {
   // Generator mode: let the organizer connect a fork so they can edit/add
   // straight in their repository. Connecting just reloads with ?repo=owner/name,
   // which re-enters repo mode (enabling "Edit directly" / "Review & submit").
-  const repoConnect = el<HTMLDivElement>("repo-connect");
-  repoConnect.hidden = hasRepo;
+  const repoConnectOpen = el<HTMLButtonElement>("repo-connect-open");
+  const repoConnectDialog = el<HTMLDialogElement>("repo-connect");
+  repoConnectOpen.hidden = hasRepo;
   if (!hasRepo) {
+    repoConnectOpen.addEventListener("click", () => repoConnectDialog.showModal());
+    el<HTMLButtonElement>("repo-connect-cancel").addEventListener("click", () =>
+      repoConnectDialog.close(),
+    );
     const connectInput = el<HTMLInputElement>("repo-connect-input");
     const connectError = el<HTMLParagraphElement>("repo-connect-error");
     el<HTMLFormElement>("repo-connect-form").addEventListener("submit", (e) => {
@@ -328,6 +349,8 @@ async function startEditor(repo: string | null): Promise<void> {
     } else {
       badge.hidden = true;
     }
+    resetButton.textContent = isNew ? "Reset" : "Revert changes";
+    resetButton.disabled = !isNew && loadedSnapshot === null;
     editDirect.disabled = !hasRepo || (!isNew && editSlug === null);
     editDirect.title =
       !isNew && editSlug === null
@@ -425,6 +448,29 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   /** One pill per rendered section — jumps to it, opening it first if collapsed. */
+  /** Wires a toggle button + dropdown panel: click toggles, outside click/Escape closes. Returns close(). */
+  function wireDropdown(
+    toggle: HTMLButtonElement,
+    panel: HTMLElement,
+    container: HTMLElement,
+  ): () => void {
+    const close = () => {
+      panel.classList.remove("open");
+      toggle.setAttribute("aria-expanded", "false");
+    };
+    toggle.addEventListener("click", () => {
+      const open = panel.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", (e) => {
+      if (!container.contains(e.target as Node)) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+    });
+    return close;
+  }
+
   function renderSectionNav(sections: readonly { id: string; title: string }[]): void {
     sectionNav.textContent = "";
     sectionNav.hidden = sections.length === 0;
@@ -442,21 +488,9 @@ async function startEditor(repo: string | null): Promise<void> {
 
     const list = document.createElement("div");
     list.id = "section-nav-list";
+    list.className = "dropdown-panel";
 
-    const close = () => {
-      list.classList.remove("open");
-      toggle.setAttribute("aria-expanded", "false");
-    };
-    toggle.addEventListener("click", () => {
-      const open = list.classList.toggle("open");
-      toggle.setAttribute("aria-expanded", String(open));
-    });
-    document.addEventListener("click", (e) => {
-      if (!sectionNav.contains(e.target as Node)) close();
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") close();
-    });
+    const close = wireDropdown(toggle, list, sectionNav);
 
     for (const { id, title } of sections) {
       const button = document.createElement("button");
@@ -494,12 +528,6 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   render();
-
-  profileSelect.addEventListener("input", () => {
-    profile = resolveProfile(config, profileSelect.value);
-    // Filled fields stay visible even when the new profile hides them.
-    render(extraFieldsFor(toEventJson(state), profile));
-  });
 
   // --- event listing: contents API first, Pages feed.json fallback -------
   // Rendered as a filter-as-you-type combobox over the loaded events.
@@ -582,7 +610,32 @@ async function startEditor(repo: string | null): Promise<void> {
   if (hasRepo) void loadEvents();
 
   // --- mode switch --------------------------------------------------------
-  const newActions = el<HTMLDivElement>("new-actions");
+
+  /** Back to a blank draft — also what "New event" switches to when there's no pending import to resume. */
+  function resetToBlank(): void {
+    state = emptyFormState(state.timezone);
+    editSlug = null;
+    slugDirty = false;
+    idDirty = false;
+    loadedSnapshot = null;
+    touched = new Set();
+    submitAttempted = false;
+    render();
+  }
+
+  /** "Reset"/"Revert changes" in the action bar: blank when drafting new, back to what was loaded when editing. */
+  function resetDraft(): void {
+    if (isNew) {
+      resetToBlank();
+      return;
+    }
+    if (!loadedSnapshot) return;
+    state = structuredClone(loadedSnapshot);
+    touched = new Set();
+    submitAttempted = false;
+    render(extraFieldsFor(toEventJson(state), profile));
+  }
+  resetButton.addEventListener("click", resetDraft);
 
   for (const radio of document.querySelectorAll<HTMLInputElement>(
     'input[name="mode"]',
@@ -590,7 +643,6 @@ async function startEditor(repo: string | null): Promise<void> {
     radio.addEventListener("input", () => {
       isNew = radio.value === "new";
       combo.hidden = isNew;
-      newActions.hidden = !isNew;
       touched = new Set();
       submitAttempted = false;
       if (isNew) {
@@ -599,11 +651,7 @@ async function startEditor(repo: string | null): Promise<void> {
           loadImported();
           return;
         }
-        state = emptyFormState(state.timezone);
-        editSlug = null;
-        slugDirty = false;
-        idDirty = false;
-        render();
+        resetToBlank();
       } else {
         pauseImportBanner();
         refresh(); // disables "edit directly" until an event is chosen
@@ -616,6 +664,7 @@ async function startEditor(repo: string | null): Promise<void> {
     if (!chosen) return;
     editSlug = chosen.slug;
     state = fromEventJson(chosen.event, chosen.slug ?? "");
+    loadedSnapshot = structuredClone(state);
     slugDirty = true;
     idDirty = true;
     touched = new Set();
@@ -818,9 +867,6 @@ async function startEditor(repo: string | null): Promise<void> {
 
   importListBox.addEventListener("input", () => updateConfirm(icsUi));
 
-  el<HTMLButtonElement>("import-open").addEventListener("click", () => {
-    importDialog.showModal();
-  });
   el<HTMLButtonElement>("import-cancel").addEventListener("click", () =>
     importDialog.close(),
   );
@@ -863,12 +909,42 @@ async function startEditor(repo: string | null): Promise<void> {
 
   jsonldUi.list.addEventListener("input", () => updateConfirm(jsonldUi));
 
-  el<HTMLButtonElement>("jsonld-open").addEventListener("click", () => {
-    jsonldDialog.showModal();
-  });
   el<HTMLButtonElement>("jsonld-cancel").addEventListener("click", () =>
     jsonldDialog.close(),
   );
+
+  // --- "+ New event" menu: blank draft, or either import dialog above -------
+  {
+    const modeNewRadio = el<HTMLInputElement>("mode-new");
+    const menu = el<HTMLDivElement>("new-event-menu");
+    const toggle = el<HTMLButtonElement>("new-event-toggle");
+    const list = el<HTMLDivElement>("new-event-list");
+    const closeMenu = wireDropdown(toggle, list, menu);
+
+    /** Ensures we're actually in "new" mode before acting — a no-op if already there. */
+    function ensureNewMode(): void {
+      if (!modeNewRadio.checked) {
+        modeNewRadio.checked = true;
+        modeNewRadio.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }
+
+    list.querySelector('[data-action="blank"]')?.addEventListener("click", () => {
+      ensureNewMode();
+      resetDraft();
+      closeMenu();
+    });
+    list.querySelector('[data-action="jsonld"]')?.addEventListener("click", () => {
+      ensureNewMode();
+      jsonldDialog.showModal();
+      closeMenu();
+    });
+    list.querySelector('[data-action="ics"]')?.addEventListener("click", () => {
+      ensureNewMode();
+      importDialog.showModal();
+      closeMenu();
+    });
+  }
 
   el<HTMLFormElement>("jsonld-url-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -964,8 +1040,8 @@ async function startEditor(repo: string | null): Promise<void> {
     if (newRadio) newRadio.checked = true;
     isNew = true;
     combo.hidden = true;
-    newActions.hidden = false;
     editSlug = null;
+    loadedSnapshot = null;
     const fresh = item.state === null;
     if (item.state !== null) {
       // Re-visited event: restore the edits exactly as they were left.

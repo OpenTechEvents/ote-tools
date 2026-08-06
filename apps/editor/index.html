@@ -16,57 +16,88 @@
     <div id="warnings" hidden></div>
 
     <main id="editor" hidden>
-      <!-- Generator mode only: a compact, collapsed invitation to connect a
-           fork so the organizer can add/edit events straight in their
-           repository instead of only downloading JSON. Expands on click.
-           Hidden as soon as a ?repo= context is set. -->
-      <details id="repo-connect" hidden>
-        <summary id="repo-connect-summary">
-          Have a fork? Connect it to edit events directly →
-        </summary>
-        <div id="repo-connect-body">
-          <p id="repo-connect-text">
-            Enter your repository (<code>owner/repo</code>) and you can add
-            and edit events <strong>directly in it</strong> — no copy-pasting
-            JSON around.
-          </p>
-          <form id="repo-connect-form">
-            <input
-              id="repo-connect-input"
-              type="text"
-              placeholder="owner/repo"
-              aria-label="Your GitHub repository (owner/repo)"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-            />
-            <button type="submit" class="primary">Connect</button>
-          </form>
-          <p id="repo-connect-error" class="field-error" hidden></p>
-          <p id="repo-connect-help" class="hint">
-            Don't have one yet?
-            <a
-              href="https://github.com/OpenTechEvents/ote-template"
-              target="_blank"
-              rel="noopener"
-              >Fork the OTE template</a
-            >
-            to get your own events repository.
-          </p>
+      <!-- Generator mode only: connect a fork so the organizer can add/edit
+           events straight in their repository instead of only downloading
+           JSON. Opened via the "Have a fork?" button. Hidden as soon as a
+           ?repo= context is set. -->
+      <dialog id="repo-connect">
+        <h2 id="repo-connect-summary">Connect your fork</h2>
+        <p id="repo-connect-text">
+          Enter your repository (<code>owner/repo</code>) and you can add
+          and edit events <strong>directly in it</strong> — no copy-pasting
+          JSON around.
+        </p>
+        <form id="repo-connect-form">
+          <input
+            id="repo-connect-input"
+            type="text"
+            placeholder="owner/repo"
+            aria-label="Your GitHub repository (owner/repo)"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+          <button type="submit" class="primary">Connect</button>
+        </form>
+        <p id="repo-connect-error" class="field-error" hidden></p>
+        <p id="repo-connect-help" class="hint">
+          Don't have one yet?
+          <a
+            href="https://github.com/OpenTechEvents/ote-template"
+            target="_blank"
+            rel="noopener"
+            >Fork the OTE template</a
+          >
+          to get your own events repository.
+        </p>
+        <div class="actions">
+          <button id="repo-connect-cancel" type="button" class="secondary">
+            Cancel
+          </button>
         </div>
-      </details>
+      </dialog>
 
       <nav id="mode">
+        <div class="menu-button" id="new-event-menu">
+          <input
+            type="radio"
+            name="mode"
+            value="new"
+            checked
+            class="visually-hidden"
+            tabindex="-1"
+            id="mode-new"
+          />
+          <button
+            type="button"
+            id="new-event-toggle"
+            class="primary"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-controls="new-event-list"
+          >
+            + New event
+          </button>
+          <!-- Sources to prefill a NEW event from — the event page (JSON-LD)
+               comes first: it usually carries more data (attendance mode,
+               status, languages, geo) than an ICS. -->
+          <div id="new-event-list" class="dropdown-panel">
+            <button type="button" data-action="blank">Blank event</button>
+            <button type="button" data-action="jsonld">
+              Import from event page
+            </button>
+            <button type="button" data-action="ics">Import .ics</button>
+          </div>
+        </div>
         <div class="mode-toggle" role="radiogroup" aria-label="Mode">
-          <label>
-            <input type="radio" name="mode" value="new" checked />
-            <span>New event</span>
-          </label>
           <label>
             <input type="radio" name="mode" value="edit" />
             <span>Edit existing</span>
           </label>
         </div>
+        <button id="repo-connect-open" type="button" class="secondary" hidden>
+          Have a fork?
+        </button>
         <div id="event-combo" class="combo" hidden>
           <input
             id="event-combo-input"
@@ -76,24 +107,14 @@
           />
           <ul id="event-combo-list" hidden></ul>
         </div>
-        <label class="profile-switch">
-          Profile
-          <select id="profile-select"></select>
-        </label>
+        <span class="profile-switch-label">Profile</span>
+        <div
+          class="mode-toggle"
+          id="profile-toggle"
+          role="radiogroup"
+          aria-label="Profile"
+        ></div>
       </nav>
-
-      <!-- Sources to prefill a NEW event from; hidden in edit mode.
-           The event page (JSON-LD) comes first: it usually carries more
-           data (attendance mode, status, languages, geo) than an ICS.
-           More options (cheat sheets…) will land here later. -->
-      <div id="new-actions">
-        <button id="jsonld-open" type="button" class="secondary">
-          Import from event page
-        </button>
-        <button id="import-open" type="button" class="secondary">
-          Import .ics
-        </button>
-      </div>
 
       <div id="import-banner" hidden>
         <p id="import-banner-text"></p>
@@ -134,6 +155,7 @@
 
       <div id="action-bar">
         <button id="valid-badge" type="button" hidden></button>
+        <button id="reset-draft" type="button" class="secondary">Reset</button>
         <span id="repo-output-actions">
           <button id="edit-direct" type="button" class="secondary">
             Edit directly
