@@ -9,8 +9,19 @@
   </head>
   <body>
     <header>
-      <h1>OTE event editor</h1>
-      <p id="repo-banner"></p>
+      <div class="header-row">
+        <div>
+          <h1 data-i18n="app.title">OTE event editor</h1>
+          <p id="repo-banner"></p>
+        </div>
+        <label class="lang-switch">
+          <span data-i18n="app.language" class="hint">Language</span>
+          <select id="lang-select">
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </label>
+      </div>
     </header>
 
     <div id="warnings" hidden></div>
@@ -21,7 +32,9 @@
            downloading JSON one at a time. Opened via the "Connect a feed"
            button. Hidden as soon as a ?repo= context is set. -->
       <dialog id="repo-connect">
-        <h2 id="repo-connect-summary">Connect a feed</h2>
+        <h2 id="repo-connect-summary" data-i18n="dialog.repoConnect.title">
+          Connect a feed
+        </h2>
         <p id="repo-connect-text">
           Enter the feed's repository (<code>owner/repo</code>) and you can
           add and edit its events <strong>directly in it</strong> — no
@@ -33,11 +46,14 @@
             type="text"
             placeholder="owner/repo"
             aria-label="Your GitHub repository (owner/repo)"
+            data-i18n-aria-label="dialog.repoConnect.inputLabel"
             autocomplete="off"
             autocapitalize="off"
             spellcheck="false"
           />
-          <button type="submit" class="primary">Connect</button>
+          <button type="submit" class="primary" data-i18n="action.connect">
+            Connect
+          </button>
         </form>
         <p id="repo-connect-error" class="field-error" hidden></p>
         <p id="repo-connect-help" class="hint">
@@ -51,7 +67,12 @@
           to get your own events repository.
         </p>
         <div class="actions">
-          <button id="repo-connect-cancel" type="button" class="secondary">
+          <button
+            id="repo-connect-cancel"
+            type="button"
+            class="secondary"
+            data-i18n="action.cancel"
+          >
             Cancel
           </button>
         </div>
@@ -75,6 +96,7 @@
             aria-haspopup="true"
             aria-expanded="false"
             aria-controls="new-event-list"
+            data-i18n="nav.newEvent"
           >
             + New event
           </button>
@@ -82,20 +104,28 @@
                comes first: it usually carries more data (attendance mode,
                status, languages, geo) than an ICS. -->
           <div id="new-event-list" class="dropdown-panel">
-            <button type="button" data-action="blank">Blank event</button>
-            <button type="button" data-action="jsonld">
+            <button type="button" data-action="blank" data-i18n="nav.blankEvent">
+              Blank event
+            </button>
+            <button
+              type="button"
+              data-action="jsonld"
+              data-i18n="nav.importFromEventPage"
+            >
               Import from event page
             </button>
-            <button type="button" data-action="ics">Import .ics</button>
+            <button type="button" data-action="ics" data-i18n="nav.importIcs">
+              Import .ics
+            </button>
           </div>
         </div>
         <div class="mode-toggle" role="radiogroup" aria-label="Mode">
           <label>
             <input type="radio" name="mode" value="edit" />
-            <span>Edit existing</span>
+            <span data-i18n="nav.editExisting">Edit existing</span>
           </label>
         </div>
-        <button id="repo-connect-open" type="button" class="secondary" hidden>
+        <button id="repo-connect-open" type="button" class="secondary" hidden data-i18n="nav.connectFeed">
           Connect a feed
         </button>
         <div id="event-combo" class="combo" hidden>
@@ -103,11 +133,12 @@
             id="event-combo-input"
             type="text"
             placeholder="Loading events…"
+            data-i18n-placeholder="nav.comboLoading"
             autocomplete="off"
           />
           <ul id="event-combo-list" hidden></ul>
         </div>
-        <span class="profile-switch-label">Profile</span>
+        <span class="profile-switch-label" data-i18n="nav.profile">Profile</span>
         <div
           class="mode-toggle"
           id="profile-toggle"
@@ -120,28 +151,43 @@
         <p id="import-banner-text"></p>
         <ul id="import-banner-warnings" hidden></ul>
         <div id="import-submitted" hidden>
-          <p>
+          <p data-i18n="importBanner.issueOpened">
             Issue opened. The event will appear in the published feed once
             the repository's maintainers accept the PR (and Pages rebuilds).
           </p>
           <div class="actions">
-            <button id="import-check-feed" type="button" class="secondary">
+            <button
+              id="import-check-feed"
+              type="button"
+              class="secondary"
+              data-i18n="importBanner.checkFeed"
+            >
               Check the feed
             </button>
             <span id="import-check-result" class="hint"></span>
           </div>
         </div>
         <div class="actions">
-          <button id="import-prev" type="button" class="secondary">
+          <button id="import-prev" type="button" class="secondary" data-i18n="importBanner.previous">
             ← Previous
           </button>
-          <button id="import-next" type="button" class="secondary">
+          <button id="import-next" type="button" class="secondary" data-i18n="importBanner.next">
             Next →
           </button>
-          <button id="import-discard" type="button" class="secondary">
+          <button
+            id="import-discard"
+            type="button"
+            class="secondary"
+            data-i18n="importBanner.discard"
+          >
             Discard this event
           </button>
-          <button id="import-dismiss" type="button" class="secondary">
+          <button
+            id="import-dismiss"
+            type="button"
+            class="secondary"
+            data-i18n="importBanner.dismissAll"
+          >
             Dismiss all
           </button>
         </div>
@@ -157,49 +203,71 @@
         <button id="valid-badge" type="button" hidden></button>
         <button id="reset-draft" type="button" class="secondary">Reset</button>
         <span id="repo-output-actions">
-          <button id="edit-direct" type="button" class="secondary">
+          <button id="edit-direct" type="button" class="secondary" data-i18n="action.editDirectly">
             Edit directly
           </button>
-          <button id="propose" type="button" class="primary">
+          <button id="propose" type="button" class="primary" data-i18n="action.reviewAndSubmit">
             Review &amp; submit
           </button>
         </span>
         <span id="generator-output-actions" hidden>
-          <button id="review-standalone" type="button" class="primary">
+          <button
+            id="review-standalone"
+            type="button"
+            class="primary"
+            data-i18n="action.reviewAndDownload"
+          >
             Review &amp; download
           </button>
         </span>
       </div>
 
       <dialog id="review">
-        <h2>Review &amp; submit</h2>
+        <h2 data-i18n="dialog.review.title">Review &amp; submit</h2>
         <pre id="review-json"></pre>
-        <p id="review-hint-repo" class="hint">
+        <p id="review-hint-repo" class="hint" data-i18n="dialog.review.hintRepo">
           This opens a prefilled GitHub issue in the target repository; a
           maintainer (or the repo's automation) turns it into a pull request.
         </p>
-        <p id="review-hint-standalone" class="hint" hidden>
+        <p
+          id="review-hint-standalone"
+          class="hint"
+          hidden
+          data-i18n="dialog.review.hintStandalone"
+        >
           Nothing is sent anywhere — copy the JSON or download it as a file.
         </p>
         <div class="actions">
-          <button id="review-cancel" type="button" class="secondary">
+          <button id="review-cancel" type="button" class="secondary" data-i18n="action.back">
             Back
           </button>
-          <button id="review-copy" type="button" class="secondary" hidden>
+          <button
+            id="review-copy"
+            type="button"
+            class="secondary"
+            hidden
+            data-i18n="action.copyJson"
+          >
             Copy JSON
           </button>
-          <button id="review-download" type="button" class="primary" hidden>
+          <button
+            id="review-download"
+            type="button"
+            class="primary"
+            hidden
+            data-i18n="action.downloadJson"
+          >
             Download .json
           </button>
-          <button id="review-confirm" type="button" class="primary">
+          <button id="review-confirm" type="button" class="primary" data-i18n="action.openIssue">
             Open GitHub issue
           </button>
         </div>
       </dialog>
 
       <dialog id="import-dialog">
-        <h2>Import from iCalendar (.ics)</h2>
-        <p class="hint">
+        <h2 data-i18n="dialog.ics.title">Import from iCalendar (.ics)</h2>
+        <p class="hint" data-i18n="dialog.ics.hint1">
           Upload the file, or fetch it from a URL. You will pick which events
           to import; nothing is imported silently.
         </p>
@@ -218,6 +286,7 @@
             type="file"
             accept=".ics,text/calendar"
             aria-label="iCalendar file"
+            data-i18n-aria-label="dialog.ics.fileLabel"
           />
           <form id="import-url-form">
             <input
@@ -225,26 +294,33 @@
               type="url"
               placeholder="https://…/calendar.ics"
               aria-label="iCalendar URL"
+              data-i18n-aria-label="dialog.ics.urlLabel"
             />
-            <button type="submit" class="secondary">Fetch</button>
+            <button type="submit" class="secondary" data-i18n="action.fetch">Fetch</button>
           </form>
         </div>
         <p id="import-status" class="hint" hidden></p>
         <div id="import-warnings" hidden></div>
         <ul id="import-list" hidden></ul>
         <div class="actions">
-          <button id="import-cancel" type="button" class="secondary">
+          <button id="import-cancel" type="button" class="secondary" data-i18n="action.cancel">
             Cancel
           </button>
-          <button id="import-confirm" type="button" class="primary" disabled>
+          <button
+            id="import-confirm"
+            type="button"
+            class="primary"
+            disabled
+            data-i18n="action.importSelected"
+          >
             Import selected
           </button>
         </div>
       </dialog>
 
       <dialog id="jsonld-dialog">
-        <h2>Import from an event page</h2>
-        <p class="hint">
+        <h2 data-i18n="dialog.jsonld.title">Import from an event page</h2>
+        <p class="hint" data-i18n="dialog.jsonld.hint1">
           Paste the event page's URL (Meetup, Eventbrite, Luma…). The events
           are read from the structured data (schema.org JSON-LD) the page
           already exposes — usually richer than an .ics export. You will
@@ -256,8 +332,9 @@
             type="url"
             placeholder="https://www.meetup.com/…/events/…/"
             aria-label="Event page URL"
+            data-i18n-aria-label="dialog.jsonld.urlLabel"
           />
-          <button type="submit" class="secondary">Fetch</button>
+          <button type="submit" class="secondary" data-i18n="action.fetch">Fetch</button>
         </form>
         <div id="jsonld-fallback">
           <p>
@@ -272,9 +349,16 @@
             rows="6"
             placeholder="Paste the page's HTML code here…"
             aria-label="Event page HTML"
+            data-i18n-placeholder="dialog.jsonld.htmlPlaceholder"
+            data-i18n-aria-label="dialog.jsonld.htmlLabel"
           ></textarea>
           <div class="actions">
-            <button id="jsonld-parse" type="button" class="secondary">
+            <button
+              id="jsonld-parse"
+              type="button"
+              class="secondary"
+              data-i18n="dialog.jsonld.readPasted"
+            >
               Read pasted HTML
             </button>
           </div>
@@ -283,27 +367,33 @@
         <div id="jsonld-warnings" hidden></div>
         <ul id="jsonld-list" hidden></ul>
         <div class="actions">
-          <button id="jsonld-cancel" type="button" class="secondary">
+          <button id="jsonld-cancel" type="button" class="secondary" data-i18n="action.cancel">
             Cancel
           </button>
-          <button id="jsonld-confirm" type="button" class="primary" disabled>
+          <button
+            id="jsonld-confirm"
+            type="button"
+            class="primary"
+            disabled
+            data-i18n="action.importSelected"
+          >
             Import selected
           </button>
         </div>
       </dialog>
 
       <section id="fallback" hidden>
-        <h3>URL too long — copy manually</h3>
-        <p>
+        <h3 data-i18n="fallback.title">URL too long — copy manually</h3>
+        <p data-i18n="fallback.hint">
           The prefilled URL exceeds what browsers accept. Copy the content
           below, then paste it into the page that opens:
         </p>
         <textarea id="fallback-text" rows="10" readonly></textarea>
         <div class="actions">
-          <button id="fallback-copy" type="button" class="secondary">
+          <button id="fallback-copy" type="button" class="secondary" data-i18n="action.copy">
             Copy
           </button>
-          <a id="fallback-link" target="_blank" rel="noopener">
+          <a id="fallback-link" target="_blank" rel="noopener" data-i18n="fallback.openBlank">
             Open blank page
           </a>
         </div>
@@ -311,7 +401,9 @@
     </main>
 
     <footer>
-      <a id="feedback-link" target="_blank" rel="noopener">🐛 Found a bug?</a>
+      <a id="feedback-link" target="_blank" rel="noopener" data-i18n="footer.foundBug"
+        >🐛 Found a bug?</a
+      >
     </footer>
 
     <script type="module" src="./main.js"></script>

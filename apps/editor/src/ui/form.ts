@@ -4,6 +4,7 @@
  * Tested by hand (the lib/ modules carry the vitest coverage).
  */
 
+import { t } from "../i18n/index.js";
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
 import type { TagSuggestion } from "../lib/tag-vocabulary.js";
@@ -669,7 +670,9 @@ function renderChips(
   input.type = "text";
   input.id = nextId(control.key);
   input.className = "chips-input";
-  input.placeholder = control.placeholder ?? "Type to add…";
+  input.placeholder = control.placeholder
+    ? t(`control.${control.key}.placeholder`, control.placeholder)
+    : t("ui.chips.placeholder", "Type to add…");
   input.autocomplete = "off";
   input.setAttribute("role", "combobox");
   input.setAttribute("aria-autocomplete", "list");
@@ -709,7 +712,7 @@ function renderChips(
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "chip-remove";
-      remove.setAttribute("aria-label", `Remove ${value}`);
+      remove.setAttribute("aria-label", `${t("ui.remove", "Remove")} ${value}`);
       remove.textContent = "×";
       remove.addEventListener("click", () => {
         values = values.filter((v) => v !== value);
@@ -814,7 +817,9 @@ function renderCombobox(
   input.setAttribute("role", "combobox");
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-expanded", "false");
-  if (control.placeholder) input.placeholder = control.placeholder;
+  if (control.placeholder) {
+    input.placeholder = t(`control.${control.key}.placeholder`, control.placeholder);
+  }
   const value = state[control.key];
   input.value = typeof value === "string" ? value : "";
 
@@ -1121,8 +1126,11 @@ function renderInstantInput(
   const preview = document.createElement("p");
   preview.className = "note instant-preview";
   const updatePreview = (iso: string) => {
+    const zone = getZone() || t("ui.instant.yourDeviceTimezone", "your device's timezone");
     preview.textContent = iso
-      ? `UTC: ${iso} (entered in ${getZone() || "your device's timezone"})`
+      ? t("ui.instant.preview", "UTC: {iso} (entered in {zone})")
+          .replace("{iso}", iso)
+          .replace("{zone}", zone)
       : "";
   };
   updatePreview(isoValue);
@@ -1140,12 +1148,14 @@ function renderInstantInput(
 }
 
 function renderRepeaterItemControl(
+  repeaterKey: RepeaterKey,
   field: RepeaterItemField,
   row: Record<string, string>,
   onChange: (key: string, value: string) => void,
   getZone: () => string,
   describedBy?: string,
 ): { element: HTMLElement; input: HTMLInputElement | HTMLSelectElement } {
+  const i18nKey = `field.${repeaterKey}.${field.key}`;
   if (field.kind === "instant") {
     const rendered = renderInstantInput(
       nextId(field.key),
@@ -1158,8 +1168,8 @@ function renderRepeaterItemControl(
     const wrap = document.createElement("div");
     const label = document.createElement("label");
     label.htmlFor = rendered.input.id;
-    label.textContent = field.label;
-    if (field.info) label.append(renderInfoToggle(field.info));
+    label.textContent = t(`${i18nKey}.label`, field.label);
+    if (field.info) label.append(renderInfoToggle(t(`${i18nKey}.info`, field.info)));
     wrap.append(label, rendered.element);
     return { element: wrap, input: rendered.input };
   }
@@ -1170,7 +1180,7 @@ function renderRepeaterItemControl(
     for (const value of field.options ?? []) {
       const option = document.createElement("option");
       option.value = value;
-      option.textContent = value === "" ? "(not set)" : value;
+      option.textContent = value === "" ? t("ui.notSet", "(not set)") : value;
       input.append(option);
     }
   } else {
@@ -1180,7 +1190,7 @@ function renderRepeaterItemControl(
   input.id = nextId(field.key);
   if (describedBy) input.setAttribute("aria-describedby", describedBy);
   if (field.placeholder && "placeholder" in input) {
-    input.placeholder = field.placeholder;
+    input.placeholder = t(`${i18nKey}.placeholder`, field.placeholder);
   }
   input.value = row[field.key] ?? "";
   input.addEventListener("input", () => onChange(field.key, input.value));
@@ -1189,8 +1199,8 @@ function renderRepeaterItemControl(
   const wrap = document.createElement("div");
   const label = document.createElement("label");
   label.htmlFor = input.id;
-  label.textContent = field.label;
-  if (field.info) label.append(renderInfoToggle(field.info));
+  label.textContent = t(`${i18nKey}.label`, field.label);
+  if (field.info) label.append(renderInfoToggle(t(`${i18nKey}.info`, field.info)));
   wrap.append(label, input);
   return { element: wrap, input };
 }
@@ -1219,6 +1229,7 @@ function renderRepeaterField(
 ): HTMLElement {
   const spec = REPEATER_SPECS[fieldId];
   const items: Record<string, string>[] = initial.map((row) => ({ ...row }));
+  const specLabel = t(`field.${fieldId}.label`, spec.label);
 
   const field = document.createElement("div");
   field.className = "field repeater";
@@ -1228,10 +1239,10 @@ function renderRepeaterField(
   const label = document.createElement("label");
   label.id = nextId("label");
   field.setAttribute("aria-labelledby", label.id);
-  label.textContent = spec.label;
-  if (spec.info) label.append(renderInfoToggle(spec.info));
+  label.textContent = specLabel;
+  if (spec.info) label.append(renderInfoToggle(t(`field.${fieldId}.info`, spec.info)));
   field.append(label);
-  appendNote(field, spec.note);
+  appendNote(field, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
 
   const list = document.createElement("div");
   field.append(list);
@@ -1239,7 +1250,7 @@ function renderRepeaterField(
   const addButton = document.createElement("button");
   addButton.type = "button";
   addButton.className = "repeater-add";
-  addButton.textContent = spec.addLabel;
+  addButton.textContent = t(`field.${fieldId}.addLabel`, spec.addLabel);
   field.append(addButton);
   const errorId = appendError(field);
 
@@ -1253,12 +1264,15 @@ function renderRepeaterField(
       const item = document.createElement("div");
       item.className = "repeater-item";
       item.setAttribute("role", "group");
-      item.setAttribute("aria-label", `${spec.label} #${index + 1}`);
+      item.setAttribute("aria-label", `${specLabel} #${index + 1}`);
 
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "repeater-remove";
-      remove.setAttribute("aria-label", `Remove ${spec.label} #${index + 1}`);
+      remove.setAttribute(
+        "aria-label",
+        `${t("ui.remove", "Remove")} ${specLabel} #${index + 1}`,
+      );
       remove.textContent = "×";
       remove.addEventListener("click", () => {
         items.splice(index, 1);
@@ -1270,6 +1284,7 @@ function renderRepeaterField(
       fields.className = "repeater-item-fields";
       const rendered = spec.itemFields.map((itemField) =>
         renderRepeaterItemControl(
+          fieldId,
           itemField,
           row,
           (key, value) => {
@@ -1360,7 +1375,7 @@ function renderTranslationSlot(
   input.addEventListener("input", () => onChange(input.value));
   const note = document.createElement("p");
   note.className = "note translation-original";
-  note.textContent = `Original: ${original}`;
+  note.textContent = `${t("ui.translations.original", "Original")}: ${original}`;
   wrap.append(lbl, input, note);
   return wrap;
 }
@@ -1382,11 +1397,11 @@ function renderLanguagePicker(
   const input = document.createElement("input");
   input.type = "text";
   input.className = "chips-input";
-  input.setAttribute("aria-label", "Add a translation language");
+  input.setAttribute("aria-label", t("ui.translations.addLanguage", "Add a translation language"));
   input.setAttribute("role", "combobox");
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-expanded", "false");
-  input.placeholder = "Type a language to add… (es, en…)";
+  input.placeholder = t("ui.translations.addLanguagePlaceholder", "Type a language to add… (es, en…)");
   input.autocomplete = "off";
   const suggest = document.createElement("ul");
   suggest.id = nextId("listbox");
@@ -1494,7 +1509,10 @@ function renderLanguageCard(
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "repeater-remove";
-  remove.setAttribute("aria-label", `Remove ${lang} translation`);
+  remove.setAttribute(
+    "aria-label",
+    t("ui.translations.removeLanguage", "Remove {lang} translation").replace("{lang}", lang),
+  );
   remove.textContent = "×";
   remove.addEventListener("click", onRemove);
 
@@ -1525,7 +1543,7 @@ function renderLanguageCard(
   if (state.name) {
     fields.append(
       renderTranslationSlot(
-        "Name",
+        t("ui.translations.slot.name", "Name"),
         state.name,
         entry.name,
         false,
@@ -1537,7 +1555,7 @@ function renderLanguageCard(
   if (state.description) {
     fields.append(
       renderTranslationSlot(
-        "Description",
+        t("ui.translations.slot.description", "Description"),
         state.description,
         entry.description,
         true,
@@ -1551,7 +1569,7 @@ function renderLanguageCard(
     if (!row.alt) return;
     fields.append(
       renderTranslationSlot(
-        `Image ${i + 1} alt`,
+        t("ui.translations.slot.imageAlt", "Image {n} alt").replace("{n}", String(i + 1)),
         row.alt,
         row.translations[lang] ?? "",
         false,
@@ -1571,7 +1589,7 @@ function renderLanguageCard(
     if (!row.name) return;
     fields.append(
       renderTranslationSlot(
-        `Offer ${i + 1} name`,
+        t("ui.translations.slot.offerName", "Offer {n} name").replace("{n}", String(i + 1)),
         row.name,
         row.translations[lang] ?? "",
         false,
@@ -1590,7 +1608,7 @@ function renderLanguageCard(
   if (state.eligibilityNote) {
     fields.append(
       renderTranslationSlot(
-        "Eligibility note",
+        t("ui.translations.slot.eligibilityNote", "Eligibility note"),
         state.eligibilityNote,
         state.eligibilityNoteTranslations[lang] ?? "",
         false,
@@ -1609,7 +1627,7 @@ function renderLanguageCard(
   if (state.partOfName) {
     fields.append(
       renderTranslationSlot(
-        "Part of name",
+        t("ui.translations.slot.partOfName", "Part of name"),
         state.partOfName,
         state.partOfNameTranslations[lang] ?? "",
         false,
@@ -1625,8 +1643,10 @@ function renderLanguageCard(
   if (fields.children.length === 0) {
     const empty = document.createElement("p");
     empty.className = "note";
-    empty.textContent =
-      "Nothing to translate yet — fill in the event's name (or any image, offer, eligibility note or series name you want translated) first.";
+    empty.textContent = t(
+      "ui.translations.empty",
+      "Nothing to translate yet — fill in the event's name (or any image, offer, eligibility note or series name you want translated) first.",
+    );
     fields.append(empty);
   }
 
@@ -1660,10 +1680,13 @@ function renderTranslationsSection(
   const label = document.createElement("label");
   label.id = nextId("label");
   field.setAttribute("aria-labelledby", label.id);
-  label.textContent = "Translations";
+  label.textContent = t("section.translations", "Translations");
   label.append(
     renderInfoToggle(
-      "Optional versions of this event's text in other languages. Add a language, then fill in whichever fields below you want translated — the rest are fine left in the original language.",
+      t(
+        "ui.translations.info",
+        "Optional versions of this event's text in other languages. Add a language, then fill in whichever fields below you want translated — the rest are fine left in the original language.",
+      ),
     ),
   );
   field.append(label);
@@ -1682,8 +1705,10 @@ function renderTranslationsSection(
 
   function renderLangNote(): void {
     langNote.hidden = state.textLanguage !== "";
-    langNote.textContent =
-      "Set a text language above first — translations describe what language everything else in this event is written in.";
+    langNote.textContent = t(
+      "ui.translations.setLanguageFirst",
+      "Set a text language above first — translations describe what language everything else in this event is written in.",
+    );
   }
 
   function renderCards(): void {
@@ -1793,8 +1818,8 @@ function renderControl(
     const wrap = document.createElement("div");
     const label = document.createElement("label");
     label.htmlFor = rendered.input.id;
-    label.textContent = control.label;
-    if (control.info) label.append(renderInfoToggle(control.info));
+    label.textContent = t(`control.${control.key}.label`, control.label);
+    if (control.info) label.append(renderInfoToggle(t(`control.${control.key}.info`, control.info)));
     wrap.append(label, rendered.element);
     return { element: wrap, input: rendered.input };
   }
@@ -1813,7 +1838,7 @@ function renderControl(
     for (const value of options) {
       const option = document.createElement("option");
       option.value = value;
-      option.textContent = value === "" ? "(not set)" : value;
+      option.textContent = value === "" ? t("ui.notSet", "(not set)") : value;
       input.append(option);
     }
   } else {
@@ -1823,7 +1848,7 @@ function renderControl(
   input.id = nextId(control.key);
   input.dataset.key = control.key;
   if (control.placeholder && "placeholder" in input) {
-    input.placeholder = control.placeholder;
+    input.placeholder = t(`control.${control.key}.placeholder`, control.placeholder);
   }
 
   const value = state[control.key];
@@ -1839,8 +1864,8 @@ function renderControl(
   const wrap = document.createElement("div");
   const label = document.createElement("label");
   label.htmlFor = input.id;
-  label.textContent = control.label;
-  if (control.info) label.append(renderInfoToggle(control.info));
+  label.textContent = t(`control.${control.key}.label`, control.label);
+  if (control.info) label.append(renderInfoToggle(t(`control.${control.key}.info`, control.info)));
   wrap.append(label, input);
   return { element: wrap, input };
 }
@@ -1854,16 +1879,17 @@ function renderField(
   const field = document.createElement("div");
   field.className = spec.controls.length > 1 ? "field pair" : "field";
   field.dataset.fieldId = fieldId;
+  const specLabel = t(`field.${fieldId}.label`, spec.label);
 
   const label = document.createElement("label");
-  label.textContent = spec.label;
+  label.textContent = specLabel;
   if (spec.required) {
     const req = document.createElement("span");
     req.className = "req";
     req.textContent = " *";
     label.append(req);
   }
-  if (spec.info) label.append(renderInfoToggle(spec.info));
+  if (spec.info) label.append(renderInfoToggle(t(`field.${fieldId}.info`, spec.info)));
 
   const controls = spec.controls.map((c) => renderControl(c, state, onInput));
   // Required applies to the field as a whole; for a pair (Date+Time, say)
@@ -1901,7 +1927,7 @@ function renderField(
       const slot = document.createElement("div");
       slot.dataset.role = "geo-map";
       outer.append(label, slot);
-      noteId = appendNote(outer, spec.note);
+      noteId = appendNote(outer, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
       outer.append(row);
       errorId = appendError(outer);
       // The map is the primary way to set a position — typing raw decimal
@@ -1914,7 +1940,7 @@ function renderField(
       const manualToggle = document.createElement("button");
       manualToggle.type = "button";
       manualToggle.className = "link-button";
-      manualToggle.textContent = "Enter coordinates manually";
+      manualToggle.textContent = t("ui.enterCoordinatesManually", "Enter coordinates manually");
       manualToggle.addEventListener("click", () => {
         for (const c of controls) {
           if (c.input instanceof HTMLInputElement) c.input.readOnly = false;
@@ -1925,7 +1951,7 @@ function renderField(
       outer.append(manualToggle);
     } else {
       outer.append(label, row);
-      noteId = appendNote(outer, spec.note);
+      noteId = appendNote(outer, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
       errorId = appendError(outer);
     }
     const describedBy = describedByOf(noteId, errorId);
@@ -1937,7 +1963,7 @@ function renderField(
 
   label.htmlFor = controls[0]?.input.id ?? "";
   field.append(label, ...controls.map((c) => c.element));
-  const noteId = appendNote(field, spec.note);
+  const noteId = appendNote(field, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
   const errorId = appendError(field);
   const describedBy = describedByOf(noteId, errorId);
   if (describedBy) controls[0]?.input.setAttribute("aria-describedby", describedBy);
@@ -1967,9 +1993,11 @@ function fieldHasData(id: string, state: FormState): boolean {
 }
 
 function fieldLabel(id: string): string {
-  return id === "organizers" || id === "image"
-    ? REPEATER_SPECS[id as RepeaterKey].label
-    : FIELD_SPECS[id].label;
+  const fallback =
+    id === "organizers" || id === "image"
+      ? REPEATER_SPECS[id as RepeaterKey].label
+      : FIELD_SPECS[id].label;
+  return t(`field.${id}.label`, fallback);
 }
 
 /** Resets a FIELD_SPECS field's own state back to unset — used by a chip's "×". */
@@ -1992,7 +2020,7 @@ function wrapRemovable(inner: HTMLElement, label: string, onRemove: () => void):
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "repeater-remove";
-  remove.setAttribute("aria-label", `Remove ${label}`);
+  remove.setAttribute("aria-label", `${t("ui.remove", "Remove")} ${label}`);
   remove.textContent = "×";
   remove.addEventListener("click", onRemove);
   block.append(inner, remove);
@@ -2217,13 +2245,14 @@ export function renderForm(
         (profile.fields.has(f.id) || extraFields.has(f.id)),
     ).map((f) => f.id);
     if (fieldIds.length === 0) continue;
-    renderedSections.push({ id: section, title: SECTION_TITLES[section] });
+    const sectionTitle = t(`section.${section}`, SECTION_TITLES[section]);
+    renderedSections.push({ id: section, title: sectionTitle });
 
     const details = document.createElement("details");
     details.id = `section-${section}`;
     details.open = !profile.collapsedSections.has(section);
     const summary = document.createElement("summary");
-    summary.textContent = SECTION_TITLES[section];
+    summary.textContent = sectionTitle;
     details.append(summary);
 
     const requiredIds = new Set(
@@ -2249,10 +2278,14 @@ export function renderForm(
       const renderCfp = () => {
         cfpRoot.textContent = "";
         cfpRoot.append(
-          wrapRemovable(renderField("cfp", state, onInput), FIELD_SPECS.cfp.label, () => {
-            clearField("cfp", onInput);
-            renderCfp();
-          }),
+          wrapRemovable(
+            renderField("cfp", state, onInput),
+            t("field.cfp.label", FIELD_SPECS.cfp.label),
+            () => {
+              clearField("cfp", onInput);
+              renderCfp();
+            },
+          ),
         );
       };
       renderCfp();
@@ -2260,9 +2293,9 @@ export function renderForm(
     } else if (section === "translations") {
       // translations reads/writes several state slices at once and has no
       // single FormState key of its own — its own bespoke renderer.
-      const t = renderTranslationsSection(state, onInput, onTranslationsCommit);
-      refreshTranslations = t.refresh;
-      details.append(t.element);
+      const translationsSection = renderTranslationsSection(state, onInput, onTranslationsCommit);
+      refreshTranslations = translationsSection.refresh;
+      details.append(translationsSection.element);
     } else if (section === "when") {
       // allDay/startDate/endDate/timezone are one structural unit (allDay
       // changes how start/end render) — never separately chippable.
@@ -2337,7 +2370,10 @@ export function markImportGaps(
     if (gap && !tag) {
       const p = document.createElement("p");
       p.className = "import-gap-tag";
-      p.textContent = "Not in the imported ICS — fill in by hand if known.";
+      p.textContent = t(
+        "ui.importGap",
+        "Not in the imported ICS — fill in by hand if known.",
+      );
       const slot = field.querySelector(".field-error");
       if (slot) slot.before(p);
       else field.append(p);

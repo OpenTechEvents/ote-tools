@@ -63,6 +63,7 @@ import {
   type TranslationsPatch,
 } from "./ui/form.js";
 import { geocodeVenue, mountGeoMap, type GeoMapHandle } from "./ui/map.js";
+import { applyStaticTranslations, getLocale, setLocale, t, type Locale } from "./i18n/index.js";
 
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -154,14 +155,35 @@ function extraFieldsFor(event: OteEvent, profile: ResolvedProfile): Set<string> 
 
 async function startEditor(repo: string | null): Promise<void> {
   const hasRepo = repo !== null;
+  // Set once the config fetch resolves (below); updateRepoBanner re-reads it
+  // on every call, including a later locale switch.
+  let feedTitle: string | undefined;
+  function updateRepoBanner(): void {
+    el("repo-banner").textContent = hasRepo
+      ? t("app.targetRepository", "Target repository: {repo}").replace("{repo}", repo)
+      : t("app.standaloneGenerator", "Standalone JSON generator");
+    if (feedTitle) el("repo-banner").textContent += ` — ${feedTitle}`;
+  }
+
+  // Localize the static shell before anything else renders — the dynamic
+  // form picks up the same locale via t() lookups when renderForm runs.
+  document.documentElement.lang = getLocale();
+  applyStaticTranslations(document);
+  const langSelect = el<HTMLSelectElement>("lang-select");
+  langSelect.value = getLocale();
+  langSelect.addEventListener("input", () => {
+    setLocale(langSelect.value as Locale);
+    applyStaticTranslations(document);
+    updateRepoBanner();
+    render(); // re-render is presentation-only — state (already-typed values) is untouched, same as a profile switch
+  });
+
   const repoKey = repo ?? "__standalone__";
   const fetchPlan = repoFetchPlan(
     repo === null ? { mode: "generator" } : { mode: "repo", repo },
   );
   el("editor").hidden = false;
-  el("repo-banner").textContent = hasRepo
-    ? `Target repository: ${repo}`
-    : "Standalone JSON generator";
+  updateRepoBanner();
 
   // --- context: config, profile, default branch -------------------------
   const config = fetchPlan !== null
@@ -169,10 +191,14 @@ async function startEditor(repo: string | null): Promise<void> {
     : null;
   if (hasRepo && config === null) {
     addWarning(
-      "ote.config.json could not be fetched from the repository; showing all fields.",
+      t(
+        "warning.configNotFetched",
+        "ote.config.json could not be fetched from the repository; showing all fields.",
+      ),
     );
   } else if (hasRepo && config?.feed?.title) {
-    el("repo-banner").textContent += ` — ${config.feed.title}`;
+    feedTitle = config.feed.title;
+    updateRepoBanner();
   }
   let profile = resolveProfile(config);
   for (const warning of profile.warnings) addWarning(warning);
@@ -266,8 +292,10 @@ async function startEditor(repo: string | null): Promise<void> {
         .replace(/\/+$/, "");
       const repo = parseRepoParam(`?repo=${encodeURIComponent(typed)}`);
       if (repo === null) {
-        connectError.textContent =
-          "Enter your repository as owner/repo — for example my-org/ote-events.";
+        connectError.textContent = t(
+          "dialog.repoConnect.error",
+          "Enter your repository as owner/repo — for example my-org/ote-events.",
+        );
         connectError.hidden = false;
         return;
       }
@@ -339,23 +367,25 @@ async function startEditor(repo: string | null): Promise<void> {
     // shouldn't open with a badge telling them what they already know.
     if (draftValid) {
       badge.hidden = false;
-      badge.textContent = "✓ Ready";
+      badge.textContent = t("badge.ready", "✓ Ready");
       badge.className = "ok";
       badge.disabled = true;
     } else if (submitAttempted) {
       badge.hidden = false;
-      badge.textContent = "Incomplete — jump to first error";
+      badge.textContent = t("badge.incomplete", "Incomplete — jump to first error");
       badge.className = "invalid";
       badge.disabled = false;
     } else {
       badge.hidden = true;
     }
-    resetButton.textContent = isNew ? "Reset" : "Revert changes";
+    resetButton.textContent = isNew
+      ? t("action.reset", "Reset")
+      : t("action.revertChanges", "Revert changes");
     resetButton.disabled = !isNew && loadedSnapshot === null;
     editDirect.disabled = !hasRepo || (!isNew && editSlug === null);
     editDirect.title =
       !isNew && editSlug === null
-        ? "This event's filename could not be determined from the feed."
+        ? t("action.editDirectlyUnavailable", "This event's filename could not be determined from the feed.")
         : "";
     return draftValid;
   }
@@ -483,7 +513,7 @@ async function startEditor(repo: string | null): Promise<void> {
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.id = "section-nav-toggle";
-    toggle.textContent = "☰ Sections";
+    toggle.textContent = t("nav.sectionsMenu", "☰ Sections");
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-controls", "section-nav-list");
 
@@ -596,14 +626,17 @@ async function startEditor(repo: string | null): Promise<void> {
       listed = parseFeedListing(await fetchJson(fetchPlan.pagesFeedUrl));
       if (listed.length > 0) {
         addWarning(
-          "Event list loaded from the published feed (GitHub API unavailable); filenames are inferred from event ids.",
+          t(
+            "warning.feedFallback",
+            "Event list loaded from the published feed (GitHub API unavailable); filenames are inferred from event ids.",
+          ),
         );
       }
     }
     comboInput.placeholder =
       listed.length > 0
-        ? "Type to filter, or pick an event…"
-        : "No events found in this repository";
+        ? t("nav.comboFilter", "Type to filter, or pick an event…")
+        : t("nav.comboEmpty", "No events found in this repository");
     comboInput.disabled = listed.length === 0;
     refresh(); // collision checks were waiting for the listing
   }
@@ -985,7 +1018,14 @@ async function startEditor(repo: string | null): Promise<void> {
   /** Banner: position, per-event warnings, submitted state, nav buttons. */
   function renderImportBanner(): void {
     const item = queue[queuePos];
-    importBannerText.textContent = `Imported ${queuePos + 1} of ${queue.length}: ${importedEventLabel(item.event)}${item.submitted ? " — issue opened ✓" : " — review the marked fields before submitting."}`;
+    const suffix = item.submitted
+      ? t("importBanner.suffixSubmitted", " — issue opened ✓")
+      : t("importBanner.suffixPending", " — review the marked fields before submitting.");
+    importBannerText.textContent =
+      t("importBanner.position", "Imported {n} of {total}: {label}")
+        .replace("{n}", String(queuePos + 1))
+        .replace("{total}", String(queue.length))
+        .replace("{label}", importedEventLabel(item.event)) + suffix;
     importBannerWarnings.textContent = "";
     importBannerWarnings.hidden = item.submitted || item.warnings.length === 0;
     for (const warning of item.warnings) {
@@ -1140,18 +1180,25 @@ async function startEditor(repo: string | null): Promise<void> {
     if (repo === null) return;
     const id = queue[queuePos]?.submittedId;
     if (!id) return;
-    importCheckResult.textContent = "Checking…";
+    importCheckResult.textContent = t("importBanner.checking", "Checking…");
     // Cache-busting query: Pages serves feed.json with long-lived caches.
     if (fetchPlan === null) return;
     void fetchJson(`${fetchPlan.pagesFeedUrl}?t=${Date.now()}`).then((feed) => {
       if (feed === null) {
-        importCheckResult.textContent =
-          "Could not fetch the published feed (the Pages site may not be live yet).";
+        importCheckResult.textContent = t(
+          "importBanner.checkFailed",
+          "Could not fetch the published feed (the Pages site may not be live yet).",
+        );
       } else if (feedHasEventId(feed, id)) {
-        importCheckResult.textContent = "✓ The event is in the published feed.";
+        importCheckResult.textContent = t(
+          "importBanner.checkFound",
+          "✓ The event is in the published feed.",
+        );
       } else {
-        importCheckResult.textContent =
-          "Not there yet — it appears once the maintainers accept the PR and Pages rebuilds.";
+        importCheckResult.textContent = t(
+          "importBanner.checkNotFound",
+          "Not there yet — it appears once the maintainers accept the PR and Pages rebuilds.",
+        );
       }
     });
   });
