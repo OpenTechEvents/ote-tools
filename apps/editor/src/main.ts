@@ -60,6 +60,7 @@ import {
   setAllDay,
   updateErrors,
   type RepeaterKey,
+  type TranslationsPatch,
 } from "./ui/form.js";
 import { geocodeVenue, mountGeoMap, type GeoMapHandle } from "./ui/map.js";
 
@@ -321,6 +322,18 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   let mapHandle: GeoMapHandle | null = null;
+  // Set by render() once the Translations section is mounted; re-derives its
+  // slot list after an edit made elsewhere in the form changes what's
+  // translatable (see the fields listed in onInput/onArrayInput below).
+  let refreshTranslations: () => void = () => {};
+
+  /** Fields whose value a translation card shows as "the original text". */
+  const TRANSLATABLE_SOURCE_KEYS = new Set<keyof FormState>([
+    "name",
+    "description",
+    "eligibilityNote",
+    "partOfName",
+  ]);
 
   function onInput(key: keyof FormState, value: string | boolean): void {
     touched.add(fieldIdForKey(key));
@@ -343,6 +356,7 @@ async function startEditor(repo: string | null): Promise<void> {
         }
       }
     }
+    if (TRANSLATABLE_SOURCE_KEYS.has(key)) refreshTranslations();
     refresh();
     saveCurrentItem(); // no-op unless an import banner is on screen
   }
@@ -351,6 +365,17 @@ async function startEditor(repo: string | null): Promise<void> {
     touched.add(key);
     if (importMissing?.delete(key)) markImportGaps(form, importMissing);
     (state as unknown as Record<string, unknown>)[key] = items;
+    // Image alts / offer names are also what a translation card shows as
+    // "the original text" — an added/removed/edited row changes its slots.
+    if (key === "image" || key === "offers") refreshTranslations();
+    refresh();
+    saveCurrentItem();
+  }
+
+  /** The Translations section's own writes: several state slices, one commit. */
+  function onTranslationsCommit(patch: TranslationsPatch): void {
+    touched.add("translations");
+    Object.assign(state, patch);
     refresh();
     saveCurrentItem();
   }
@@ -383,7 +408,16 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   function render(extra: ReadonlySet<string> = new Set()): void {
-    renderForm(form, profile, state, extra, onInput, onArrayInput);
+    const rendered = renderForm(
+      form,
+      profile,
+      state,
+      extra,
+      onInput,
+      onArrayInput,
+      onTranslationsCommit,
+    );
+    refreshTranslations = rendered.refreshTranslations;
     setAllDay(form, state.allDay);
     markImportGaps(form, importMissing ?? new Set());
     mountMap();

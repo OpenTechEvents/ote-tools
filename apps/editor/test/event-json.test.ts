@@ -155,7 +155,7 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
       { name: "GDG Madrid", url: "", email: "hola@gdgmadrid.example", type: "" },
     ]);
     expect(state.image).toEqual([
-      { url: "https://x.example/poster.png", alt: "" },
+      { url: "https://x.example/poster.png", alt: "", translations: {} },
     ]);
     expect(state.offers).toEqual([
       {
@@ -167,6 +167,7 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
         waitlistUrl: "",
         opensAt: "",
         closesAt: "",
+        translations: {},
       },
     ]);
     expect(state.cfpUrl).toBe("https://x.example/cfp");
@@ -201,8 +202,8 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
     const state = emptyFormState();
     state.name = "X";
     state.image = [
-      { url: "https://x.example/a.png", alt: "" },
-      { url: "https://x.example/b.png", alt: "Cartel" },
+      { url: "https://x.example/a.png", alt: "", translations: {} },
+      { url: "https://x.example/b.png", alt: "Cartel", translations: {} },
     ];
     expect(toEventJson(state).image).toEqual([
       "https://x.example/a.png",
@@ -230,6 +231,7 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
         waitlistUrl: "",
         opensAt: "",
         closesAt: "",
+        translations: {},
       },
     ];
     expect(toEventJson(state).offers).toEqual([
@@ -242,6 +244,100 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
     state.name = "X";
     state.cfpUrl = "https://x.example/cfp";
     expect(toEventJson(state).cfp).toEqual({ url: "https://x.example/cfp" });
+  });
+});
+
+describe("toEventJson / fromEventJson — translations", () => {
+  const withTranslations: OteEvent = {
+    id: "https://x.example/events/devfest",
+    name: "DevFest",
+    description: "A community tech festival.",
+    startDate: "2026-10-15",
+    timezone: "Europe/Madrid",
+    textLanguage: "en",
+    image: [
+      {
+        url: "https://x.example/poster.png",
+        alt: "Poster",
+        translations: { es: { alt: "Cartel" } },
+      },
+    ],
+    offers: [
+      {
+        name: "General admission",
+        price: 0,
+        currency: "EUR",
+        translations: { es: { name: "Entrada general" } },
+      },
+    ],
+    eligibility: {
+      type: "restricted",
+      note: "University students only",
+      translations: { es: { note: "Solo estudiantes universitarios" } },
+    },
+    partOf: {
+      id: "https://x.example/series",
+      name: "DevFest Series",
+      translations: { es: { name: "Serie DevFest" } },
+    },
+    translations: {
+      es: {
+        name: "DevFest en español",
+        description: "Un festival tecnológico comunitario.",
+      },
+    },
+  };
+
+  it("prefills every translation map from an event that already has them", () => {
+    const state = fromEventJson(withTranslations, "devfest");
+    expect(state.translations).toEqual({
+      es: {
+        name: "DevFest en español",
+        description: "Un festival tecnológico comunitario.",
+      },
+    });
+    expect(state.image[0]?.translations).toEqual({ es: "Cartel" });
+    expect(state.offers[0]?.translations).toEqual({ es: "Entrada general" });
+    expect(state.eligibilityNoteTranslations).toEqual({
+      es: "Solo estudiantes universitarios",
+    });
+    expect(state.partOfNameTranslations).toEqual({ es: "Serie DevFest" });
+  });
+
+  it("round-trips a full translations fixture unchanged", () => {
+    expect(toEventJson(fromEventJson(withTranslations, "devfest"))).toEqual(
+      withTranslations,
+    );
+  });
+
+  it("drops a translation entry with neither name nor description", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.translations = { es: { name: "", description: "" } };
+    expect(toEventJson(state).translations).toBeUndefined();
+  });
+
+  it("a row surviving only because of its translations isn't dropped as an empty row", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.image = [{ url: "", alt: "", translations: { es: "Cartel" } }];
+    const image = toEventJson(state).image;
+    expect(image).toHaveLength(1);
+    // url survives empty — schema-invalid on its own, but that's the
+    // schema's call to make, not the editor's to silently paper over.
+    expect(image?.[0]).toEqual({
+      url: "",
+      translations: { es: { alt: "Cartel" } },
+    });
+  });
+
+  it("a translation orphaned from its base field is still emitted, for the schema to flag", () => {
+    const state = emptyFormState();
+    state.name = "X";
+    state.eligibilityNoteTranslations = { es: "Nota" };
+    expect(toEventJson(state).eligibility).toEqual({
+      translations: { es: { note: "Nota" } },
+    });
   });
 });
 

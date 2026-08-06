@@ -502,7 +502,15 @@ select {
   color: var(--accent);
   font-size: 1rem;
   line-height: 1;
-  padding: 0.1rem 0.3rem;
+  /* 24x24 CSS px minimum touch target (WCAG 2.2 SC 2.5.8) — the glyph stays
+     small, the hit area doesn't. Compact by design: it sits inline in a
+     pill, unlike .repeater-remove which has room to go bigger. */
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -575,7 +583,8 @@ select {
   position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.6rem 2.2rem 0.6rem 0.6rem;
+  /* Right padding leaves room for .repeater-remove's larger touch target. */
+  padding: 0.6rem 2.75rem 0.6rem 0.6rem;
   margin: 0.5rem 0;
   background: var(--bg);
 }
@@ -601,7 +610,8 @@ select {
 }
 
 .repeater-item-fields input,
-.repeater-item-fields select {
+.repeater-item-fields select,
+.repeater-item-fields textarea {
   width: 100%;
   min-height: 2.3rem;
   padding: 0.4rem 0.6rem;
@@ -612,16 +622,26 @@ select {
   color: inherit;
 }
 
+.repeater-item-fields textarea {
+  resize: vertical;
+}
+
 .repeater-remove {
   position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
+  top: 0.3rem;
+  right: 0.3rem;
+  /* A standalone corner button has room, unlike .chip-remove — sized close
+     to the 44x44 CSS px touch-target guidance (WCAG 2.5.5, AAA). */
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: none;
   color: var(--muted);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   line-height: 1;
-  padding: 0.15rem 0.4rem;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -635,6 +655,31 @@ select {
   min-height: 2.2rem;
   padding: 0.35rem 0.8rem;
   font-size: 0.85rem;
+}
+
+/* --- translations ------------------------------------------------------------ */
+/* Language cards reuse .repeater-item/.repeater-item-fields as-is; these are
+   the bits specific to a translation slot. */
+
+.translation-lang {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+}
+
+.translation-original {
+  font-style: italic;
+}
+
+/* The "add a language" picker sits inside the card list, styled like a
+   chips-input but without a chip list above it (the cards below play that
+   role). */
+.repeater .chips {
+  margin: 0.5rem 0;
+  max-width: 20rem;
 }
 
 /* --- combobox (timezone) ---------------------------------------------------- */

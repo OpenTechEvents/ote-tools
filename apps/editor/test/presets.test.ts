@@ -16,7 +16,9 @@ describe("resolveProfile", () => {
     for (const shown of ["name", "startDate", "timezone", "venue", "geo", "tags"]) {
       expect(resolved.fields.has(shown)).toBe(true);
     }
-    expect(resolved.collapsedSections.size).toBe(0);
+    // translations always renders collapsed; advanced only under "all".
+    expect(resolved.collapsedSections.has("translations")).toBe(true);
+    expect(resolved.collapsedSections.has("advanced")).toBe(false);
     expect(resolved.warnings).toEqual([]);
   });
 
@@ -81,6 +83,17 @@ describe("resolveProfile", () => {
         expect(resolved.fields.has(field)).toBe(true);
       }
     }
+  });
+
+  it("translations is present and collapsed under every preset, including custom", () => {
+    for (const profile of ["meetup", "conference", "all"]) {
+      const resolved = resolveProfile({ profile });
+      expect(resolved.fields.has("translations")).toBe(true);
+      expect(resolved.collapsedSections.has("translations")).toBe(true);
+    }
+    const custom = resolveProfile({ customProfile: { fields: ["translations"] } });
+    expect(custom.fields.has("translations")).toBe(true);
+    expect(custom.collapsedSections.has("translations")).toBe(true);
   });
 
   it("unknown profile falls back to all with a warning", () => {

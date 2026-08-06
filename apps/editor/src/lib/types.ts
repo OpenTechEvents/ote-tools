@@ -30,13 +30,21 @@ export interface OrganizerRow {
   type: string;
 }
 
-/** One row of the `image` repeater. "" means "not filled in". */
+/**
+ * One row of the `image` repeater. "" means "not filled in". `translations`
+ * is keyed by BCP 47 tag → this image's `alt` in that language; only
+ * meaningful once `alt` itself is set (schema: dependentRequired).
+ */
 export interface ImageRow {
   url: string;
   alt: string;
+  translations: Record<string, string>;
 }
 
-/** One row of the `offers` repeater. "" means "not filled in". */
+/**
+ * One row of the `offers` repeater. "" means "not filled in". `translations`
+ * is keyed by BCP 47 tag → this offer's `name` in that language.
+ */
 export interface OfferRow {
   name: string;
   price: string;
@@ -46,16 +54,18 @@ export interface OfferRow {
   waitlistUrl: string;
   opensAt: string;
   closesAt: string;
+  translations: Record<string, string>;
 }
 
 /**
  * Mostly a flat, all-string form model: "" means "not filled in" and is
  * omitted from the generated event JSON. Dates and times are kept apart so
  * the form can use native date/time inputs; tags and languages are
- * comma-separated. The three genuinely-repeatable v0.3 fields
- * (organizers/image/offers) are the exception — arrays of row objects,
- * still "" = unset within each row, coerced in toEventJson like every other
- * field.
+ * comma-separated. Exceptions: the three genuinely-repeatable v0.3 fields
+ * (organizers/image/offers) are arrays of row objects, and `translations`/
+ * `eligibilityNoteTranslations`/`partOfNameTranslations` are language-keyed
+ * maps — both still "" = unset at the leaf, coerced in toEventJson like
+ * every other field.
  */
 export interface FormState {
   slug: string;
@@ -99,6 +109,12 @@ export interface FormState {
   partOfName: string;
   partOfUrl: string;
   partOfType: string;
+  /** BCP 47 tag → { name?, description? } in that language. */
+  translations: Record<string, { name: string; description: string }>;
+  /** BCP 47 tag → eligibility.note in that language. */
+  eligibilityNoteTranslations: Record<string, string>;
+  /** BCP 47 tag → partOf.name in that language. */
+  partOfNameTranslations: Record<string, string>;
 }
 
 /** An event as listed from the target repo, with the filename-derived slug. */

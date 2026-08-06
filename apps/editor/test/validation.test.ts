@@ -116,4 +116,35 @@ describe("validateDraft", () => {
     expect(result.fieldErrors.has("image")).toBe(true);
     expect(result.fieldErrors.has("offers")).toBe(true);
   });
+
+  it("a translation entry with neither name nor description maps to translations", () => {
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        textLanguage: "en",
+        translations: { es: {} },
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors.has("translations")).toBe(true);
+  });
+
+  it("a translation language equal to textLanguage surfaces as a document error", () => {
+    // distinctTranslationLanguages validates the whole event, so ajv reports
+    // it at the document root — it must still reach the user, just not
+    // pinned to a single field.
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        textLanguage: "en",
+        translations: { en: { name: "Same language as the original" } },
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.documentErrors.length).toBeGreaterThan(0);
+  });
 });

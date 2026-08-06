@@ -35,6 +35,8 @@ export interface OteOrganizer {
 export interface OteImageEntry {
   url: string;
   alt?: string;
+  /** This image's alt text in other languages, keyed by BCP 47 tag. */
+  translations?: Record<string, { alt: string }>;
 }
 
 export interface OteOffer {
@@ -46,6 +48,8 @@ export interface OteOffer {
   waitlistUrl?: string;
   opensAt?: string;
   closesAt?: string;
+  /** This offer's name in other languages, keyed by BCP 47 tag. */
+  translations?: Record<string, { name: string }>;
 }
 
 export interface OteCfp {
@@ -60,6 +64,8 @@ export interface OteEligibility {
   type: "open" | "members-only" | "approval-required" | "restricted";
   note?: string;
   url?: string;
+  /** The note in other languages, keyed by BCP 47 tag. */
+  translations?: Record<string, { note: string }>;
 }
 
 export interface OtePartOf {
@@ -67,6 +73,8 @@ export interface OtePartOf {
   name?: string;
   url?: string;
   type?: "series" | "multipart";
+  /** The series' display name in other languages, keyed by BCP 47 tag. */
+  translations?: Record<string, { name: string }>;
 }
 
 export type OteEventStatus =
@@ -106,6 +114,8 @@ export interface OteEvent {
   eligibility?: OteEligibility;
   partOf?: OtePartOf;
   updatedAt?: string;
+  /** This event's own free text (name/description) in other languages, keyed by BCP 47 tag. */
+  translations?: Record<string, { name?: string; description?: string }>;
 }
 
 export interface OteFeed {

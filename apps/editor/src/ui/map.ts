@@ -91,6 +91,7 @@ export function mountGeoMap(
   searchRow.className = "geo-search";
   const searchInput = document.createElement("input");
   searchInput.type = "text";
+  searchInput.setAttribute("aria-label", "Search a place");
   searchInput.placeholder = "Search a place (Nominatim / OpenStreetMap)…";
   // Seeded with the venue text so the address never has to be typed twice.
   searchInput.value = initialQuery;

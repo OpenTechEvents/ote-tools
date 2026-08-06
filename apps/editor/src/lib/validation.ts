@@ -55,6 +55,7 @@ const PATH_TO_FIELD: ReadonlyArray<[string, string]> = [
   ["eligibility", "eligibility"],
   ["partOf", "partOf"],
   ["textLanguage", "textLanguage"],
+  ["translations", "translations"],
 ];
 
 function fieldForPath(path: string): string | null {

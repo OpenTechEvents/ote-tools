@@ -44,19 +44,67 @@ export function emptyFormState(timezone = ""): FormState {
     partOfName: "",
     partOfUrl: "",
     partOfType: "",
+    translations: {},
+    eligibilityNoteTranslations: {},
+    partOfNameTranslations: {},
   };
 }
 
-/** A repeater row where every field is still "". */
+/**
+ * A repeater row where every field is still "" — `translations` (present on
+ * image/offer rows) counts as empty when it has no language keys, since it's
+ * a map, not a string.
+ */
 function isRowEmpty(row: object): boolean {
-  return Object.values(row).every((v) => v === "");
+  return Object.entries(row).every(([key, v]) =>
+    key === "translations" ? Object.keys(v as object).length === 0 : v === "",
+  );
 }
 
-/** Drops "" fields from a repeater row; a required-but-empty one is left for the schema to flag. */
-function cleanRow(row: object): Record<string, string> {
-  const out: Record<string, string> = {};
+/**
+ * Drops "" fields from a repeater row; a required-but-empty one is left for
+ * the schema to flag. `translations` is skipped here — its wire shape
+ * (`{ [lang]: { alt } }` vs `{ [lang]: { name } }`) varies per field, so the
+ * caller wraps and attaches it itself.
+ */
+function cleanRow(row: object): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
-    if (value !== "") out[key] = value as string;
+    if (key === "translations") continue;
+    if (value !== "") out[key] = value;
+  }
+  return out;
+}
+
+/** Drops language entries whose value is still "", from a lang → string map. */
+function cleanLangMap(map: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [lang, value] of Object.entries(map)) {
+    if (value !== "") out[lang] = value;
+  }
+  return out;
+}
+
+/** A lang → string map, wrapped into a lang → { [wrapKey]: string } translations map. */
+function wrapTranslations(
+  map: Record<string, string>,
+  wrapKey: string,
+): Record<string, Record<string, string>> | undefined {
+  const cleaned = cleanLangMap(map);
+  if (Object.keys(cleaned).length === 0) return undefined;
+  return Object.fromEntries(
+    Object.entries(cleaned).map(([lang, value]) => [lang, { [wrapKey]: value }]),
+  );
+}
+
+/** Inverse of wrapTranslations: a lang → { [wrapKey]: string } map, flattened to lang → string. */
+function unwrapTranslations(
+  map: Record<string, Record<string, string>> | undefined,
+  wrapKey: string,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [lang, entry] of Object.entries(map ?? {})) {
+    if (entry[wrapKey] !== undefined) out[lang] = entry[wrapKey];
   }
   return out;
 }
@@ -147,18 +195,28 @@ export function toEventJson(state: FormState): OteEvent {
     .map((row) => cleanRow(row));
   if (organizers.length > 0) event.organizers = organizers;
 
-  // Bare URL when there's no alt text (the common case, and what every 0.2
-  // document already looks like); an object only when alt earns its keep.
+  // Bare URL when there's no alt text and nothing translating it (the common
+  // case, and what every 0.2 document already looks like); an object once
+  // alt or a translation of it earns its keep.
   const image = state.image
     .filter((row) => !isRowEmpty(row))
-    .map((row) => (row.alt ? { url: row.url, alt: row.alt } : row.url));
+    .map((row) => {
+      const translations = wrapTranslations(row.translations, "alt");
+      if (!row.alt && !translations) return row.url;
+      const entry: Record<string, unknown> = { url: row.url };
+      if (row.alt) entry.alt = row.alt;
+      if (translations) entry.translations = translations;
+      return entry;
+    });
   if (image.length > 0) event.image = image;
 
   const offers = state.offers
     .filter((row) => !isRowEmpty(row))
     .map((row) => {
-      const offer = cleanRow(row) as Record<string, unknown>;
+      const offer = cleanRow(row);
       if (row.price !== "") offer.price = numberOrRaw(row.price);
+      const translations = wrapTranslations(row.translations, "name");
+      if (translations) offer.translations = translations;
       return offer;
     });
   if (offers.length > 0) event.offers = offers;
@@ -177,6 +235,11 @@ export function toEventJson(state: FormState): OteEvent {
   if (state.eligibilityType) eligibility.type = state.eligibilityType;
   if (state.eligibilityNote) eligibility.note = state.eligibilityNote;
   if (state.eligibilityUrl) eligibility.url = state.eligibilityUrl;
+  const eligibilityTranslations = wrapTranslations(
+    state.eligibilityNoteTranslations,
+    "note",
+  );
+  if (eligibilityTranslations) eligibility.translations = eligibilityTranslations;
   if (Object.keys(eligibility).length > 0) event.eligibility = eligibility;
 
   const partOf: Record<string, unknown> = {};
@@ -184,7 +247,18 @@ export function toEventJson(state: FormState): OteEvent {
   if (state.partOfName) partOf.name = state.partOfName;
   if (state.partOfUrl) partOf.url = state.partOfUrl;
   if (state.partOfType) partOf.type = state.partOfType;
+  const partOfTranslations = wrapTranslations(state.partOfNameTranslations, "name");
+  if (partOfTranslations) partOf.translations = partOfTranslations;
   if (Object.keys(partOf).length > 0) event.partOf = partOf;
+
+  const translations: Record<string, unknown> = {};
+  for (const [lang, entry] of Object.entries(state.translations)) {
+    const t: Record<string, string> = {};
+    if (entry.name) t.name = entry.name;
+    if (entry.description) t.description = entry.description;
+    if (Object.keys(t).length > 0) translations[lang] = t;
+  }
+  if (Object.keys(translations).length > 0) event.translations = translations;
 
   return event as unknown as OteEvent;
 }
@@ -241,8 +315,12 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     })),
     image: (json.image ?? []).map((entry) =>
       typeof entry === "string"
-        ? { url: entry, alt: "" }
-        : { url: entry.url, alt: entry.alt ?? "" },
+        ? { url: entry, alt: "", translations: {} }
+        : {
+            url: entry.url,
+            alt: entry.alt ?? "",
+            translations: unwrapTranslations(entry.translations, "alt"),
+          },
     ),
     offers: (json.offers ?? []).map((o) => ({
       name: o.name ?? "",
@@ -253,6 +331,7 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
       waitlistUrl: o.waitlistUrl ?? "",
       opensAt: o.opensAt ?? "",
       closesAt: o.closesAt ?? "",
+      translations: unwrapTranslations(o.translations, "name"),
     })),
     cfpUrl: json.cfp?.url ?? "",
     cfpOpensAt: json.cfp?.opensAt ?? "",
@@ -266,6 +345,17 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     partOfName: json.partOf?.name ?? "",
     partOfUrl: json.partOf?.url ?? "",
     partOfType: json.partOf?.type ?? "",
+    translations: Object.fromEntries(
+      Object.entries(json.translations ?? {}).map(([lang, entry]) => [
+        lang,
+        { name: entry.name ?? "", description: entry.description ?? "" },
+      ]),
+    ),
+    eligibilityNoteTranslations: unwrapTranslations(
+      json.eligibility?.translations,
+      "note",
+    ),
+    partOfNameTranslations: unwrapTranslations(json.partOf?.translations, "name"),
   };
 }
 

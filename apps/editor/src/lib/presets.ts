@@ -7,6 +7,7 @@ export const SECTIONS = [
   "where",
   "identity",
   "advanced",
+  "translations",
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number];
@@ -50,6 +51,9 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
   { id: "license", section: "advanced" },
   { id: "source", section: "advanced" },
   { id: "updatedAt", section: "advanced" },
+  // Not excluded by any preset (see PRESET_EXCLUSIONS below): translating an
+  // event is an optional pass any organizer might want, not a preset concern.
+  { id: "translations", section: "translations" },
 ] as const;
 
 /**
@@ -103,11 +107,13 @@ export function availablePresets(config: OteConfig | null): string[] {
  * Resolves which form fields the editor shows for a given ote.config.json.
  *
  * - `customProfile.fields` wins over `profile`: core fields + the listed ids.
- *   Unknown ids (e.g. "cfp" — a real v0.3 field, but this form has no input
- *   for it yet; see FormState.extraFieldsJson) are skipped with a warning.
+ *   Unknown ids (typos, or a field this editor doesn't support at all) are
+ *   skipped with a warning.
  * - Otherwise `profile` picks a preset; unknown/missing profile falls back to
  *   "all" with a warning (show everything rather than silently hide fields).
- * - "all" renders the advanced section collapsed.
+ * - "all" renders the advanced section collapsed; translations render
+ *   collapsed under every preset — it's an optional pass done after the rest
+ *   of the event, never the first thing to fill in.
  * - `override` is the UI's profile switcher: a preset name or "custom" that
  *   takes precedence over everything in the config (no warnings — it is an
  *   explicit user choice, not a config problem).
@@ -134,7 +140,12 @@ export function resolveProfile(
         );
       }
     }
-    return { preset: "custom", fields, collapsedSections: new Set(), warnings };
+    return {
+      preset: "custom",
+      fields,
+      collapsedSections: new Set(["translations"]),
+      warnings,
+    };
   }
 
   let preset = override ?? config?.profile;
@@ -155,8 +166,7 @@ export function resolveProfile(
   for (const def of FIELD_REGISTRY) {
     if (!excluded.has(def.id)) fields.add(def.id);
   }
-  const collapsedSections = new Set<SectionId>(
-    preset === "all" ? ["advanced" as const] : [],
-  );
+  const collapsedSections = new Set<SectionId>(["translations"]);
+  if (preset === "all") collapsedSections.add("advanced");
   return { preset, fields, collapsedSections, warnings };
 }

@@ -215,7 +215,13 @@ export function formHasContent(state: FormState): boolean {
   return Object.entries(state).some(([key, value]) => {
     if (auto.has(key)) return false;
     if (typeof value === "string") return value !== "";
-    return Array.isArray(value) && value.length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    // translations / eligibilityNoteTranslations / partOfNameTranslations:
+    // lang-keyed maps, not arrays — non-empty means at least one language.
+    if (typeof value === "object" && value !== null) {
+      return Object.keys(value).length > 0;
+    }
+    return false;
   });
 }
 

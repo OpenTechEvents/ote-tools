@@ -263,6 +263,12 @@ describe("formHasContent", () => {
     state.organizers = [{ name: "PyAlmería", url: "", email: "", type: "" }];
     expect(formHasContent(state)).toBe(true);
   });
+
+  it("a non-empty translations map counts as content too", () => {
+    const state = emptyFormState("Europe/Madrid");
+    state.translations = { es: { name: "Nombre", description: "" } };
+    expect(formHasContent(state)).toBe(true);
+  });
 });
 
 describe("sourceNameFor", () => {

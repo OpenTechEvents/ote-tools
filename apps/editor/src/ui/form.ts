@@ -13,6 +13,12 @@ import type { FormState } from "../lib/types.js";
 
 type StateKey = keyof FormState;
 
+/** Unique, stable DOM ids for label/input association and aria-describedby. */
+let uid = 0;
+function nextId(prefix: string): string {
+  return `f-${prefix}-${uid++}`;
+}
+
 interface Control {
   key: StateKey;
   label: string;
@@ -85,6 +91,7 @@ const SECTION_TITLES: Record<SectionId, string> = {
   where: "Where",
   identity: "File & id",
   advanced: "Advanced",
+  translations: "Translations",
 };
 
 const FIELD_SPECS: Record<string, FieldSpec> = {
@@ -444,7 +451,7 @@ function renderChips(
   control: Control,
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
-): HTMLElement {
+): { element: HTMLElement; input: HTMLInputElement } {
   const vocab = control.vocab === "tags" ? tagVocabulary : languageVocabulary;
 
   const wrap = document.createElement("div");
@@ -455,6 +462,7 @@ function renderChips(
   list.className = "chips-list";
   const input = document.createElement("input");
   input.type = "text";
+  input.id = nextId(control.key);
   input.className = "chips-input";
   input.placeholder = control.placeholder ?? "Type to add…";
   input.autocomplete = "off";
@@ -553,7 +561,7 @@ function renderChips(
   });
 
   renderList();
-  return wrap;
+  return { element: wrap, input };
 }
 
 /**
@@ -565,12 +573,13 @@ function renderCombobox(
   control: Control,
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
-): HTMLElement {
+): { element: HTMLElement; input: HTMLInputElement } {
   const wrap = document.createElement("div");
   wrap.className = "combo-field";
 
   const input = document.createElement("input");
   input.type = "text";
+  input.id = nextId(control.key);
   input.dataset.key = control.key;
   input.autocomplete = "off";
   if (control.placeholder) input.placeholder = control.placeholder;
@@ -627,7 +636,7 @@ function renderCombobox(
     }
   });
 
-  return wrap;
+  return { element: wrap, input };
 }
 
 interface RepeaterItemField {
@@ -714,6 +723,7 @@ function renderRepeaterItemControl(
   field: RepeaterItemField,
   row: Record<string, string>,
   onChange: (key: string, value: string) => void,
+  describedBy?: string,
 ): HTMLElement {
   let input: HTMLInputElement | HTMLSelectElement;
   if (field.kind === "select") {
@@ -728,6 +738,8 @@ function renderRepeaterItemControl(
     input = document.createElement("input");
     input.type = field.kind;
   }
+  input.id = nextId(field.key);
+  if (describedBy) input.setAttribute("aria-describedby", describedBy);
   if (field.placeholder && "placeholder" in input) {
     input.placeholder = field.placeholder;
   }
@@ -737,6 +749,7 @@ function renderRepeaterItemControl(
   if (!field.label) return input;
   const wrap = document.createElement("div");
   const label = document.createElement("label");
+  label.htmlFor = input.id;
   label.textContent = field.label;
   wrap.append(label, input);
   return wrap;
@@ -762,8 +775,11 @@ function renderRepeaterField(
   const field = document.createElement("div");
   field.className = "field repeater";
   field.dataset.fieldId = fieldId;
+  field.setAttribute("role", "group");
 
   const label = document.createElement("label");
+  label.id = nextId("label");
+  field.setAttribute("aria-labelledby", label.id);
   label.textContent = spec.label;
   if (spec.info) {
     const info = document.createElement("span");
@@ -784,7 +800,7 @@ function renderRepeaterField(
   addButton.className = "repeater-add";
   addButton.textContent = spec.addLabel;
   field.append(addButton);
-  appendError(field);
+  const errorId = appendError(field);
 
   function commit(): void {
     onArrayChange(fieldId, items);
@@ -795,6 +811,8 @@ function renderRepeaterField(
     items.forEach((row, index) => {
       const item = document.createElement("div");
       item.className = "repeater-item";
+      item.setAttribute("role", "group");
+      item.setAttribute("aria-label", `${spec.label} #${index + 1}`);
 
       const remove = document.createElement("button");
       remove.type = "button";
@@ -811,10 +829,15 @@ function renderRepeaterField(
       fields.className = "repeater-item-fields";
       for (const itemField of spec.itemFields) {
         fields.append(
-          renderRepeaterItemControl(itemField, row, (key, value) => {
-            row[key] = value;
-            commit();
-          }),
+          renderRepeaterItemControl(
+            itemField,
+            row,
+            (key, value) => {
+              row[key] = value;
+              commit();
+            },
+            errorId,
+          ),
         );
       }
 
@@ -824,9 +847,9 @@ function renderRepeaterField(
   }
 
   addButton.addEventListener("click", () => {
-    const row: Record<string, string> = {};
+    const row: Record<string, unknown> = { translations: {} };
     for (const itemField of spec.itemFields) row[itemField.key] = "";
-    items.push(row);
+    items.push(row as unknown as Record<string, string>);
     renderRows();
     commit();
   });
@@ -835,11 +858,444 @@ function renderRepeaterField(
   return field;
 }
 
+/** Patch applied by the Translations section — the state keys it, and only it, writes. */
+export type TranslationsPatch = Partial<
+  Pick<
+    FormState,
+    | "translations"
+    | "image"
+    | "offers"
+    | "eligibilityNoteTranslations"
+    | "partOfNameTranslations"
+  >
+>;
+
+/**
+ * Every BCP 47 tag with at least one translation entry anywhere in the
+ * event — the initial set of language cards to show. New, still-empty
+ * languages are added on top of this by the section itself (see
+ * `renderTranslationsSection`); this only recovers what a loaded event
+ * already has.
+ */
+function translationLanguages(state: FormState): string[] {
+  const langs = new Set<string>();
+  for (const lang of Object.keys(state.translations)) langs.add(lang);
+  for (const row of state.image) {
+    for (const lang of Object.keys(row.translations)) langs.add(lang);
+  }
+  for (const row of state.offers) {
+    for (const lang of Object.keys(row.translations)) langs.add(lang);
+  }
+  for (const lang of Object.keys(state.eligibilityNoteTranslations)) langs.add(lang);
+  for (const lang of Object.keys(state.partOfNameTranslations)) langs.add(lang);
+  return [...langs];
+}
+
+/** One translatable input inside a language card: the translation, with the original as a note. */
+function renderTranslationSlot(
+  label: string,
+  original: string,
+  value: string,
+  multiline: boolean,
+  onChange: (value: string) => void,
+  describedBy?: string,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  const lbl = document.createElement("label");
+  lbl.textContent = label;
+  const input = multiline
+    ? document.createElement("textarea")
+    : document.createElement("input");
+  input.id = nextId("translation");
+  lbl.htmlFor = input.id;
+  if (describedBy) input.setAttribute("aria-describedby", describedBy);
+  if (multiline) (input as HTMLTextAreaElement).rows = 2;
+  else (input as HTMLInputElement).type = "text";
+  input.value = value;
+  input.addEventListener("input", () => onChange(input.value));
+  const note = document.createElement("p");
+  note.className = "note translation-original";
+  note.textContent = `Original: ${original}`;
+  wrap.append(lbl, input, note);
+  return wrap;
+}
+
+/**
+ * "Type to add a language" input: a trimmed-down chips-input (see
+ * renderChips above) that only fires `onAdd` on a deliberate commit —
+ * Enter, or picking a suggestion — never on every keystroke, unlike
+ * renderCombobox. Adding a language is an action, not a live field value.
+ */
+function renderLanguagePicker(
+  excluded: () => readonly string[],
+  onAdd: (lang: string) => void,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "chips";
+  const list = document.createElement("div");
+  list.className = "chips-list";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "chips-input";
+  input.setAttribute("aria-label", "Add a translation language");
+  input.placeholder = "Type a language to add… (es, en…)";
+  input.autocomplete = "off";
+  const suggest = document.createElement("ul");
+  suggest.className = "chips-suggest";
+  suggest.hidden = true;
+  wrap.append(list, suggest);
+  list.append(input);
+
+  function commitValue(raw: string): string {
+    const q = raw.trim().toLowerCase();
+    const match = LANGUAGE_SUGGESTIONS.find(
+      (l) => l.code === q || l.name.toLowerCase() === q,
+    );
+    return match ? match.code : raw.trim();
+  }
+
+  function add(value: string): void {
+    const clean = value.trim();
+    if (!clean) return;
+    input.value = "";
+    suggest.hidden = true;
+    onAdd(clean);
+  }
+
+  function refreshSuggestions(): void {
+    suggest.textContent = "";
+    const exclude = excluded().map((l) => l.toLowerCase());
+    const q = input.value.trim().toLowerCase();
+    const hits = LANGUAGE_SUGGESTIONS.filter(
+      (l) =>
+        !exclude.includes(l.code) &&
+        (q === "" || l.code.startsWith(q) || l.name.toLowerCase().includes(q)),
+    ).slice(0, 6);
+    suggest.hidden = hits.length === 0;
+    for (const hit of hits) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.append(`${hit.code} · ${hit.name}`);
+      // mousedown, not click: it must win over the input's blur
+      button.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        add(hit.code);
+      });
+      li.append(button);
+      suggest.append(li);
+    }
+  }
+
+  input.addEventListener("focus", refreshSuggestions);
+  input.addEventListener("input", refreshSuggestions);
+  input.addEventListener("blur", () => {
+    setTimeout(() => (suggest.hidden = true), 150);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      add(commitValue(input.value));
+    }
+  });
+
+  return wrap;
+}
+
+/**
+ * One language's card: every currently-translatable slot (name/description,
+ * per-image alt, per-offer name, eligibility note, part-of name — each only
+ * once its original is filled in), with the original text shown as a note.
+ * Committing any input clones just the state slice it belongs to and pushes
+ * it up via onCommit — this widget never mutates `state` directly.
+ */
+function renderLanguageCard(
+  lang: string,
+  state: FormState,
+  onCommit: (patch: TranslationsPatch) => void,
+  onRemove: () => void,
+  describedBy?: string,
+): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "repeater-item";
+  card.setAttribute("role", "group");
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "repeater-remove";
+  remove.setAttribute("aria-label", `Remove ${lang} translation`);
+  remove.textContent = "×";
+  remove.addEventListener("click", onRemove);
+
+  const heading = document.createElement("p");
+  heading.id = nextId("heading");
+  card.setAttribute("aria-labelledby", heading.id);
+  heading.className = "translation-lang";
+  heading.textContent = lang;
+
+  const fields = document.createElement("div");
+  fields.className = "repeater-item-fields";
+
+  const entry = state.translations[lang] ?? { name: "", description: "" };
+  // Reads state.translations[lang] fresh on every call rather than closing
+  // over `entry` — this card isn't remounted between keystrokes (see the
+  // section-level comment above), so editing Description after Name must
+  // not clobber Name back to its value from when the card was drawn.
+  const setEntry = (patch: Partial<{ name: string; description: string }>) => {
+    const current = state.translations[lang] ?? { name: "", description: "" };
+    onCommit({
+      translations: {
+        ...state.translations,
+        [lang]: { ...current, ...patch },
+      },
+    });
+  };
+
+  if (state.name) {
+    fields.append(
+      renderTranslationSlot(
+        "Name",
+        state.name,
+        entry.name,
+        false,
+        (v) => setEntry({ name: v }),
+        describedBy,
+      ),
+    );
+  }
+  if (state.description) {
+    fields.append(
+      renderTranslationSlot(
+        "Description",
+        state.description,
+        entry.description,
+        true,
+        (v) => setEntry({ description: v }),
+        describedBy,
+      ),
+    );
+  }
+
+  state.image.forEach((row, i) => {
+    if (!row.alt) return;
+    fields.append(
+      renderTranslationSlot(
+        `Image ${i + 1} alt`,
+        row.alt,
+        row.translations[lang] ?? "",
+        false,
+        (v) => {
+          onCommit({
+            image: state.image.map((r, j) =>
+              j === i ? { ...r, translations: { ...r.translations, [lang]: v } } : r,
+            ),
+          });
+        },
+        describedBy,
+      ),
+    );
+  });
+
+  state.offers.forEach((row, i) => {
+    if (!row.name) return;
+    fields.append(
+      renderTranslationSlot(
+        `Offer ${i + 1} name`,
+        row.name,
+        row.translations[lang] ?? "",
+        false,
+        (v) => {
+          onCommit({
+            offers: state.offers.map((r, j) =>
+              j === i ? { ...r, translations: { ...r.translations, [lang]: v } } : r,
+            ),
+          });
+        },
+        describedBy,
+      ),
+    );
+  });
+
+  if (state.eligibilityNote) {
+    fields.append(
+      renderTranslationSlot(
+        "Eligibility note",
+        state.eligibilityNote,
+        state.eligibilityNoteTranslations[lang] ?? "",
+        false,
+        (v) =>
+          onCommit({
+            eligibilityNoteTranslations: {
+              ...state.eligibilityNoteTranslations,
+              [lang]: v,
+            },
+          }),
+        describedBy,
+      ),
+    );
+  }
+
+  if (state.partOfName) {
+    fields.append(
+      renderTranslationSlot(
+        "Part of name",
+        state.partOfName,
+        state.partOfNameTranslations[lang] ?? "",
+        false,
+        (v) =>
+          onCommit({
+            partOfNameTranslations: { ...state.partOfNameTranslations, [lang]: v },
+          }),
+        describedBy,
+      ),
+    );
+  }
+
+  if (fields.children.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "note";
+    empty.textContent =
+      "Nothing to translate yet — fill in the event's name (or any image, offer, eligibility note or series name you want translated) first.";
+    fields.append(empty);
+  }
+
+  card.append(remove, heading, fields);
+  return card;
+}
+
+/**
+ * Translations section: a card per language, each showing only the slots
+ * that currently have something to translate. Self-contained like
+ * renderChips/renderRepeaterField — it owns `activeLangs` (which cards are
+ * shown; seeded from whatever the loaded event already has, since an
+ * empty just-added language has no data of its own to be discovered from),
+ * commits edits via onCommit, and exposes refresh() so main.ts can ask it
+ * to re-derive its slot list after an edit made elsewhere in the form (an
+ * image alt, an offer name, eligibility note, part-of name) — renderForm
+ * isn't re-run on every keystroke, so this can't rely on being remounted.
+ */
+function renderTranslationsSection(
+  state: FormState,
+  onCommit: (patch: TranslationsPatch) => void,
+): { element: HTMLElement; refresh: () => void } {
+  const activeLangs = new Set(translationLanguages(state));
+
+  const field = document.createElement("div");
+  field.className = "field repeater";
+  field.dataset.fieldId = "translations";
+  field.setAttribute("role", "group");
+
+  const label = document.createElement("label");
+  label.id = nextId("label");
+  field.setAttribute("aria-labelledby", label.id);
+  label.textContent = "Translations";
+  const info = document.createElement("span");
+  info.className = "info";
+  info.textContent = " ⓘ";
+  info.title =
+    "Optional versions of this event's text in other languages. Add a language, then fill in whichever fields below you want translated — the rest are fine left in the original language.";
+  info.tabIndex = 0;
+  label.append(info);
+  field.append(label);
+
+  const langNote = document.createElement("p");
+  langNote.className = "note";
+  field.append(langNote);
+
+  const list = document.createElement("div");
+  field.append(list);
+  const errorId = appendError(field);
+
+  function renderLangNote(): void {
+    langNote.hidden = state.textLanguage !== "";
+    langNote.textContent =
+      "Set a text language above first — translations describe what language everything else in this event is written in.";
+  }
+
+  function renderCards(): void {
+    list.textContent = "";
+    for (const lang of [...activeLangs].sort()) {
+      list.append(
+        renderLanguageCard(
+          lang,
+          state,
+          onCommit,
+          () => {
+            activeLangs.delete(lang);
+            const patch: TranslationsPatch = {};
+            if (lang in state.translations) {
+              const translations = { ...state.translations };
+              delete translations[lang];
+              patch.translations = translations;
+            }
+            if (state.image.some((r) => lang in r.translations)) {
+              patch.image = state.image.map((r) => {
+                if (!(lang in r.translations)) return r;
+                const translations = { ...r.translations };
+                delete translations[lang];
+                return { ...r, translations };
+              });
+            }
+            if (state.offers.some((r) => lang in r.translations)) {
+              patch.offers = state.offers.map((r) => {
+                if (!(lang in r.translations)) return r;
+                const translations = { ...r.translations };
+                delete translations[lang];
+                return { ...r, translations };
+              });
+            }
+            if (lang in state.eligibilityNoteTranslations) {
+              const m = { ...state.eligibilityNoteTranslations };
+              delete m[lang];
+              patch.eligibilityNoteTranslations = m;
+            }
+            if (lang in state.partOfNameTranslations) {
+              const m = { ...state.partOfNameTranslations };
+              delete m[lang];
+              patch.partOfNameTranslations = m;
+            }
+            onCommit(patch);
+            renderCards();
+          },
+          errorId,
+        ),
+      );
+    }
+    list.append(
+      renderLanguagePicker(
+        () => [...(state.textLanguage ? [state.textLanguage] : []), ...activeLangs],
+        (lang) => {
+          const exists = [...activeLangs].some(
+            (l) => l.toLowerCase() === lang.toLowerCase(),
+          );
+          const isTextLanguage =
+            state.textLanguage !== "" &&
+            lang.toLowerCase() === state.textLanguage.toLowerCase();
+          if (exists || isTextLanguage) return;
+          activeLangs.add(lang);
+          renderCards();
+        },
+      ),
+    );
+  }
+
+  renderLangNote();
+  renderCards();
+
+  return {
+    element: field,
+    refresh(): void {
+      renderLangNote();
+      renderCards();
+    },
+  };
+}
+
 function renderControl(
   control: Control,
   state: FormState,
   onInput: (key: StateKey, value: string | boolean) => void,
-): HTMLElement {
+): { element: HTMLElement; input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement } {
   if (control.kind === "chips") {
     return renderChips(control, state, onInput);
   }
@@ -868,6 +1324,7 @@ function renderControl(
     input = document.createElement("input");
     input.type = control.kind === "checkbox" ? "checkbox" : control.kind;
   }
+  input.id = nextId(control.key);
   input.dataset.key = control.key;
   if (control.placeholder && "placeholder" in input) {
     input.placeholder = control.placeholder;
@@ -882,12 +1339,13 @@ function renderControl(
     input.addEventListener("input", () => onInput(control.key, input.value));
   }
 
-  if (!control.label) return input;
+  if (!control.label) return { element: input, input };
   const wrap = document.createElement("div");
   const label = document.createElement("label");
+  label.htmlFor = input.id;
   label.textContent = control.label;
   wrap.append(label, input);
-  return wrap;
+  return { element: wrap, input };
 }
 
 function renderField(
@@ -918,52 +1376,86 @@ function renderField(
   }
 
   const controls = spec.controls.map((c) => renderControl(c, state, onInput));
+  // Required applies to the field as a whole; for a pair (Date+Time, say)
+  // only the first control actually has to be filled in — the schema never
+  // requires the second, so marking both aria-required would overclaim.
+  if (spec.required) controls[0]?.input.setAttribute("aria-required", "true");
 
   if (field.classList.contains("pair")) {
-    // label above, paired inputs side by side
+    // label above, paired inputs side by side. The label describes the
+    // GROUP, not one input, so it's associated via role="group" +
+    // aria-labelledby rather than a (semantically incorrect) htmlFor —
+    // each sub-control keeps its own <label for> from renderControl.
+    label.id = nextId("label");
     const outer = document.createElement("div");
     outer.className = "field";
     outer.dataset.fieldId = fieldId;
+    outer.setAttribute("role", "group");
+    outer.setAttribute("aria-labelledby", label.id);
     delete field.dataset.fieldId;
     const row = document.createElement("div");
     row.className = "field pair";
-    row.append(...controls);
+    row.append(...controls.map((c) => c.element));
+    let noteId: string | null;
+    let errorId: string;
     if (fieldId === "geo") {
       // Map first (main.ts mounts Leaflet here), then the hint,
       // then the coordinate inputs the map keeps in sync.
       const slot = document.createElement("div");
       slot.dataset.role = "geo-map";
       outer.append(label, slot);
-      appendNote(outer, spec.note);
+      noteId = appendNote(outer, spec.note);
       outer.append(row);
-      appendError(outer);
-      return outer;
+      errorId = appendError(outer);
+    } else {
+      outer.append(label, row);
+      noteId = appendNote(outer, spec.note);
+      errorId = appendError(outer);
     }
-    outer.append(label, row);
-    appendNote(outer, spec.note);
-    appendError(outer);
+    const describedBy = describedByOf(noteId, errorId);
+    if (describedBy) {
+      for (const c of controls) c.input.setAttribute("aria-describedby", describedBy);
+    }
     return outer;
   }
 
-  field.append(label, ...controls);
-  appendNote(field, spec.note);
-  appendError(field);
+  label.htmlFor = controls[0]?.input.id ?? "";
+  field.append(label, ...controls.map((c) => c.element));
+  const noteId = appendNote(field, spec.note);
+  const errorId = appendError(field);
+  const describedBy = describedByOf(noteId, errorId);
+  if (describedBy) controls[0]?.input.setAttribute("aria-describedby", describedBy);
   return field;
 }
 
-function appendNote(field: HTMLElement, note?: string) {
-  if (note) {
-    const p = document.createElement("p");
-    p.className = "note";
-    p.textContent = note;
-    field.append(p);
-  }
+/** Appends the note, if any, and returns its id for aria-describedby — null when there's no note. */
+function appendNote(field: HTMLElement, note?: string): string | null {
+  if (!note) return null;
+  const id = nextId("note");
+  const p = document.createElement("p");
+  p.id = id;
+  p.className = "note";
+  p.textContent = note;
+  field.append(p);
+  return id;
 }
 
-function appendError(field: HTMLElement) {
+/** Appends the (initially empty) error slot and returns its id for aria-describedby. */
+function appendError(field: HTMLElement): string {
+  const id = nextId("error");
   const error = document.createElement("p");
+  error.id = id;
   error.className = "field-error";
   field.append(error);
+  return id;
+}
+
+/** Joins note/error ids into a value for aria-describedby, or undefined when neither exists. */
+function describedByOf(
+  noteId: string | null,
+  errorId: string,
+): string | undefined {
+  return noteId ? `${noteId} ${errorId}` : errorId;
 }
 
 /**
@@ -978,8 +1470,10 @@ export function renderForm(
   extraFields: ReadonlySet<string>,
   onInput: (key: StateKey, value: string | boolean) => void,
   onArrayInput: (key: RepeaterKey, items: Record<string, string>[]) => void,
-): void {
+  onTranslationsCommit: (patch: TranslationsPatch) => void,
+): { refreshTranslations: () => void } {
   root.textContent = "";
+  let refreshTranslations: () => void = () => {};
   for (const section of SECTIONS) {
     const fieldIds = FIELD_REGISTRY.filter(
       (f) =>
@@ -1011,6 +1505,15 @@ export function renderForm(
         );
         continue;
       }
+      // translations reads/writes several state slices at once and has no
+      // single FormState key of its own — its own bespoke renderer, same
+      // precedent as the repeater fields above.
+      if (id === "translations") {
+        const section = renderTranslationsSection(state, onTranslationsCommit);
+        refreshTranslations = section.refresh;
+        details.append(section.element);
+        continue;
+      }
       const field = renderField(id, state, onInput);
       if (id === "venue" && fieldIds.includes("geo")) {
         field.append(renderField("geo", state, onInput));
@@ -1019,6 +1522,7 @@ export function renderForm(
     }
     root.append(details);
   }
+  return { refreshTranslations };
 }
 
 /** Writes per-field validation errors under their inputs. */
