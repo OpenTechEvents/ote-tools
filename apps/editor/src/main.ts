@@ -216,6 +216,7 @@ async function startEditor(repo: string | null): Promise<void> {
   let importMissing: Set<string> | null = null;
 
   const form = el<HTMLFormElement>("event-form");
+  const sectionNav = el<HTMLElement>("section-nav");
   const badge = el<HTMLSpanElement>("valid-badge");
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
@@ -407,6 +408,24 @@ async function startEditor(repo: string | null): Promise<void> {
     );
   }
 
+  /** One pill per rendered section — jumps to it, opening it first if collapsed. */
+  function renderSectionNav(sections: readonly { id: string; title: string }[]): void {
+    sectionNav.textContent = "";
+    for (const { id, title } of sections) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = title;
+      button.addEventListener("click", () => {
+        const target = form.querySelector<HTMLDetailsElement>(`#section-${id}`);
+        if (!target) return;
+        target.open = true;
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      sectionNav.append(button);
+    }
+    sectionNav.hidden = sections.length === 0;
+  }
+
   function render(extra: ReadonlySet<string> = new Set()): void {
     const rendered = renderForm(
       form,
@@ -418,6 +437,7 @@ async function startEditor(repo: string | null): Promise<void> {
       onTranslationsCommit,
     );
     refreshTranslations = rendered.refreshTranslations;
+    renderSectionNav(rendered.sections);
     setAllDay(form, state.allDay);
     markImportGaps(form, importMissing ?? new Set());
     mountMap();
@@ -1055,8 +1075,16 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   // --- review step ----------------------------------------------------------
+  // The same dialog previews the JSON for both modes — repo mode confirms
+  // into "Open GitHub issue", standalone mode into "Copy JSON"/"Download
+  // .json" — so neither ever acts on unreviewed data.
   const review = el<HTMLDialogElement>("review");
   const reviewJson = el<HTMLPreElement>("review-json");
+  el<HTMLParagraphElement>("review-hint-repo").hidden = !hasRepo;
+  el<HTMLParagraphElement>("review-hint-standalone").hidden = hasRepo;
+  el<HTMLButtonElement>("review-confirm").hidden = !hasRepo;
+  el<HTMLButtonElement>("review-copy").hidden = hasRepo;
+  el<HTMLButtonElement>("review-download").hidden = hasRepo;
 
   function openReview(): void {
     const json = JSON.stringify(toEventJson(state), null, 2);
@@ -1115,6 +1143,11 @@ async function startEditor(repo: string | null): Promise<void> {
     openReview();
   });
 
+  el<HTMLButtonElement>("review-standalone").addEventListener("click", () => {
+    if (!revealInvalidDraft()) return;
+    openReview();
+  });
+
   editDirect.addEventListener("click", () => {
     if (repo === null) return;
     if (isNew) {
@@ -1124,13 +1157,14 @@ async function startEditor(repo: string | null): Promise<void> {
     }
   });
 
-  el<HTMLButtonElement>("copy-json").addEventListener("click", () => {
-    if (!revealInvalidDraft()) return;
+  // Reachable only once the draft has already passed revealInvalidDraft() —
+  // that's what got the review dialog open in the first place.
+  el<HTMLButtonElement>("review-copy").addEventListener("click", () => {
     void navigator.clipboard.writeText(eventJsonText(toEventJson(state)));
+    review.close();
   });
 
-  el<HTMLButtonElement>("download-json").addEventListener("click", () => {
-    if (!revealInvalidDraft()) return;
+  el<HTMLButtonElement>("review-download").addEventListener("click", () => {
     const blob = new Blob([`${eventJsonText(toEventJson(state))}\n`], {
       type: "application/json",
     });
@@ -1140,6 +1174,7 @@ async function startEditor(repo: string | null): Promise<void> {
     a.download = `${state.slug || "event"}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    review.close();
   });
 }
 

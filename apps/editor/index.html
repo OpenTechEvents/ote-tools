@@ -126,6 +126,8 @@
         </div>
       </div>
 
+      <nav id="section-nav" aria-label="Form sections" hidden></nav>
+
       <form id="event-form" autocomplete="off"></form>
 
       <ul id="document-errors" hidden></ul>
@@ -141,11 +143,8 @@
           </button>
         </span>
         <span id="generator-output-actions" hidden>
-          <button id="copy-json" type="button" class="secondary">
-            Copy JSON
-          </button>
-          <button id="download-json" type="button" class="primary">
-            Download .json
+          <button id="review-standalone" type="button" class="primary">
+            Review &amp; download
           </button>
         </span>
       </div>
@@ -153,13 +152,22 @@
       <dialog id="review">
         <h2>Review &amp; submit</h2>
         <pre id="review-json"></pre>
-        <p class="hint">
+        <p id="review-hint-repo" class="hint">
           This opens a prefilled GitHub issue in the target repository; a
           maintainer (or the repo's automation) turns it into a pull request.
+        </p>
+        <p id="review-hint-standalone" class="hint" hidden>
+          Nothing is sent anywhere — copy the JSON or download it as a file.
         </p>
         <div class="actions">
           <button id="review-cancel" type="button" class="secondary">
             Back
+          </button>
+          <button id="review-copy" type="button" class="secondary" hidden>
+            Copy JSON
+          </button>
+          <button id="review-download" type="button" class="primary" hidden>
+            Download .json
           </button>
           <button id="review-confirm" type="button" class="primary">
             Open GitHub issue

@@ -19,6 +19,67 @@ function nextId(prefix: string): string {
   return `f-${prefix}-${uid++}`;
 }
 
+// --- info tooltip: a tap/click disclosure, not a hover-only title -----------
+// A `title` attribute needs :hover, which touch doesn't have. A disclosure
+// button (aria-expanded/aria-controls) is the correct pattern for a
+// click-triggered explanation — role="tooltip" is reserved for hover/focus
+// content by the ARIA spec, so it would be the wrong fix, not just a
+// different one. Only one popover is open at a time, closed by clicking
+// elsewhere or Escape.
+let openInfoPopover: { button: HTMLButtonElement; popover: HTMLElement } | null = null;
+
+function closeInfoPopover(): void {
+  if (!openInfoPopover) return;
+  openInfoPopover.button.setAttribute("aria-expanded", "false");
+  openInfoPopover.popover.hidden = true;
+  openInfoPopover = null;
+}
+
+document.addEventListener("click", (e) => {
+  if (!openInfoPopover) return;
+  const target = e.target as Node;
+  if (openInfoPopover.button.contains(target) || openInfoPopover.popover.contains(target)) {
+    return;
+  }
+  closeInfoPopover();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeInfoPopover();
+});
+
+/** The ⓘ next to a label: click/tap to reveal `text`, click elsewhere or Escape to close. */
+function renderInfoToggle(text: string): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.className = "info-wrap";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "info";
+  button.textContent = " ⓘ";
+  button.setAttribute("aria-expanded", "false");
+
+  const popover = document.createElement("span");
+  popover.className = "info-popover";
+  popover.id = nextId("info");
+  popover.textContent = text;
+  popover.hidden = true;
+  button.setAttribute("aria-controls", popover.id);
+
+  button.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const wasOpen = openInfoPopover?.button === button;
+    closeInfoPopover();
+    if (!wasOpen) {
+      popover.hidden = false;
+      button.setAttribute("aria-expanded", "true");
+      openInfoPopover = { button, popover };
+    }
+  });
+
+  wrap.append(button, popover);
+  return wrap;
+}
+
 interface Control {
   key: StateKey;
   label: string;
@@ -98,15 +159,18 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   name: {
     label: "Name",
     required: true,
+    info: "Short display name. It's the one field every export format (ICS, RSS, schema.org) prints somewhere, so keep it readable on its own — not relying on today's date or venue for context.",
     controls: [{ key: "name", label: "", kind: "text" }],
   },
   description: {
     label: "Description",
     note: "Plain text or Markdown.",
+    info: "A longer summary than the name — what the event actually is, for someone who's never heard of it. Most consumers render Markdown; the rest just show the raw text.",
     controls: [{ key: "description", label: "", kind: "textarea" }],
   },
   url: {
     label: "Event page URL",
+    info: "The page describing this event today. Unlike the Event id in File & id, this one is allowed to change if the event moves platforms — leave it empty if there's no dedicated page yet.",
     controls: [
       { key: "url", label: "", kind: "url", placeholder: "https://…" },
     ],
@@ -140,11 +204,13 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   allDay: {
     label: "All-day event",
+    info: "Not an OTE field itself — it decides whether Start/End below serialize as a date (\"2026-10-15\") or a date-time (\"2026-10-15T09:00\"). Toggle it before filling in the times; it changes what the Time inputs mean.",
     controls: [{ key: "allDay", label: "", kind: "checkbox" }],
   },
   startDate: {
     label: "Start",
     required: true,
+    info: "Wall-clock time, not a fixed instant — no UTC offset here, that's what Timezone (below) is for. All-day events use just the date; timed events also need a time.",
     controls: [
       { key: "startDate", label: "Date", kind: "date" },
       { key: "startTime", label: "Time", kind: "time" },
@@ -152,6 +218,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   endDate: {
     label: "End",
+    info: "Must be the same form as Start (both dates, or both date-times) and can't be earlier. Leave empty when the event has no defined end.",
     controls: [
       { key: "endDate", label: "Date", kind: "date" },
       { key: "endTime", label: "Time", kind: "time" },
@@ -174,6 +241,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   status: {
     label: "Status",
     note: "Cancelled or postponed events must stay published.",
+    info: "What happened to the EVENT, not to the data — cancelling it here doesn't delete the file, it marks it so subscribers see the cancellation instead of the entry just vanishing. \"tentative\" is for announced-but-unconfirmed. Defaults to \"scheduled\" when left unset.",
     controls: [
       {
         key: "status",
@@ -194,6 +262,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   attendanceMode: {
     label: "Attendance mode",
     note: "Leave empty when unknown — it never defaults to in-person.",
+    info: "What the organizer says the event is — in-person, online, or both. Absent is a real answer (unknown), never silently assumed to be in-person.",
     controls: [
       {
         key: "attendanceMode",
@@ -206,10 +275,12 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   venue: {
     label: "Venue",
     note: "Human-readable place: name and address. The map below uses it to find the exact position.",
+    info: "One line of free text — the name of the place plus as much address as it takes to get there. Not made redundant by the coordinates below: this is what a person reads, the pin is what a map plots.",
     controls: [{ key: "venue", label: "", kind: "text" }],
   },
   onlineUrl: {
     label: "Online URL",
+    info: "Where to actually join online. Its presence is what tells a consumer this event has online access at all — independent of Attendance mode above.",
     controls: [
       { key: "onlineUrl", label: "", kind: "url", placeholder: "https://…" },
     ],
@@ -240,6 +311,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   license: {
     label: "Data license",
     note: "Usually left empty: the event inherits the feed's license. Suggestions are open, non-viral data licenses (SPDX ids).",
+    info: "Licenses THIS DATA (the JSON), not the event itself. Almost always left empty — the event then inherits whatever the feed as a whole declares.",
     controls: [
       {
         key: "license",
@@ -268,6 +340,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   eligibility: {
     label: "Eligibility",
     note: "Who may attend, when it isn't simply open to anyone.",
+    info: "Answers \"can I go?\" — separate from Attendance mode and Where, which only say whether the event is reachable. Absent never means open: leave it unset rather than guessing.",
     controls: [
       {
         key: "eligibilityType",
@@ -287,6 +360,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   cfp: {
     label: "Call for proposals",
     note: "Only for events accepting talk/workshop submissions.",
+    info: "The one OTE field with no equivalent in ICS, RSS or plain schema.org — it exists because \"which conferences are still accepting proposals\" is a question only the organizer can answer today.",
     controls: [
       { key: "cfpUrl", label: "URL", kind: "url" },
       {
@@ -312,6 +386,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   partOf: {
     label: "Part of (series)",
     note: "Links this occurrence to a recurring series or multi-part event.",
+    info: "A reference to the series, not a recurrence rule — OTE doesn't generate dates. A monthly meetup gets one event file per month, and each one points here at the same series id.",
     controls: [
       { key: "partOfId", label: "Series id (URL)", kind: "url" },
       { key: "partOfName", label: "Name", kind: "text" },
@@ -327,6 +402,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   source: {
     label: "Source (provenance)",
     note: "Only when the event was imported from elsewhere.",
+    info: "Where THIS DATA came from — required when the event was imported or aggregated, skipped when the organizer is describing their own event (they're already the source).",
     controls: [
       { key: "sourceName", label: "Name", kind: "text" },
       { key: "sourceUrl", label: "URL", kind: "url" },
@@ -342,6 +418,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   updatedAt: {
     label: "Updated at",
     note: "Instant the event's data last changed (ISO-8601 with offset).",
+    info: "Not when the EVENT happens or moves (that's Start/End changing) — when this file's DATA last changed, so a consumer can sync only what's new. Leave empty rather than guessing; absent means unknown, not \"never changed\".",
     controls: [
       {
         key: "updatedAt",
@@ -678,6 +755,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
     label: "Images",
     addLabel: "+ Add image",
     note: "First image is the primary one — poster or cover.",
+    info: "The rest of the list can be other crops of the primary image, or different images entirely — a consumer that can only show one always shows the first. Alt text describes what's IN the picture for anyone who can't see it, not the event itself.",
     itemFields: [
       { key: "url", label: "URL", kind: "url", placeholder: "https://…" },
       { key: "alt", label: "Alt text", kind: "text" },
@@ -686,6 +764,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
   offers: {
     label: "Offers (tickets)",
     addLabel: "+ Add offer",
+    info: "One entry per ticket tier — a free event is a single offer with price 0. Absent means unknown, never free: price 0 is the only way to say \"free\".",
     itemFields: [
       {
         key: "name",
@@ -781,14 +860,7 @@ function renderRepeaterField(
   label.id = nextId("label");
   field.setAttribute("aria-labelledby", label.id);
   label.textContent = spec.label;
-  if (spec.info) {
-    const info = document.createElement("span");
-    info.className = "info";
-    info.textContent = " ⓘ";
-    info.title = spec.info;
-    info.tabIndex = 0;
-    label.append(info);
-  }
+  if (spec.info) label.append(renderInfoToggle(spec.info));
   field.append(label);
   appendNote(field, spec.note);
 
@@ -1189,13 +1261,11 @@ function renderTranslationsSection(
   label.id = nextId("label");
   field.setAttribute("aria-labelledby", label.id);
   label.textContent = "Translations";
-  const info = document.createElement("span");
-  info.className = "info";
-  info.textContent = " ⓘ";
-  info.title =
-    "Optional versions of this event's text in other languages. Add a language, then fill in whichever fields below you want translated — the rest are fine left in the original language.";
-  info.tabIndex = 0;
-  label.append(info);
+  label.append(
+    renderInfoToggle(
+      "Optional versions of this event's text in other languages. Add a language, then fill in whichever fields below you want translated — the rest are fine left in the original language.",
+    ),
+  );
   field.append(label);
 
   const langNote = document.createElement("p");
@@ -1366,14 +1436,7 @@ function renderField(
     req.textContent = " *";
     label.append(req);
   }
-  if (spec.info) {
-    const info = document.createElement("span");
-    info.className = "info";
-    info.textContent = " ⓘ";
-    info.title = spec.info;
-    info.tabIndex = 0; // keyboard-reachable, exposes the title
-    label.append(info);
-  }
+  if (spec.info) label.append(renderInfoToggle(spec.info));
 
   const controls = spec.controls.map((c) => renderControl(c, state, onInput));
   // Required applies to the field as a whole; for a pair (Date+Time, say)
@@ -1471,9 +1534,13 @@ export function renderForm(
   onInput: (key: StateKey, value: string | boolean) => void,
   onArrayInput: (key: RepeaterKey, items: Record<string, string>[]) => void,
   onTranslationsCommit: (patch: TranslationsPatch) => void,
-): { refreshTranslations: () => void } {
+): {
+  refreshTranslations: () => void;
+  sections: { id: SectionId; title: string }[];
+} {
   root.textContent = "";
   let refreshTranslations: () => void = () => {};
+  const renderedSections: { id: SectionId; title: string }[] = [];
   for (const section of SECTIONS) {
     const fieldIds = FIELD_REGISTRY.filter(
       (f) =>
@@ -1481,8 +1548,10 @@ export function renderForm(
         (profile.fields.has(f.id) || extraFields.has(f.id)),
     ).map((f) => f.id);
     if (fieldIds.length === 0) continue;
+    renderedSections.push({ id: section, title: SECTION_TITLES[section] });
 
     const details = document.createElement("details");
+    details.id = `section-${section}`;
     details.open = !profile.collapsedSections.has(section);
     const summary = document.createElement("summary");
     summary.textContent = SECTION_TITLES[section];
@@ -1522,7 +1591,7 @@ export function renderForm(
     }
     root.append(details);
   }
-  return { refreshTranslations };
+  return { refreshTranslations, sections: renderedSections };
 }
 
 /** Writes per-field validation errors under their inputs. */
