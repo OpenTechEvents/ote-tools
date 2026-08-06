@@ -531,6 +531,25 @@ select {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* Read-only until "Enter coordinates manually" (the geo Lat/Lon fields) —
+   reads as plain text, not an editable box, until the toggle actually
+   makes it one. Left/right padding drops to 0 so the value lines up with
+   its own label above it instead of looking indented inside an empty box. */
+.field input[type="text"][readonly] {
+  border-color: transparent;
+  background: none;
+  padding-left: 0;
+  padding-right: 0;
+  cursor: default;
+}
+
+.field input[type="text"][readonly]:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .field input[type="checkbox"] {
   width: 1.15rem;
   height: 1.15rem;
