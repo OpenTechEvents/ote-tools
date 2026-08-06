@@ -217,7 +217,7 @@ async function startEditor(repo: string | null): Promise<void> {
 
   const form = el<HTMLFormElement>("event-form");
   const sectionNav = el<HTMLElement>("section-nav");
-  const badge = el<HTMLSpanElement>("valid-badge");
+  const badge = el<HTMLButtonElement>("valid-badge");
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
   const editDirect = el<HTMLButtonElement>("edit-direct");
@@ -312,8 +312,22 @@ async function startEditor(repo: string | null): Promise<void> {
       li.textContent = message;
       documentErrors.append(li);
     }
-    badge.textContent = draftValid ? "✓ Ready" : "Incomplete";
-    badge.className = draftValid ? "ok" : "invalid";
+    // "Ready" is a proactive positive signal; "Incomplete" only shows once
+    // the organizer has actually tried to submit — a blank new-event form
+    // shouldn't open with a badge telling them what they already know.
+    if (draftValid) {
+      badge.hidden = false;
+      badge.textContent = "✓ Ready";
+      badge.className = "ok";
+      badge.disabled = true;
+    } else if (submitAttempted) {
+      badge.hidden = false;
+      badge.textContent = "Incomplete — jump to first error";
+      badge.className = "invalid";
+      badge.disabled = false;
+    } else {
+      badge.hidden = true;
+    }
     editDirect.disabled = !hasRepo || (!isNew && editSlug === null);
     editDirect.title =
       !isNew && editSlug === null
@@ -413,6 +427,37 @@ async function startEditor(repo: string | null): Promise<void> {
   /** One pill per rendered section — jumps to it, opening it first if collapsed. */
   function renderSectionNav(sections: readonly { id: string; title: string }[]): void {
     sectionNav.textContent = "";
+    sectionNav.hidden = sections.length === 0;
+    if (sections.length === 0) return;
+
+    // Under ~40rem (styles.css) this becomes a hamburger dropdown instead
+    // of the horizontal-scrolling pill row — 8 sections is too many to
+    // scroll through sideways on a phone.
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.id = "section-nav-toggle";
+    toggle.textContent = "☰ Sections";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "section-nav-list");
+
+    const list = document.createElement("div");
+    list.id = "section-nav-list";
+
+    const close = () => {
+      list.classList.remove("open");
+      toggle.setAttribute("aria-expanded", "false");
+    };
+    toggle.addEventListener("click", () => {
+      const open = list.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", (e) => {
+      if (!sectionNav.contains(e.target as Node)) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+    });
+
     for (const { id, title } of sections) {
       const button = document.createElement("button");
       button.type = "button";
@@ -422,10 +467,11 @@ async function startEditor(repo: string | null): Promise<void> {
         if (!target) return;
         target.open = true;
         target.scrollIntoView({ behavior: "smooth", block: "start" });
+        close();
       });
-      sectionNav.append(button);
+      list.append(button);
     }
-    sectionNav.hidden = sections.length === 0;
+    sectionNav.append(toggle, list);
   }
 
   function render(extra: ReadonlySet<string> = new Set()): void {
@@ -1126,16 +1172,22 @@ async function startEditor(repo: string | null): Promise<void> {
     }
   });
 
+  /** Opens the `<details>` the first error lives in (if any collapsed) and scrolls to it. */
+  function jumpToFirstError(): void {
+    const firstError = form.querySelector<HTMLElement>(".field-error:not(:empty)");
+    const target = firstError ?? documentErrors;
+    const section = target.closest<HTMLDetailsElement>("details");
+    if (section) section.open = true;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  badge.addEventListener("click", jumpToFirstError);
+
   function revealInvalidDraft(): boolean {
     if (!draftValid) {
       // First invalid attempt reveals every error instead of blocking silently.
       submitAttempted = true;
       refresh();
-      const firstError = form.querySelector(".field-error:not(:empty)");
-      (firstError ?? documentErrors).scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      jumpToFirstError();
       return false;
     }
     return true;

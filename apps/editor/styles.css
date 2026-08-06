@@ -221,14 +221,12 @@ header h1 {
 /* Sticks to the top once scrolled past — same visual language as #action-bar
    (blurred translucent band) so the two sticky bars read as one system. */
 
+/* Mobile-first: a hamburger toggle opening a dropdown list. Under 40rem
+   there isn't room for 8 section pills without horizontal scrolling. */
 #section-nav {
   position: sticky;
   top: 0;
   z-index: 40;
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   padding: 0.6rem 0;
   margin: 0 0 0.75rem;
   background: rgba(255, 255, 255, 0.92);
@@ -236,8 +234,7 @@ header h1 {
   border-bottom: 1px solid var(--border);
 }
 
-#section-nav button {
-  flex: 0 0 auto;
+#section-nav-toggle {
   min-height: 2rem;
   padding: 0.3rem 0.8rem;
   font-size: 0.82rem;
@@ -247,17 +244,93 @@ header h1 {
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  white-space: nowrap;
 }
 
-#section-nav button:hover {
+#section-nav-toggle:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-#section-nav button:focus-visible {
+#section-nav-list {
+  display: none;
+  flex-direction: column;
+  gap: 0.2rem;
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0.5rem 0 0;
+  padding: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+#section-nav-list.open {
+  display: flex;
+}
+
+#section-nav-list button {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+#section-nav-list button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+#section-nav-toggle:focus-visible,
+#section-nav-list button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+@media (min-width: 40rem) {
+  #section-nav {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  #section-nav-toggle {
+    display: none;
+  }
+
+  #section-nav-list {
+    display: flex;
+    position: static;
+    flex-direction: row;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+
+  #section-nav-list button {
+    flex: 0 0 auto;
+    min-height: 2rem;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  #section-nav-list button:hover {
+    background: none;
+    border-color: var(--accent);
+  }
 }
 
 .profile-switch {
@@ -474,6 +547,12 @@ select {
   color: var(--error);
   font-size: 0.82rem;
   margin: 0.25rem 0 0;
+}
+
+.field.has-error input,
+.field.has-error select,
+.field.has-error textarea {
+  border-color: var(--error);
 }
 
 .field-error:not(:empty) {
@@ -977,6 +1056,16 @@ select {
   margin-right: auto;
   font-size: 0.85rem;
   font-weight: 600;
+  border: none;
+  background: none;
+  min-height: 0;
+  padding: 0;
+  cursor: default;
+}
+
+#valid-badge.invalid {
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 #valid-badge.ok {

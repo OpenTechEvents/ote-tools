@@ -2317,6 +2317,7 @@ export function updateErrors(
     const errors = fieldErrors.get(field.dataset.fieldId ?? "");
     const slot = field.querySelector<HTMLElement>(".field-error");
     if (slot) slot.textContent = errors ? errors.join("; ") : "";
+    field.classList.toggle("has-error", (errors?.length ?? 0) > 0);
   }
 }
 
