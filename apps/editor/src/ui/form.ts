@@ -19,6 +19,25 @@ function nextId(prefix: string): string {
   return `f-${prefix}-${uid++}`;
 }
 
+/**
+ * Hides `dependent.element` unless `driver.input`'s current value is one of
+ * `values` — re-evaluated on every change to the driver, and once
+ * immediately (so editing a loaded event starts in the right state). Never
+ * clears the dependent's own value: switching the driver back reveals
+ * whatever was already typed, it doesn't come back empty.
+ */
+function linkVisibility(
+  driver: { input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement },
+  dependent: { element: HTMLElement },
+  values: readonly string[],
+): void {
+  const apply = () => {
+    dependent.element.hidden = !values.includes(driver.input.value);
+  };
+  driver.input.addEventListener("input", apply);
+  apply();
+}
+
 // --- info tooltip: a tap/click disclosure, not a hover-only title -----------
 // A `title` attribute needs :hover, which touch doesn't have. A disclosure
 // button (aria-expanded/aria-controls) is the correct pattern for a
@@ -46,6 +65,63 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeInfoPopover();
 });
+
+/**
+ * Index-only bookkeeping for arrow-key movement over a suggestion `<ul>`'s
+ * `<li role="option">` children. The caller still owns what "select index N"
+ * means and what the list's items actually are — this only tracks which one
+ * is highlighted and keeps `aria-activedescendant` in sync. `handleKey`
+ * returns true when it consumed the key (an Up/Down move); Enter with a
+ * highlighted item is the caller's job to check via `selectedIndex`, so the
+ * existing "commit typed text" Enter behaviour keeps working as the
+ * fallback when nothing is highlighted.
+ */
+function createListNav(input: HTMLInputElement, list: HTMLUListElement) {
+  let index = -1;
+
+  function items(): HTMLLIElement[] {
+    return [...list.querySelectorAll<HTMLLIElement>("li")];
+  }
+
+  function apply(): void {
+    const els = items();
+    els.forEach((li, i) => li.classList.toggle("active", i === index));
+    const active = index >= 0 ? els[index] : undefined;
+    if (active) {
+      if (!active.id) active.id = nextId("opt");
+      input.setAttribute("aria-activedescendant", active.id);
+    } else {
+      input.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  return {
+    get selectedIndex() {
+      return index;
+    },
+    /** Call after the list's contents change — the old highlight no longer applies. */
+    reset(): void {
+      index = -1;
+      apply();
+    },
+    /** Returns true if the key was an Up/Down move it handled. */
+    handleKey(e: KeyboardEvent): boolean {
+      const count = items().length;
+      if (list.hidden || count === 0) return false;
+      if (e.key === "ArrowDown") {
+        index = (index + 1) % count;
+        apply();
+        return true;
+      }
+      if (e.key === "ArrowUp") {
+        index = (index - 1 + count) % count;
+        apply();
+        return true;
+      }
+      return false;
+    },
+  };
+}
 
 /** The ⓘ next to a label: click/tap to reveal `text`, click elsewhere or Escape to close. */
 function renderInfoToggle(text: string): HTMLElement {
@@ -99,6 +175,8 @@ interface Control {
   placeholder?: string;
   /** Autocomplete source for a "chips" control. Defaults to "languages". */
   vocab?: "languages" | "tags";
+  /** Hidden unless the named sibling control's current value is one of `values`. */
+  visibleWhen?: { key: StateKey; values: readonly string[] };
 }
 
 interface FieldSpec {
@@ -353,8 +431,20 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
         label: "Note",
         kind: "text",
         placeholder: "Members of the Rust Girona Discord",
+        visibleWhen: {
+          key: "eligibilityType",
+          values: ["members-only", "approval-required", "restricted"],
+        },
       },
-      { key: "eligibilityUrl", label: "URL", kind: "url" },
+      {
+        key: "eligibilityUrl",
+        label: "URL",
+        kind: "url",
+        visibleWhen: {
+          key: "eligibilityType",
+          values: ["members-only", "approval-required", "restricted"],
+        },
+      },
     ],
   },
   cfp: {
@@ -543,11 +633,25 @@ function renderChips(
   input.className = "chips-input";
   input.placeholder = control.placeholder ?? "Type to add…";
   input.autocomplete = "off";
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-expanded", "false");
   const suggest = document.createElement("ul");
+  suggest.id = nextId("listbox");
   suggest.className = "chips-suggest";
+  suggest.setAttribute("role", "listbox");
   suggest.hidden = true;
+  input.setAttribute("aria-controls", suggest.id);
   wrap.append(list, suggest);
   list.append(input);
+
+  const nav = createListNav(input, suggest);
+  let currentHits: ChipView[] = [];
+
+  function setSuggestHidden(hidden: boolean): void {
+    suggest.hidden = hidden;
+    input.setAttribute("aria-expanded", String(!hidden));
+  }
 
   let values = String(state[control.key])
     .split(",")
@@ -584,17 +688,19 @@ function renderChips(
     if (!clean || values.includes(clean)) return;
     values.push(clean);
     input.value = "";
-    suggest.hidden = true;
+    setSuggestHidden(true);
     renderList();
     commit();
   }
 
   function refreshSuggestions(): void {
     suggest.textContent = "";
-    const hits = vocab.search(input.value, values);
-    suggest.hidden = hits.length === 0;
-    for (const hit of hits) {
+    currentHits = vocab.search(input.value, values);
+    nav.reset();
+    setSuggestHidden(currentHits.length === 0);
+    for (const hit of currentHits) {
       const li = document.createElement("li");
+      li.setAttribute("role", "option");
       const button = document.createElement("button");
       button.type = "button";
       button.append(hit.label);
@@ -617,12 +723,20 @@ function renderChips(
   input.addEventListener("focus", refreshSuggestions);
   input.addEventListener("input", refreshSuggestions);
   input.addEventListener("blur", () => {
-    setTimeout(() => (suggest.hidden = true), 150);
+    setTimeout(() => setSuggestHidden(true), 150);
   });
   input.addEventListener("keydown", (e) => {
+    if (nav.handleKey(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
-      add(vocab.commitValue(input.value));
+      if (nav.selectedIndex >= 0 && currentHits[nav.selectedIndex]) {
+        add(currentHits[nav.selectedIndex].value);
+      } else {
+        add(vocab.commitValue(input.value));
+      }
     } else if (e.key === "Backspace" && input.value === "" && values.length) {
       values = values.slice(0, -1);
       renderList();
@@ -659,21 +773,37 @@ function renderCombobox(
   input.id = nextId(control.key);
   input.dataset.key = control.key;
   input.autocomplete = "off";
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-expanded", "false");
   if (control.placeholder) input.placeholder = control.placeholder;
   const value = state[control.key];
   input.value = typeof value === "string" ? value : "";
 
   const suggest = document.createElement("ul");
+  suggest.id = nextId("listbox");
   suggest.className = "combo-suggest";
+  suggest.setAttribute("role", "listbox");
   suggest.hidden = true;
+  input.setAttribute("aria-controls", suggest.id);
   wrap.append(input, suggest);
+
+  const nav = createListNav(input, suggest);
+  let currentHits: string[] = [];
+
+  function setSuggestHidden(hidden: boolean): void {
+    suggest.hidden = hidden;
+    input.setAttribute("aria-expanded", String(!hidden));
+  }
 
   function refreshSuggestions(query: string): void {
     suggest.textContent = "";
-    const hits = filterZones(control.options ?? [], query);
-    suggest.hidden = hits.length === 0;
-    for (const hit of hits) {
+    currentHits = filterZones(control.options ?? [], query);
+    nav.reset();
+    setSuggestHidden(currentHits.length === 0);
+    for (const hit of currentHits) {
       const li = document.createElement("li");
+      li.setAttribute("role", "option");
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = hit;
@@ -681,7 +811,7 @@ function renderCombobox(
       button.addEventListener("mousedown", (e) => {
         e.preventDefault();
         input.value = hit;
-        suggest.hidden = true;
+        setSuggestHidden(true);
         onInput(control.key, hit);
       });
       li.append(button);
@@ -697,19 +827,25 @@ function renderCombobox(
     onInput(control.key, input.value);
   });
   input.addEventListener("blur", () => {
-    setTimeout(() => (suggest.hidden = true), 150);
+    setTimeout(() => setSuggestHidden(true), 150);
   });
   input.addEventListener("keydown", (e) => {
+    if (nav.handleKey(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
-      const first = suggest.querySelector("button");
-      if (!suggest.hidden && first) {
-        input.value = first.textContent ?? "";
-        suggest.hidden = true;
-        onInput(control.key, input.value);
+      // No explicit highlight yet defaults to the first suggestion — same
+      // as before arrow-key navigation existed.
+      const chosen = currentHits[nav.selectedIndex >= 0 ? nav.selectedIndex : 0];
+      if (!suggest.hidden && chosen !== undefined) {
+        input.value = chosen;
+        setSuggestHidden(true);
+        onInput(control.key, chosen);
       }
     } else if (e.key === "Escape") {
-      suggest.hidden = true;
+      setSuggestHidden(true);
     }
   });
 
@@ -722,6 +858,8 @@ interface RepeaterItemField {
   kind: "text" | "url" | "email" | "number" | "select";
   options?: string[];
   placeholder?: string;
+  /** Hidden unless the named sibling field's current value (within the same row) is one of `values`. */
+  visibleWhen?: { key: string; values: readonly string[] };
 }
 
 interface RepeaterSpec {
@@ -781,7 +919,12 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         kind: "select",
         options: ["", "in-stock", "sold-out"],
       },
-      { key: "waitlistUrl", label: "Waitlist URL", kind: "url" },
+      {
+        key: "waitlistUrl",
+        label: "Waitlist URL",
+        kind: "url",
+        visibleWhen: { key: "availability", values: ["sold-out"] },
+      },
       {
         key: "opensAt",
         label: "Opens at",
@@ -803,7 +946,7 @@ function renderRepeaterItemControl(
   row: Record<string, string>,
   onChange: (key: string, value: string) => void,
   describedBy?: string,
-): HTMLElement {
+): { element: HTMLElement; input: HTMLInputElement | HTMLSelectElement } {
   let input: HTMLInputElement | HTMLSelectElement;
   if (field.kind === "select") {
     input = document.createElement("select");
@@ -825,13 +968,13 @@ function renderRepeaterItemControl(
   input.value = row[field.key] ?? "";
   input.addEventListener("input", () => onChange(field.key, input.value));
 
-  if (!field.label) return input;
+  if (!field.label) return { element: input, input };
   const wrap = document.createElement("div");
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.textContent = field.label;
   wrap.append(label, input);
-  return wrap;
+  return { element: wrap, input };
 }
 
 /**
@@ -899,19 +1042,24 @@ function renderRepeaterField(
 
       const fields = document.createElement("div");
       fields.className = "repeater-item-fields";
-      for (const itemField of spec.itemFields) {
-        fields.append(
-          renderRepeaterItemControl(
-            itemField,
-            row,
-            (key, value) => {
-              row[key] = value;
-              commit();
-            },
-            errorId,
-          ),
-        );
-      }
+      const rendered = spec.itemFields.map((itemField) =>
+        renderRepeaterItemControl(
+          itemField,
+          row,
+          (key, value) => {
+            row[key] = value;
+            commit();
+          },
+          errorId,
+        ),
+      );
+      const byKey = new Map(spec.itemFields.map((f, i) => [f.key, rendered[i]]));
+      spec.itemFields.forEach((f, i) => {
+        if (!f.visibleWhen) return;
+        const driver = byKey.get(f.visibleWhen.key);
+        if (driver) linkVisibility(driver, rendered[i], f.visibleWhen.values);
+      });
+      for (const r of rendered) fields.append(r.element);
 
       item.append(remove, fields);
       list.append(item);
@@ -1010,13 +1158,27 @@ function renderLanguagePicker(
   input.type = "text";
   input.className = "chips-input";
   input.setAttribute("aria-label", "Add a translation language");
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-expanded", "false");
   input.placeholder = "Type a language to add… (es, en…)";
   input.autocomplete = "off";
   const suggest = document.createElement("ul");
+  suggest.id = nextId("listbox");
   suggest.className = "chips-suggest";
+  suggest.setAttribute("role", "listbox");
   suggest.hidden = true;
+  input.setAttribute("aria-controls", suggest.id);
   wrap.append(list, suggest);
   list.append(input);
+
+  const nav = createListNav(input, suggest);
+  let currentHits: { code: string; name: string }[] = [];
+
+  function setSuggestHidden(hidden: boolean): void {
+    suggest.hidden = hidden;
+    input.setAttribute("aria-expanded", String(!hidden));
+  }
 
   function commitValue(raw: string): string {
     const q = raw.trim().toLowerCase();
@@ -1030,7 +1192,7 @@ function renderLanguagePicker(
     const clean = value.trim();
     if (!clean) return;
     input.value = "";
-    suggest.hidden = true;
+    setSuggestHidden(true);
     onAdd(clean);
   }
 
@@ -1038,14 +1200,16 @@ function renderLanguagePicker(
     suggest.textContent = "";
     const exclude = excluded().map((l) => l.toLowerCase());
     const q = input.value.trim().toLowerCase();
-    const hits = LANGUAGE_SUGGESTIONS.filter(
+    currentHits = LANGUAGE_SUGGESTIONS.filter(
       (l) =>
         !exclude.includes(l.code) &&
         (q === "" || l.code.startsWith(q) || l.name.toLowerCase().includes(q)),
     ).slice(0, 6);
-    suggest.hidden = hits.length === 0;
-    for (const hit of hits) {
+    nav.reset();
+    setSuggestHidden(currentHits.length === 0);
+    for (const hit of currentHits) {
       const li = document.createElement("li");
+      li.setAttribute("role", "option");
       const button = document.createElement("button");
       button.type = "button";
       button.append(`${hit.code} · ${hit.name}`);
@@ -1062,12 +1226,22 @@ function renderLanguagePicker(
   input.addEventListener("focus", refreshSuggestions);
   input.addEventListener("input", refreshSuggestions);
   input.addEventListener("blur", () => {
-    setTimeout(() => (suggest.hidden = true), 150);
+    setTimeout(() => setSuggestHidden(true), 150);
   });
   input.addEventListener("keydown", (e) => {
+    if (nav.handleKey(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
-      add(commitValue(input.value));
+      if (nav.selectedIndex >= 0 && currentHits[nav.selectedIndex]) {
+        add(currentHits[nav.selectedIndex].code);
+      } else {
+        add(commitValue(input.value));
+      }
+    } else if (e.key === "Escape") {
+      setSuggestHidden(true);
     }
   });
 
@@ -1443,6 +1617,13 @@ function renderField(
   // only the first control actually has to be filled in — the schema never
   // requires the second, so marking both aria-required would overclaim.
   if (spec.required) controls[0]?.input.setAttribute("aria-required", "true");
+
+  const byKey = new Map(spec.controls.map((c, i) => [c.key, controls[i]]));
+  spec.controls.forEach((c, i) => {
+    if (!c.visibleWhen) return;
+    const driver = byKey.get(c.visibleWhen.key);
+    if (driver) linkVisibility(driver, controls[i], c.visibleWhen.values);
+  });
 
   if (field.classList.contains("pair")) {
     // label above, paired inputs side by side. The label describes the

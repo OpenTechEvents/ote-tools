@@ -638,7 +638,8 @@ select {
   cursor: pointer;
 }
 
-.chips-suggest button:hover {
+.chips-suggest button:hover,
+.chips-suggest li.active button {
   background: var(--accent-soft);
 }
 
@@ -796,7 +797,8 @@ select {
   cursor: pointer;
 }
 
-.combo-suggest button:hover {
+.combo-suggest button:hover,
+.combo-suggest li.active button {
   background: var(--accent-soft);
 }
 
