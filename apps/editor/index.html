@@ -87,15 +87,6 @@
 
       <nav id="mode">
         <div class="menu-button" id="new-event-menu">
-          <input
-            type="radio"
-            name="mode"
-            value="new"
-            checked
-            class="visually-hidden"
-            tabindex="-1"
-            id="mode-new"
-          />
           <button
             type="button"
             id="new-event-toggle"
@@ -126,25 +117,9 @@
             </button>
           </div>
         </div>
-        <div class="mode-toggle" role="radiogroup" aria-label="Mode">
-          <label>
-            <input type="radio" name="mode" value="edit" />
-            <span data-i18n="nav.editExisting">Edit existing</span>
-          </label>
-        </div>
         <button id="repo-connect-open" type="button" class="secondary" hidden data-i18n="nav.connectFeed">
           Connect a feed
         </button>
-        <div id="event-combo" class="combo" hidden>
-          <input
-            id="event-combo-input"
-            type="text"
-            placeholder="Loading events…"
-            data-i18n-placeholder="nav.comboLoading"
-            autocomplete="off"
-          />
-          <ul id="event-combo-list" hidden></ul>
-        </div>
         <span class="profile-switch-label" data-i18n="nav.profile">Profile</span>
         <div
           class="mode-toggle"
@@ -153,6 +128,41 @@
           aria-label="Profile"
         ></div>
       </nav>
+
+      <!-- Repo mode's landing view: every event in the feed as cards, from
+           which an organizer creates/edits/deletes. Hidden in standalone
+           (no ?repo=) mode, which has no feed to list and goes straight to
+           the form view below. -->
+      <section id="events-list-view" hidden>
+        <div class="events-list-toolbar">
+          <input
+            id="events-search"
+            type="text"
+            placeholder="Loading events…"
+            data-i18n-placeholder="nav.comboLoading"
+            autocomplete="off"
+            aria-label="Search events"
+            data-i18n-aria-label="nav.eventsSearchLabel"
+          />
+          <button id="events-refresh" type="button" class="secondary" data-i18n="action.refreshEvents">
+            ↻ Refresh
+          </button>
+        </div>
+        <p id="events-empty" class="hint" hidden data-i18n="nav.comboEmpty">
+          No events found in this repository
+        </p>
+        <div id="events-grid"></div>
+      </section>
+
+      <!-- The form view — hidden while events-list-view is showing (toggled
+           by main.ts's showView()). Each inner element keeps its own
+           content-driven `hidden` logic (section-nav, document-errors…)
+           untouched; this wrapper is a second, independent layer on top of
+           that, not a replacement for it. -->
+      <div id="form-view">
+      <button id="back-to-list" type="button" class="secondary" hidden data-i18n="nav.backToEvents">
+        ← Back to events
+      </button>
 
       <div id="import-banner" hidden>
         <p id="import-banner-text"></p>
@@ -227,6 +237,7 @@
             Review &amp; download
           </button>
         </span>
+      </div>
       </div>
 
       <dialog id="review">

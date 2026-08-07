@@ -28,13 +28,14 @@ export const es: Record<string, string> = {
   "nav.blankEvent": "Evento en blanco",
   "nav.importFromEventPage": "Importar desde página del evento",
   "nav.importIcs": "Importar .ics",
-  "nav.editExisting": "Editar existente",
   "nav.connectFeed": "Conectar un feed",
   "nav.profile": "Perfil",
   "nav.comboLoading": "Cargando eventos…",
   "nav.comboFilter": "Escribe para filtrar, o elige un evento…",
   "nav.comboEmpty": "No se encontraron eventos en este repositorio",
   "nav.sectionsMenu": "☰ Secciones",
+  "nav.eventsSearchLabel": "Buscar eventos",
+  "nav.backToEvents": "← Volver a eventos",
 
   // --- dialogs -----------------------------------------------------------
   "dialog.repoConnect.title": "Conectar un feed",
@@ -76,6 +77,11 @@ export const es: Record<string, string> = {
   "action.revertChanges": "Descartar cambios",
   "action.editDirectlyUnavailable":
     "No se pudo determinar el nombre de archivo de este evento a partir del feed.",
+  "action.edit": "Editar",
+  "action.delete": "Eliminar",
+  "action.deleteDirect": "Eliminar en GitHub",
+  "action.deleteViaIssue": "Proponer eliminación",
+  "action.refreshEvents": "↻ Actualizar",
 
   // --- valid badge -----------------------------------------------------------
   "badge.ready": "✓ Listo",
@@ -354,6 +360,14 @@ export const es: Record<string, string> = {
   "field.offers.closesAt.label": "Se cierra el",
   "field.offers.closesAt.info":
     "Cuándo deja de estar disponible este tipo de entrada (termina la venta) — no el final del propio evento.",
+
+  // --- events list view -----------------------------------------------------------
+  "ui.eventCard.noDate": "Sin fecha",
+  "ui.eventStatus.cancelled": "Cancelado",
+  "ui.eventStatus.tentative": "Provisional",
+  "ui.eventStatus.postponed": "Pospuesto",
+  "ui.eventStatus.rescheduled": "Reprogramado",
+  "ui.eventStatus.moved-online": "Trasladado a online",
 
   // --- generic UI chrome -----------------------------------------------------------
   "ui.notSet": "(sin establecer)",

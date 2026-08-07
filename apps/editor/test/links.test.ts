@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_URL_LENGTH,
   directCreateUrl,
+  directDeleteUrl,
   directEditUrl,
   eventJsonFromIssueBody,
   eventJsonText,
   proposeChangeUrl,
+  proposeDeleteUrl,
 } from "../src/lib/links.js";
 import type { OteEvent } from "../src/lib/types.js";
 
@@ -110,5 +112,43 @@ describe("directCreateUrl", () => {
     expect(result.url).toContain("filename=s.json");
     expect(result.url).not.toContain("value=");
     expect(result.copyText).toContain('"description"');
+  });
+});
+
+describe("directDeleteUrl", () => {
+  it("opens GitHub's own delete-confirmation page for events/<slug>.json", () => {
+    expect(directDeleteUrl("o/r", "2026-06-async", "main")).toBe(
+      "https://github.com/o/r/delete/main/events/2026-06-async.json",
+    );
+  });
+
+  it("defaults to HEAD when the branch is unknown", () => {
+    expect(directDeleteUrl("o/r", "s")).toBe(
+      "https://github.com/o/r/delete/HEAD/events/s.json",
+    );
+  });
+});
+
+describe("proposeDeleteUrl", () => {
+  it("builds a prefilled issue URL naming the file and id, no JSON block", () => {
+    const result = proposeDeleteUrl("o/r", "2026-06-async", event);
+    expect(result.kind).toBe("url");
+    if (result.kind !== "url") return;
+    const url = new URL(result.url);
+    expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
+    expect(url.searchParams.get("title")).toBe("[ote-event] Delete: Async night");
+    const body = url.searchParams.get("body") ?? "";
+    expect(body).toContain("events/2026-06-async.json");
+    expect(body).toContain(event.id);
+    expect(body).not.toContain("```json");
+  });
+
+  it("falls back to a blank issue + copy-paste above the URL limit", () => {
+    const longId = "https://x.example/" + "x".repeat(MAX_URL_LENGTH);
+    const result = proposeDeleteUrl("o/r", "s", { ...event, id: longId });
+    expect(result.kind).toBe("fallback");
+    if (result.kind !== "fallback") return;
+    expect(result.url).toBe("https://github.com/o/r/issues/new");
+    expect(result.copyText).toContain(longId);
   });
 });

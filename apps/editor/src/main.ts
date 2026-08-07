@@ -35,9 +35,11 @@ import {
 } from "./lib/event-json.js";
 import {
   directCreateUrl,
+  directDeleteUrl,
   directEditUrl,
   eventJsonText,
   proposeChangeUrl,
+  proposeDeleteUrl,
   type LinkResult,
 } from "./lib/links.js";
 import {
@@ -255,6 +257,27 @@ async function startEditor(repo: string | null): Promise<void> {
 
   // Fields the last ICS import did not carry; null = no import in progress.
   let importMissing: Set<string> | null = null;
+
+  // Repo mode lands on the events list; standalone mode has no feed to
+  // list, so it goes straight to the form, same as before this view existed.
+  let view: "list" | "form" = hasRepo ? "list" : "form";
+  const eventsListView = el<HTMLElement>("events-list-view");
+  const formView = el<HTMLElement>("form-view");
+  const backToList = el<HTMLButtonElement>("back-to-list");
+
+  /** Toggles the two top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
+  function showView(): void {
+    eventsListView.hidden = view !== "list";
+    formView.hidden = view !== "form";
+    backToList.hidden = !hasRepo || view !== "form";
+  }
+  showView();
+  backToList.addEventListener("click", () => {
+    pauseImportBanner(); // leaving the current draft's context
+    view = "list";
+    showView();
+    renderEventsGrid(eventsSearch.value);
+  });
 
   const form = el<HTMLFormElement>("event-form");
   const sectionNav = el<HTMLElement>("section-nav");
@@ -561,52 +584,144 @@ async function startEditor(repo: string | null): Promise<void> {
   render();
 
   // --- event listing: contents API first, Pages feed.json fallback -------
-  // Rendered as a filter-as-you-type combobox over the loaded events.
-  const combo = el<HTMLDivElement>("event-combo");
-  const comboInput = el<HTMLInputElement>("event-combo-input");
-  const comboList = el<HTMLUListElement>("event-combo-list");
-  const editModeLabel = document
-    .querySelector<HTMLInputElement>('input[name="mode"][value="edit"]')
-    ?.closest("label");
-  if (editModeLabel instanceof HTMLElement) editModeLabel.hidden = !hasRepo;
+  // Rendered as a searchable card grid (events-list-view), repo mode's
+  // landing view — pickEvent()/directDeleteUrl()/proposeDeleteUrl() give
+  // each card its actions.
+  const eventsSearch = el<HTMLInputElement>("events-search");
+  const eventsGrid = el<HTMLDivElement>("events-grid");
+  const eventsEmpty = el<HTMLParagraphElement>("events-empty");
+  const eventsRefresh = el<HTMLButtonElement>("events-refresh");
 
   function eventLabel(event: OteEvent): string {
     const day = (event.startDate ?? "????").split("T")[0];
     return `${day} — ${event.name ?? event.id}`;
   }
 
-  function renderComboList(query: string): void {
-    comboList.textContent = "";
+  /** First image's URL, if any — an image entry is a bare string or an {url, alt} object; "first is primary" is the same convention documented on REPEATER_SPECS.image in ui/form.ts. */
+  function firstImageUrl(event: OteEvent): string | null {
+    const first = event.image?.[0];
+    if (typeof first === "string") return first || null;
+    return first?.url || null;
+  }
+
+  function renderEventCard(entry: ListedEvent, index: number): HTMLElement {
+    const { event, slug } = entry;
+    const card = document.createElement("article");
+    card.className = "event-card";
+
+    const thumb = document.createElement("div");
+    thumb.className = "event-card-thumb";
+    const imageUrl = firstImageUrl(event);
+    if (imageUrl) {
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = "";
+      thumb.append(img);
+    } else {
+      thumb.classList.add("placeholder");
+    }
+    card.append(thumb);
+
+    const body = document.createElement("div");
+    body.className = "event-card-body";
+
+    const meta = document.createElement("p");
+    meta.className = "event-card-meta";
+    const day = (event.startDate ?? "").split("T")[0];
+    meta.append(day || t("ui.eventCard.noDate", "No date"));
+    if (event.attendanceMode && event.attendanceMode !== "in-person") {
+      meta.append(` · ${event.attendanceMode}`);
+    }
+    body.append(meta);
+
+    const name = document.createElement("h3");
+    name.textContent = event.name || event.id;
+    body.append(name);
+
+    if (event.location?.venue) {
+      const loc = document.createElement("p");
+      loc.className = "event-card-location";
+      loc.textContent = `📍 ${event.location.venue}`;
+      body.append(loc);
+    }
+
+    if (event.status && event.status !== "scheduled") {
+      const statusBadge = document.createElement("span");
+      statusBadge.className = `event-card-status status-${event.status}`;
+      statusBadge.textContent = t(`ui.eventStatus.${event.status}`, event.status);
+      body.append(statusBadge);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "event-card-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "secondary";
+    editBtn.textContent = t("action.edit", "Edit");
+    editBtn.addEventListener("click", () => pickEvent(index));
+    actions.append(editBtn);
+
+    // Delete never happens inside this app — both actions just open GitHub's
+    // own UI (its native delete-confirmation page, or a prefilled issue),
+    // same zero-backend pattern as "Edit directly"/"Review & submit".
+    if (repo !== null) {
+      const details = document.createElement("details");
+      details.className = "event-card-delete";
+      const summary = document.createElement("summary");
+      summary.textContent = t("action.delete", "Delete");
+      details.append(summary);
+      const menu = document.createElement("div");
+      menu.className = "event-card-delete-menu";
+
+      const directBtn = document.createElement("button");
+      directBtn.type = "button";
+      directBtn.textContent = t("action.deleteDirect", "Delete on GitHub");
+      directBtn.disabled = slug === null;
+      directBtn.title =
+        slug === null
+          ? t(
+              "action.editDirectlyUnavailable",
+              "This event's filename could not be determined from the feed.",
+            )
+          : "";
+      directBtn.addEventListener("click", () => {
+        if (slug === null) return;
+        window.open(directDeleteUrl(repo, slug, branch), "_blank", "noopener");
+        details.open = false;
+      });
+      menu.append(directBtn);
+
+      const proposeBtn = document.createElement("button");
+      proposeBtn.type = "button";
+      proposeBtn.textContent = t("action.deleteViaIssue", "Propose deletion");
+      proposeBtn.addEventListener("click", () => {
+        follow(proposeDeleteUrl(repo, slug, event));
+        details.open = false;
+      });
+      menu.append(proposeBtn);
+
+      details.append(menu);
+      actions.append(details);
+    }
+
+    body.append(actions);
+    card.append(body);
+    return card;
+  }
+
+  function renderEventsGrid(query: string): void {
+    eventsGrid.textContent = "";
+    eventsEmpty.hidden = listed.length > 0;
     const q = query.trim().toLowerCase();
     const hits = listed
       .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => eventLabel(entry.event).toLowerCase().includes(q))
-      .slice(0, 8);
-    comboList.hidden = hits.length === 0;
-    for (const { entry, index } of hits) {
-      const li = document.createElement("li");
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = eventLabel(entry.event);
-      // mousedown, not click: it must win over the input's blur
-      button.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        comboInput.value = eventLabel(entry.event);
-        comboList.hidden = true;
-        pickEvent(index);
-      });
-      li.append(button);
-      comboList.append(li);
-    }
+      .filter(({ entry }) => eventLabel(entry.event).toLowerCase().includes(q));
+    for (const { entry, index } of hits) eventsGrid.append(renderEventCard(entry, index));
   }
 
-  comboInput.addEventListener("focus", () => renderComboList(""));
-  comboInput.addEventListener("input", () =>
-    renderComboList(comboInput.value),
-  );
-  comboInput.addEventListener("blur", () => {
-    setTimeout(() => (comboList.hidden = true), 150);
-  });
+  eventsSearch.addEventListener("input", () => renderEventsGrid(eventsSearch.value));
+  eventsRefresh.addEventListener("click", () => void loadEvents());
 
   async function loadEvents(): Promise<void> {
     if (fetchPlan === null) return;
@@ -633,11 +748,9 @@ async function startEditor(repo: string | null): Promise<void> {
         );
       }
     }
-    comboInput.placeholder =
-      listed.length > 0
-        ? t("nav.comboFilter", "Type to filter, or pick an event…")
-        : t("nav.comboEmpty", "No events found in this repository");
-    comboInput.disabled = listed.length === 0;
+    eventsSearch.placeholder = t("nav.comboFilter", "Type to filter, or pick an event…");
+    eventsSearch.disabled = listed.length === 0;
+    renderEventsGrid(eventsSearch.value);
     refresh(); // collision checks were waiting for the listing
   }
 
@@ -671,31 +784,25 @@ async function startEditor(repo: string | null): Promise<void> {
   }
   resetButton.addEventListener("click", resetDraft);
 
-  for (const radio of document.querySelectorAll<HTMLInputElement>(
-    'input[name="mode"]',
-  )) {
-    radio.addEventListener("input", () => {
-      isNew = radio.value === "new";
-      combo.hidden = isNew;
-      touched = new Set();
-      submitAttempted = false;
-      if (isNew) {
-        // A pending import queue survives the round-trip to edit mode.
-        if (queue.length > 0) {
-          loadImported();
-          return;
-        }
-        resetToBlank();
-      } else {
-        pauseImportBanner();
-        refresh(); // disables "edit directly" until an event is chosen
-      }
-    });
+  /** "+ New event"'s three actions all start here: a fresh draft (or the pending import queue, if there is one), landing on the form view. Editing an existing event instead goes through pickEvent(), which sets isNew = false itself. */
+  function enterNewMode(): void {
+    isNew = true;
+    touched = new Set();
+    submitAttempted = false;
+    view = "form";
+    showView();
+    if (queue.length > 0) {
+      loadImported();
+      return;
+    }
+    resetToBlank();
   }
 
   function pickEvent(index: number): void {
     const chosen = listed[index];
     if (!chosen) return;
+    pauseImportBanner(); // leaving any in-progress import/new-event context
+    isNew = false;
     editSlug = chosen.slug;
     state = fromEventJson(chosen.event, chosen.slug ?? "");
     loadedSnapshot = structuredClone(state);
@@ -704,6 +811,8 @@ async function startEditor(repo: string | null): Promise<void> {
     touched = new Set();
     submitAttempted = false;
     render(extraFieldsFor(chosen.event, profile));
+    view = "form";
+    showView();
   }
 
   // --- ICS import -----------------------------------------------------------
@@ -949,32 +1058,22 @@ async function startEditor(repo: string | null): Promise<void> {
 
   // --- "+ New event" menu: blank draft, or either import dialog above -------
   {
-    const modeNewRadio = el<HTMLInputElement>("mode-new");
     const menu = el<HTMLDivElement>("new-event-menu");
     const toggle = el<HTMLButtonElement>("new-event-toggle");
     const list = el<HTMLDivElement>("new-event-list");
     const closeMenu = wireDropdown(toggle, list, menu);
 
-    /** Ensures we're actually in "new" mode before acting — a no-op if already there. */
-    function ensureNewMode(): void {
-      if (!modeNewRadio.checked) {
-        modeNewRadio.checked = true;
-        modeNewRadio.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    }
-
     list.querySelector('[data-action="blank"]')?.addEventListener("click", () => {
-      ensureNewMode();
-      resetDraft();
+      enterNewMode();
       closeMenu();
     });
     list.querySelector('[data-action="jsonld"]')?.addEventListener("click", () => {
-      ensureNewMode();
+      enterNewMode();
       jsonldDialog.showModal();
       closeMenu();
     });
     list.querySelector('[data-action="ics"]')?.addEventListener("click", () => {
-      ensureNewMode();
+      enterNewMode();
       importDialog.showModal();
       closeMenu();
     });
@@ -1074,13 +1173,10 @@ async function startEditor(repo: string | null): Promise<void> {
   /** Prefills the form with the queue's current event and updates the banner. */
   function loadImported(): void {
     const item = queue[queuePos];
-    // Import always lands on "new event" mode.
-    const newRadio = document.querySelector<HTMLInputElement>(
-      'input[name="mode"][value="new"]',
-    );
-    if (newRadio) newRadio.checked = true;
+    // Import always lands on "new event" mode, in the form view.
     isNew = true;
-    combo.hidden = true;
+    view = "form";
+    showView();
     editSlug = null;
     loadedSnapshot = null;
     const fresh = item.state === null;

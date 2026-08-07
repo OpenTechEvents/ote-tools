@@ -97,3 +97,46 @@ export function directCreateUrl(
     copyText: json,
   };
 }
+
+/**
+ * "Eliminar directamente": GitHub's own native delete-confirmation page for
+ * the file — same URL family as directEditUrl (/blob/) and directCreateUrl
+ * (/new/), just /delete/. Owner-only in practice (needs push); this app
+ * never deletes anything itself, it only opens GitHub's own UI for it.
+ */
+export function directDeleteUrl(
+  repo: string,
+  slug: string,
+  branch = "HEAD",
+): string {
+  return `https://github.com/${repo}/delete/${branch}/events/${slug}.json`;
+}
+
+/**
+ * "Proponer eliminación": a prefilled issue asking a maintainer to delete
+ * the file — for anyone without push access. Unlike proposeChangeUrl there
+ * is no JSON to parse automatically (the fork's issue-processing workflow
+ * has no delete-parsing today); this is a plain-text ask a human reads.
+ * `slug` is null when the listing came from the published feed fallback
+ * (its filename can't be derived) — the id alone still identifies the event.
+ */
+export function proposeDeleteUrl(
+  repo: string,
+  slug: string | null,
+  event: OteEvent,
+): LinkResult {
+  const base = `https://github.com/${repo}/issues/new`;
+  const title = `[ote-event] Delete: ${event.name ?? slug ?? event.id}`;
+  const body = [
+    "Please delete this event — it's no longer happening / was added by mistake.",
+    "",
+    ...(slug !== null ? [`File: \`events/${slug}.json\``] : []),
+    `Id: ${event.id}`,
+    "",
+    "(opened via the OTE editor)",
+  ].join("\n");
+  const params = new URLSearchParams({ title, body });
+  const url = `${base}?${params}`;
+  if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };
+  return { kind: "fallback", url: base, copyText: body };
+}
