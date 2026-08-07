@@ -4,8 +4,8 @@ import type { OrganizerRow, OteConfig } from "./types.js";
 /**
  * Flat, all-string form model for ote.config.json's `feed` block — same
  * "" = unset convention as FormState. Scoped to the fields this dialog
- * actually edits; `profile`/`customProfile` and `feed.translations` live
- * outside it (see toOteConfigJson for how they're preserved anyway).
+ * actually edits; `profile`/`customProfile` live outside it entirely (see
+ * toOteConfigJson for how they're preserved anyway).
  */
 export interface FeedConfigState {
   title: string;
@@ -15,6 +15,8 @@ export interface FeedConfigState {
   licenseUrl: string;
   textLanguage: string;
   organizers: OrganizerRow[];
+  /** BCP 47 tag → { title?, description? } in that language. */
+  translations: Record<string, { title: string; description: string }>;
 }
 
 /** A fresh, empty settings draft — used when a repo has no ote.config.json yet. */
@@ -27,6 +29,7 @@ export function emptyFeedConfigState(): FeedConfigState {
     licenseUrl: "",
     textLanguage: "",
     organizers: [],
+    translations: {},
   };
 }
 
@@ -46,6 +49,12 @@ export function fromOteConfig(config: OteConfig | null): FeedConfigState {
       email: o.email ?? "",
       type: o.type ?? "",
     })),
+    translations: Object.fromEntries(
+      Object.entries(feed?.translations ?? {}).map(([lang, entry]) => [
+        lang,
+        { title: entry.title ?? "", description: entry.description ?? "" },
+      ]),
+    ),
   };
 }
 
@@ -80,6 +89,16 @@ export function toOteConfigJson(
   const organizers = state.organizers.filter((row) => !isRowEmpty(row)).map(cleanRow);
   if (organizers.length > 0) feed.organizers = organizers;
   else delete feed.organizers;
+
+  const translations: Record<string, unknown> = {};
+  for (const [lang, entry] of Object.entries(state.translations)) {
+    const wrapped: Record<string, string> = {};
+    if (entry.title) wrapped.title = entry.title;
+    if (entry.description) wrapped.description = entry.description;
+    if (Object.keys(wrapped).length > 0) translations[lang] = wrapped;
+  }
+  if (Object.keys(translations).length > 0) feed.translations = translations;
+  else delete feed.translations;
 
   return { ...(rawConfig ?? {}), feed };
 }

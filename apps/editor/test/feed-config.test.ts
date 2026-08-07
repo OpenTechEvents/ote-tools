@@ -29,7 +29,7 @@ const realish = {
 };
 
 describe("emptyFeedConfigState", () => {
-  it("is all-empty, no organizers", () => {
+  it("is all-empty, no organizers, no translations", () => {
     expect(emptyFeedConfigState()).toEqual({
       title: "",
       description: "",
@@ -38,6 +38,7 @@ describe("emptyFeedConfigState", () => {
       licenseUrl: "",
       textLanguage: "",
       organizers: [],
+      translations: {},
     });
   });
 });
@@ -88,7 +89,7 @@ describe("toOteConfigJson", () => {
     expect(feed.organizers).toEqual(realish.feed.organizers);
   });
 
-  it("preserves feed.translations even though this form never edits it", () => {
+  it("round-trips existing feed.translations unchanged when the form doesn't touch them", () => {
     const withTranslations = {
       feed: { title: "x", translations: { es: { title: "x-es" } } },
     };
@@ -101,6 +102,27 @@ describe("toOteConfigJson", () => {
     const feed = result.feed as Record<string, unknown>;
     expect(feed.title).toBe("y");
     expect(feed.translations).toEqual({ es: { title: "x-es" } });
+  });
+
+  it("writes an edited translation and drops language entries left fully blank", () => {
+    const state = emptyFeedConfigState();
+    state.title = "x";
+    state.translations = {
+      es: { title: "x-es", description: "" },
+      fr: { title: "", description: "" },
+    };
+    const result = toOteConfigJson(state, null);
+    const feed = result.feed as Record<string, unknown>;
+    expect(feed.translations).toEqual({ es: { title: "x-es" } });
+  });
+
+  it("omits translations entirely when every language ends up blank", () => {
+    const withTranslations = { feed: { title: "x", translations: { es: { title: "x-es" } } } };
+    const state = fromOteConfig(withTranslations as unknown as OteConfig);
+    state.translations = {};
+    const result = toOteConfigJson(state, withTranslations as unknown as Record<string, unknown>);
+    const feed = result.feed as Record<string, unknown>;
+    expect(feed.translations).toBeUndefined();
   });
 
   it("drops blank organizer rows and empty string fields, same as events' own organizers", () => {

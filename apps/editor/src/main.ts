@@ -71,7 +71,9 @@ import { validateDraft } from "./lib/validation.js";
 import {
   LANGUAGE_SUGGESTIONS,
   markImportGaps,
+  renderFeedTranslations,
   renderForm,
+  renderInfoToggle,
   renderRepeaterField,
   setAllDay,
   updateErrors,
@@ -274,19 +276,21 @@ async function startEditor(repo: string | null): Promise<void> {
 
   // Repo mode lands on the events list; standalone mode has no feed to
   // list, so it goes straight to the form, same as before this view existed.
-  let view: "list" | "form" = hasRepo ? "list" : "form";
+  let view: "list" | "form" | "settings" = hasRepo ? "list" : "form";
   const eventsListView = el<HTMLElement>("events-list-view");
   const formView = el<HTMLElement>("form-view");
+  const feedSettingsView = el<HTMLElement>("feed-settings-view");
   const backToList = el<HTMLButtonElement>("back-to-list");
   const profileSwitch = el<HTMLElement>("profile-switch");
 
-  /** Toggles the two top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
+  /** Toggles the three top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
   function showView(): void {
     eventsListView.hidden = view !== "list";
     formView.hidden = view !== "form";
-    backToList.hidden = !hasRepo || view !== "form";
-    // Profile pre-filters which FORM fields show — meaningless while
-    // browsing the list, so it only makes sense once a draft is open.
+    feedSettingsView.hidden = view !== "settings";
+    backToList.hidden = !hasRepo || view === "list";
+    // Profile pre-filters which FORM fields show — meaningless outside the
+    // form itself.
     profileSwitch.hidden = view !== "form";
   }
   showView();
@@ -345,15 +349,14 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   // --- feed settings: edits ote.config.json's `feed` block only ----------
-  // Repo-level (not tied to any one event), so it's a small self-contained
-  // dialog wired directly here — same precedent as #repo-connect above —
-  // rather than routed through ui/form.ts's per-field/validation machinery,
-  // which this doesn't need: ote.config.json isn't checked against the OTE
-  // JSON Schema at all.
+  // A third top-level view (list/form/settings), not a dialog — makes
+  // better use of the screen than a modal for a form this size. Wired
+  // directly here rather than routed through ui/form.ts's per-field/
+  // validation machinery, which this doesn't need: ote.config.json isn't
+  // checked against the OTE JSON Schema at all.
   const feedSettingsOpen = el<HTMLButtonElement>("feed-settings-open");
   feedSettingsOpen.hidden = !hasRepo;
   if (hasRepo) {
-    const feedSettingsDialog = el<HTMLDialogElement>("feed-settings-dialog");
     const feedTitleInput = el<HTMLInputElement>("feed-title");
     const feedDescriptionInput = el<HTMLTextAreaElement>("feed-description");
     const feedUrlInput = el<HTMLInputElement>("feed-url");
@@ -361,6 +364,40 @@ async function startEditor(repo: string | null): Promise<void> {
     const feedLicenseUrlInput = el<HTMLInputElement>("feed-license-url");
     const feedTextLanguageInput = el<HTMLInputElement>("feed-text-language");
     const feedOrganizersSlot = el<HTMLDivElement>("feed-organizers-slot");
+    const feedTranslationsSlot = el<HTMLDivElement>("feed-translations-slot");
+
+    // Info tooltips, same widget every other field in the app uses — added
+    // once here (these labels are static, never re-rendered) rather than
+    // hand-authoring the popover markup/interaction a second time.
+    const feedInfo: Record<string, string> = {
+      "feed-title": t(
+        "dialog.feedSettings.titleInfo",
+        "Shown as your feed's name wherever it's listed or embedded.",
+      ),
+      "feed-description": t(
+        "dialog.feedSettings.descriptionInfo",
+        "A short summary of what this feed covers.",
+      ),
+      "feed-url": t(
+        "dialog.feedSettings.urlInfo",
+        "Your community's own website or feed homepage — not the events/ files themselves.",
+      ),
+      "feed-license": t(
+        "dialog.feedSettings.licenseInfo",
+        "License of your event DATA (not of the events themselves). CC0-1.0 (public domain) or CC-BY-4.0 (requires attribution) are common choices; any SPDX identifier or URL works.",
+      ),
+      "feed-license-url": t(
+        "dialog.feedSettings.licenseUrlInfo",
+        "Link to the full license text, if the license itself needs explaining.",
+      ),
+      "feed-text-language": t(
+        "dialog.feedSettings.textLanguageInfo",
+        "The language your feed's title/description (and your events' name/description) are written in. Only needed if you use translations.",
+      ),
+    };
+    for (const [id, info] of Object.entries(feedInfo)) {
+      document.querySelector(`label[for="${id}"]`)?.append(renderInfoToggle(info));
+    }
 
     const feedLanguageSuggestions = el<HTMLDataListElement>("feed-language-suggestions");
     for (const lang of LANGUAGE_SUGGESTIONS) {
@@ -374,14 +411,37 @@ async function startEditor(repo: string | null): Promise<void> {
 
     function renderFeedOrganizers(): void {
       feedOrganizersSlot.textContent = "";
-      feedOrganizersSlot.append(
-        renderRepeaterField(
-          "organizers",
-          feedState.organizers as unknown as Record<string, string>[],
-          (_key, items) => {
-            feedState.organizers = items as unknown as OrganizerRow[];
+      const rendered = renderRepeaterField(
+        "organizers",
+        feedState.organizers as unknown as Record<string, string>[],
+        (_key, items) => {
+          feedState.organizers = items as unknown as OrganizerRow[];
+        },
+        () => "",
+      );
+      // REPEATER_SPECS.organizers' own info text is written for the EVENT
+      // organizers field ("replaces the feed's own list for this event") —
+      // wrong here, where this *is* the feed's own list. Same widget,
+      // different tooltip copy.
+      const info = rendered.querySelector<HTMLElement>(".info-popover");
+      if (info) {
+        info.textContent = t(
+          "dialog.feedSettings.organizersInfo",
+          "Who runs your community, by default. Every event inherits this list unless it declares its own organizers, which then REPLACES it, not merges.",
+        );
+      }
+      feedOrganizersSlot.append(rendered);
+    }
+
+    function renderFeedTranslationsUI(): void {
+      feedTranslationsSlot.textContent = "";
+      feedTranslationsSlot.append(
+        renderFeedTranslations(
+          feedState.translations,
+          () => ({ title: feedState.title, description: feedState.description }),
+          (translations) => {
+            feedState.translations = translations;
           },
-          () => "",
         ),
       );
     }
@@ -395,7 +455,9 @@ async function startEditor(repo: string | null): Promise<void> {
       feedLicenseUrlInput.value = feedState.licenseUrl;
       feedTextLanguageInput.value = feedState.textLanguage;
       renderFeedOrganizers();
-      feedSettingsDialog.showModal();
+      renderFeedTranslationsUI();
+      view = "settings";
+      showView();
     });
 
     feedTitleInput.addEventListener("input", () => (feedState.title = feedTitleInput.value));
@@ -414,9 +476,6 @@ async function startEditor(repo: string | null): Promise<void> {
       () => (feedState.textLanguage = feedTextLanguageInput.value),
     );
 
-    el<HTMLButtonElement>("feed-settings-cancel").addEventListener("click", () =>
-      feedSettingsDialog.close(),
-    );
     el<HTMLButtonElement>("feed-settings-save").addEventListener("click", () => {
       if (repo === null) return;
       follow(
@@ -426,7 +485,9 @@ async function startEditor(repo: string | null): Promise<void> {
           toOteConfigJson(feedState, config as unknown as Record<string, unknown> | null),
         ),
       );
-      feedSettingsDialog.close();
+      view = "list";
+      showView();
+      renderEventsGrid(eventsSearch.value);
     });
   }
 

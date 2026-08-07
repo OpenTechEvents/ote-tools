@@ -126,7 +126,7 @@ function createListNav(input: HTMLInputElement, list: HTMLUListElement) {
 }
 
 /** The ⓘ next to a label: click/tap to reveal `text`, click elsewhere or Escape to close. */
-function renderInfoToggle(text: string): HTMLElement {
+export function renderInfoToggle(text: string): HTMLElement {
   const wrap = document.createElement("span");
   wrap.className = "info-wrap";
 
@@ -1795,6 +1795,132 @@ function renderLanguagePicker(
   });
 
   return wrap;
+}
+
+/**
+ * Feed-level translations (title/description in other languages) — same
+ * self-contained-subtree pattern as renderRepeaterField/renderChips above:
+ * owns `translations` in closure, re-renders only its own list, commits the
+ * whole map via onChange. Reuses renderLanguagePicker/renderTranslationSlot
+ * as-is (both already state-shape-agnostic) rather than
+ * renderTranslationsSection, which is tied to FormState's own event-only
+ * slots (image alts, offer names…) that a feed doesn't have.
+ */
+export function renderFeedTranslations(
+  initial: Record<string, { title: string; description: string }>,
+  getOriginal: () => { title: string; description: string },
+  onChange: (translations: Record<string, { title: string; description: string }>) => void,
+): HTMLElement {
+  let translations = { ...initial };
+
+  const field = document.createElement("div");
+  field.className = "field repeater";
+  field.dataset.fieldId = "feedTranslations";
+  field.setAttribute("role", "group");
+
+  const label = document.createElement("label");
+  label.id = nextId("label");
+  field.setAttribute("aria-labelledby", label.id);
+  label.textContent = t("section.translations", "Translations");
+  label.append(
+    renderInfoToggle(
+      t(
+        "ui.feedTranslations.info",
+        "Optional versions of the feed's title and description in other languages.",
+      ),
+    ),
+  );
+  field.append(label);
+
+  const list = document.createElement("div");
+  field.append(list);
+
+  function commit(): void {
+    onChange(translations);
+  }
+
+  function renderList(): void {
+    list.textContent = "";
+    for (const lang of Object.keys(translations).sort()) {
+      const card = document.createElement("div");
+      card.className = "repeater-item";
+      card.setAttribute("role", "group");
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "repeater-remove";
+      remove.setAttribute(
+        "aria-label",
+        t("ui.translations.removeLanguage", "Remove {lang} translation").replace("{lang}", lang),
+      );
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        const next = { ...translations };
+        delete next[lang];
+        translations = next;
+        renderList();
+        commit();
+      });
+
+      const heading = document.createElement("p");
+      heading.id = nextId("heading");
+      heading.className = "translation-lang";
+      heading.textContent = lang;
+      card.setAttribute("aria-labelledby", heading.id);
+
+      const fields = document.createElement("div");
+      fields.className = "repeater-item-fields";
+
+      // Reads getOriginal()/translations[lang] fresh on every call rather
+      // than closing over a snapshot — this card isn't remounted between
+      // keystrokes, so editing Description after Title must not clobber
+      // Title back to its value from when the card was first drawn.
+      const original = getOriginal();
+      const entry = translations[lang] ?? { title: "", description: "" };
+      const setEntry = (patch: Partial<{ title: string; description: string }>) => {
+        const current = translations[lang] ?? { title: "", description: "" };
+        translations = { ...translations, [lang]: { ...current, ...patch } };
+        commit();
+      };
+
+      fields.append(
+        renderTranslationSlot(
+          t("dialog.feedSettings.titleLabel", "Title"),
+          original.title,
+          entry.title,
+          false,
+          (v) => setEntry({ title: v }),
+        ),
+      );
+      fields.append(
+        renderTranslationSlot(
+          t("dialog.feedSettings.descriptionLabel", "Description"),
+          original.description,
+          entry.description,
+          true,
+          (v) => setEntry({ description: v }),
+        ),
+      );
+
+      card.append(heading, remove, fields);
+      list.append(card);
+    }
+  }
+
+  field.append(
+    renderLanguagePicker(
+      () => Object.keys(translations),
+      (lang) => {
+        if (lang in translations) return;
+        translations = { ...translations, [lang]: { title: "", description: "" } };
+        renderList();
+        commit();
+      },
+    ),
+  );
+
+  renderList();
+  return field;
 }
 
 /**

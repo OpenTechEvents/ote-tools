@@ -52,6 +52,19 @@ export const es: Record<string, string> = {
   "dialog.feedSettings.licenseLabel": "Licencia",
   "dialog.feedSettings.licenseUrlLabel": "URL de la licencia",
   "dialog.feedSettings.textLanguageLabel": "Idioma del texto",
+  "dialog.feedSettings.titleInfo":
+    "Se muestra como el nombre de tu feed allá donde aparezca listado o incrustado.",
+  "dialog.feedSettings.descriptionInfo": "Un resumen breve de qué cubre este feed.",
+  "dialog.feedSettings.urlInfo":
+    "La web de tu comunidad o la página principal del feed — no los propios ficheros de events/.",
+  "dialog.feedSettings.licenseInfo":
+    "Licencia de los DATOS de tus eventos (no de los eventos en sí). CC0-1.0 (dominio público) o CC-BY-4.0 (requiere atribución) son opciones habituales; vale cualquier identificador SPDX o URL.",
+  "dialog.feedSettings.licenseUrlInfo":
+    "Enlace al texto completo de la licencia, si la licencia en sí necesita explicación.",
+  "dialog.feedSettings.textLanguageInfo":
+    "El idioma en el que están escritos el título/descripción de tu feed (y el nombre/descripción de tus eventos). Solo hace falta si usas traducciones.",
+  "dialog.feedSettings.organizersInfo":
+    "Quién organiza tu comunidad, por defecto. Cada evento hereda esta lista salvo que declare sus propios organizadores, que entonces la REEMPLAZAN, no se combinan con ella.",
   "dialog.review.title": "Revisar y enviar",
   "dialog.review.hintRepo":
     "Esto abre un issue de GitHub prerrellenado en el repositorio de destino; una persona mantenedora (o la automatización del repositorio) lo convierte en un pull request.",
@@ -410,6 +423,8 @@ export const es: Record<string, string> = {
     "Versiones opcionales del texto de este evento en otros idiomas. Añade un idioma y luego rellena los campos que quieras traducir — el resto puede quedarse en el idioma original.",
   "ui.translations.setLanguageFirst":
     "Primero establece un idioma del texto arriba — las traducciones describen en qué idioma está escrito el resto del evento.",
+  "ui.feedTranslations.info":
+    "Versiones opcionales del título y la descripción del feed en otros idiomas.",
   "ui.translations.removeLanguage": "Eliminar traducción al {lang}",
   "ui.translations.slot.name": "Nombre",
   "ui.translations.slot.description": "Descripción",
