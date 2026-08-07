@@ -1622,7 +1622,8 @@ footer {
 #import-dialog,
 #jsonld-dialog,
 #repo-connect,
-#delete-dialog {
+#delete-dialog,
+#recurrence-dialog {
   border: none;
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
@@ -1633,14 +1634,16 @@ footer {
 #import-dialog::backdrop,
 #jsonld-dialog::backdrop,
 #repo-connect::backdrop,
-#delete-dialog::backdrop {
+#delete-dialog::backdrop,
+#recurrence-dialog::backdrop {
   background: rgba(28, 33, 40, 0.45);
 }
 
 #import-dialog h2,
 #jsonld-dialog h2,
 #repo-connect h2,
-#delete-dialog h2 {
+#delete-dialog h2,
+#recurrence-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
 }
@@ -1788,6 +1791,112 @@ footer {
   width: 1.05rem;
   height: 1.05rem;
   accent-color: var(--accent);
+}
+
+/* --- "Repeat as a series" dialog ------------------------------------------------ */
+
+.recurrence-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+.recurrence-field:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.recurrence-field select,
+.recurrence-field input {
+  min-height: 2.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}
+
+#recurrence-interval {
+  width: 5rem;
+}
+
+#recurrence-until {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin: 0.75rem 0;
+}
+
+#recurrence-until legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0 0.3rem;
+}
+
+#recurrence-until label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+#recurrence-until-count {
+  width: 4rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}
+
+#recurrence-warnings {
+  background: #fff8e1;
+  border: 1px solid #e6c65c;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+#recurrence-warnings p {
+  margin: 0.2rem 0;
+}
+
+#recurrence-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+#recurrence-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#recurrence-list label:hover {
+  background: var(--accent-soft);
+}
+
+#recurrence-list input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
+#recurrence-dialog .actions {
+  justify-content: flex-end;
 }
 
 /* --- feed settings: default-profile field checklist ------------------------- */

@@ -58,6 +58,7 @@ import {
   type ResolvedProfile,
 } from "./lib/presets.js";
 import { forgetRepoUsed, getRecentRepos, recordRepoUsed } from "./lib/recent-repos.js";
+import { expandRecurrenceDates, MAX_OCCURRENCES, type RecurrenceRule } from "./lib/recurrence.js";
 import {
   editorContextFromSearch,
   parseContentsListing,
@@ -317,6 +318,7 @@ async function startEditor(repo: string | null): Promise<void> {
   const sectionNav = el<HTMLElement>("section-nav");
   const badge = el<HTMLButtonElement>("valid-badge");
   const resetButton = el<HTMLButtonElement>("reset-draft");
+  const repeatSeriesOpen = el<HTMLButtonElement>("repeat-series-open");
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
   const editDirect = el<HTMLButtonElement>("edit-direct");
@@ -812,6 +814,7 @@ async function startEditor(repo: string | null): Promise<void> {
       ? t("action.reset", "Reset")
       : t("action.revertChanges", "Revert changes");
     resetButton.disabled = !isNew && loadedSnapshot === null;
+    repeatSeriesOpen.hidden = !isNew;
     editDirect.disabled = !hasRepo || (!isNew && editSlug === null);
     editDirect.title =
       !isNew && editSlug === null
@@ -1465,6 +1468,107 @@ async function startEditor(repo: string | null): Promise<void> {
     jsonldDialog.close(),
   );
 
+  // --- source: recurring series (generated, not imported) --------------------
+  // Uses the current draft as the template for every occurrence — only
+  // startDate/endDate/id differ per generated event. Feeds the exact same
+  // showDetected()/importSelected() queue pipeline as ICS/JSON-LD import, so
+  // the organizer reviews/edits/submits each occurrence the same way.
+  const recurrenceDialog = el<HTMLDialogElement>("recurrence-dialog");
+  const recurrenceFrequency = el<HTMLSelectElement>("recurrence-frequency");
+  const recurrenceOrdinalField = el<HTMLLabelElement>("recurrence-ordinal-field");
+  const recurrenceOrdinal = el<HTMLSelectElement>("recurrence-ordinal");
+  const recurrenceWeekday = el<HTMLSelectElement>("recurrence-weekday");
+  const recurrenceFrom = el<HTMLInputElement>("recurrence-from");
+  const recurrenceInterval = el<HTMLInputElement>("recurrence-interval");
+  const recurrenceUntilCount = el<HTMLInputElement>("recurrence-until-count");
+  const recurrenceUntilDate = el<HTMLInputElement>("recurrence-until-date");
+  const recurrenceUi: DetectedUi = {
+    list: el<HTMLUListElement>("recurrence-list"),
+    warningsBox: el<HTMLDivElement>("recurrence-warnings"),
+    status: el<HTMLParagraphElement>("recurrence-status"),
+    confirm: el<HTMLButtonElement>("recurrence-confirm"),
+    emptyMessage: t(
+      "dialog.recurrence.empty",
+      "No occurrences generated — check the recurrence fields above.",
+    ),
+  };
+
+  recurrenceUi.list.addEventListener("input", () => updateConfirm(recurrenceUi));
+
+  function updateRecurrenceFrequencyUi(): void {
+    recurrenceOrdinalField.hidden = recurrenceFrequency.value !== "monthly";
+  }
+  recurrenceFrequency.addEventListener("input", updateRecurrenceFrequencyUi);
+  updateRecurrenceFrequencyUi();
+
+  function updateRecurrenceUntilUi(): void {
+    const mode =
+      recurrenceDialog.querySelector<HTMLInputElement>(
+        'input[name="recurrence-until-mode"]:checked',
+      )?.value ?? "count";
+    recurrenceUntilCount.disabled = mode !== "count";
+    recurrenceUntilDate.disabled = mode !== "date";
+  }
+  recurrenceDialog
+    .querySelectorAll<HTMLInputElement>('input[name="recurrence-until-mode"]')
+    .forEach((radio) => radio.addEventListener("input", updateRecurrenceUntilUi));
+
+  repeatSeriesOpen.addEventListener("click", () => {
+    const from = state.startDate || new Date().toISOString().slice(0, 10);
+    recurrenceFrom.value = from;
+    recurrenceWeekday.value = String(new Date(`${from}T00:00:00Z`).getUTCDay());
+    recurrenceDialog.showModal();
+  });
+
+  el<HTMLButtonElement>("recurrence-cancel").addEventListener("click", () =>
+    recurrenceDialog.close(),
+  );
+
+  function readRecurrenceRule(): RecurrenceRule {
+    const untilMode =
+      recurrenceDialog.querySelector<HTMLInputElement>(
+        'input[name="recurrence-until-mode"]:checked',
+      )?.value ?? "count";
+    return {
+      frequency: recurrenceFrequency.value === "monthly" ? "monthly" : "weekly",
+      interval: Number(recurrenceInterval.value),
+      weekday: Number(recurrenceWeekday.value) as RecurrenceRule["weekday"],
+      ordinal: Number(recurrenceOrdinal.value) as 1 | 2 | 3 | 4 | -1,
+      from: recurrenceFrom.value,
+      until:
+        untilMode === "date"
+          ? { type: "date", date: recurrenceUntilDate.value }
+          : { type: "count", count: Number(recurrenceUntilCount.value) },
+    };
+  }
+
+  /** One `ImportedEvent` per date, everything else copied from the current draft. */
+  function buildRecurringEvents(dates: readonly string[]): ImportedEvent[] {
+    return dates.map((date) => {
+      const occState: FormState = {
+        ...state,
+        id: "",
+        startDate: date,
+        endDate: state.endDate ? date : "",
+      };
+      return toEventJson(occState) as unknown as ImportedEvent;
+    });
+  }
+
+  el<HTMLButtonElement>("recurrence-generate").addEventListener("click", () => {
+    const dates = expandRecurrenceDates(readRecurrenceRule());
+    const warnings: ImportedWarning[] = [];
+    if (dates.length === MAX_OCCURRENCES) {
+      warnings.push({
+        message: t(
+          "dialog.recurrence.cappedWarning",
+          "Capped at {max} occurrences — generate again later to continue the series.",
+        ).replace("{max}", String(MAX_OCCURRENCES)),
+      });
+    }
+    showDetected(recurrenceUi, { events: buildRecurringEvents(dates), warnings }, null);
+  });
+
   // --- "+ New event" menu: blank draft, or either import dialog above -------
   {
     const menu = el<HTMLDivElement>("new-event-menu");
@@ -1521,6 +1625,10 @@ async function startEditor(repo: string | null): Promise<void> {
 
   el<HTMLButtonElement>("jsonld-confirm").addEventListener("click", () =>
     importSelected(jsonldUi, jsonldDialog, "page"),
+  );
+
+  el<HTMLButtonElement>("recurrence-confirm").addEventListener("click", () =>
+    importSelected(recurrenceUi, recurrenceDialog, "recurring"),
   );
 
   /** Banner: position, per-event warnings, submitted state, nav buttons. */
