@@ -1875,8 +1875,8 @@ footer {
   display: block;
 }
 
-.recurrence-generate {
-  margin-left: 0.5rem;
+.recurrence-rows > .hint {
+  margin-top: 0.5rem;
 }
 
 /* --- recurrence: "Custom recurrence" dialog --------------------------------- */

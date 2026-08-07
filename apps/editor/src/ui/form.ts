@@ -1543,6 +1543,12 @@ const RECURRENCE_PRESET_ORDER: readonly RecurrencePresetKind[] = [
   "everyWeekday",
 ];
 const RECURRENCE_CUSTOM_VALUE = "__custom__";
+/** Display-only option shown (and selected) instead of the generic
+ * "Custom…" once a row actually has a custom rule — its text is the
+ * computed summary ("Every 2 months on the first Friday, 5 times"),
+ * Google-Calendar-style. Picking it does nothing (it's already selected);
+ * "Custom…" itself stays in the list to reopen and adjust it. */
+const RECURRENCE_CUSTOM_SUMMARY_VALUE = "__custom_current__";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -1569,6 +1575,96 @@ function recurrenceMonthDay(date: string): string {
 function recurrenceOrdinalWord(ordinal: 1 | 2 | 3 | 4): string {
   const fallback = { 1: "first", 2: "second", 3: "third", 4: "fourth" }[ordinal];
   return t(`dialog.recurrenceRow.ordinalWord.${ordinal}`, fallback);
+}
+
+/** Any real date whose weekday is `weekday` — Intl needs an actual Date to
+ * read a locale weekday name off of; only the weekday matters here, so
+ * today's own date is offset to the nearest match. */
+function recurrenceReferenceDateForWeekday(weekday: Weekday): Date {
+  const today = new Date();
+  const diff = weekday - today.getUTCDay();
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + diff));
+}
+
+function recurrenceWeekdayNameByNumber(weekday: Weekday): string {
+  return new Intl.DateTimeFormat(getLocale(), { weekday: "long", timeZone: "UTC" }).format(
+    recurrenceReferenceDateForWeekday(weekday),
+  );
+}
+
+function recurrenceShortWeekdayNameByNumber(weekday: Weekday): string {
+  return new Intl.DateTimeFormat(getLocale(), { weekday: "short", timeZone: "UTC" }).format(
+    recurrenceReferenceDateForWeekday(weekday),
+  );
+}
+
+/**
+ * Google-Calendar-style computed summary for a customized rule — e.g.
+ * "Every 2 months on the first Friday, 5 times" or "Every week on Mon,
+ * Wed, Fri, until Aug 28". Shown as the row's selected option once
+ * "Custom…" has been configured, in place of the generic label.
+ */
+function recurrenceCustomSummaryLabel(rule: RecurrenceRule): string {
+  const n = rule.interval;
+  let middle: string;
+  switch (rule.frequency) {
+    case "daily":
+      middle =
+        n === 1
+          ? t("dialog.recurrenceRow.custom.daily", "Every day")
+          : t("dialog.recurrenceRow.custom.dailyN", "Every {n} days").replace("{n}", String(n));
+      break;
+    case "weekly": {
+      const days = [...rule.weekdays]
+        .sort((a, b) => a - b)
+        .map(recurrenceShortWeekdayNameByNumber)
+        .join(", ");
+      middle =
+        n === 1
+          ? t("dialog.recurrenceRow.custom.weekly", "Every week on {days}").replace("{days}", days)
+          : t("dialog.recurrenceRow.custom.weeklyN", "Every {n} weeks on {days}")
+              .replace("{n}", String(n))
+              .replace("{days}", days);
+      break;
+    }
+    case "monthly": {
+      const ordinalText =
+        rule.ordinal === -1 ? t("dialog.recurrenceRow.last", "last") : recurrenceOrdinalWord(rule.ordinal);
+      const weekday = recurrenceWeekdayNameByNumber(rule.weekday);
+      middle =
+        n === 1
+          ? t("dialog.recurrenceRow.custom.monthly", "Every month on the {ordinal} {weekday}")
+              .replace("{ordinal}", ordinalText)
+              .replace("{weekday}", weekday)
+          : t("dialog.recurrenceRow.custom.monthlyN", "Every {n} months on the {ordinal} {weekday}")
+              .replace("{n}", String(n))
+              .replace("{ordinal}", ordinalText)
+              .replace("{weekday}", weekday);
+      break;
+    }
+    case "yearly":
+      middle =
+        n === 1
+          ? t("dialog.recurrenceRow.custom.yearly", "Every year on {date}").replace(
+              "{date}",
+              recurrenceMonthDay(rule.from),
+            )
+          : t("dialog.recurrenceRow.custom.yearlyN", "Every {n} years on {date}")
+              .replace("{n}", String(n))
+              .replace("{date}", recurrenceMonthDay(rule.from));
+      break;
+  }
+  const endsSuffix =
+    rule.until.type === "date"
+      ? t("dialog.recurrenceRow.custom.untilDate", ", until {date}").replace(
+          "{date}",
+          recurrenceMonthDay(rule.until.date),
+        )
+      : t("dialog.recurrenceRow.custom.untilCount", ", {count} times").replace(
+          "{count}",
+          String(rule.until.count),
+        );
+  return middle + endsSuffix;
 }
 
 /** A fresh preset-derived rule for `kind`, anchored on `date` — bounded at
@@ -1647,7 +1743,6 @@ interface RecurrenceRowState {
 export function renderRecurrenceRows(
   defaultDate: string,
   defaultName: string,
-  onGenerate: (series: RecurrenceSeriesInput[]) => void,
   onCustomize: (current: RecurrenceRule | null, apply: (rule: RecurrenceRule) => void) => void,
   /** Fires on every add/remove and on the first row's own date/time edits —
    * the "when" section uses it to hide the draft's own Start/End (which
@@ -1657,7 +1752,7 @@ export function renderRecurrenceRows(
     hasRows: boolean,
     first: { date: string; startTime: string; endTime: string } | null,
   ) => void,
-): HTMLElement {
+): { element: HTMLElement; getSeries: () => RecurrenceSeriesInput[] } {
   const wrap = document.createElement("div");
   wrap.className = "field recurrence-rows";
 
@@ -1674,12 +1769,14 @@ export function renderRecurrenceRows(
   addButton.textContent = t("dialog.recurrenceRow.addLabel", "+ Add recurrence");
   wrap.append(addButton);
 
-  const generateButton = document.createElement("button");
-  generateButton.type = "button";
-  generateButton.className = "secondary recurrence-generate";
-  generateButton.textContent = t("action.generate", "Generate occurrences");
-  generateButton.hidden = true;
-  wrap.append(generateButton);
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent = t(
+    "dialog.recurrenceRow.generateHint",
+    "Review & submit / Review & download below will generate every occurrence for review once you've added at least one recurrence.",
+  );
+  hint.hidden = true;
+  wrap.append(hint);
 
   const rows: RecurrenceRowState[] = [];
 
@@ -1709,11 +1806,17 @@ export function renderRecurrenceRows(
       option.textContent = recurrencePresetLabel(kind, row.date || todayIso());
       select.append(option);
     }
+    if (row.mode === "custom") {
+      const summaryOption = document.createElement("option");
+      summaryOption.value = RECURRENCE_CUSTOM_SUMMARY_VALUE;
+      summaryOption.textContent = recurrenceCustomSummaryLabel(row.rule);
+      select.append(summaryOption);
+    }
     const customOption = document.createElement("option");
     customOption.value = RECURRENCE_CUSTOM_VALUE;
     customOption.textContent = t("dialog.recurrenceRow.custom", "Custom…");
     select.append(customOption);
-    select.value = row.mode === "custom" ? RECURRENCE_CUSTOM_VALUE : row.mode;
+    select.value = row.mode === "custom" ? RECURRENCE_CUSTOM_SUMMARY_VALUE : row.mode;
   }
 
   function renderRow(row: RecurrenceRowState): HTMLElement {
@@ -1732,7 +1835,7 @@ export function renderRecurrenceRows(
       const index = rows.findIndex((r) => r.key === row.key);
       if (index !== -1) rows.splice(index, 1);
       item.remove();
-      generateButton.hidden = rows.length === 0;
+      hint.hidden = rows.length === 0;
       notifyRowsChanged();
     });
 
@@ -1804,7 +1907,7 @@ export function renderRecurrenceRows(
         // Undo the native selection optimistically — it only sticks once
         // the custom dialog is actually confirmed (apply below), matching
         // "Cancel" leaving the row exactly as it was.
-        select.value = row.mode === "custom" ? RECURRENCE_CUSTOM_VALUE : row.mode;
+        select.value = row.mode === "custom" ? RECURRENCE_CUSTOM_SUMMARY_VALUE : row.mode;
         onCustomize(row.rule, (rule) => {
           row.mode = "custom";
           row.rule = rule;
@@ -1836,14 +1939,13 @@ export function renderRecurrenceRows(
     };
     rows.push(row);
     list.append(renderRow(row));
-    generateButton.hidden = false;
+    hint.hidden = false;
     notifyRowsChanged();
   }
 
   addButton.addEventListener("click", addRow);
-  generateButton.addEventListener("click", () => onGenerate(currentSeries()));
 
-  return wrap;
+  return { element: wrap, getSeries: currentSeries };
 }
 
 /**
@@ -3013,7 +3115,6 @@ export function renderForm(
   onTranslationsCommit: (patch: TranslationsPatch) => void,
   /** Called whenever Venue's block (re)appears or disappears — main.ts uses it to (re)mount the geo map, since it can no longer assume the map slot exists right after renderForm returns. */
   onWhereRebuilt: () => void,
-  onGenerateRecurrenceSeries: (series: RecurrenceSeriesInput[]) => void,
   onCustomizeRecurrenceRule: (
     current: RecurrenceRule | null,
     apply: (rule: RecurrenceRule) => void,
@@ -3021,9 +3122,11 @@ export function renderForm(
 ): {
   refreshTranslations: () => void;
   sections: { id: SectionId; title: string }[];
+  getRecurrenceSeries: () => RecurrenceSeriesInput[];
 } {
   root.textContent = "";
   let refreshTranslations: () => void = () => {};
+  let getRecurrenceSeries: () => RecurrenceSeriesInput[] = () => [];
   const renderedSections: { id: SectionId; title: string }[] = [];
 
   // Deliberately small — a nudge for the picker's chip styling, not an
@@ -3119,25 +3222,24 @@ export function renderForm(
         // them mirroring the first row instead, so the draft stays a
         // valid document if submitted directly without generating.
         if (id === "allDay") {
-          details.append(
-            renderRecurrenceRows(
-              state.startDate,
-              state.name,
-              onGenerateRecurrenceSeries,
-              onCustomizeRecurrenceRule,
-              (hasRows, first) => {
-                if (startDateFieldEl) startDateFieldEl.hidden = hasRows;
-                if (endDateFieldEl) endDateFieldEl.hidden = hasRows;
-                if (!hasRows || !first) return;
-                onInput("startDate", first.date);
-                onInput("startTime", first.startTime);
-                if (first.endTime) {
-                  onInput("endDate", first.date);
-                  onInput("endTime", first.endTime);
-                }
-              },
-            ),
+          const recurrence = renderRecurrenceRows(
+            state.startDate,
+            state.name,
+            onCustomizeRecurrenceRule,
+            (hasRows, first) => {
+              if (startDateFieldEl) startDateFieldEl.hidden = hasRows;
+              if (endDateFieldEl) endDateFieldEl.hidden = hasRows;
+              if (!hasRows || !first) return;
+              onInput("startDate", first.date);
+              onInput("startTime", first.startTime);
+              if (first.endTime) {
+                onInput("endDate", first.date);
+                onInput("endTime", first.endTime);
+              }
+            },
           );
+          getRecurrenceSeries = recurrence.getSeries;
+          details.append(recurrence.element);
         }
       }
       const rest = fieldIds.filter((id) => !WHEN_BUNDLED.includes(id));
@@ -3176,7 +3278,7 @@ export function renderForm(
     }
     root.append(details);
   }
-  return { refreshTranslations, sections: renderedSections };
+  return { refreshTranslations, sections: renderedSections, getRecurrenceSeries };
 }
 
 /** Writes per-field validation errors under their inputs. */

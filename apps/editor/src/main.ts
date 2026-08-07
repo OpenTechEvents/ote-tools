@@ -832,6 +832,10 @@ async function startEditor(repo: string | null): Promise<void> {
   // slot list after an edit made elsewhere in the form changes what's
   // translatable (see the fields listed in onInput/onArrayInput below).
   let refreshTranslations: () => void = () => {};
+  // Set by render() once the "when" section is mounted — propose/review-
+  // standalone read the current recurrence rows from it at click time,
+  // rather than a dedicated "Generate" button (see their handlers below).
+  let getRecurrenceSeries: () => RecurrenceSeriesInput[] = () => [];
 
   /** Fields whose value a translation card shows as "the original text". */
   const TRANSLATABLE_SOURCE_KEYS = new Set<keyof FormState>([
@@ -986,10 +990,10 @@ async function startEditor(repo: string | null): Promise<void> {
       onArrayInput,
       onTranslationsCommit,
       mountMap,
-      onGenerateRecurrenceSeries,
       onCustomizeRecurrenceRule,
     );
     refreshTranslations = rendered.refreshTranslations;
+    getRecurrenceSeries = rendered.getRecurrenceSeries;
     renderSectionNav(rendered.sections);
     setAllDay(form, state.allDay);
     markImportGaps(form, importMissing ?? new Set());
@@ -2080,15 +2084,23 @@ async function startEditor(repo: string | null): Promise<void> {
     return true;
   }
 
-  propose.addEventListener("click", () => {
+  // A configured recurrence takes over both submit paths — the draft is a
+  // template at that point (see the Start/End hide/sync above), so
+  // "submit" means "generate every occurrence for review", not "submit
+  // this one ambiguous draft". No separate "Generate" button needed.
+  function proposeOrGenerate(): void {
     if (!revealInvalidDraft()) return;
+    const series = getRecurrenceSeries();
+    if (series.length > 0) {
+      onGenerateRecurrenceSeries(series);
+      return;
+    }
     openReview();
-  });
+  }
 
-  el<HTMLButtonElement>("review-standalone").addEventListener("click", () => {
-    if (!revealInvalidDraft()) return;
-    openReview();
-  });
+  propose.addEventListener("click", proposeOrGenerate);
+
+  el<HTMLButtonElement>("review-standalone").addEventListener("click", proposeOrGenerate);
 
   editDirect.addEventListener("click", () => {
     if (repo === null) return;

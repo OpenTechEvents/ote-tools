@@ -129,6 +129,22 @@ export const es: Record<string, string> = {
   "dialog.recurrenceRow.ordinalWord.2": "segundo",
   "dialog.recurrenceRow.ordinalWord.3": "tercer",
   "dialog.recurrenceRow.ordinalWord.4": "cuarto",
+  "dialog.recurrenceRow.generateHint":
+    "Revisar y enviar / Revisar y descargar, más abajo, generará todas las ocurrencias para revisarlas en cuanto añadas al menos una recurrencia.",
+
+  // --- recurrence: computed "Custom…" summary (e.g. "Cada 2 meses el
+  // primer viernes, 5 veces") — shown as the row's selected option once
+  // customized, matching Google Calendar's own dropdown behavior. ------
+  "dialog.recurrenceRow.custom.daily": "Cada día",
+  "dialog.recurrenceRow.custom.dailyN": "Cada {n} días",
+  "dialog.recurrenceRow.custom.weekly": "Cada semana el {days}",
+  "dialog.recurrenceRow.custom.weeklyN": "Cada {n} semanas el {days}",
+  "dialog.recurrenceRow.custom.monthly": "Cada mes el {ordinal} {weekday}",
+  "dialog.recurrenceRow.custom.monthlyN": "Cada {n} meses el {ordinal} {weekday}",
+  "dialog.recurrenceRow.custom.yearly": "Cada año el {date}",
+  "dialog.recurrenceRow.custom.yearlyN": "Cada {n} años el {date}",
+  "dialog.recurrenceRow.custom.untilDate": ", hasta el {date}",
+  "dialog.recurrenceRow.custom.untilCount": ", {count} veces",
 
   // --- recurrence: "Custom recurrence" dialog -----------------------------
   "dialog.recurrenceCustom.title": "Recurrencia personalizada",
@@ -181,7 +197,6 @@ export const es: Record<string, string> = {
   "action.fetch": "Obtener",
   "action.importSelected": "Importar seleccionados",
   "action.addSelected": "Añadir seleccionados",
-  "action.generate": "Generar",
   "action.done": "Listo",
   "action.copy": "Copiar",
   "action.reset": "Reiniciar",
