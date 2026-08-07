@@ -2,8 +2,8 @@
 
 Central monorepo for the [OpenTechEvents](https://github.com/OpenTechEvents)
 organizer kit: npm connectors (pure functions, no UI), reusable GitHub Actions
-workflows, and (phase 2) the web dashboard/editor/previewer. Design rationale lives in
-[DESIGN.md](DESIGN.md); the spec lives in
+workflows, and (phase 2) the web dashboard/editor/previewer/embeddable widget.
+Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 [opentechevents-spec](https://github.com/OpenTechEvents/opentechevents-spec).
 
 ## Packages

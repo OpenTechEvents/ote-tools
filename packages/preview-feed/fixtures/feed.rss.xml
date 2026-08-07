@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>OTE Preview Fixture Feed</title>
+    <link>https://fixture.example/events</link>
+    <description>Fixture RSS feed for @opentechevents/preview-feed tests</description>
+    <copyright>CC-BY-4.0</copyright>
+    <lastBuildDate>Mon, 01 Jun 2026 09:00:00 GMT</lastBuildDate>
+    <generator>@opentechevents/export-rss</generator>
+    <item>
+      <title>Fixture Conference</title>
+      <link>https://fixture.example/events/2026-conf</link>
+      <guid isPermaLink="false">https://fixture.example/events/2026-conf</guid>
+      <description>&lt;p&gt;&lt;strong&gt;When:&lt;/strong&gt; 2026-06-20 09:00 – 2026-06-20 17:00 (Europe/Madrid)&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Where:&lt;/strong&gt; Fixture Hall, Sample City&lt;/p&gt;
+&lt;p&gt;A sample conference used to test RSS normalization.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

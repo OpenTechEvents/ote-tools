@@ -2,27 +2,19 @@ import { Calendar, type EventInput } from "@fullcalendar/core";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import listPlugin from "@fullcalendar/list";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { rssToPreviewFeed } from "@opentechevents/export-rss";
-import { icsToEvents, parseIcs } from "@opentechevents/import-ics";
-
-interface PreviewEvent {
-  name: string;
-  startDate?: string;
-  endDate?: string;
-  timezone?: string;
-  dateLabel?: string;
-  location?: string;
-  link?: string;
-  description?: string;
-  details?: Array<{ label: string; value: string }>;
-}
-
-interface PreviewFeed {
-  title?: string;
-  description?: string;
-  license?: string;
-  events: PreviewEvent[];
-}
+import {
+  addDays,
+  eventWhen,
+  icsToPreviewFeed,
+  isDateOnly,
+  jsonToPreviewFeed,
+  parseSortDate,
+  rssToPreview,
+  sortedEvents,
+  truncate,
+  type PreviewEvent,
+  type PreviewFeed,
+} from "@opentechevents/preview-feed";
 
 interface FileState {
   label: string;
@@ -107,199 +99,6 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (text !== undefined) node.textContent = text;
   if (className) node.className = className;
   return node;
-}
-
-function truncate(text: string | undefined, length = 320): string | undefined {
-  if (!text) return undefined;
-  const compact = text.replace(/\s+/g, " ").trim();
-  return compact.length > length ? `${compact.slice(0, length - 1)}…` : compact;
-}
-
-function nonEmpty(value: unknown): string | undefined {
-  if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : undefined;
-  if (typeof value === "string") return value.trim() || undefined;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (value && typeof value === "object") return JSON.stringify(value);
-  return undefined;
-}
-
-function detailRows(entries: Array<[string, unknown]>): PreviewEvent["details"] {
-  return entries.flatMap(([label, value]) => {
-    const text = nonEmpty(value);
-    return text ? [{ label, value: text }] : [];
-  });
-}
-
-function parseSortDate(value: string | undefined): number | null {
-  if (!value) return null;
-  const isoLike = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2})?))?/.exec(
-    value,
-  );
-  const date = isoLike
-    ? new Date(`${isoLike[1]}T${isoLike[2] ?? "00:00:00"}`)
-    : new Date(value);
-  const time = date.valueOf();
-  return Number.isNaN(time) ? null : time;
-}
-
-function sortedEvents(events: PreviewEvent[]): PreviewEvent[] {
-  const now = Date.now();
-  return events
-    .map((event, index) => ({ event, index, sortDate: parseSortDate(event.startDate) }))
-    .sort((a, b) => {
-      if (a.sortDate === null && b.sortDate === null) return a.index - b.index;
-      if (a.sortDate === null) return 1;
-      if (b.sortDate === null) return -1;
-      const aPast = a.sortDate < now;
-      const bPast = b.sortDate < now;
-      if (aPast !== bPast) return aPast ? 1 : -1;
-      return aPast ? b.sortDate - a.sortDate : a.sortDate - b.sortDate;
-    })
-    .map(({ event }) => event);
-}
-
-function isDateOnly(value: string | undefined): boolean {
-  return value !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-function addDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatDate(value: string | undefined, timezone: string | undefined): string {
-  if (!value) return "";
-  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  if (dateOnly) {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-      new Date(`${value}T00:00:00Z`),
-    );
-  }
-  const date = new Date(`${value}${timezone === "UTC" ? "Z" : ""}`);
-  if (!Number.isNaN(date.valueOf())) {
-    const formatted = new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-    return timezone ? `${formatted} (${timezone})` : formatted;
-  }
-  return timezone ? `${value} (${timezone})` : value;
-}
-
-function eventLocation(event: {
-  location?: { venue?: string; onlineUrl?: string };
-}): string {
-  return event.location?.venue ?? event.location?.onlineUrl ?? "online";
-}
-
-function jsonToPreviewFeed(text: string): PreviewFeed {
-  const json = JSON.parse(text) as {
-    title?: string;
-    description?: string;
-    license?: string;
-    events?: Array<{
-      id?: string;
-      name?: string;
-      startDate?: string;
-      endDate?: string;
-      timezone?: string;
-      location?: { venue?: string; onlineUrl?: string };
-      url?: string;
-      description?: string;
-      status?: string;
-      attendanceMode?: string;
-      languages?: string[];
-      tags?: string[];
-      updatedAt?: string;
-      source?: unknown;
-    }>;
-  };
-  if (!Array.isArray(json.events)) throw new Error("feed.json has no events array");
-  return {
-    title: json.title,
-    description: json.description,
-    license: json.license,
-    events: json.events.map((event) => ({
-      name: event.name ?? "(untitled event)",
-      startDate: event.startDate,
-      endDate: event.endDate,
-      timezone: event.timezone,
-      location: eventLocation(event),
-      link: event.url ?? event.location?.onlineUrl,
-      description: event.description,
-      details: detailRows([
-        ["ID", event.id],
-        ["Status", event.status],
-        ["Timezone", event.timezone],
-        ["Attendance", event.attendanceMode],
-        ["Languages", event.languages],
-        ["Tags", event.tags],
-        ["Updated", event.updatedAt],
-        ["Source", event.source],
-      ]),
-    })),
-  };
-}
-
-function calendarTitle(text: string): Pick<PreviewFeed, "title" | "description"> {
-  const calendar = parseIcs(text).find((component) => component.name === "VCALENDAR");
-  const first = (name: string) =>
-    calendar?.properties.find((prop) => prop.name === name)?.value;
-  return {
-    title: first("X-WR-CALNAME"),
-    description: first("X-WR-CALDESC"),
-  };
-}
-
-function icsToPreviewFeed(text: string): PreviewFeed {
-  const result = icsToEvents(text);
-  if (result.events.length === 0) {
-    throw new Error(result.warnings[0]?.message ?? "The calendar contains no events");
-  }
-  return {
-    ...calendarTitle(text),
-    events: result.events.map((event) => ({
-      name: event.name ?? "(untitled event)",
-      startDate: event.startDate,
-      endDate: event.endDate,
-      timezone: event.timezone,
-      location: event.location?.venue ?? event.location?.onlineUrl ?? "online",
-      link: event.url ?? event.location?.onlineUrl,
-      description: event.description,
-      details: detailRows([
-        ["Status", event.status],
-        ["Timezone", event.timezone],
-        ["Tags", event.tags],
-        ["Updated", event.updatedAt],
-      ]),
-    })),
-  };
-}
-
-function rssToPreview(text: string): PreviewFeed {
-  const feed = rssToPreviewFeed(text);
-  return {
-    title: feed.title,
-    description: feed.description,
-    license: feed.license,
-    events: feed.events.map((event: {
-      title: string;
-      link?: string;
-      description?: string;
-      when?: string;
-      location?: string;
-      guid?: string;
-    }) => ({
-      name: event.title,
-      startDate: event.when,
-      dateLabel: event.when,
-      location: event.location ?? "online",
-      link: event.link,
-      description: event.description,
-      details: detailRows([["GUID", event.guid]]),
-    })),
-  };
 }
 
 async function fetchText(url: string): Promise<{ ok: true; text: string } | { ok: false; status: number }> {
@@ -428,15 +227,6 @@ function renderEvents(
     list.append(item);
   }
   parent.append(list);
-}
-
-function eventWhen(event: PreviewEvent): string {
-  return (
-    event.dateLabel ??
-    (event.endDate
-      ? `${formatDate(event.startDate, event.timezone)} to ${formatDate(event.endDate, event.timezone)}`
-      : formatDate(event.startDate, event.timezone))
-  );
 }
 
 function calendarDate(value: string | undefined, timezone: string | undefined): string | undefined {

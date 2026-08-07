@@ -1,0 +1,11 @@
+// The emitting config, used by `pnpm build`: src/ only, so tests never reach
+// dist/. Its sibling tsconfig.json covers src + test and only checks types.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}
