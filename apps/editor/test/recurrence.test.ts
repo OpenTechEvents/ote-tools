@@ -46,10 +46,10 @@ describe("expandRecurrenceDates — daily", () => {
     expect(dates).toEqual(["2026-01-01", "2026-01-02", "2026-01-03"]);
   });
 
-  it("'never' behaves like a count of MAX_OCCURRENCES", () => {
-    expect(expandRecurrenceDates({ ...base, until: { type: "never" } })).toHaveLength(
-      MAX_OCCURRENCES,
-    );
+  it("caps at MAX_OCCURRENCES regardless of a larger requested count", () => {
+    expect(
+      expandRecurrenceDates({ ...base, until: { type: "count", count: 1000 } }),
+    ).toHaveLength(MAX_OCCURRENCES);
   });
 });
 

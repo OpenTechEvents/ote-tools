@@ -10,10 +10,14 @@
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6; // matches Date#getUTCDay()
 
-export type RecurrenceUntil =
-  | { type: "never" }
-  | { type: "count"; count: number }
-  | { type: "date"; date: string };
+/**
+ * No "never"/open-ended variant — OTE has no recurrence concept at all
+ * (one document per occurrence, always), so an "endless" series can only
+ * ever mean "generate up to MAX_OCCURRENCES and stop"; offering it as a
+ * distinct choice would imply a guarantee this can't make. `count` and
+ * `date` are both already bounded by MAX_OCCURRENCES regardless.
+ */
+export type RecurrenceUntil = { type: "count"; count: number } | { type: "date"; date: string };
 
 export type RecurrenceRule =
   | { frequency: "daily"; interval: number; from: string; until: RecurrenceUntil }

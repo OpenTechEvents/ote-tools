@@ -1594,13 +1594,22 @@ async function startEditor(repo: string | null): Promise<void> {
     const mode =
       recurrenceCustomDialog.querySelector<HTMLInputElement>(
         'input[name="recurrence-custom-ends-mode"]:checked',
-      )?.value ?? "never";
+      )?.value ?? "count";
     recurrenceCustomEndsDate.disabled = mode !== "date";
     recurrenceCustomEndsCount.disabled = mode !== "count";
   }
   recurrenceCustomDialog
     .querySelectorAll<HTMLInputElement>('input[name="recurrence-custom-ends-mode"]')
     .forEach((radio) => radio.addEventListener("input", updateCustomEndsUi));
+
+  // Clamp immediately rather than only warning after generating — the
+  // field's max="24" attribute alone doesn't stop someone typing 100.
+  recurrenceCustomEndsCount.addEventListener("input", () => {
+    const value = Number(recurrenceCustomEndsCount.value);
+    if (Number.isFinite(value) && value > MAX_OCCURRENCES) {
+      recurrenceCustomEndsCount.value = String(MAX_OCCURRENCES);
+    }
+  });
 
   for (const button of weekdayToggles) {
     button.addEventListener("click", () => {
@@ -1636,7 +1645,7 @@ async function startEditor(repo: string | null): Promise<void> {
         interval: 1,
         weekdays: [1],
         from: new Date().toISOString().slice(0, 10),
-        until: { type: "never" },
+        until: { type: "count", count: MAX_OCCURRENCES },
       } as RecurrenceRule);
     customFrom = rule.from;
     recurrenceCustomUnit.value = rule.frequency;
@@ -1674,13 +1683,11 @@ async function startEditor(repo: string | null): Promise<void> {
     const untilMode =
       recurrenceCustomDialog.querySelector<HTMLInputElement>(
         'input[name="recurrence-custom-ends-mode"]:checked',
-      )?.value ?? "never";
+      )?.value ?? "count";
     const until: RecurrenceRule["until"] =
       untilMode === "date"
         ? { type: "date", date: recurrenceCustomEndsDate.value }
-        : untilMode === "count"
-          ? { type: "count", count: Number(recurrenceCustomEndsCount.value) }
-          : { type: "never" };
+        : { type: "count", count: Number(recurrenceCustomEndsCount.value) };
 
     let rule: RecurrenceRule;
     const unit = recurrenceCustomUnit.value;

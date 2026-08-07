@@ -666,7 +666,7 @@ select {
   padding: 0.3rem 0.5rem;
 }
 
-.field.pair {
+.field.pair:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
@@ -1799,7 +1799,7 @@ footer {
 /* --- recurrence: results dialog + shared .recurrence-fields (also used by
    the custom dialog's monthly ordinal+weekday pair) ------------------------ */
 
-.recurrence-fields {
+.recurrence-fields:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;

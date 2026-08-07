@@ -7,7 +7,12 @@
 import { getLocale, t } from "../i18n/index.js";
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
-import { ordinalInMonth, type RecurrenceRule, type Weekday } from "../lib/recurrence.js";
+import {
+  MAX_OCCURRENCES,
+  ordinalInMonth,
+  type RecurrenceRule,
+  type Weekday,
+} from "../lib/recurrence.js";
 import { getRecentTags, recordTagUsed } from "../lib/tag-history.js";
 import type { TagSuggestion } from "../lib/tag-vocabulary.js";
 import { loadTagVocabulary, searchVocabulary } from "../lib/tag-vocabulary.js";
@@ -1566,11 +1571,12 @@ function recurrenceOrdinalWord(ordinal: 1 | 2 | 3 | 4): string {
   return t(`dialog.recurrenceRow.ordinalWord.${ordinal}`, fallback);
 }
 
-/** A fresh preset-derived rule for `kind`, anchored on `date` — open-ended
- * ("never") until the organizer explicitly customizes it. */
+/** A fresh preset-derived rule for `kind`, anchored on `date` — bounded at
+ * MAX_OCCURRENCES by default (OTE has no open-ended recurrence; the
+ * organizer can pick a smaller count/date via "Custom…"). */
 function buildRecurrencePresetRule(kind: RecurrencePresetKind, date: string): RecurrenceRule {
   const weekday = recurrenceWeekdayOf(date);
-  const until: RecurrenceRule["until"] = { type: "never" };
+  const until: RecurrenceRule["until"] = { type: "count", count: MAX_OCCURRENCES };
   switch (kind) {
     case "daily":
       return { frequency: "daily", interval: 1, from: date, until };
@@ -1643,6 +1649,14 @@ export function renderRecurrenceRows(
   defaultName: string,
   onGenerate: (series: RecurrenceSeriesInput[]) => void,
   onCustomize: (current: RecurrenceRule | null, apply: (rule: RecurrenceRule) => void) => void,
+  /** Fires on every add/remove and on the first row's own date/time edits —
+   * the "when" section uses it to hide the draft's own Start/End (which
+   * every row overrides anyway once ≥1 exists) and keep them in sync with
+   * the first row so the draft stays a valid document if submitted as-is. */
+  onRowsChanged: (
+    hasRows: boolean,
+    first: { date: string; startTime: string; endTime: string } | null,
+  ) => void,
 ): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "field recurrence-rows";
@@ -1668,6 +1682,14 @@ export function renderRecurrenceRows(
   wrap.append(generateButton);
 
   const rows: RecurrenceRowState[] = [];
+
+  function notifyRowsChanged(): void {
+    const first = rows[0];
+    onRowsChanged(
+      rows.length > 0,
+      first ? { date: first.date, startTime: first.startTime, endTime: first.endTime } : null,
+    );
+  }
 
   function currentSeries(): RecurrenceSeriesInput[] {
     return rows.map(({ key, nameOverride, startTime, endTime, rule }) => ({
@@ -1711,6 +1733,7 @@ export function renderRecurrenceRows(
       if (index !== -1) rows.splice(index, 1);
       item.remove();
       generateButton.hidden = rows.length === 0;
+      notifyRowsChanged();
     });
 
     const fields = document.createElement("div");
@@ -1741,7 +1764,10 @@ export function renderRecurrenceRows(
     const startTimeInput = document.createElement("input");
     startTimeInput.type = "time";
     startTimeInput.value = row.startTime;
-    startTimeInput.addEventListener("input", () => (row.startTime = startTimeInput.value));
+    startTimeInput.addEventListener("input", () => {
+      row.startTime = startTimeInput.value;
+      notifyRowsChanged();
+    });
     startTimeWrap.append(startTimeLabel, startTimeInput);
 
     const endTimeWrap = document.createElement("div");
@@ -1750,7 +1776,10 @@ export function renderRecurrenceRows(
     const endTimeInput = document.createElement("input");
     endTimeInput.type = "time";
     endTimeInput.value = row.endTime;
-    endTimeInput.addEventListener("input", () => (row.endTime = endTimeInput.value));
+    endTimeInput.addEventListener("input", () => {
+      row.endTime = endTimeInput.value;
+      notifyRowsChanged();
+    });
     endTimeWrap.append(endTimeLabel, endTimeInput);
 
     const selectWrap = document.createElement("div");
@@ -1767,6 +1796,7 @@ export function renderRecurrenceRows(
           ? { ...row.rule, from: row.date }
           : buildRecurrencePresetRule(row.mode, row.date);
       renderRowSelect(row, select);
+      notifyRowsChanged();
     });
 
     select.addEventListener("input", () => {
@@ -1807,6 +1837,7 @@ export function renderRecurrenceRows(
     rows.push(row);
     list.append(renderRow(row));
     generateButton.hidden = false;
+    notifyRowsChanged();
   }
 
   addButton.addEventListener("click", addRow);
@@ -3072,12 +3103,21 @@ export function renderForm(
     } else if (section === "when") {
       // allDay/startDate/endDate/timezone are one structural unit (allDay
       // changes how start/end render) — never separately chippable.
+      let startDateFieldEl: HTMLElement | null = null;
+      let endDateFieldEl: HTMLElement | null = null;
       for (const id of WHEN_BUNDLED) {
         if (!fieldIds.includes(id)) continue;
-        details.append(renderField(id, state, onInput));
+        const fieldEl = renderField(id, state, onInput);
+        details.append(fieldEl);
+        if (id === "startDate") startDateFieldEl = fieldEl;
+        if (id === "endDate") endDateFieldEl = fieldEl;
         // Right after "all day", per the organizer's explicit placement —
         // its own rows carry their own dates/times, independent of this
-        // draft's own startDate/startTime.
+        // draft's own startDate/startTime. Once ≥1 row exists, this
+        // draft's own Start/End are redundant (every row overrides them
+        // anyway) and confusing to leave visible — hide them and keep
+        // them mirroring the first row instead, so the draft stays a
+        // valid document if submitted directly without generating.
         if (id === "allDay") {
           details.append(
             renderRecurrenceRows(
@@ -3085,6 +3125,17 @@ export function renderForm(
               state.name,
               onGenerateRecurrenceSeries,
               onCustomizeRecurrenceRule,
+              (hasRows, first) => {
+                if (startDateFieldEl) startDateFieldEl.hidden = hasRows;
+                if (endDateFieldEl) endDateFieldEl.hidden = hasRows;
+                if (!hasRows || !first) return;
+                onInput("startDate", first.date);
+                onInput("startTime", first.startTime);
+                if (first.endTime) {
+                  onInput("endDate", first.date);
+                  onInput("endTime", first.endTime);
+                }
+              },
             ),
           );
         }

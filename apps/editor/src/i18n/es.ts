@@ -160,10 +160,11 @@ export const es: Record<string, string> = {
   "dialog.recurrenceCustom.ordinal.last": "Último",
   "dialog.recurrenceCustom.weekdaySelect": "Día de la semana",
   "dialog.recurrenceCustom.ends": "Termina",
-  "dialog.recurrenceCustom.never": "Nunca",
   "dialog.recurrenceCustom.on": "El",
   "dialog.recurrenceCustom.after": "Después de",
   "dialog.recurrenceCustom.occurrences": "ocurrencia(s)",
+  "dialog.recurrenceCustom.capHint":
+    "Cada recurrencia genera como máximo 24 ocurrencias, elijas la fecha o el número que elijas — vuelve a generar más adelante para continuar una serie más larga.",
 
   // --- actions -----------------------------------------------------------
   "action.connect": "Conectar",

@@ -702,29 +702,33 @@
 
         <fieldset id="recurrence-custom-ends">
           <legend data-i18n="dialog.recurrenceCustom.ends">Ends</legend>
-          <label>
-            <input type="radio" name="recurrence-custom-ends-mode" value="never" checked />
-            <span data-i18n="dialog.recurrenceCustom.never">Never</span>
-          </label>
+          <!-- No "Never" — OTE has no open-ended recurrence (one document
+               per occurrence, always), so an "endless" series can only ever
+               mean "generate up to the cap below and stop". Offering it as
+               a separate choice would promise something this can't do. -->
           <label>
             <input type="radio" name="recurrence-custom-ends-mode" value="date" />
             <span data-i18n="dialog.recurrenceCustom.on">On</span>
             <input id="recurrence-custom-ends-date" type="date" disabled />
           </label>
           <label>
-            <input type="radio" name="recurrence-custom-ends-mode" value="count" />
+            <input type="radio" name="recurrence-custom-ends-mode" value="count" checked />
             <span data-i18n="dialog.recurrenceCustom.after">After</span>
             <input
               id="recurrence-custom-ends-count"
               type="number"
               min="1"
               max="24"
-              value="13"
+              value="12"
               inputmode="numeric"
-              disabled
             />
             <span data-i18n="dialog.recurrenceCustom.occurrences">occurrence(s)</span>
           </label>
+          <p class="hint" data-i18n="dialog.recurrenceCustom.capHint">
+            Every recurrence generates at most 24 occurrences, whichever
+            ending you pick — generate again later to continue a longer
+            series.
+          </p>
         </fieldset>
 
         <div class="actions">
