@@ -94,6 +94,8 @@ export const es: Record<string, string> = {
     "Sube el archivo, o descárgalo desde una URL. Podrás elegir qué eventos importar; no se importa nada sin confirmación.",
   "dialog.ics.fileLabel": "Archivo iCalendar",
   "dialog.ics.urlLabel": "URL de iCalendar",
+  "dialog.ics.recurringHint":
+    '{n} de los eventos detectados son series recurrentes — solo se lista su ocurrencia actual, las fechas futuras no aparecen. Importa una y luego usa "Repetir como serie" para generar las próximas ocurrencias.',
   "dialog.jsonld.title": "Importar desde la página de un evento",
   "dialog.jsonld.hint1":
     "Pega la URL de la página del evento (Meetup, Eventbrite, Luma…). Los eventos se leen de los datos estructurados (schema.org JSON-LD) que la página ya expone — normalmente más completos que una exportación .ics. Podrás elegir qué eventos importar; no se importa nada sin confirmación.",

@@ -1334,7 +1334,30 @@ async function startEditor(repo: string | null): Promise<void> {
 
     ui.warningsBox.textContent = "";
     const fileWarnings = warnings.filter((w) => w.eventIndex === undefined);
-    ui.warningsBox.hidden = fileWarnings.length === 0;
+    // @opentechevents/import-ics never expands RRULE/RDATE (it would be
+    // invented data) — it imports just the series' current occurrence and
+    // warns per event with "recurring event: ..." (src/index.ts). That
+    // warning alone, seen only once an occurrence is opened for review,
+    // doesn't explain why a real recurring calendar's detected list can
+    // look like it's all past dates: an active series' "current occurrence"
+    // is often months old (Google Calendar starts a fresh VEVENT/RRULE pair
+    // every time the series' day/time is edited). Surface it upfront, with
+    // the actionable next step, instead of leaving the organizer to
+    // discover the per-item warning on their own.
+    const recurringCount = new Set(
+      warnings
+        .filter((w) => w.eventIndex !== undefined && /recurring event/i.test(w.message))
+        .map((w) => w.eventIndex),
+    ).size;
+    ui.warningsBox.hidden = fileWarnings.length === 0 && recurringCount === 0;
+    if (recurringCount > 0) {
+      const p = document.createElement("p");
+      p.textContent = t(
+        "dialog.ics.recurringHint",
+        "{n} of the detected events are recurring series — only their current occurrence is listed, future dates aren't shown. Import one, then use \"Repeat as a series\" to generate the upcoming occurrences.",
+      ).replace("{n}", String(recurringCount));
+      ui.warningsBox.append(p);
+    }
     for (const warning of fileWarnings) {
       const p = document.createElement("p");
       p.textContent = `⚠ ${warning.message}`;
