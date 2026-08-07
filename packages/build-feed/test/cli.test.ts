@@ -106,10 +106,38 @@ describe("ote-build-feed CLI", () => {
     expect(io.errLines[0]).toContain("ote.config.json");
   });
 
-  it("missing events/ directory → exit 2", () => {
+  it("missing events/ directory with an otherwise-invalid config → still exit 2 on the config, not the directory", () => {
+    // Config alone ({}) is missing the required "title" — this asserts the
+    // events/ fix didn't paper over that separate, real error.
     const io = makeIO();
     const root = tempDir();
     writeFileSync(join(root, "ote.config.json"), "{}", "utf8");
+    expect(runCli([root, "--check"], io)).toBe(1);
+    expect(io.errLines.join("\n")).not.toContain('"events/"');
+  });
+
+  it("missing events/ directory + valid config → builds a zero-event feed, exit 0 (issue #23)", () => {
+    // Git doesn't track empty directories, so this is exactly what happens
+    // once an organizer deletes the last sample event before adding their
+    // own — should be indistinguishable from an events/ that exists and is
+    // empty, not a fatal I/O error.
+    const io = makeIO();
+    const root = tempDir();
+    writeFileSync(
+      join(root, "ote.config.json"),
+      JSON.stringify({ feed: { title: "Empty Feed" } }),
+      "utf8",
+    );
+    expect(runCli([root, "--check"], io)).toBe(0);
+    expect(io.errLines).toEqual([]);
+    expect(io.outLines[0]).toContain("0 event files valid");
+  });
+
+  it("events/ existing as a plain file (not a directory) → still a fatal I/O error, exit 2", () => {
+    const io = makeIO();
+    const root = tempDir();
+    writeFileSync(join(root, "ote.config.json"), "{}", "utf8");
+    writeFileSync(join(root, "events"), "not a directory", "utf8");
     expect(runCli([root], io)).toBe(2);
     expect(io.errLines[0]).toContain('"events/"');
   });

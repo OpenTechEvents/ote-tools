@@ -99,11 +99,21 @@ export function runCli(
     eventNames = readdirSync(join(root, EVENTS_DIR))
       .filter((name) => name.endsWith(".json") && !name.startsWith("."))
       .sort();
-  } catch {
-    io.err(
-      `ote-build-feed: cannot read "${EVENTS_DIR}/" directory in "${args.root}"`,
-    );
-    return 2;
+  } catch (e) {
+    // A missing events/ directory is indistinguishable from an *empty* one —
+    // Git doesn't track empty directories, so this is exactly what happens
+    // once an organizer deletes the last sample event before adding their
+    // own. The feed schema has no minItems on `events`, so zero events is
+    // valid; only a genuine I/O problem (permissions, events/ existing as a
+    // plain file) should still be fatal.
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      eventNames = [];
+    } else {
+      io.err(
+        `ote-build-feed: cannot read "${EVENTS_DIR}/" directory in "${args.root}"`,
+      );
+      return 2;
+    }
   }
 
   // Parse errors don't stop the run: every broken file is reported at once.
