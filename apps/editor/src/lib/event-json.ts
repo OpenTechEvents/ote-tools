@@ -55,7 +55,7 @@ export function emptyFormState(timezone = ""): FormState {
  * image/offer rows) counts as empty when it has no language keys, since it's
  * a map, not a string.
  */
-function isRowEmpty(row: object): boolean {
+export function isRowEmpty(row: object): boolean {
   return Object.entries(row).every(([key, v]) =>
     key === "translations" ? Object.keys(v as object).length === 0 : v === "",
   );
@@ -67,7 +67,7 @@ function isRowEmpty(row: object): boolean {
  * (`{ [lang]: { alt } }` vs `{ [lang]: { name } }`) varies per field, so the
  * caller wraps and attaches it itself.
  */
-function cleanRow(row: object): Record<string, unknown> {
+export function cleanRow(row: object): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
     if (key === "translations") continue;

@@ -34,9 +34,15 @@ import {
   toEventJson,
 } from "./lib/event-json.js";
 import {
+  emptyFeedConfigState,
+  fromOteConfig,
+  toOteConfigJson,
+} from "./lib/feed-config.js";
+import {
   directCreateUrl,
   directDeleteUrl,
   directEditUrl,
+  directFeedConfigUrl,
   eventJsonText,
   proposeChangeUrl,
   proposeDeleteUrl,
@@ -54,11 +60,19 @@ import {
   parseRepoParam,
   repoFetchPlan,
 } from "./lib/repo.js";
-import type { FormState, ListedEvent, OteConfig, OteEvent } from "./lib/types.js";
+import type {
+  FormState,
+  ListedEvent,
+  OrganizerRow,
+  OteConfig,
+  OteEvent,
+} from "./lib/types.js";
 import { validateDraft } from "./lib/validation.js";
 import {
+  LANGUAGE_SUGGESTIONS,
   markImportGaps,
   renderForm,
+  renderRepeaterField,
   setAllDay,
   updateErrors,
   type RepeaterKey,
@@ -327,6 +341,92 @@ async function startEditor(repo: string | null): Promise<void> {
         return;
       }
       location.search = `?repo=${repo}`;
+    });
+  }
+
+  // --- feed settings: edits ote.config.json's `feed` block only ----------
+  // Repo-level (not tied to any one event), so it's a small self-contained
+  // dialog wired directly here — same precedent as #repo-connect above —
+  // rather than routed through ui/form.ts's per-field/validation machinery,
+  // which this doesn't need: ote.config.json isn't checked against the OTE
+  // JSON Schema at all.
+  const feedSettingsOpen = el<HTMLButtonElement>("feed-settings-open");
+  feedSettingsOpen.hidden = !hasRepo;
+  if (hasRepo) {
+    const feedSettingsDialog = el<HTMLDialogElement>("feed-settings-dialog");
+    const feedTitleInput = el<HTMLInputElement>("feed-title");
+    const feedDescriptionInput = el<HTMLTextAreaElement>("feed-description");
+    const feedUrlInput = el<HTMLInputElement>("feed-url");
+    const feedLicenseInput = el<HTMLInputElement>("feed-license");
+    const feedLicenseUrlInput = el<HTMLInputElement>("feed-license-url");
+    const feedTextLanguageInput = el<HTMLInputElement>("feed-text-language");
+    const feedOrganizersSlot = el<HTMLDivElement>("feed-organizers-slot");
+
+    const feedLanguageSuggestions = el<HTMLDataListElement>("feed-language-suggestions");
+    for (const lang of LANGUAGE_SUGGESTIONS) {
+      const option = document.createElement("option");
+      option.value = lang.code;
+      option.label = lang.name;
+      feedLanguageSuggestions.append(option);
+    }
+
+    let feedState = emptyFeedConfigState();
+
+    function renderFeedOrganizers(): void {
+      feedOrganizersSlot.textContent = "";
+      feedOrganizersSlot.append(
+        renderRepeaterField(
+          "organizers",
+          feedState.organizers as unknown as Record<string, string>[],
+          (_key, items) => {
+            feedState.organizers = items as unknown as OrganizerRow[];
+          },
+          () => "",
+        ),
+      );
+    }
+
+    feedSettingsOpen.addEventListener("click", () => {
+      feedState = fromOteConfig(config);
+      feedTitleInput.value = feedState.title;
+      feedDescriptionInput.value = feedState.description;
+      feedUrlInput.value = feedState.url;
+      feedLicenseInput.value = feedState.license;
+      feedLicenseUrlInput.value = feedState.licenseUrl;
+      feedTextLanguageInput.value = feedState.textLanguage;
+      renderFeedOrganizers();
+      feedSettingsDialog.showModal();
+    });
+
+    feedTitleInput.addEventListener("input", () => (feedState.title = feedTitleInput.value));
+    feedDescriptionInput.addEventListener(
+      "input",
+      () => (feedState.description = feedDescriptionInput.value),
+    );
+    feedUrlInput.addEventListener("input", () => (feedState.url = feedUrlInput.value));
+    feedLicenseInput.addEventListener("input", () => (feedState.license = feedLicenseInput.value));
+    feedLicenseUrlInput.addEventListener(
+      "input",
+      () => (feedState.licenseUrl = feedLicenseUrlInput.value),
+    );
+    feedTextLanguageInput.addEventListener(
+      "input",
+      () => (feedState.textLanguage = feedTextLanguageInput.value),
+    );
+
+    el<HTMLButtonElement>("feed-settings-cancel").addEventListener("click", () =>
+      feedSettingsDialog.close(),
+    );
+    el<HTMLButtonElement>("feed-settings-save").addEventListener("click", () => {
+      if (repo === null) return;
+      follow(
+        directFeedConfigUrl(
+          repo,
+          branch ?? "main",
+          toOteConfigJson(feedState, config as unknown as Record<string, unknown> | null),
+        ),
+      );
+      feedSettingsDialog.close();
     });
   }
 

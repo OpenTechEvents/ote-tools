@@ -99,6 +99,34 @@ export function directCreateUrl(
 }
 
 /**
+ * Feed settings' "Open on GitHub": same URL family as directCreateUrl, at
+ * the repo root (no /events/ segment) since ote.config.json isn't inside
+ * events/. GitHub's create-file page accepts a filename that already
+ * exists and lets the commit update it in place, so this one URL shape
+ * covers both "ote.config.json doesn't exist yet" and "it exists, update
+ * it" — no separate edit-vs-create branching needed, unlike events.
+ */
+export function directFeedConfigUrl(
+  repo: string,
+  branch: string,
+  config: Record<string, unknown>,
+): LinkResult {
+  const base = `https://github.com/${repo}/new/${branch}`;
+  const json = JSON.stringify(config, null, 2) + "\n";
+  const params = new URLSearchParams({
+    filename: "ote.config.json",
+    value: json,
+  });
+  const url = `${base}?${params}`;
+  if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };
+  return {
+    kind: "fallback",
+    url: `${base}?${new URLSearchParams({ filename: "ote.config.json" })}`,
+    copyText: json,
+  };
+}
+
+/**
  * "Eliminar directamente": GitHub's own native delete-confirmation page for
  * the file — same URL family as directEditUrl (/blob/) and directCreateUrl
  * (/new/), just /delete/. Owner-only in practice (needs push); this app

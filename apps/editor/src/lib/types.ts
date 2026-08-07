@@ -17,6 +17,11 @@ export interface OteConfig {
     url?: string;
     license?: string;
     licenseUrl?: string;
+    textLanguage?: string;
+    /** A list — replaces, never merges with, each event's own organizers. */
+    organizers?: OrganizerRow[];
+    /** Translates feed title/description only — never edited by this app, but kept on the type so it round-trips untouched. */
+    translations?: Record<string, { title?: string; description?: string }>;
   };
   profile?: string;
   customProfile?: { fields?: string[] };

@@ -29,6 +29,7 @@ export const es: Record<string, string> = {
   "nav.importFromEventPage": "Importar desde página del evento",
   "nav.importIcs": "Importar .ics",
   "nav.connectFeed": "Conectar un feed",
+  "nav.feedSettings": "⚙ Configuración del feed",
   "nav.profile": "Perfil",
   "nav.comboLoading": "Cargando eventos…",
   "nav.comboFilter": "Escribe para filtrar, o elige un evento…",
@@ -42,6 +43,15 @@ export const es: Record<string, string> = {
   "dialog.repoConnect.inputLabel": "Tu repositorio de GitHub (owner/repo)",
   "dialog.repoConnect.error":
     "Escribe tu repositorio como owner/repo — por ejemplo my-org/ote-events.",
+  "dialog.feedSettings.title": "Configuración del feed",
+  "dialog.feedSettings.hint":
+    "Edita el bloque feed de ote.config.json — el perfil y otros ajustes del editor en ese fichero no se tocan.",
+  "dialog.feedSettings.titleLabel": "Título",
+  "dialog.feedSettings.descriptionLabel": "Descripción",
+  "dialog.feedSettings.urlLabel": "URL",
+  "dialog.feedSettings.licenseLabel": "Licencia",
+  "dialog.feedSettings.licenseUrlLabel": "URL de la licencia",
+  "dialog.feedSettings.textLanguageLabel": "Idioma del texto",
   "dialog.review.title": "Revisar y enviar",
   "dialog.review.hintRepo":
     "Esto abre un issue de GitHub prerrellenado en el repositorio de destino; una persona mantenedora (o la automatización del repositorio) lo convierte en un pull request.",
@@ -70,6 +80,7 @@ export const es: Record<string, string> = {
   "action.copyJson": "Copiar JSON",
   "action.downloadJson": "Descargar .json",
   "action.openIssue": "Abrir issue de GitHub",
+  "action.openOnGithub": "Abrir en GitHub",
   "action.editDirectly": "Editar directamente",
   "action.reviewAndSubmit": "Revisar y enviar",
   "action.reviewAndDownload": "Revisar y descargar",

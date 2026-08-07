@@ -85,6 +85,61 @@
         </div>
       </dialog>
 
+      <!-- Edits ote.config.json's `feed` block only (title/description/
+           url/license/licenseUrl/textLanguage/organizers) — profile and
+           other editor settings in that file aren't touched here. No
+           validation: ote.config.json isn't checked against the OTE JSON
+           Schema at all, unlike event documents. -->
+      <dialog id="feed-settings-dialog">
+        <h2 data-i18n="dialog.feedSettings.title">Feed settings</h2>
+        <p class="hint" data-i18n="dialog.feedSettings.hint">
+          Edits ote.config.json's feed block — the profile and other editor
+          settings in that file aren't touched.
+        </p>
+        <div class="field">
+          <label for="feed-title" data-i18n="dialog.feedSettings.titleLabel">Title</label>
+          <input id="feed-title" type="text" />
+        </div>
+        <div class="field">
+          <label for="feed-description" data-i18n="dialog.feedSettings.descriptionLabel">
+            Description
+          </label>
+          <textarea id="feed-description" rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label for="feed-url" data-i18n="dialog.feedSettings.urlLabel">URL</label>
+          <input id="feed-url" type="url" />
+        </div>
+        <div class="field pair">
+          <div>
+            <label for="feed-license" data-i18n="dialog.feedSettings.licenseLabel">License</label>
+            <input id="feed-license" type="text" placeholder="CC0-1.0" />
+          </div>
+          <div>
+            <label for="feed-license-url" data-i18n="dialog.feedSettings.licenseUrlLabel">
+              License URL
+            </label>
+            <input id="feed-license-url" type="url" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="feed-text-language" data-i18n="dialog.feedSettings.textLanguageLabel">
+            Text language
+          </label>
+          <input id="feed-text-language" type="text" list="feed-language-suggestions" placeholder="en" />
+          <datalist id="feed-language-suggestions"></datalist>
+        </div>
+        <div id="feed-organizers-slot"></div>
+        <div class="actions">
+          <button id="feed-settings-cancel" type="button" class="secondary" data-i18n="action.cancel">
+            Cancel
+          </button>
+          <button id="feed-settings-save" type="button" class="primary" data-i18n="action.openOnGithub">
+            Open on GitHub
+          </button>
+        </div>
+      </dialog>
+
       <nav id="mode">
         <div class="menu-button" id="new-event-menu">
           <button
@@ -119,6 +174,12 @@
         </div>
         <button id="repo-connect-open" type="button" class="secondary" hidden data-i18n="nav.connectFeed">
           Connect a feed
+        </button>
+        <!-- Repo-level, not event-level — visible in both list and form
+             view (opposite of "Connect a feed": only makes sense once a
+             feed IS connected). -->
+        <button id="feed-settings-open" type="button" class="secondary" hidden data-i18n="nav.feedSettings">
+          ⚙ Feed settings
         </button>
         <!-- Only meaningful once a specific event is being edited (it
              pre-filters which FORM fields show) — hidden in the events

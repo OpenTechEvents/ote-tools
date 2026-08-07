@@ -5,6 +5,7 @@ import {
   directCreateUrl,
   directDeleteUrl,
   directEditUrl,
+  directFeedConfigUrl,
   eventJsonFromIssueBody,
   eventJsonText,
   proposeChangeUrl,
@@ -150,5 +151,27 @@ describe("proposeDeleteUrl", () => {
     if (result.kind !== "fallback") return;
     expect(result.url).toBe("https://github.com/o/r/issues/new");
     expect(result.copyText).toContain(longId);
+  });
+});
+
+describe("directFeedConfigUrl", () => {
+  it("builds GitHub's prefilled new-file URL at the repo root (no /events/)", () => {
+    const result = directFeedConfigUrl("o/r", "main", { feed: { title: "x" } });
+    expect(result.kind).toBe("url");
+    if (result.kind !== "url") return;
+    const url = new URL(result.url);
+    expect(url.pathname).toBe("/o/r/new/main");
+    expect(url.searchParams.get("filename")).toBe("ote.config.json");
+    expect(url.searchParams.get("value")).toContain('"title": "x"');
+  });
+
+  it("falls back to filename-only + copy-paste above the URL limit", () => {
+    const big = { feed: { description: "x".repeat(MAX_URL_LENGTH) } };
+    const result = directFeedConfigUrl("o/r", "main", big);
+    expect(result.kind).toBe("fallback");
+    if (result.kind !== "fallback") return;
+    expect(result.url).toContain("filename=ote.config.json");
+    expect(result.url).not.toContain("value=");
+    expect(result.copyText).toContain('"description"');
   });
 });

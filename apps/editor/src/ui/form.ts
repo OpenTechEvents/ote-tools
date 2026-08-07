@@ -199,7 +199,7 @@ interface FieldSpec {
  * BCP 47 tags suggested by the languages autocomplete, with display names.
  * Anything outside this list can still be typed and added as a chip.
  */
-const LANGUAGE_SUGGESTIONS: ReadonlyArray<{ code: string; name: string }> = [
+export const LANGUAGE_SUGGESTIONS: ReadonlyArray<{ code: string; name: string }> = [
   { code: "es", name: "Spanish" },
   { code: "en", name: "English" },
   { code: "pt", name: "Portuguese" },
@@ -1522,7 +1522,7 @@ function renderImagePreview(urlInput: HTMLInputElement, getAlt: () => string): H
  * profile/event switches, not on every keystroke, so this control cannot
  * rely on being re-mounted to reflect its own edits.
  */
-function renderRepeaterField(
+export function renderRepeaterField(
   fieldId: RepeaterKey,
   initial: readonly Record<string, string>[],
   onArrayChange: (key: RepeaterKey, items: Record<string, string>[]) => void,

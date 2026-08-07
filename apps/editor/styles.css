@@ -1617,7 +1617,8 @@ footer {
 #import-dialog,
 #jsonld-dialog,
 #repo-connect,
-#delete-dialog {
+#delete-dialog,
+#feed-settings-dialog {
   border: none;
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
@@ -1625,17 +1626,24 @@ footer {
   width: min(34rem, calc(100vw - 2rem));
 }
 
+#feed-settings-dialog {
+  max-height: min(38rem, calc(100vh - 4rem));
+  overflow-y: auto;
+}
+
 #import-dialog::backdrop,
 #jsonld-dialog::backdrop,
 #repo-connect::backdrop,
-#delete-dialog::backdrop {
+#delete-dialog::backdrop,
+#feed-settings-dialog::backdrop {
   background: rgba(28, 33, 40, 0.45);
 }
 
 #import-dialog h2,
 #jsonld-dialog h2,
 #repo-connect h2,
-#delete-dialog h2 {
+#delete-dialog h2,
+#feed-settings-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
 }
