@@ -231,7 +231,7 @@ function timezoneOptions(): string[] {
   }
 }
 
-const SECTION_TITLES: Record<SectionId, string> = {
+export const SECTION_TITLES: Record<SectionId, string> = {
   what: "What",
   when: "When",
   where: "Where",

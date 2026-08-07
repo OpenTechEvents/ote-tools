@@ -51,6 +51,8 @@ import {
 } from "./lib/links.js";
 import {
   availablePresets,
+  CORE_FIELDS,
+  FIELD_REGISTRY,
   resolveProfile,
   type ResolvedProfile,
 } from "./lib/presets.js";
@@ -76,6 +78,7 @@ import {
   renderForm,
   renderInfoToggle,
   renderRepeaterField,
+  SECTION_TITLES,
   setAllDay,
   updateErrors,
   type RepeaterKey,
@@ -504,6 +507,74 @@ async function startEditor(repo: string | null): Promise<void> {
       );
     }
 
+    // Default profile + custom field picker — writes the top-level
+    // profile/customProfile keys (not nested under feed), via the same
+    // feedState/toOteConfigJson save path as everything else in this view.
+    const feedProfileToggle = el<HTMLDivElement>("feed-profile-toggle");
+    const feedProfileFieldsWrap = el<HTMLDivElement>("feed-profile-fields-wrap");
+    const feedProfileFields = el<HTMLDivElement>("feed-profile-fields");
+    const coreFieldIds: readonly string[] = CORE_FIELDS;
+
+    function renderFeedProfileFields(): void {
+      feedProfileFieldsWrap.hidden = feedState.profile !== "custom";
+      feedProfileFields.textContent = "";
+      if (feedState.profile !== "custom") return;
+      let currentSection: string | null = null;
+      for (const def of FIELD_REGISTRY) {
+        if (coreFieldIds.includes(def.id)) continue;
+        if (def.section !== currentSection) {
+          currentSection = def.section;
+          const heading = document.createElement("p");
+          heading.className = "field-checklist-section";
+          heading.textContent = t(`section.${def.section}`, SECTION_TITLES[def.section]);
+          feedProfileFields.append(heading);
+        }
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = feedState.customProfileFields.includes(def.id);
+        checkbox.addEventListener("input", () => {
+          feedState.customProfileFields = checkbox.checked
+            ? [...feedState.customProfileFields, def.id]
+            : feedState.customProfileFields.filter((id) => id !== def.id);
+        });
+        const span = document.createElement("span");
+        span.textContent = t(`field.${def.id}.label`, def.id);
+        label.append(checkbox, span);
+        feedProfileFields.append(label);
+      }
+    }
+
+    // Always all four, regardless of what this repo's config currently has
+    // (unlike the live #profile-toggle, which only offers "custom" once the
+    // file already has one) — this picker is how an organizer creates one
+    // for the first time. Built once; renderFeedProfileToggle() (called
+    // each time the view opens) only sets which radio is checked.
+    for (const preset of ["meetup", "conference", "all", "custom"]) {
+      const label = document.createElement("label");
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "feed-profile";
+      radio.value = preset;
+      const span = document.createElement("span");
+      span.textContent = preset;
+      label.append(radio, span);
+      feedProfileToggle.append(label);
+      radio.addEventListener("input", () => {
+        feedState.profile = preset;
+        renderFeedProfileFields();
+      });
+    }
+
+    function renderFeedProfileToggle(): void {
+      for (const radio of feedProfileToggle.querySelectorAll<HTMLInputElement>(
+        'input[name="feed-profile"]',
+      )) {
+        radio.checked = radio.value === feedState.profile;
+      }
+      renderFeedProfileFields();
+    }
+
     feedSettingsOpen.addEventListener("click", () => {
       feedState = fromOteConfig(config);
       aggregatorLikely = likelyAggregatorFeed(listed.map((entry) => entry.event));
@@ -515,6 +586,7 @@ async function startEditor(repo: string | null): Promise<void> {
       feedTextLanguageInput.value = feedState.textLanguage;
       renderFeedOrganizers();
       renderFeedTranslationsUI();
+      renderFeedProfileToggle();
       view = "settings";
       showView();
     });

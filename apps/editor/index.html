@@ -175,8 +175,8 @@
       <section id="feed-settings-view" hidden>
         <h2 data-i18n="dialog.feedSettings.title">Feed settings</h2>
         <p class="hint" data-i18n="dialog.feedSettings.hint">
-          Edits ote.config.json's feed block — the profile and other editor
-          settings in that file aren't touched.
+          Edits ote.config.json — the feed's own metadata, and (below) which
+          fields the editor shows by default for this repo.
         </p>
 
         <h3 data-i18n="dialog.feedSettings.aboutGroup">About this feed</h3>
@@ -222,6 +222,22 @@
         </div>
         <div id="feed-organizers-slot"></div>
         <div id="feed-translations-slot"></div>
+
+        <h3 data-i18n="dialog.feedSettings.editorGroup">Editor setup</h3>
+        <p class="hint" data-i18n="dialog.feedSettings.editorGroupNote">
+          Which fields the editor shows by default when someone opens this
+          feed to add or edit an event.
+        </p>
+        <div class="mode-toggle" id="feed-profile-toggle" role="radiogroup"
+          aria-label="Default profile"></div>
+        <div id="feed-profile-fields-wrap" hidden>
+          <p class="hint" data-i18n="dialog.feedSettings.customFieldsNote">
+            Pick which optional fields to show. Name, dates, and the file's
+            own slug/id are always included, so they're not listed here.
+          </p>
+          <div id="feed-profile-fields" class="field-checklist"></div>
+        </div>
+
         <div class="actions">
           <button id="feed-settings-save" type="button" class="primary" data-i18n="action.openOnGithub">
             Open on GitHub

@@ -45,7 +45,7 @@ export const es: Record<string, string> = {
     "Escribe tu repositorio como owner/repo — por ejemplo my-org/ote-events.",
   "dialog.feedSettings.title": "Configuración del feed",
   "dialog.feedSettings.hint":
-    "Edita el bloque feed de ote.config.json — el perfil y otros ajustes del editor en ese fichero no se tocan.",
+    "Edita ote.config.json — los metadatos propios del feed, y (abajo) qué campos muestra el editor por defecto en este repositorio.",
   "dialog.feedSettings.aboutGroup": "Sobre este feed",
   "dialog.feedSettings.defaultsGroup": "Valores por defecto para tus eventos",
   "dialog.feedSettings.defaultsGroupNote":
@@ -74,6 +74,11 @@ export const es: Record<string, string> = {
   "dialog.feedSettings.organizersQuickFill": "Usar los mismos datos que arriba",
   "dialog.feedSettings.organizersAggregatorWarning":
     "Aviso: los eventos de este feed declaran organizadores bastante distintos entre sí. Si este feed agrega eventos de otras comunidades, deja este campo vacío — la spec lo exige: rellenarlo atribuiría cada evento agregado a quien lleva este feed, no a quien realmente lo organiza.",
+  "dialog.feedSettings.editorGroup": "Configuración del editor",
+  "dialog.feedSettings.editorGroupNote":
+    "Qué campos muestra el editor por defecto cuando alguien abre este feed para añadir o editar un evento.",
+  "dialog.feedSettings.customFieldsNote":
+    "Elige qué campos opcionales mostrar. Nombre, fechas, y el slug/id propios del fichero se incluyen siempre, por eso no aparecen aquí.",
   "dialog.review.title": "Revisar y enviar",
   "dialog.review.hintRepo":
     "Esto abre un issue de GitHub prerrellenado en el repositorio de destino; una persona mantenedora (o la automatización del repositorio) lo convierte en un pull request.",

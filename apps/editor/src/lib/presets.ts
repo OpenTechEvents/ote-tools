@@ -64,7 +64,7 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
  * them no valid event file can be produced (schema-required fields plus the
  * filename and the endDate that startDate's form constrains).
  */
-const CORE_FIELDS = [
+export const CORE_FIELDS = [
   "name",
   "allDay",
   "startDate",

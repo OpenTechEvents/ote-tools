@@ -30,7 +30,7 @@ const realish = {
 };
 
 describe("emptyFeedConfigState", () => {
-  it("is all-empty, no organizers, no translations", () => {
+  it("is all-empty, no organizers, no translations, no profile", () => {
     expect(emptyFeedConfigState()).toEqual({
       title: "",
       description: "",
@@ -40,6 +40,8 @@ describe("emptyFeedConfigState", () => {
       textLanguage: "",
       organizers: [],
       translations: {},
+      profile: "",
+      customProfileFields: [],
     });
   });
 });
@@ -66,6 +68,22 @@ describe("fromOteConfig", () => {
         type: "",
       },
     ]);
+  });
+
+  it("plain profile with no customProfile → profile as-is, no custom fields", () => {
+    const state = fromOteConfig(realish as unknown as OteConfig);
+    expect(state.profile).toBe("all");
+    expect(state.customProfileFields).toEqual([]);
+  });
+
+  it("customProfile.fields wins over profile, same precedence resolveProfile uses — including an id this editor's FIELD_REGISTRY doesn't recognize, kept unfiltered", () => {
+    const config = {
+      profile: "meetup", // present but should be ignored, per resolveProfile's own precedence
+      customProfile: { fields: ["description", "cfp", "sponsors"] }, // "sponsors" is not a real field id yet
+    };
+    const state = fromOteConfig(config as unknown as OteConfig);
+    expect(state.profile).toBe("custom");
+    expect(state.customProfileFields).toEqual(["description", "cfp", "sponsors"]);
   });
 });
 
@@ -144,6 +162,36 @@ describe("toOteConfigJson", () => {
     // realish had organizers set; clearing them in state should drop the key.
     const feed = result.feed as Record<string, unknown>;
     expect(feed.organizers).toBeUndefined();
+  });
+
+  it("a profile-less config round-trips with no profile/customProfile written when left untouched", () => {
+    const noProfile = { feed: { title: "x" } };
+    const state = fromOteConfig(noProfile as unknown as OteConfig);
+    expect(state.profile).toBe(""); // sanity: the picker would start unselected
+    state.description = "edited elsewhere, profile never touched";
+    const result = toOteConfigJson(state, noProfile as unknown as Record<string, unknown>);
+    expect(result.profile).toBeUndefined();
+    expect(result.customProfile).toBeUndefined();
+  });
+
+  it("switching to a plain preset clears a pre-existing customProfile", () => {
+    const withCustom = { customProfile: { fields: ["description"] } };
+    const state = fromOteConfig(withCustom as unknown as OteConfig);
+    expect(state.profile).toBe("custom");
+    state.profile = "meetup";
+    const result = toOteConfigJson(state, withCustom as unknown as Record<string, unknown>);
+    expect(result.profile).toBe("meetup");
+    expect(result.customProfile).toBeUndefined();
+  });
+
+  it("switching to custom clears a pre-existing profile and writes the checked fields", () => {
+    const withProfile = { profile: "conference" };
+    const state = fromOteConfig(withProfile as unknown as OteConfig);
+    state.profile = "custom";
+    state.customProfileFields = ["description", "cfp"];
+    const result = toOteConfigJson(state, withProfile as unknown as Record<string, unknown>);
+    expect(result.profile).toBeUndefined();
+    expect(result.customProfile).toEqual({ fields: ["description", "cfp"] });
   });
 });
 

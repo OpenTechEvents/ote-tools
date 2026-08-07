@@ -2,10 +2,11 @@ import { cleanRow, isRowEmpty } from "./event-json.js";
 import type { OrganizerRow, OteConfig, OteEvent } from "./types.js";
 
 /**
- * Flat, all-string form model for ote.config.json's `feed` block — same
- * "" = unset convention as FormState. Scoped to the fields this dialog
- * actually edits; `profile`/`customProfile` live outside it entirely (see
- * toOteConfigJson for how they're preserved anyway).
+ * Flat, all-string form model for ote.config.json — same "" = unset
+ * convention as FormState. `feed`'s own sub-fields plus, at the top level,
+ * `profile`/`customProfileFields` (config.profile / config.customProfile.
+ * fields — outside `feed` in the file, kept here for one shared save
+ * action; see toOteConfigJson for exactly how each round-trips).
  */
 export interface FeedConfigState {
   title: string;
@@ -17,6 +18,16 @@ export interface FeedConfigState {
   organizers: OrganizerRow[];
   /** BCP 47 tag → { title?, description? } in that language. */
   translations: Record<string, { title: string; description: string }>;
+  /** "meetup" | "conference" | "all" | "custom" | "" (unset — resolveProfile falls back to "all"). */
+  profile: string;
+  /**
+   * Only meaningful when profile === "custom". Kept exactly as read from
+   * the file, unfiltered — a fork's config can list an id this editor's
+   * FIELD_REGISTRY doesn't know about (a newer field this build predates),
+   * and saving must not silently drop it just because the checklist UI has
+   * no row for it.
+   */
+  customProfileFields: string[];
 }
 
 /** A fresh, empty settings draft — used when a repo has no ote.config.json yet. */
@@ -30,12 +41,18 @@ export function emptyFeedConfigState(): FeedConfigState {
     textLanguage: "",
     organizers: [],
     translations: {},
+    profile: "",
+    customProfileFields: [],
   };
 }
 
 /** Reads the `feed` block into form state; a missing config or feed block just yields the empty draft (never throws — same convention as fromEventJson). */
 export function fromOteConfig(config: OteConfig | null): FeedConfigState {
   const feed = config?.feed;
+  // customProfile.fields wins over profile, same precedence resolveProfile
+  // itself uses — so "custom" is what the picker should show as active.
+  const customFields = config?.customProfile?.fields;
+  const hasCustom = Array.isArray(customFields);
   return {
     title: feed?.title ?? "",
     description: feed?.description ?? "",
@@ -55,6 +72,8 @@ export function fromOteConfig(config: OteConfig | null): FeedConfigState {
         { title: entry.title ?? "", description: entry.description ?? "" },
       ]),
     ),
+    profile: hasCustom ? "custom" : (config?.profile ?? ""),
+    customProfileFields: hasCustom ? [...customFields] : [],
   };
 }
 
@@ -100,7 +119,25 @@ export function toOteConfigJson(
   if (Object.keys(translations).length > 0) feed.translations = translations;
   else delete feed.translations;
 
-  return { ...(rawConfig ?? {}), feed };
+  const result: Record<string, unknown> = { ...(rawConfig ?? {}), feed };
+  // customProfile wins over profile per resolveProfile's own precedence —
+  // leaving a stale profile behind when switching to "custom" (or vice
+  // versa) would silently do nothing at read time, which is confusing for
+  // anyone hand-reading the file later. profile === "" (never touched, or
+  // explicitly cleared) drops both, same "absent stays absent" convention
+  // every other field here already follows.
+  if (state.profile === "custom") {
+    result.customProfile = { fields: state.customProfileFields };
+    delete result.profile;
+  } else if (state.profile !== "") {
+    result.profile = state.profile;
+    delete result.customProfile;
+  } else {
+    delete result.profile;
+    delete result.customProfile;
+  }
+
+  return result;
 }
 
 /**
