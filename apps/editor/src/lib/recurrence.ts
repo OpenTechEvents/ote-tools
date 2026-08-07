@@ -1,35 +1,57 @@
 /**
- * Pure calendar-date math for the "repeat as a series" wizard. Nothing here
- * knows about event shape or wall-clock times — main.ts combines each
- * returned date with the current draft's time via the existing
- * toEventJson()/wallClock() (see event-json.ts). OTE itself has no
- * recurrence-rule concept (one document per occurrence, always) — this is
- * purely an editor-side convenience for generating that batch of documents.
+ * Pure calendar-date math for the inline "repeats" row list in the
+ * "Cuándo" section. Nothing here knows about event shape, wall-clock
+ * times, or DOM — main.ts combines each returned date with a series row's
+ * own time via the existing toEventJson()/wallClock() (see
+ * event-json.ts). OTE itself has no recurrence-rule concept (one document
+ * per occurrence, always) — this is purely an editor-side convenience for
+ * generating that batch of documents.
  */
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6; // matches Date#getUTCDay()
 
-export interface RecurrenceRule {
-  frequency: "weekly" | "monthly";
-  /** Every N weeks (weekly) or N months (monthly). */
-  interval: number;
-  weekday: Weekday;
-  /** monthly only: nth weekday of the month; -1 = last. */
-  ordinal?: 1 | 2 | 3 | 4 | -1;
-  /** YYYY-MM-DD — first candidate date; earlier occurrences are skipped. */
-  from: string;
-  until: { type: "count"; count: number } | { type: "date"; date: string };
-}
+export type RecurrenceUntil =
+  | { type: "never" }
+  | { type: "count"; count: number }
+  | { type: "date"; date: string };
+
+export type RecurrenceRule =
+  | { frequency: "daily"; interval: number; from: string; until: RecurrenceUntil }
+  | {
+      frequency: "weekly";
+      interval: number;
+      weekdays: Weekday[];
+      from: string;
+      until: RecurrenceUntil;
+    }
+  | {
+      frequency: "monthly";
+      interval: number;
+      weekday: Weekday;
+      /** nth weekday of the month; -1 = last */
+      ordinal: 1 | 2 | 3 | 4 | -1;
+      from: string;
+      until: RecurrenceUntil;
+    }
+  | { frequency: "yearly"; interval: number; from: string; until: RecurrenceUntil };
 
 /**
  * Hard ceiling regardless of `until` — the OTE spec's own guidance for
  * expanding an otherwise-open series ("12 meses o las próximas 12
- * ocurrencias"), doubled for headroom on weekly series with a far-out
- * until-date.
+ * ocurrencias"), doubled for headroom on a weekly series with a far-out
+ * until-date. Applies per series (a draft with several rows can exceed
+ * this in total, just not any single one).
  */
 export const MAX_OCCURRENCES = 24;
 
+/** Safety bound on weeks scanned in the weekly branch, independent of
+ * `interval`/`maxCount` — a pathological interval must degrade (fewer
+ * results than requested) rather than hang. ~96 years, never hit by any
+ * realistic input. */
+const MAX_WEEKS_SCANNED = 5000;
+
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DAY_MS = 86_400_000;
 
 function parseIsoDate(iso: string): number | null {
   const match = ISO_DATE_RE.exec(iso);
@@ -45,8 +67,6 @@ function toIso(ms: number): string {
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
-const DAY_MS = 86_400_000;
 
 /** First UTC-midnight timestamp on/after `fromMs` matching `weekday`. */
 function firstWeekdayOnOrAfter(fromMs: number, weekday: Weekday): number {
@@ -71,47 +91,91 @@ function nthWeekdayOfMonth(
 }
 
 /**
- * Rule -> ordered YYYY-MM-DD occurrence dates, capped at MAX_OCCURRENCES.
- * Malformed/nonsensical input (bad dates, interval < 1, count <= 0, an
- * until-date before `from`) degrades to `[]` rather than throwing — same
- * defensive convention as every other parser in lib/.
+ * For dropdown option labels: which occurrence-of-the-month `date`'s
+ * weekday is within its month (1-4), and whether it's also the last —
+ * lets the UI offer "on the last Friday" instead of "on the fourth
+ * Friday" when they coincide. A 5th occurrence (rare, only some
+ * weekday/month combinations) is definitionally always also the last, so
+ * it's reported as `{ordinal: 4, isLast: true}` rather than exposing a
+ * "5th" ordinal the UI has no use for.
  */
-export function expandRecurrenceDates(rule: RecurrenceRule): string[] {
-  const fromMs = parseIsoDate(rule.from);
-  if (fromMs === null || !Number.isFinite(rule.interval) || rule.interval < 1) {
-    return [];
+export function ordinalInMonth(date: string): { ordinal: 1 | 2 | 3 | 4; isLast: boolean } | null {
+  const ms = parseIsoDate(date);
+  if (ms === null) return null;
+  const d = new Date(ms);
+  const day = d.getUTCDate();
+  const ordinal = Math.min(Math.ceil(day / 7), 4) as 1 | 2 | 3 | 4;
+  const nextWeek = new Date(ms + 7 * DAY_MS);
+  const isLast =
+    nextWeek.getUTCMonth() !== d.getUTCMonth() || nextWeek.getUTCFullYear() !== d.getUTCFullYear();
+  return { ordinal, isLast };
+}
+
+function expandDaily(
+  fromMs: number,
+  interval: number,
+  maxCount: number,
+  untilDateIso: string | null,
+): string[] {
+  const results: string[] = [];
+  let cursor = fromMs;
+  while (results.length < maxCount) {
+    const iso = toIso(cursor);
+    if (untilDateIso !== null && iso > untilDateIso) break;
+    results.push(iso);
+    cursor += interval * DAY_MS;
   }
-  const untilDateIso = rule.until.type === "date" ? rule.until.date : null;
-  if (untilDateIso !== null && parseIsoDate(untilDateIso) === null) return [];
-  const maxCount =
-    rule.until.type === "count"
-      ? Math.min(Math.max(0, Math.floor(rule.until.count)), MAX_OCCURRENCES)
-      : MAX_OCCURRENCES;
-  if (maxCount === 0) return [];
+  return results;
+}
+
+function expandWeekly(
+  fromMs: number,
+  interval: number,
+  weekdays: readonly Weekday[],
+  maxCount: number,
+  untilDateIso: string | null,
+): string[] {
+  if (weekdays.length === 0) return [];
+  const sortedWeekdays = [...new Set(weekdays)].sort((a, b) => a - b);
+  // Monday-start week containing `from` — the reference `interval` counts
+  // from, so "every 2 weeks on Mon/Wed/Fri" skips a whole week at a time,
+  // not every other calendar day.
+  const daysSinceMonday = (new Date(fromMs).getUTCDay() + 6) % 7;
+  const weekStartMs = fromMs - daysSinceMonday * DAY_MS;
 
   const results: string[] = [];
-  const interval = Math.floor(rule.interval);
-
-  if (rule.frequency === "weekly") {
-    let cursor = firstWeekdayOnOrAfter(fromMs, rule.weekday);
-    while (results.length < maxCount) {
-      const iso = toIso(cursor);
-      if (untilDateIso !== null && iso > untilDateIso) break;
+  for (let weekIndex = 0; weekIndex < MAX_WEEKS_SCANNED && results.length < maxCount; weekIndex++) {
+    if (weekIndex % interval !== 0) continue;
+    for (const wd of sortedWeekdays) {
+      const dayOffset = (wd + 6) % 7; // Monday-relative offset within the week
+      const candidateMs = weekStartMs + weekIndex * 7 * DAY_MS + dayOffset * DAY_MS;
+      if (candidateMs < fromMs) continue;
+      const iso = toIso(candidateMs);
+      if (untilDateIso !== null && iso > untilDateIso) return results;
       results.push(iso);
-      cursor += 7 * interval * DAY_MS;
+      if (results.length >= maxCount) break;
     }
-    return results;
   }
+  return results;
+}
 
-  const ordinal = rule.ordinal ?? -1;
+function expandMonthly(
+  fromMs: number,
+  interval: number,
+  weekday: Weekday,
+  ordinal: 1 | 2 | 3 | 4 | -1,
+  maxCount: number,
+  untilDateIso: string | null,
+): string[] {
+  const results: string[] = [];
   const start = new Date(fromMs);
   let year = start.getUTCFullYear();
   let month = start.getUTCMonth();
   // Bounded generously above maxCount: a requested month may fall before
   // `from` and get skipped without producing a result, so this can't infer
-  // "done" purely from iteration count the way the weekly branch does.
+  // "done" purely from iteration count.
   for (let guard = 0; guard < MAX_OCCURRENCES * 6 && results.length < maxCount; guard++) {
-    const occ = nthWeekdayOfMonth(year, month, rule.weekday, ordinal);
+    const occ = nthWeekdayOfMonth(year, month, weekday, ordinal);
     if (occ >= fromMs) {
       const iso = toIso(occ);
       if (untilDateIso !== null && iso > untilDateIso) break;
@@ -124,4 +188,64 @@ export function expandRecurrenceDates(rule: RecurrenceRule): string[] {
     }
   }
   return results;
+}
+
+function expandYearly(
+  fromMs: number,
+  interval: number,
+  maxCount: number,
+  untilDateIso: string | null,
+): string[] {
+  const start = new Date(fromMs);
+  const month = start.getUTCMonth();
+  const day = start.getUTCDate();
+  const results: string[] = [];
+  let year = start.getUTCFullYear();
+  for (let guard = 0; results.length < maxCount && guard < MAX_OCCURRENCES * 40; guard++) {
+    const ms = Date.UTC(year, month, day);
+    // Date.UTC normalizes an out-of-range day (Feb 29 on a non-leap year
+    // rolls into March) — detect and skip that year rather than emit a
+    // silently-wrong date.
+    const normalized = new Date(ms);
+    if (normalized.getUTCMonth() === month && normalized.getUTCDate() === day) {
+      const iso = toIso(ms);
+      if (untilDateIso !== null && iso > untilDateIso) break;
+      results.push(iso);
+    }
+    year += interval;
+  }
+  return results;
+}
+
+/**
+ * Rule -> ordered YYYY-MM-DD occurrence dates, capped at MAX_OCCURRENCES.
+ * Malformed/nonsensical input (bad dates, interval < 1, count <= 0, an
+ * until-date before `from`) degrades to `[]` rather than throwing — same
+ * defensive convention as every other parser in lib/.
+ */
+export function expandRecurrenceDates(rule: RecurrenceRule): string[] {
+  const fromMs = parseIsoDate(rule.from);
+  if (fromMs === null || !Number.isFinite(rule.interval) || rule.interval < 1) {
+    return [];
+  }
+  const interval = Math.floor(rule.interval);
+
+  const untilDateIso = rule.until.type === "date" ? rule.until.date : null;
+  if (untilDateIso !== null && parseIsoDate(untilDateIso) === null) return [];
+  const maxCount =
+    rule.until.type === "count"
+      ? Math.min(Math.max(0, Math.floor(rule.until.count)), MAX_OCCURRENCES)
+      : MAX_OCCURRENCES;
+  if (maxCount === 0) return [];
+
+  switch (rule.frequency) {
+    case "daily":
+      return expandDaily(fromMs, interval, maxCount, untilDateIso);
+    case "weekly":
+      return expandWeekly(fromMs, interval, rule.weekdays, maxCount, untilDateIso);
+    case "monthly":
+      return expandMonthly(fromMs, interval, rule.weekday, rule.ordinal, maxCount, untilDateIso);
+    case "yearly":
+      return expandYearly(fromMs, interval, maxCount, untilDateIso);
+  }
 }

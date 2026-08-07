@@ -58,7 +58,12 @@ import {
   type ResolvedProfile,
 } from "./lib/presets.js";
 import { forgetRepoUsed, getRecentRepos, recordRepoUsed } from "./lib/recent-repos.js";
-import { expandRecurrenceDates, MAX_OCCURRENCES, type RecurrenceRule } from "./lib/recurrence.js";
+import {
+  expandRecurrenceDates,
+  MAX_OCCURRENCES,
+  type RecurrenceRule,
+  type Weekday,
+} from "./lib/recurrence.js";
 import {
   editorContextFromSearch,
   parseContentsListing,
@@ -85,6 +90,7 @@ import {
   SECTION_TITLES,
   setAllDay,
   updateErrors,
+  type RecurrenceSeriesInput,
   type RepeaterKey,
   type TranslationsPatch,
 } from "./ui/form.js";
@@ -318,7 +324,6 @@ async function startEditor(repo: string | null): Promise<void> {
   const sectionNav = el<HTMLElement>("section-nav");
   const badge = el<HTMLButtonElement>("valid-badge");
   const resetButton = el<HTMLButtonElement>("reset-draft");
-  const repeatSeriesOpen = el<HTMLButtonElement>("repeat-series-open");
   const documentErrors = el<HTMLUListElement>("document-errors");
   const propose = el<HTMLButtonElement>("propose");
   const editDirect = el<HTMLButtonElement>("edit-direct");
@@ -814,7 +819,6 @@ async function startEditor(repo: string | null): Promise<void> {
       ? t("action.reset", "Reset")
       : t("action.revertChanges", "Revert changes");
     resetButton.disabled = !isNew && loadedSnapshot === null;
-    repeatSeriesOpen.hidden = !isNew;
     editDirect.disabled = !hasRepo || (!isNew && editSlug === null);
     editDirect.title =
       !isNew && editSlug === null
@@ -982,6 +986,8 @@ async function startEditor(repo: string | null): Promise<void> {
       onArrayInput,
       onTranslationsCommit,
       mountMap,
+      onGenerateRecurrenceSeries,
+      onCustomizeRecurrenceRule,
     );
     refreshTranslations = rendered.refreshTranslations;
     renderSectionNav(rendered.sections);
@@ -1492,19 +1498,14 @@ async function startEditor(repo: string | null): Promise<void> {
   );
 
   // --- source: recurring series (generated, not imported) --------------------
-  // Uses the current draft as the template for every occurrence — only
-  // startDate/endDate/id differ per generated event. Feeds the exact same
-  // showDetected()/importSelected() queue pipeline as ICS/JSON-LD import, so
-  // the organizer reviews/edits/submits each occurrence the same way.
+  // Rule configuration lives inline in the "Cuándo" section (ui/form.ts's
+  // renderRecurrenceRows) — one or more rows, each its own date/time/name.
+  // This dialog is now just the results review: onGenerateRecurrenceSeries
+  // (passed into renderForm below) expands every row and feeds the merged
+  // list into the exact same showDetected()/importSelected() queue pipeline
+  // ICS/JSON-LD import already use, so the organizer reviews/edits/submits
+  // each occurrence the same way regardless of source.
   const recurrenceDialog = el<HTMLDialogElement>("recurrence-dialog");
-  const recurrenceFrequency = el<HTMLSelectElement>("recurrence-frequency");
-  const recurrenceOrdinalField = el<HTMLLabelElement>("recurrence-ordinal-field");
-  const recurrenceOrdinal = el<HTMLSelectElement>("recurrence-ordinal");
-  const recurrenceWeekday = el<HTMLSelectElement>("recurrence-weekday");
-  const recurrenceFrom = el<HTMLInputElement>("recurrence-from");
-  const recurrenceInterval = el<HTMLInputElement>("recurrence-interval");
-  const recurrenceUntilCount = el<HTMLInputElement>("recurrence-until-count");
-  const recurrenceUntilDate = el<HTMLInputElement>("recurrence-until-date");
   const recurrenceUi: DetectedUi = {
     list: el<HTMLUListElement>("recurrence-list"),
     warningsBox: el<HTMLDivElement>("recurrence-warnings"),
@@ -1512,84 +1513,203 @@ async function startEditor(repo: string | null): Promise<void> {
     confirm: el<HTMLButtonElement>("recurrence-confirm"),
     emptyMessage: t(
       "dialog.recurrence.empty",
-      "No occurrences generated — check the recurrence fields above.",
+      "No occurrences generated — check the recurrence rows above.",
     ),
   };
 
   recurrenceUi.list.addEventListener("input", () => updateConfirm(recurrenceUi));
 
-  function updateRecurrenceFrequencyUi(): void {
-    recurrenceOrdinalField.hidden = recurrenceFrequency.value !== "monthly";
-  }
-  recurrenceFrequency.addEventListener("input", updateRecurrenceFrequencyUi);
-  updateRecurrenceFrequencyUi();
-
-  function updateRecurrenceUntilUi(): void {
-    const mode =
-      recurrenceDialog.querySelector<HTMLInputElement>(
-        'input[name="recurrence-until-mode"]:checked',
-      )?.value ?? "count";
-    recurrenceUntilCount.disabled = mode !== "count";
-    recurrenceUntilDate.disabled = mode !== "date";
-  }
-  recurrenceDialog
-    .querySelectorAll<HTMLInputElement>('input[name="recurrence-until-mode"]')
-    .forEach((radio) => radio.addEventListener("input", updateRecurrenceUntilUi));
-
-  repeatSeriesOpen.addEventListener("click", () => {
-    const from = state.startDate || new Date().toISOString().slice(0, 10);
-    recurrenceFrom.value = from;
-    recurrenceWeekday.value = String(new Date(`${from}T00:00:00Z`).getUTCDay());
-    recurrenceDialog.showModal();
-  });
-
   el<HTMLButtonElement>("recurrence-cancel").addEventListener("click", () =>
     recurrenceDialog.close(),
   );
 
-  function readRecurrenceRule(): RecurrenceRule {
-    const untilMode =
-      recurrenceDialog.querySelector<HTMLInputElement>(
-        'input[name="recurrence-until-mode"]:checked',
-      )?.value ?? "count";
-    return {
-      frequency: recurrenceFrequency.value === "monthly" ? "monthly" : "weekly",
-      interval: Number(recurrenceInterval.value),
-      weekday: Number(recurrenceWeekday.value) as RecurrenceRule["weekday"],
-      ordinal: Number(recurrenceOrdinal.value) as 1 | 2 | 3 | 4 | -1,
-      from: recurrenceFrom.value,
-      until:
-        untilMode === "date"
-          ? { type: "date", date: recurrenceUntilDate.value }
-          : { type: "count", count: Number(recurrenceUntilCount.value) },
-    };
-  }
-
-  /** One `ImportedEvent` per date, everything else copied from the current draft. */
-  function buildRecurringEvents(dates: readonly string[]): ImportedEvent[] {
+  /** One `ImportedEvent` per date for one series row — everything but
+   * name/startDate/startTime/endDate/endTime/id copied from the draft. */
+  function buildRecurringEvents(
+    series: RecurrenceSeriesInput,
+    dates: readonly string[],
+  ): ImportedEvent[] {
     return dates.map((date) => {
       const occState: FormState = {
         ...state,
         id: "",
+        name: series.nameOverride || state.name,
         startDate: date,
-        endDate: state.endDate ? date : "",
+        startTime: series.startTime,
+        endDate: state.endDate || series.endTime ? date : "",
+        endTime: series.endTime,
       };
       return toEventJson(occState) as unknown as ImportedEvent;
     });
   }
 
-  el<HTMLButtonElement>("recurrence-generate").addEventListener("click", () => {
-    const dates = expandRecurrenceDates(readRecurrenceRule());
+  /** renderForm's onGenerateRecurrenceSeries — expands every row, merges
+   * them into one queue-ready list. */
+  function onGenerateRecurrenceSeries(series: RecurrenceSeriesInput[]): void {
+    if (series.length === 0) return;
     const warnings: ImportedWarning[] = [];
-    if (dates.length === MAX_OCCURRENCES) {
-      warnings.push({
-        message: t(
-          "dialog.recurrence.cappedWarning",
-          "Capped at {max} occurrences — generate again later to continue the series.",
-        ).replace("{max}", String(MAX_OCCURRENCES)),
-      });
+    const events: ImportedEvent[] = [];
+    series.forEach((s, index) => {
+      const dates = expandRecurrenceDates(s.rule);
+      if (dates.length === MAX_OCCURRENCES) {
+        warnings.push({
+          message: t(
+            "dialog.recurrence.cappedWarning",
+            "Recurrence #{n}: capped at {max} occurrences — generate again later to continue the series.",
+          )
+            .replace("{n}", String(index + 1))
+            .replace("{max}", String(MAX_OCCURRENCES)),
+        });
+      }
+      events.push(...buildRecurringEvents(s, dates));
+    });
+    recurrenceDialog.showModal();
+    showDetected(recurrenceUi, { events, warnings }, null);
+  }
+
+  // --- "Custom recurrence" — Google-Calendar-style modal, shared by every
+  // recurrence row (main.ts owns the dialog; ui/form.ts's row list only
+  // knows the onCustomize/apply callback contract — see renderRecurrenceRows). ---
+  const recurrenceCustomDialog = el<HTMLDialogElement>("recurrence-custom-dialog");
+  const recurrenceCustomInterval = el<HTMLInputElement>("recurrence-custom-interval");
+  const recurrenceCustomUnit = el<HTMLSelectElement>("recurrence-custom-unit");
+  const recurrenceCustomWeekdaysField = el<HTMLDivElement>("recurrence-custom-weekdays-field");
+  const recurrenceCustomMonthlyField = el<HTMLDivElement>("recurrence-custom-monthly-field");
+  const recurrenceCustomOrdinal = el<HTMLSelectElement>("recurrence-custom-ordinal");
+  const recurrenceCustomWeekday = el<HTMLSelectElement>("recurrence-custom-weekday");
+  const recurrenceCustomEndsDate = el<HTMLInputElement>("recurrence-custom-ends-date");
+  const recurrenceCustomEndsCount = el<HTMLInputElement>("recurrence-custom-ends-count");
+  const weekdayToggles = [
+    ...recurrenceCustomDialog.querySelectorAll<HTMLButtonElement>(".weekday-toggle"),
+  ];
+
+  function updateCustomUnitUi(): void {
+    const unit = recurrenceCustomUnit.value;
+    recurrenceCustomWeekdaysField.hidden = unit !== "weekly";
+    recurrenceCustomMonthlyField.hidden = unit !== "monthly";
+  }
+  recurrenceCustomUnit.addEventListener("input", updateCustomUnitUi);
+
+  function updateCustomEndsUi(): void {
+    const mode =
+      recurrenceCustomDialog.querySelector<HTMLInputElement>(
+        'input[name="recurrence-custom-ends-mode"]:checked',
+      )?.value ?? "never";
+    recurrenceCustomEndsDate.disabled = mode !== "date";
+    recurrenceCustomEndsCount.disabled = mode !== "count";
+  }
+  recurrenceCustomDialog
+    .querySelectorAll<HTMLInputElement>('input[name="recurrence-custom-ends-mode"]')
+    .forEach((radio) => radio.addEventListener("input", updateCustomEndsUi));
+
+  for (const button of weekdayToggles) {
+    button.addEventListener("click", () => {
+      button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"));
+    });
+  }
+  function selectedCustomWeekdays(): Weekday[] {
+    return weekdayToggles
+      .filter((b) => b.getAttribute("aria-pressed") === "true")
+      .map((b) => Number(b.dataset.weekday) as Weekday);
+  }
+  function setSelectedCustomWeekdays(weekdays: readonly Weekday[]): void {
+    for (const button of weekdayToggles) {
+      button.setAttribute(
+        "aria-pressed",
+        String(weekdays.includes(Number(button.dataset.weekday) as Weekday)),
+      );
     }
-    showDetected(recurrenceUi, { events: buildRecurringEvents(dates), warnings }, null);
+  }
+
+  let customApply: ((rule: RecurrenceRule) => void) | null = null;
+  let customFrom = "";
+
+  function onCustomizeRecurrenceRule(
+    current: RecurrenceRule | null,
+    apply: (rule: RecurrenceRule) => void,
+  ): void {
+    customApply = apply;
+    const rule: RecurrenceRule =
+      current ??
+      ({
+        frequency: "weekly",
+        interval: 1,
+        weekdays: [1],
+        from: new Date().toISOString().slice(0, 10),
+        until: { type: "never" },
+      } as RecurrenceRule);
+    customFrom = rule.from;
+    recurrenceCustomUnit.value = rule.frequency;
+    recurrenceCustomInterval.value = String(rule.interval);
+    if (rule.frequency === "weekly") {
+      setSelectedCustomWeekdays(rule.weekdays);
+    } else {
+      setSelectedCustomWeekdays([]);
+    }
+    if (rule.frequency === "monthly") {
+      recurrenceCustomOrdinal.value = String(rule.ordinal);
+      recurrenceCustomWeekday.value = String(rule.weekday);
+    }
+    updateCustomUnitUi();
+
+    const endsRadios = recurrenceCustomDialog.querySelectorAll<HTMLInputElement>(
+      'input[name="recurrence-custom-ends-mode"]',
+    );
+    for (const radio of endsRadios) radio.checked = radio.value === rule.until.type;
+    if (rule.until.type === "date") recurrenceCustomEndsDate.value = rule.until.date;
+    if (rule.until.type === "count") recurrenceCustomEndsCount.value = String(rule.until.count);
+    updateCustomEndsUi();
+
+    recurrenceCustomDialog.showModal();
+  }
+
+  el<HTMLButtonElement>("recurrence-custom-cancel").addEventListener("click", () => {
+    customApply = null;
+    recurrenceCustomDialog.close();
+  });
+
+  el<HTMLButtonElement>("recurrence-custom-done").addEventListener("click", () => {
+    if (!customApply) return;
+    const interval = Math.max(1, Math.floor(Number(recurrenceCustomInterval.value)) || 1);
+    const untilMode =
+      recurrenceCustomDialog.querySelector<HTMLInputElement>(
+        'input[name="recurrence-custom-ends-mode"]:checked',
+      )?.value ?? "never";
+    const until: RecurrenceRule["until"] =
+      untilMode === "date"
+        ? { type: "date", date: recurrenceCustomEndsDate.value }
+        : untilMode === "count"
+          ? { type: "count", count: Number(recurrenceCustomEndsCount.value) }
+          : { type: "never" };
+
+    let rule: RecurrenceRule;
+    const unit = recurrenceCustomUnit.value;
+    if (unit === "daily") {
+      rule = { frequency: "daily", interval, from: customFrom, until };
+    } else if (unit === "monthly") {
+      rule = {
+        frequency: "monthly",
+        interval,
+        weekday: Number(recurrenceCustomWeekday.value) as Weekday,
+        ordinal: Number(recurrenceCustomOrdinal.value) as 1 | 2 | 3 | 4 | -1,
+        from: customFrom,
+        until,
+      };
+    } else if (unit === "yearly") {
+      rule = { frequency: "yearly", interval, from: customFrom, until };
+    } else {
+      const weekdays = selectedCustomWeekdays();
+      rule = {
+        frequency: "weekly",
+        interval,
+        weekdays: weekdays.length > 0 ? weekdays : [new Date(`${customFrom}T00:00:00Z`).getUTCDay() as Weekday],
+        from: customFrom,
+        until,
+      };
+    }
+    customApply(rule);
+    customApply = null;
+    recurrenceCustomDialog.close();
   });
 
   // --- "+ New event" menu: blank draft, or either import dialog above -------

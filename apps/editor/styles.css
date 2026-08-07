@@ -1623,7 +1623,8 @@ footer {
 #jsonld-dialog,
 #repo-connect,
 #delete-dialog,
-#recurrence-dialog {
+#recurrence-dialog,
+#recurrence-custom-dialog {
   border: none;
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
@@ -1635,7 +1636,8 @@ footer {
 #jsonld-dialog::backdrop,
 #repo-connect::backdrop,
 #delete-dialog::backdrop,
-#recurrence-dialog::backdrop {
+#recurrence-dialog::backdrop,
+#recurrence-custom-dialog::backdrop {
   background: rgba(28, 33, 40, 0.45);
 }
 
@@ -1643,7 +1645,8 @@ footer {
 #jsonld-dialog h2,
 #repo-connect h2,
 #delete-dialog h2,
-#recurrence-dialog h2 {
+#recurrence-dialog h2,
+#recurrence-custom-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
 }
@@ -1793,7 +1796,8 @@ footer {
   accent-color: var(--accent);
 }
 
-/* --- "Repeat as a series" dialog ------------------------------------------------ */
+/* --- recurrence: results dialog + shared .recurrence-fields (also used by
+   the custom dialog's monthly ordinal+weekday pair) ------------------------ */
 
 .recurrence-fields {
   display: flex;
@@ -1813,40 +1817,6 @@ footer {
 .recurrence-field input {
   min-height: 2.3rem;
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  font: inherit;
-}
-
-#recurrence-interval {
-  width: 5rem;
-}
-
-#recurrence-until {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.6rem 0.85rem;
-  margin: 0.75rem 0;
-}
-
-#recurrence-until legend {
-  font-size: 0.85rem;
-  color: var(--muted);
-  padding: 0 0.3rem;
-}
-
-#recurrence-until label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0;
-  font-size: 0.9rem;
-}
-
-#recurrence-until-count {
-  width: 4rem;
-  min-height: 2rem;
-  padding: 0.3rem 0.5rem;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   font: inherit;
@@ -1896,6 +1866,115 @@ footer {
 }
 
 #recurrence-dialog .actions {
+  justify-content: flex-end;
+}
+
+/* --- recurrence: inline row list in "Cuándo" -------------------------------- */
+
+.recurrence-rows .repeater-item-fields label {
+  display: block;
+}
+
+.recurrence-generate {
+  margin-left: 0.5rem;
+}
+
+/* --- recurrence: "Custom recurrence" dialog --------------------------------- */
+
+.recurrence-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.recurrence-custom-row input[type="number"] {
+  width: 4.5rem;
+  min-height: 2.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.recurrence-custom-row select {
+  min-height: 2.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}
+
+#recurrence-custom-weekdays-field {
+  margin: 0 0 1rem;
+}
+
+#recurrence-custom-weekdays {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.weekday-toggle {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.weekday-toggle:hover {
+  background: var(--accent-soft);
+}
+
+.weekday-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+#recurrence-custom-monthly-field {
+  margin: 0 0 1rem;
+}
+
+#recurrence-custom-ends {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin: 0.75rem 0;
+}
+
+#recurrence-custom-ends legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0 0.3rem;
+}
+
+#recurrence-custom-ends label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+#recurrence-custom-ends-date,
+#recurrence-custom-ends-count {
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: inherit;
+}
+
+#recurrence-custom-ends-count {
+  width: 4rem;
+}
+
+#recurrence-custom-dialog .actions {
   justify-content: flex-end;
 }
 

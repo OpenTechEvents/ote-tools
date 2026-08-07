@@ -324,14 +324,6 @@
       <div id="action-bar">
         <button id="valid-badge" type="button" hidden></button>
         <button id="reset-draft" type="button" class="secondary">Reset</button>
-        <button
-          id="repeat-series-open"
-          type="button"
-          class="secondary"
-          data-i18n="action.repeatSeries"
-        >
-          Repeat as a series…
-        </button>
         <span id="repo-output-actions">
           <button id="edit-direct" type="button" class="secondary" data-i18n="action.editDirectly">
             Edit directly
@@ -546,92 +538,9 @@
         <h2 data-i18n="dialog.recurrence.title">Repeat as a series</h2>
         <p class="hint" data-i18n="dialog.recurrence.hint1">
           Uses everything already filled in on the form as the shared
-          template for every occurrence — only the date changes per event.
+          template for every occurrence — only the date/time/name from
+          each recurrence row change per event.
         </p>
-
-        <div class="recurrence-fields">
-          <label class="recurrence-field">
-            <span data-i18n="dialog.recurrence.frequency">Repeats</span>
-            <select id="recurrence-frequency">
-              <option value="weekly" data-i18n="dialog.recurrence.weekly">
-                Weekly
-              </option>
-              <option value="monthly" data-i18n="dialog.recurrence.monthly">
-                Monthly (Nth weekday)
-              </option>
-            </select>
-          </label>
-
-          <label class="recurrence-field">
-            <span data-i18n="dialog.recurrence.interval">Every</span>
-            <input id="recurrence-interval" type="number" min="1" value="1" inputmode="numeric" />
-          </label>
-
-          <label class="recurrence-field" id="recurrence-ordinal-field" hidden>
-            <span data-i18n="dialog.recurrence.ordinal">Which</span>
-            <select id="recurrence-ordinal">
-              <option value="1" data-i18n="dialog.recurrence.ordinal.1">1st</option>
-              <option value="2" data-i18n="dialog.recurrence.ordinal.2">2nd</option>
-              <option value="3" data-i18n="dialog.recurrence.ordinal.3">3rd</option>
-              <option value="4" data-i18n="dialog.recurrence.ordinal.4">4th</option>
-              <option value="-1" selected data-i18n="dialog.recurrence.ordinal.last">
-                Last
-              </option>
-            </select>
-          </label>
-
-          <label class="recurrence-field">
-            <span data-i18n="dialog.recurrence.weekday">On</span>
-            <select id="recurrence-weekday">
-              <option value="1" data-i18n="dialog.recurrence.weekday.mon">Monday</option>
-              <option value="2" data-i18n="dialog.recurrence.weekday.tue">Tuesday</option>
-              <option value="3" data-i18n="dialog.recurrence.weekday.wed">Wednesday</option>
-              <option value="4" data-i18n="dialog.recurrence.weekday.thu">Thursday</option>
-              <option value="5" data-i18n="dialog.recurrence.weekday.fri">Friday</option>
-              <option value="6" data-i18n="dialog.recurrence.weekday.sat">Saturday</option>
-              <option value="0" data-i18n="dialog.recurrence.weekday.sun">Sunday</option>
-            </select>
-          </label>
-
-          <label class="recurrence-field">
-            <span data-i18n="dialog.recurrence.from">Starting from</span>
-            <input id="recurrence-from" type="date" />
-          </label>
-        </div>
-
-        <fieldset id="recurrence-until">
-          <legend data-i18n="dialog.recurrence.until">Until</legend>
-          <label>
-            <input type="radio" name="recurrence-until-mode" value="count" checked />
-            <span data-i18n="dialog.recurrence.untilCount">After</span>
-            <input
-              id="recurrence-until-count"
-              type="number"
-              min="1"
-              max="24"
-              value="12"
-              inputmode="numeric"
-            />
-            <span data-i18n="dialog.recurrence.occurrences">occurrence(s)</span>
-          </label>
-          <label>
-            <input type="radio" name="recurrence-until-mode" value="date" />
-            <span data-i18n="dialog.recurrence.untilDate">Until date</span>
-            <input id="recurrence-until-date" type="date" disabled />
-          </label>
-        </fieldset>
-
-        <p class="hint" data-i18n="dialog.recurrence.partOfHint">
-          Tip: fill in "Part of (series)" in the Advanced section before
-          generating so every occurrence shares a series id — entirely
-          optional, OTE doesn't require it.
-        </p>
-
-        <div class="actions">
-          <button id="recurrence-generate" type="button" class="secondary" data-i18n="action.generate">
-            Generate
-          </button>
-        </div>
 
         <p id="recurrence-status" class="hint" hidden></p>
         <div id="recurrence-warnings" hidden></div>
@@ -649,6 +558,186 @@
             data-i18n="action.addSelected"
           >
             Add selected
+          </button>
+        </div>
+      </dialog>
+
+      <!-- Google-Calendar-style "Custom recurrence" — opened from a
+           recurrence row's "Custom…" option (main.ts's onCustomize
+           callback, wired from ui/form.ts's renderRecurrenceRows). One
+           shared dialog, reused for whichever row is currently being
+           edited. -->
+      <dialog id="recurrence-custom-dialog">
+        <h2 data-i18n="dialog.recurrenceCustom.title">Custom recurrence</h2>
+
+        <div class="recurrence-custom-row">
+          <span data-i18n="dialog.recurrenceCustom.repeatEvery">Repeat every</span>
+          <input
+            id="recurrence-custom-interval"
+            type="number"
+            min="1"
+            value="1"
+            inputmode="numeric"
+          />
+          <select id="recurrence-custom-unit">
+            <option value="daily" data-i18n="dialog.recurrenceCustom.unit.day">day</option>
+            <option value="weekly" data-i18n="dialog.recurrenceCustom.unit.week">week</option>
+            <option value="monthly" data-i18n="dialog.recurrenceCustom.unit.month">month</option>
+            <option value="yearly" data-i18n="dialog.recurrenceCustom.unit.year">year</option>
+          </select>
+        </div>
+
+        <div id="recurrence-custom-weekdays-field">
+          <p class="hint" data-i18n="dialog.recurrenceCustom.repeatOn">Repeat on</p>
+          <div
+            id="recurrence-custom-weekdays"
+            role="group"
+            aria-label="Repeat on"
+            data-i18n-aria-label="dialog.recurrenceCustom.repeatOn"
+          >
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="1"
+              aria-pressed="false"
+              aria-label="Monday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.mon"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.mon"
+            >
+              M
+            </button>
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="2"
+              aria-pressed="false"
+              aria-label="Tuesday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.tue"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.tue"
+            >
+              T
+            </button>
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="3"
+              aria-pressed="false"
+              aria-label="Wednesday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.wed"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.wed"
+            >
+              W
+            </button>
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="4"
+              aria-pressed="false"
+              aria-label="Thursday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.thu"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.thu"
+            >
+              T
+            </button>
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="5"
+              aria-pressed="false"
+              aria-label="Friday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.fri"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.fri"
+            >
+              F
+            </button>
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="6"
+              aria-pressed="false"
+              aria-label="Saturday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.sat"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.sat"
+            >
+              S
+            </button>
+            <button
+              type="button"
+              class="weekday-toggle"
+              data-weekday="0"
+              aria-pressed="false"
+              aria-label="Sunday"
+              data-i18n="dialog.recurrenceCustom.weekdayShort.sun"
+              data-i18n-aria-label="dialog.recurrenceCustom.weekdayFull.sun"
+            >
+              S
+            </button>
+          </div>
+        </div>
+
+        <div id="recurrence-custom-monthly-field" class="recurrence-fields">
+          <label class="recurrence-field">
+            <span data-i18n="dialog.recurrenceCustom.ordinal">Which</span>
+            <select id="recurrence-custom-ordinal">
+              <option value="1" data-i18n="dialog.recurrenceCustom.ordinal.1">1st</option>
+              <option value="2" data-i18n="dialog.recurrenceCustom.ordinal.2">2nd</option>
+              <option value="3" data-i18n="dialog.recurrenceCustom.ordinal.3">3rd</option>
+              <option value="4" data-i18n="dialog.recurrenceCustom.ordinal.4">4th</option>
+              <option value="-1" data-i18n="dialog.recurrenceCustom.ordinal.last">Last</option>
+            </select>
+          </label>
+          <label class="recurrence-field">
+            <span data-i18n="dialog.recurrenceCustom.weekdaySelect">Weekday</span>
+            <select id="recurrence-custom-weekday">
+              <option value="1" data-i18n="dialog.recurrenceCustom.weekdayFull.mon">Monday</option>
+              <option value="2" data-i18n="dialog.recurrenceCustom.weekdayFull.tue">Tuesday</option>
+              <option value="3" data-i18n="dialog.recurrenceCustom.weekdayFull.wed">Wednesday</option>
+              <option value="4" data-i18n="dialog.recurrenceCustom.weekdayFull.thu">Thursday</option>
+              <option value="5" data-i18n="dialog.recurrenceCustom.weekdayFull.fri">Friday</option>
+              <option value="6" data-i18n="dialog.recurrenceCustom.weekdayFull.sat">Saturday</option>
+              <option value="0" data-i18n="dialog.recurrenceCustom.weekdayFull.sun">Sunday</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset id="recurrence-custom-ends">
+          <legend data-i18n="dialog.recurrenceCustom.ends">Ends</legend>
+          <label>
+            <input type="radio" name="recurrence-custom-ends-mode" value="never" checked />
+            <span data-i18n="dialog.recurrenceCustom.never">Never</span>
+          </label>
+          <label>
+            <input type="radio" name="recurrence-custom-ends-mode" value="date" />
+            <span data-i18n="dialog.recurrenceCustom.on">On</span>
+            <input id="recurrence-custom-ends-date" type="date" disabled />
+          </label>
+          <label>
+            <input type="radio" name="recurrence-custom-ends-mode" value="count" />
+            <span data-i18n="dialog.recurrenceCustom.after">After</span>
+            <input
+              id="recurrence-custom-ends-count"
+              type="number"
+              min="1"
+              max="24"
+              value="13"
+              inputmode="numeric"
+              disabled
+            />
+            <span data-i18n="dialog.recurrenceCustom.occurrences">occurrence(s)</span>
+          </label>
+        </fieldset>
+
+        <div class="actions">
+          <button
+            id="recurrence-custom-cancel"
+            type="button"
+            class="secondary"
+            data-i18n="action.cancel"
+          >
+            Cancel
+          </button>
+          <button id="recurrence-custom-done" type="button" class="primary" data-i18n="action.done">
+            Done
           </button>
         </div>
       </dialog>

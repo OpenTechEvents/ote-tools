@@ -4,9 +4,10 @@
  * Tested by hand (the lib/ modules carry the vitest coverage).
  */
 
-import { t } from "../i18n/index.js";
+import { getLocale, t } from "../i18n/index.js";
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
+import { ordinalInMonth, type RecurrenceRule, type Weekday } from "../lib/recurrence.js";
 import { getRecentTags, recordTagUsed } from "../lib/tag-history.js";
 import type { TagSuggestion } from "../lib/tag-vocabulary.js";
 import { loadTagVocabulary, searchVocabulary } from "../lib/tag-vocabulary.js";
@@ -1514,6 +1515,307 @@ function renderImagePreview(urlInput: HTMLInputElement, getAlt: () => string): H
 }
 
 /**
+ * One "repeats" row's configuration handed to main.ts at generate-time.
+ * Not a FormState field — recurrence is editor-only, never saved to the
+ * event JSON itself (OTE has no recurrence-rule concept: one document per
+ * occurrence, always). `nameOverride` empty means "use the draft's own
+ * name" for every occurrence this row generates.
+ */
+export interface RecurrenceSeriesInput {
+  key: string;
+  nameOverride: string;
+  startTime: string;
+  endTime: string;
+  rule: RecurrenceRule;
+}
+
+type RecurrencePresetKind = "daily" | "weekly" | "monthly" | "yearly" | "everyWeekday";
+const RECURRENCE_PRESET_ORDER: readonly RecurrencePresetKind[] = [
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+  "everyWeekday",
+];
+const RECURRENCE_CUSTOM_VALUE = "__custom__";
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function recurrenceWeekdayOf(date: string): Weekday {
+  return new Date(`${date}T00:00:00Z`).getUTCDay() as Weekday;
+}
+
+function recurrenceWeekdayName(date: string): string {
+  return new Intl.DateTimeFormat(getLocale(), { weekday: "long", timeZone: "UTC" }).format(
+    new Date(`${date}T00:00:00Z`),
+  );
+}
+
+function recurrenceMonthDay(date: string): string {
+  return new Intl.DateTimeFormat(getLocale(), {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
+function recurrenceOrdinalWord(ordinal: 1 | 2 | 3 | 4): string {
+  const fallback = { 1: "first", 2: "second", 3: "third", 4: "fourth" }[ordinal];
+  return t(`dialog.recurrenceRow.ordinalWord.${ordinal}`, fallback);
+}
+
+/** A fresh preset-derived rule for `kind`, anchored on `date` — open-ended
+ * ("never") until the organizer explicitly customizes it. */
+function buildRecurrencePresetRule(kind: RecurrencePresetKind, date: string): RecurrenceRule {
+  const weekday = recurrenceWeekdayOf(date);
+  const until: RecurrenceRule["until"] = { type: "never" };
+  switch (kind) {
+    case "daily":
+      return { frequency: "daily", interval: 1, from: date, until };
+    case "weekly":
+      return { frequency: "weekly", interval: 1, weekdays: [weekday], from: date, until };
+    case "everyWeekday":
+      return { frequency: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], from: date, until };
+    case "yearly":
+      return { frequency: "yearly", interval: 1, from: date, until };
+    case "monthly": {
+      const info = ordinalInMonth(date);
+      const ordinal = info === null || info.isLast ? -1 : info.ordinal;
+      return { frequency: "monthly", interval: 1, weekday, ordinal, from: date, until };
+    }
+  }
+}
+
+/** Display text for one dropdown option, matching Google Calendar's own
+ * phrasing ("Weekly on Friday", "Monthly on the last Tuesday", …). */
+function recurrencePresetLabel(kind: RecurrencePresetKind, date: string): string {
+  const weekday = recurrenceWeekdayName(date);
+  switch (kind) {
+    case "daily":
+      return t("dialog.recurrenceRow.daily", "Daily");
+    case "weekly":
+      return t("dialog.recurrenceRow.weeklyOn", "Weekly on {weekday}").replace("{weekday}", weekday);
+    case "everyWeekday":
+      return t("dialog.recurrenceRow.everyWeekday", "Every weekday (Monday to Friday)");
+    case "yearly":
+      return t("dialog.recurrenceRow.yearlyOn", "Annually on {date}").replace(
+        "{date}",
+        recurrenceMonthDay(date),
+      );
+    case "monthly": {
+      const info = ordinalInMonth(date);
+      const ordinalText =
+        info === null || info.isLast
+          ? t("dialog.recurrenceRow.last", "last")
+          : recurrenceOrdinalWord(info.ordinal);
+      return t("dialog.recurrenceRow.monthlyOn", "Monthly on the {ordinal} {weekday}")
+        .replace("{ordinal}", ordinalText)
+        .replace("{weekday}", weekday);
+    }
+  }
+}
+
+interface RecurrenceRowState {
+  key: string;
+  nameOverride: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  mode: RecurrencePresetKind | "custom";
+  rule: RecurrenceRule;
+}
+
+/**
+ * The inline "repeats" row list in the "Cuándo" section — a Google-
+ * Calendar-style dropdown per row (Daily/Weekly on X/Monthly on the Nth or
+ * last X/Annually on X/Every weekday/Custom…), zero rows meaning "does not
+ * repeat". Several rows can coexist (e.g. "last Tuesday at 19:00" AND
+ * "last Friday at 10:00" on the same draft) — each becomes its own
+ * generated batch of occurrences, merged together by main.ts's onGenerate.
+ * Self-contained subtree, same pattern as renderRepeaterField below: owns
+ * its rows in closure since main.ts only calls renderForm again on
+ * profile/locale switches, not on every keystroke.
+ */
+export function renderRecurrenceRows(
+  defaultDate: string,
+  defaultName: string,
+  onGenerate: (series: RecurrenceSeriesInput[]) => void,
+  onCustomize: (current: RecurrenceRule | null, apply: (rule: RecurrenceRule) => void) => void,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "field recurrence-rows";
+
+  const label = document.createElement("label");
+  label.textContent = t("dialog.recurrenceRow.label", "Repeats");
+  wrap.append(label);
+
+  const list = document.createElement("div");
+  wrap.append(list);
+
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.className = "repeater-add";
+  addButton.textContent = t("dialog.recurrenceRow.addLabel", "+ Add recurrence");
+  wrap.append(addButton);
+
+  const generateButton = document.createElement("button");
+  generateButton.type = "button";
+  generateButton.className = "secondary recurrence-generate";
+  generateButton.textContent = t("action.generate", "Generate occurrences");
+  generateButton.hidden = true;
+  wrap.append(generateButton);
+
+  const rows: RecurrenceRowState[] = [];
+
+  function currentSeries(): RecurrenceSeriesInput[] {
+    return rows.map(({ key, nameOverride, startTime, endTime, rule }) => ({
+      key,
+      nameOverride,
+      startTime,
+      endTime,
+      rule,
+    }));
+  }
+
+  function renderRowSelect(row: RecurrenceRowState, select: HTMLSelectElement): void {
+    select.textContent = "";
+    for (const kind of RECURRENCE_PRESET_ORDER) {
+      const option = document.createElement("option");
+      option.value = kind;
+      option.textContent = recurrencePresetLabel(kind, row.date || todayIso());
+      select.append(option);
+    }
+    const customOption = document.createElement("option");
+    customOption.value = RECURRENCE_CUSTOM_VALUE;
+    customOption.textContent = t("dialog.recurrenceRow.custom", "Custom…");
+    select.append(customOption);
+    select.value = row.mode === "custom" ? RECURRENCE_CUSTOM_VALUE : row.mode;
+  }
+
+  function renderRow(row: RecurrenceRowState): HTMLElement {
+    const item = document.createElement("div");
+    item.className = "repeater-item";
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "repeater-remove";
+    remove.setAttribute(
+      "aria-label",
+      `${t("ui.remove", "Remove")} ${t("dialog.recurrenceRow.label", "Repeats")}`,
+    );
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      const index = rows.findIndex((r) => r.key === row.key);
+      if (index !== -1) rows.splice(index, 1);
+      item.remove();
+      generateButton.hidden = rows.length === 0;
+    });
+
+    const fields = document.createElement("div");
+    fields.className = "repeater-item-fields";
+
+    const nameWrap = document.createElement("div");
+    nameWrap.className = "size-l";
+    const nameLabel = document.createElement("label");
+    nameLabel.textContent = t("dialog.recurrenceRow.name", "Name (optional)");
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.placeholder = defaultName;
+    nameInput.value = row.nameOverride;
+    nameInput.addEventListener("input", () => (row.nameOverride = nameInput.value));
+    nameWrap.append(nameLabel, nameInput);
+
+    const dateWrap = document.createElement("div");
+    const dateLabel = document.createElement("label");
+    dateLabel.textContent = t("dialog.recurrenceRow.date", "Starting date");
+    const dateInput = document.createElement("input");
+    dateInput.type = "date";
+    dateInput.value = row.date;
+    dateWrap.append(dateLabel, dateInput);
+
+    const startTimeWrap = document.createElement("div");
+    const startTimeLabel = document.createElement("label");
+    startTimeLabel.textContent = t("dialog.recurrenceRow.startTime", "Time");
+    const startTimeInput = document.createElement("input");
+    startTimeInput.type = "time";
+    startTimeInput.value = row.startTime;
+    startTimeInput.addEventListener("input", () => (row.startTime = startTimeInput.value));
+    startTimeWrap.append(startTimeLabel, startTimeInput);
+
+    const endTimeWrap = document.createElement("div");
+    const endTimeLabel = document.createElement("label");
+    endTimeLabel.textContent = t("dialog.recurrenceRow.endTime", "End time");
+    const endTimeInput = document.createElement("input");
+    endTimeInput.type = "time";
+    endTimeInput.value = row.endTime;
+    endTimeInput.addEventListener("input", () => (row.endTime = endTimeInput.value));
+    endTimeWrap.append(endTimeLabel, endTimeInput);
+
+    const selectWrap = document.createElement("div");
+    selectWrap.className = "size-full";
+    const selectLabel = document.createElement("label");
+    selectLabel.textContent = t("dialog.recurrenceRow.frequency", "Repeats");
+    const select = document.createElement("select");
+    selectWrap.append(selectLabel, select);
+
+    dateInput.addEventListener("input", () => {
+      row.date = dateInput.value || todayIso();
+      row.rule =
+        row.mode === "custom"
+          ? { ...row.rule, from: row.date }
+          : buildRecurrencePresetRule(row.mode, row.date);
+      renderRowSelect(row, select);
+    });
+
+    select.addEventListener("input", () => {
+      if (select.value === RECURRENCE_CUSTOM_VALUE) {
+        // Undo the native selection optimistically — it only sticks once
+        // the custom dialog is actually confirmed (apply below), matching
+        // "Cancel" leaving the row exactly as it was.
+        select.value = row.mode === "custom" ? RECURRENCE_CUSTOM_VALUE : row.mode;
+        onCustomize(row.rule, (rule) => {
+          row.mode = "custom";
+          row.rule = rule;
+          renderRowSelect(row, select);
+        });
+        return;
+      }
+      row.mode = select.value as RecurrencePresetKind;
+      row.rule = buildRecurrencePresetRule(row.mode, row.date);
+    });
+
+    renderRowSelect(row, select);
+
+    fields.append(nameWrap, dateWrap, startTimeWrap, endTimeWrap, selectWrap);
+    item.append(remove, fields);
+    return item;
+  }
+
+  function addRow(): void {
+    const date = defaultDate || todayIso();
+    const row: RecurrenceRowState = {
+      key: nextId("recur"),
+      nameOverride: "",
+      date,
+      startTime: "",
+      endTime: "",
+      mode: "weekly",
+      rule: buildRecurrencePresetRule("weekly", date),
+    };
+    rows.push(row);
+    list.append(renderRow(row));
+    generateButton.hidden = false;
+  }
+
+  addButton.addEventListener("click", addRow);
+  generateButton.addEventListener("click", () => onGenerate(currentSeries()));
+
+  return wrap;
+}
+
+/**
  * Repeatable group of sub-fields (organizers/image/offers): each row is a
  * card with the field's itemFields as inputs, plus add/remove buttons.
  * Follows the same self-contained-subtree pattern renderChips uses above —
@@ -2680,6 +2982,11 @@ export function renderForm(
   onTranslationsCommit: (patch: TranslationsPatch) => void,
   /** Called whenever Venue's block (re)appears or disappears — main.ts uses it to (re)mount the geo map, since it can no longer assume the map slot exists right after renderForm returns. */
   onWhereRebuilt: () => void,
+  onGenerateRecurrenceSeries: (series: RecurrenceSeriesInput[]) => void,
+  onCustomizeRecurrenceRule: (
+    current: RecurrenceRule | null,
+    apply: (rule: RecurrenceRule) => void,
+  ) => void,
 ): {
   refreshTranslations: () => void;
   sections: { id: SectionId; title: string }[];
@@ -2766,7 +3073,21 @@ export function renderForm(
       // allDay/startDate/endDate/timezone are one structural unit (allDay
       // changes how start/end render) — never separately chippable.
       for (const id of WHEN_BUNDLED) {
-        if (fieldIds.includes(id)) details.append(renderField(id, state, onInput));
+        if (!fieldIds.includes(id)) continue;
+        details.append(renderField(id, state, onInput));
+        // Right after "all day", per the organizer's explicit placement —
+        // its own rows carry their own dates/times, independent of this
+        // draft's own startDate/startTime.
+        if (id === "allDay") {
+          details.append(
+            renderRecurrenceRows(
+              state.startDate,
+              state.name,
+              onGenerateRecurrenceSeries,
+              onCustomizeRecurrenceRule,
+            ),
+          );
+        }
       }
       const rest = fieldIds.filter((id) => !WHEN_BUNDLED.includes(id));
       details.append(
