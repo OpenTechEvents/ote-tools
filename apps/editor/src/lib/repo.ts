@@ -66,6 +66,28 @@ export function pagesFeedUrl(repo: string): string {
   return `https://${owner}.github.io/${name}/feed.json`;
 }
 
+/**
+ * Best-effort owner/repo from a GitHub Pages feed URL — the exact shape
+ * pagesFeedUrl builds above, inverted. Returns null for anything else
+ * (custom domains, non-GitHub-Pages hosts) rather than guessing — same
+ * "never guess, absent is absent" convention as slugFromId below. Used for
+ * the "Connect a feed" dialog's adopters list: an entry whose feed doesn't
+ * parse this way just doesn't get a "Connect" action, only a plain link.
+ */
+export function repoFromPagesFeedUrl(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const hostMatch = /^([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\.github\.io$/i.exec(parsed.hostname);
+  if (!hostMatch) return null;
+  const repoSegment = parsed.pathname.split("/").filter(Boolean)[0];
+  if (!repoSegment) return null;
+  return `${hostMatch[1]}/${repoSegment}`;
+}
+
 /** One events/*.json entry from the contents API listing. */
 export interface ContentsEntry {
   slug: string;

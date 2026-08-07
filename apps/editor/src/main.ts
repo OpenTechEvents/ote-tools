@@ -7,6 +7,7 @@
 import { icsToEvents } from "@opentechevents/import-ics";
 import { htmlToEvents } from "@opentechevents/import-jsonld";
 
+import { loadAdopters, type Adopter } from "./lib/adopters.js";
 import { findCollisions } from "./lib/collisions.js";
 import {
   compareByStartDateDesc,
@@ -56,12 +57,14 @@ import {
   resolveProfile,
   type ResolvedProfile,
 } from "./lib/presets.js";
+import { getRecentRepos, recordRepoUsed } from "./lib/recent-repos.js";
 import {
   editorContextFromSearch,
   parseContentsListing,
   parseFeedListing,
   parseRepoParam,
   repoFetchPlan,
+  repoFromPagesFeedUrl,
 } from "./lib/repo.js";
 import type {
   FormState,
@@ -177,6 +180,10 @@ function extraFieldsFor(event: OteEvent, profile: ResolvedProfile): Set<string> 
 
 async function startEditor(repo: string | null): Promise<void> {
   const hasRepo = repo !== null;
+  // Records every way of landing in repo mode (connect form, an adopter's
+  // Connect button, a recently-connected click, a bookmarked/shared URL) —
+  // not just the connect dialog specifically.
+  if (repo !== null) recordRepoUsed(repo);
   // Set once the config fetch resolves (below); updateRepoBanner re-reads it
   // on every call, including a later locale switch.
   let feedTitle: string | undefined;
@@ -221,6 +228,7 @@ async function startEditor(repo: string | null): Promise<void> {
   } else if (hasRepo && config?.feed?.title) {
     feedTitle = config.feed.title;
     updateRepoBanner();
+    if (repo !== null) recordRepoUsed(repo, feedTitle);
   }
   let profile = resolveProfile(config);
   for (const warning of profile.warnings) addWarning(warning);
@@ -325,7 +333,87 @@ async function startEditor(repo: string | null): Promise<void> {
   const repoConnectDialog = el<HTMLDialogElement>("repo-connect");
   repoConnectOpen.hidden = hasRepo;
   if (!hasRepo) {
-    repoConnectOpen.addEventListener("click", () => repoConnectDialog.showModal());
+    function connectToRepo(target: string): void {
+      location.search = `?repo=${target}`;
+    }
+
+    /**
+     * One row in either the recent-repos or adopters list: a title/subtitle
+     * plus an optional action — a click-to-connect button, a plain "visit"
+     * link, or (when neither a repo nor a url can be derived) no action at
+     * all, text only, never silently dropped from the list.
+     */
+    function renderPickerRow(
+      title: string,
+      subtitle: string | undefined,
+      action: { label: string; onClick: () => void } | { label: string; href: string } | null,
+    ): HTMLLIElement {
+      const li = document.createElement("li");
+      const info = document.createElement("div");
+      info.className = "picker-list-info";
+      const strong = document.createElement("strong");
+      strong.textContent = title;
+      info.append(strong);
+      if (subtitle) {
+        const span = document.createElement("span");
+        span.textContent = subtitle;
+        info.append(span);
+      }
+      li.append(info);
+      if (action && "href" in action) {
+        const a = document.createElement("a");
+        a.href = action.href;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = action.label;
+        li.append(a);
+      } else if (action) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary";
+        button.textContent = action.label;
+        button.addEventListener("click", action.onClick);
+        li.append(button);
+      }
+      return li;
+    }
+
+    const recentSection = el<HTMLDivElement>("repo-connect-recent");
+    const recentList = el<HTMLUListElement>("repo-connect-recent-list");
+    const recent = getRecentRepos();
+    recentSection.hidden = recent.length === 0;
+    for (const entry of recent) {
+      recentList.append(
+        renderPickerRow(entry.title ?? entry.repo, entry.title ? entry.repo : undefined, {
+          label: t("action.connect", "Connect"),
+          onClick: () => connectToRepo(entry.repo),
+        }),
+      );
+    }
+
+    const adoptersSection = el<HTMLDivElement>("repo-connect-adopters");
+    const adoptersList = el<HTMLUListElement>("repo-connect-adopters-list");
+    let adoptersLoaded = false;
+    function renderAdopter(adopter: Adopter): void {
+      const desc = adopter.desc?.[getLocale()] ?? adopter.desc?.en;
+      const repoFromFeed = adopter.feed ? repoFromPagesFeedUrl(adopter.feed) : null;
+      const action = repoFromFeed
+        ? { label: t("action.connect", "Connect"), onClick: () => connectToRepo(repoFromFeed) }
+        : adopter.url
+          ? { label: t("action.visit", "Visit"), href: adopter.url }
+          : null;
+      adoptersList.append(renderPickerRow(adopter.name, desc, action));
+    }
+    repoConnectOpen.addEventListener("click", () => {
+      repoConnectDialog.showModal();
+      if (!adoptersLoaded) {
+        adoptersLoaded = true;
+        void loadAdopters().then((adopters) => {
+          adoptersSection.hidden = adopters.length === 0;
+          for (const adopter of adopters) renderAdopter(adopter);
+        });
+      }
+    });
     el<HTMLButtonElement>("repo-connect-cancel").addEventListener("click", () =>
       repoConnectDialog.close(),
     );

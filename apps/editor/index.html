@@ -40,6 +40,16 @@
           add and edit its events <strong>directly in it</strong> — no
           copy-pasting JSON around.
         </p>
+
+        <!-- Populated from localStorage on dialog open (main.ts) — hidden
+             entirely until there's at least one entry (lib/recent-repos.ts). -->
+        <div id="repo-connect-recent" hidden>
+          <p class="hint" data-i18n="dialog.repoConnect.recentLabel">
+            Recently connected
+          </p>
+          <ul id="repo-connect-recent-list" class="picker-list"></ul>
+        </div>
+
         <form id="repo-connect-form">
           <input
             id="repo-connect-input"
@@ -59,20 +69,24 @@
         <p id="repo-connect-help" class="hint">
           New to this?
           <a
-            href="?repo=OpenTechEvents/ote-template"
-            target="_blank"
-            rel="noopener"
-            >Explore an example feed</a
-          >
-          to see how editing existing events works, or
-          <a
             href="https://github.com/OpenTechEvents/ote-template"
             target="_blank"
             rel="noopener"
-            >fork the OTE template</a
+            >Fork the OTE template</a
           >
           to get your own.
         </p>
+
+        <!-- Fetched once, on first open, from the public adopters
+             directory (lib/adopters.ts) — hidden until it resolves to at
+             least one entry; a network/parse error just leaves this hidden,
+             same "fails silently" contract as dashboard-checks.js. -->
+        <div id="repo-connect-adopters" hidden>
+          <p class="hint" data-i18n="dialog.repoConnect.adoptersLabel">
+            Communities already using OTE
+          </p>
+          <ul id="repo-connect-adopters-list" class="picker-list"></ul>
+        </div>
         <div class="actions">
           <button
             id="repo-connect-cancel"

@@ -43,6 +43,8 @@ export const es: Record<string, string> = {
   "dialog.repoConnect.inputLabel": "Tu repositorio de GitHub (owner/repo)",
   "dialog.repoConnect.error":
     "Escribe tu repositorio como owner/repo — por ejemplo my-org/ote-events.",
+  "dialog.repoConnect.recentLabel": "Conectados recientemente",
+  "dialog.repoConnect.adoptersLabel": "Comunidades que ya usan OTE",
   "dialog.feedSettings.title": "Configuración del feed",
   "dialog.feedSettings.hint":
     "Edita ote.config.json — los metadatos propios del feed, y (abajo) qué campos muestra el editor por defecto en este repositorio.",
@@ -102,6 +104,7 @@ export const es: Record<string, string> = {
 
   // --- actions -----------------------------------------------------------
   "action.connect": "Conectar",
+  "action.visit": "Visitar",
   "action.cancel": "Cancelar",
   "action.back": "Atrás",
   "action.copyJson": "Copiar JSON",

@@ -8,6 +8,7 @@ import {
   parseFeedListing,
   parseRepoParam,
   repoFetchPlan,
+  repoFromPagesFeedUrl,
   rawConfigUrl,
   slugFromId,
 } from "../src/lib/repo.js";
@@ -71,6 +72,32 @@ describe("URL builders", () => {
     expect(pagesFeedUrl("octocat/my-events")).toBe(
       "https://octocat.github.io/my-events/feed.json",
     );
+  });
+});
+
+describe("repoFromPagesFeedUrl", () => {
+  it("round-trips a real GitHub Pages feed URL back through pagesFeedUrl", () => {
+    const repo = "octocat/my-events";
+    expect(repoFromPagesFeedUrl(pagesFeedUrl(repo))).toBe(repo);
+  });
+
+  it("works regardless of the path after the repo segment", () => {
+    expect(repoFromPagesFeedUrl("https://combuilderses.github.io/events/feed.json")).toBe(
+      "combuilderses/events",
+    );
+  });
+
+  it("returns null for a custom domain", () => {
+    expect(repoFromPagesFeedUrl("https://events.example.com/feed.json")).toBeNull();
+  });
+
+  it("returns null for a github.io URL with no repo segment", () => {
+    expect(repoFromPagesFeedUrl("https://octocat.github.io/")).toBeNull();
+    expect(repoFromPagesFeedUrl("https://octocat.github.io")).toBeNull();
+  });
+
+  it("returns null for a malformed URL", () => {
+    expect(repoFromPagesFeedUrl("not a url")).toBeNull();
   });
 });
 
