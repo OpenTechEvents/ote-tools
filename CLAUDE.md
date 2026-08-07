@@ -23,3 +23,6 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   `pnpm build` has run. That error means the workspace is unbuilt, not broken —
   never "fix" it by touching imports. CI never hits it: it builds first.
 - Convention: connectors never invent data; absent field = absent + warning.
+- `apps/editor` has its own `CLAUDE.md` — dev-workflow gotchas (static
+  files aren't watched), a recurring CSS `:not([hidden])` pitfall, and
+  browser-testing notes specific to that app. Read it before editor work.
