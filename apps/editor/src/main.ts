@@ -605,7 +605,7 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   function renderEventCard(entry: ListedEvent, index: number): HTMLElement {
-    const { event, slug } = entry;
+    const { event } = entry;
     const card = document.createElement("article");
     card.className = "event-card";
 
@@ -662,52 +662,54 @@ async function startEditor(repo: string | null): Promise<void> {
     editBtn.addEventListener("click", () => pickEvent(index));
     actions.append(editBtn);
 
-    // Delete never happens inside this app — both actions just open GitHub's
-    // own UI (its native delete-confirmation page, or a prefilled issue),
-    // same zero-backend pattern as "Edit directly"/"Review & submit".
     if (repo !== null) {
-      const details = document.createElement("details");
-      details.className = "event-card-delete";
-      const summary = document.createElement("summary");
-      summary.textContent = t("action.delete", "Delete");
-      details.append(summary);
-      const menu = document.createElement("div");
-      menu.className = "event-card-delete-menu";
-
-      const directBtn = document.createElement("button");
-      directBtn.type = "button";
-      directBtn.textContent = t("action.deleteDirect", "Delete on GitHub");
-      directBtn.disabled = slug === null;
-      directBtn.title =
-        slug === null
-          ? t(
-              "action.editDirectlyUnavailable",
-              "This event's filename could not be determined from the feed.",
-            )
-          : "";
-      directBtn.addEventListener("click", () => {
-        if (slug === null) return;
-        window.open(directDeleteUrl(repo, slug, branch), "_blank", "noopener");
-        details.open = false;
-      });
-      menu.append(directBtn);
-
-      const proposeBtn = document.createElement("button");
-      proposeBtn.type = "button";
-      proposeBtn.textContent = t("action.deleteViaIssue", "Propose deletion");
-      proposeBtn.addEventListener("click", () => {
-        follow(proposeDeleteUrl(repo, slug, event));
-        details.open = false;
-      });
-      menu.append(proposeBtn);
-
-      details.append(menu);
-      actions.append(details);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "event-card-delete-trigger";
+      deleteBtn.textContent = t("action.delete", "Delete");
+      deleteBtn.addEventListener("click", () => openDeleteDialog(entry));
+      actions.append(deleteBtn);
     }
 
     body.append(actions);
     card.append(body);
     return card;
+  }
+
+  // A single shared dialog (not a per-card dropdown, which used to get
+  // clipped by the card's own rounded-corner overflow and, for cards near
+  // the grid's edge, by the viewport too) — showModal() promotes it to the
+  // top layer regardless of where any card sits.
+  const deleteDialog = el<HTMLDialogElement>("delete-dialog");
+  const deleteDialogEventName = el<HTMLParagraphElement>("delete-dialog-event-name");
+  const deleteDirectBtn = el<HTMLButtonElement>("delete-direct");
+  const deleteProposeBtn = el<HTMLButtonElement>("delete-propose");
+  let deleteTarget: ListedEvent | null = null;
+
+  el<HTMLButtonElement>("delete-cancel").addEventListener("click", () => deleteDialog.close());
+  deleteDirectBtn.addEventListener("click", () => {
+    if (repo === null || !deleteTarget || deleteTarget.slug === null) return;
+    window.open(directDeleteUrl(repo, deleteTarget.slug, branch), "_blank", "noopener");
+    deleteDialog.close();
+  });
+  deleteProposeBtn.addEventListener("click", () => {
+    if (repo === null || !deleteTarget) return;
+    follow(proposeDeleteUrl(repo, deleteTarget.slug, deleteTarget.event));
+    deleteDialog.close();
+  });
+
+  function openDeleteDialog(entry: ListedEvent): void {
+    deleteTarget = entry;
+    deleteDialogEventName.textContent = entry.event.name || entry.event.id;
+    deleteDirectBtn.disabled = entry.slug === null;
+    deleteDirectBtn.title =
+      entry.slug === null
+        ? t(
+            "action.editDirectlyUnavailable",
+            "This event's filename could not be determined from the feed.",
+          )
+        : "";
+    deleteDialog.showModal();
   }
 
   function renderEventsGrid(query: string): void {

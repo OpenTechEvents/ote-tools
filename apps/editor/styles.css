@@ -413,12 +413,17 @@ header h1 {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--surface);
-  overflow: hidden;
 }
 
 .event-card-thumb {
   aspect-ratio: 16 / 9;
   background: var(--bg);
+  /* Rounds just the top corners (not `overflow: hidden` on the whole
+     card) — an ancestor clip was cutting off the delete dialog when it
+     used to live here as an in-card dropdown; kept this way since it's
+     the right fix regardless of how the delete action is presented. */
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
 }
 
 .event-card-thumb img {
@@ -483,66 +488,18 @@ header h1 {
   margin-top: 0.5rem;
 }
 
-.event-card-delete {
-  position: relative;
-}
-
-.event-card-delete summary {
-  list-style: none;
+.event-card-delete-trigger {
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   padding: 0.4rem 0.7rem;
   font-size: 0.85rem;
   color: var(--muted);
-  cursor: pointer;
+  min-height: 0;
 }
 
-.event-card-delete summary::-webkit-details-marker {
-  display: none;
-}
-
-.event-card-delete[open] summary {
+.event-card-delete-trigger:hover {
   border-color: var(--error);
   color: var(--error);
-}
-
-.event-card-delete-menu {
-  position: absolute;
-  z-index: 500;
-  right: 0;
-  top: calc(100% + 0.3rem);
-  display: flex;
-  flex-direction: column;
-  min-width: 12rem;
-  padding: 0.25rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-}
-
-.event-card-delete-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: none;
-  min-height: 0;
-  padding: 0.5rem 0.6rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 400;
-  cursor: pointer;
-}
-
-.event-card-delete-menu button:hover:not(:disabled) {
-  background: var(--error-bg);
-  color: var(--error);
-}
-
-.event-card-delete-menu button:disabled {
-  color: var(--muted);
-  cursor: not-allowed;
 }
 
 /* --- form sections ---------------------------------------------------------- */
@@ -1505,6 +1462,16 @@ button.secondary:hover {
   color: var(--accent);
 }
 
+button.danger {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+}
+
+button.danger:hover {
+  opacity: 0.9;
+}
+
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1643,7 +1610,8 @@ footer {
 
 #import-dialog,
 #jsonld-dialog,
-#repo-connect {
+#repo-connect,
+#delete-dialog {
   border: none;
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
@@ -1653,15 +1621,22 @@ footer {
 
 #import-dialog::backdrop,
 #jsonld-dialog::backdrop,
-#repo-connect::backdrop {
+#repo-connect::backdrop,
+#delete-dialog::backdrop {
   background: rgba(28, 33, 40, 0.45);
 }
 
 #import-dialog h2,
 #jsonld-dialog h2,
-#repo-connect h2 {
+#repo-connect h2,
+#delete-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
+}
+
+#delete-dialog-event-name {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
 }
 
 .import-sources {

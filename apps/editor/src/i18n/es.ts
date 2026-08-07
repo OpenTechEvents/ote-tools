@@ -47,6 +47,9 @@ export const es: Record<string, string> = {
     "Esto abre un issue de GitHub prerrellenado en el repositorio de destino; una persona mantenedora (o la automatización del repositorio) lo convierte en un pull request.",
   "dialog.review.hintStandalone":
     "No se envía nada a ningún sitio — copia el JSON o descárgalo como archivo.",
+  "dialog.delete.title": "Eliminar evento",
+  "dialog.delete.hint":
+    "Esta app nunca elimina nada por sí misma — ambas opciones abren la propia página de GitHub para ello.",
   "dialog.ics.title": "Importar desde iCalendar (.ics)",
   "dialog.ics.hint1":
     "Sube el archivo, o descárgalo desde una URL. Podrás elegir qué eventos importar; no se importa nada sin confirmación.",
