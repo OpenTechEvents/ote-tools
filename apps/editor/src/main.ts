@@ -264,12 +264,16 @@ async function startEditor(repo: string | null): Promise<void> {
   const eventsListView = el<HTMLElement>("events-list-view");
   const formView = el<HTMLElement>("form-view");
   const backToList = el<HTMLButtonElement>("back-to-list");
+  const profileSwitch = el<HTMLElement>("profile-switch");
 
   /** Toggles the two top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
   function showView(): void {
     eventsListView.hidden = view !== "list";
     formView.hidden = view !== "form";
     backToList.hidden = !hasRepo || view !== "form";
+    // Profile pre-filters which FORM fields show — meaningless while
+    // browsing the list, so it only makes sense once a draft is open.
+    profileSwitch.hidden = view !== "form";
   }
   showView();
   backToList.addEventListener("click", () => {

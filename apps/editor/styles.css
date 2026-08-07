@@ -175,6 +175,12 @@ header h1 {
   margin-bottom: 1rem;
 }
 
+#profile-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .mode-toggle {
   display: inline-flex;
   background: var(--surface);

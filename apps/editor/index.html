@@ -120,13 +120,18 @@
         <button id="repo-connect-open" type="button" class="secondary" hidden data-i18n="nav.connectFeed">
           Connect a feed
         </button>
-        <span class="profile-switch-label" data-i18n="nav.profile">Profile</span>
-        <div
-          class="mode-toggle"
-          id="profile-toggle"
-          role="radiogroup"
-          aria-label="Profile"
-        ></div>
+        <!-- Only meaningful once a specific event is being edited (it
+             pre-filters which FORM fields show) — hidden in the events
+             list view, shown again once showView() switches to the form. -->
+        <div id="profile-switch">
+          <span class="profile-switch-label" data-i18n="nav.profile">Profile</span>
+          <div
+            class="mode-toggle"
+            id="profile-toggle"
+            role="radiogroup"
+            aria-label="Profile"
+          ></div>
+        </div>
       </nav>
 
       <!-- Repo mode's landing view: every event in the feed as cards, from
