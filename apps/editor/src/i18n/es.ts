@@ -117,6 +117,7 @@ export const es: Record<string, string> = {
   "dialog.recurrenceRow.date": "Fecha de inicio",
   "dialog.recurrenceRow.startTime": "Hora",
   "dialog.recurrenceRow.endTime": "Hora de fin",
+  "dialog.recurrenceRow.endDate": "Fecha de fin",
   "dialog.recurrenceRow.frequency": "Se repite",
   "dialog.recurrenceRow.daily": "Diariamente",
   "dialog.recurrenceRow.weeklyOn": "Semanalmente el {weekday}",

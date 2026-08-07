@@ -59,6 +59,7 @@ import {
 } from "./lib/presets.js";
 import { forgetRepoUsed, getRecentRepos, recordRepoUsed } from "./lib/recent-repos.js";
 import {
+  addDaysToDate,
   expandRecurrenceDates,
   MAX_OCCURRENCES,
   type RecurrenceRule,
@@ -1534,13 +1535,22 @@ async function startEditor(repo: string | null): Promise<void> {
     dates: readonly string[],
   ): ImportedEvent[] {
     return dates.map((date) => {
+      // A multi-day reference occurrence (durationDays > 0, e.g. a 2-day
+      // conference) carries its gap onto every generated date, not just
+      // a same-day end.
+      const endDate =
+        series.durationDays > 0
+          ? addDaysToDate(date, series.durationDays)
+          : state.endDate || series.endTime
+            ? date
+            : "";
       const occState: FormState = {
         ...state,
         id: "",
         name: series.nameOverride || state.name,
         startDate: date,
         startTime: series.startTime,
-        endDate: state.endDate || series.endTime ? date : "",
+        endDate,
         endTime: series.endTime,
       };
       return toEventJson(occState) as unknown as ImportedEvent;

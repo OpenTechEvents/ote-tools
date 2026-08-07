@@ -8,6 +8,8 @@ import { getLocale, t } from "../i18n/index.js";
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
 import {
+  addDaysToDate,
+  daysBetweenDates,
   MAX_OCCURRENCES,
   ordinalInMonth,
   type RecurrenceRule,
@@ -1531,6 +1533,10 @@ export interface RecurrenceSeriesInput {
   nameOverride: string;
   startTime: string;
   endTime: string;
+  /** Gap, in whole days, between each occurrence's own start and end date
+   * — 0 for a same-day event, 2 for e.g. a 2-day conference recurring
+   * monthly. Applied to every generated date, not just the reference row. */
+  durationDays: number;
   rule: RecurrenceRule;
 }
 
@@ -1723,6 +1729,10 @@ interface RecurrenceRowState {
   key: string;
   nameOverride: string;
   date: string;
+  /** This reference occurrence's own end date — "" means same day as
+   * `date`. Only the gap (see RecurrenceSeriesInput.durationDays) carries
+   * over to generated occurrences, not this literal date. */
+  endDate: string;
   startTime: string;
   endTime: string;
   mode: RecurrencePresetKind | "custom";
@@ -1789,11 +1799,12 @@ export function renderRecurrenceRows(
   }
 
   function currentSeries(): RecurrenceSeriesInput[] {
-    return rows.map(({ key, nameOverride, startTime, endTime, rule }) => ({
+    return rows.map(({ key, nameOverride, date, endDate, startTime, endTime, rule }) => ({
       key,
       nameOverride,
       startTime,
       endTime,
+      durationDays: endDate ? Math.max(0, daysBetweenDates(date, endDate) ?? 0) : 0,
       rule,
     }));
   }
@@ -1903,7 +1914,27 @@ export function renderRecurrenceRows(
     endTimeLabel.htmlFor = endTimeInput.id;
     endTimeWrap.append(endTimeLabel, endTimeInput);
 
-    datetimeRow.append(dateWrap, startTimeWrap, to, endTimeWrap);
+    // End date — same day as Start by default (empty), settable for a
+    // recurring event that itself spans more than one day (e.g. a 2-day
+    // conference repeating monthly). Only the *gap* to Start carries over
+    // to each generated occurrence, not this literal reference date.
+    const endDateWrap = document.createElement("div");
+    const endDateLabel = document.createElement("label");
+    endDateLabel.className = "visually-hidden";
+    endDateLabel.textContent = t("dialog.recurrenceRow.endDate", "End date");
+    const endDateInput = document.createElement("input");
+    endDateInput.type = "date";
+    endDateInput.value = row.endDate;
+    endDateInput.min = row.date;
+    endDateInput.addEventListener("input", () => {
+      row.endDate = endDateInput.value;
+      notifyRowsChanged();
+    });
+    endDateInput.id = nextId("recur-end-date");
+    endDateLabel.htmlFor = endDateInput.id;
+    endDateWrap.append(endDateLabel, endDateInput);
+
+    datetimeRow.append(dateWrap, startTimeWrap, to, endTimeWrap, endDateWrap);
 
     const selectWrap = document.createElement("div");
     selectWrap.className = "size-full";
@@ -1913,7 +1944,17 @@ export function renderRecurrenceRows(
     selectWrap.append(selectLabel, select);
 
     dateInput.addEventListener("input", () => {
+      const previousDate = row.date;
       row.date = dateInput.value || todayIso();
+      // Keep the start-to-end gap, not the literal old end date — moving
+      // the reference occurrence to a different month shouldn't collapse
+      // a multi-day event back to one day.
+      if (row.endDate) {
+        const gap = daysBetweenDates(previousDate, row.endDate);
+        row.endDate = gap !== null && gap > 0 ? addDaysToDate(row.date, gap) : "";
+        endDateInput.value = row.endDate;
+      }
+      endDateInput.min = row.date;
       row.rule =
         row.mode === "custom"
           ? { ...row.rule, from: row.date }
@@ -1952,6 +1993,7 @@ export function renderRecurrenceRows(
       key: nextId("recur"),
       nameOverride: "",
       date,
+      endDate: "",
       startTime: "",
       endTime: "",
       mode: "weekly",

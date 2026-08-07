@@ -115,6 +115,32 @@ export function ordinalInMonth(date: string): { ordinal: 1 | 2 | 3 | 4; isLast: 
   return { ordinal, isLast };
 }
 
+/**
+ * `date` shifted by `days` (may be negative) — used to carry a recurring
+ * event's own duration (e.g. a 2-day conference) onto every generated
+ * occurrence: each one starts on its own computed date but keeps the same
+ * start-to-end gap as the reference occurrence the organizer configured.
+ * Returns "" for an unparseable `date`, same defensive convention as the
+ * rest of this module.
+ */
+export function addDaysToDate(date: string, days: number): string {
+  const ms = parseIsoDate(date);
+  if (ms === null) return "";
+  return toIso(ms + days * DAY_MS);
+}
+
+/**
+ * Whole calendar days from `from` to `to` (negative if `to` is earlier).
+ * `null` when either date is unparseable — the caller (the recurrence row
+ * UI) treats that as "no duration set" rather than guessing.
+ */
+export function daysBetweenDates(from: string, to: string): number | null {
+  const fromMs = parseIsoDate(from);
+  const toMs = parseIsoDate(to);
+  if (fromMs === null || toMs === null) return null;
+  return Math.round((toMs - fromMs) / DAY_MS);
+}
+
 function expandDaily(
   fromMs: number,
   interval: number,

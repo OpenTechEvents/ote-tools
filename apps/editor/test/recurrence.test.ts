@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addDaysToDate,
+  daysBetweenDates,
   expandRecurrenceDates,
   MAX_OCCURRENCES,
   ordinalInMonth,
@@ -285,5 +287,55 @@ describe("ordinalInMonth", () => {
 
   it("returns null for an unparseable date", () => {
     expect(ordinalInMonth("not-a-date")).toBeNull();
+  });
+});
+
+describe("addDaysToDate", () => {
+  it("shifts forward within a month", () => {
+    expect(addDaysToDate("2026-08-25", 2)).toBe("2026-08-27");
+  });
+
+  it("shifts across a month boundary", () => {
+    expect(addDaysToDate("2026-08-30", 3)).toBe("2026-09-02");
+  });
+
+  it("shifts backward with a negative offset", () => {
+    expect(addDaysToDate("2026-08-02", -3)).toBe("2026-07-30");
+  });
+
+  it("zero days is a no-op", () => {
+    expect(addDaysToDate("2026-08-25", 0)).toBe("2026-08-25");
+  });
+
+  it("returns '' for an unparseable date", () => {
+    expect(addDaysToDate("not-a-date", 2)).toBe("");
+  });
+});
+
+describe("daysBetweenDates", () => {
+  it("counts whole days forward", () => {
+    expect(daysBetweenDates("2026-08-25", "2026-08-27")).toBe(2);
+  });
+
+  it("counts across a month boundary", () => {
+    expect(daysBetweenDates("2026-08-30", "2026-09-02")).toBe(3);
+  });
+
+  it("is negative when `to` is earlier than `from`", () => {
+    expect(daysBetweenDates("2026-08-27", "2026-08-25")).toBe(-2);
+  });
+
+  it("is zero for the same date", () => {
+    expect(daysBetweenDates("2026-08-25", "2026-08-25")).toBe(0);
+  });
+
+  it("round-trips with addDaysToDate", () => {
+    const gap = daysBetweenDates("2026-08-25", "2026-08-27");
+    expect(addDaysToDate("2026-08-25", gap ?? 0)).toBe("2026-08-27");
+  });
+
+  it("returns null when either date is unparseable", () => {
+    expect(daysBetweenDates("not-a-date", "2026-08-25")).toBeNull();
+    expect(daysBetweenDates("2026-08-25", "not-a-date")).toBeNull();
   });
 });
