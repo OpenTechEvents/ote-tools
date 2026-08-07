@@ -1881,6 +1881,7 @@ export function renderRecurrenceRows(
     dateWrap.append(dateLabel, dateInput);
 
     const startTimeWrap = document.createElement("div");
+    startTimeWrap.className = "dt-time";
     const startTimeLabel = document.createElement("label");
     startTimeLabel.className = "visually-hidden";
     startTimeLabel.textContent = t("dialog.recurrenceRow.startTime", "Time");
@@ -1900,6 +1901,7 @@ export function renderRecurrenceRows(
     to.textContent = t("ui.to", "to");
 
     const endTimeWrap = document.createElement("div");
+    endTimeWrap.className = "dt-time";
     const endTimeLabel = document.createElement("label");
     endTimeLabel.className = "visually-hidden";
     endTimeLabel.textContent = t("dialog.recurrenceRow.endTime", "End time");

@@ -717,7 +717,7 @@ select {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .datetime-row > div {
@@ -734,6 +734,22 @@ select {
   color: var(--muted);
   font-size: 0.85rem;
   padding-bottom: 0.5rem;
+}
+
+/* Recurrence rows sit inside a .repeater-item, much narrower than the main
+   form's own Start+End row — 130px per field (4-5 of them) doesn't fit on
+   one line there. Tighter, scoped sizing: dates keep enough room for
+   "dd/mm/yyyy", times (shorter content, and there are two of them) get
+   less. flex-grow: 0 (unlike the main form's row) — letting all 5 items
+   grow to fill the row's extra width was exactly what pushed the 5th one
+   onto its own line; better to leave unused space at the row's end than
+   to inflate 4 fields past what they need and starve the 5th. */
+.recurrence-rows .datetime-row > div {
+  flex: 0 1 130px;
+}
+
+.recurrence-rows .datetime-row > div.dt-time {
+  flex: 0 1 90px;
 }
 
 .info-wrap {
@@ -1849,6 +1865,12 @@ footer {
   font: inherit;
 }
 
+.recurrence-field select {
+  /* Same caret-overlap fix as .recurrence-custom-row select above — right
+     padding must match the global select{} rule's reserved space. */
+  padding-right: 2.1rem;
+}
+
 #recurrence-warnings {
   background: #fff8e1;
   border: 1px solid #e6c65c;
@@ -1926,7 +1948,11 @@ footer {
 
 .recurrence-custom-row select {
   min-height: 2.3rem;
-  padding: 0.4rem 0.6rem;
+  /* Right padding matches the global select{} rule's reserved caret
+     space (styles.css:606) — this rule's higher specificity would
+     otherwise shrink it to 0.6rem, letting the dropdown arrow overlap
+     longer option text like "semana"/"último". */
+  padding: 0.4rem 2.1rem 0.4rem 0.6rem;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   font: inherit;
@@ -1942,14 +1968,25 @@ footer {
 }
 
 .weekday-toggle {
+  /* Overrides the global button{}'s min-height: 2.5rem and horizontal
+     padding (styles.css:1491) — left in place, a 2.2rem height loses to
+     the taller min-height, rendering an oval instead of a circle, and
+     the default padding leaves almost no room for flex-centering to
+     work with on a single letter. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 2.2rem;
   height: 2.2rem;
+  min-height: 0;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: inherit;
   font: inherit;
   font-size: 0.85rem;
+  line-height: 1;
   cursor: pointer;
 }
 

@@ -302,6 +302,8 @@ async function startEditor(repo: string | null): Promise<void> {
   const feedSettingsView = el<HTMLElement>("feed-settings-view");
   const backToList = el<HTMLButtonElement>("back-to-list");
   const profileSwitch = el<HTMLElement>("profile-switch");
+  const newEventMenu = el<HTMLDivElement>("new-event-menu");
+  const feedSettingsOpen = el<HTMLButtonElement>("feed-settings-open");
 
   /** Toggles the three top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
   function showView(): void {
@@ -312,6 +314,17 @@ async function startEditor(repo: string | null): Promise<void> {
     // Profile pre-filters which FORM fields show — meaningless outside the
     // form itself.
     profileSwitch.hidden = view !== "form";
+    // "+ New event" and feed settings only make sense from the events
+    // list — while editing/adding an event or already in feed settings,
+    // they'd either discard the current draft unexpectedly or just be
+    // noise. Standalone mode has no separate list view (the form is the
+    // only view), so they stay available there regardless of `view` —
+    // feedSettingsOpen is already permanently hidden there via its own
+    // `!hasRepo` gate below, untouched by this.
+    if (hasRepo) {
+      newEventMenu.hidden = view !== "list";
+      feedSettingsOpen.hidden = view !== "list";
+    }
   }
   showView();
   backToList.addEventListener("click", () => {
@@ -477,7 +490,6 @@ async function startEditor(repo: string | null): Promise<void> {
   // directly here rather than routed through ui/form.ts's per-field/
   // validation machinery, which this doesn't need: ote.config.json isn't
   // checked against the OTE JSON Schema at all.
-  const feedSettingsOpen = el<HTMLButtonElement>("feed-settings-open");
   feedSettingsOpen.hidden = !hasRepo;
   if (hasRepo) {
     const feedTitleInput = el<HTMLInputElement>("feed-title");
@@ -1735,7 +1747,7 @@ async function startEditor(repo: string | null): Promise<void> {
 
   // --- "+ New event" menu: blank draft, or either import dialog above -------
   {
-    const menu = el<HTMLDivElement>("new-event-menu");
+    const menu = newEventMenu;
     const toggle = el<HTMLButtonElement>("new-event-toggle");
     const list = el<HTMLDivElement>("new-event-list");
     const closeMenu = wireDropdown(toggle, list, menu);
