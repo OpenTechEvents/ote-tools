@@ -46,6 +46,10 @@ export const es: Record<string, string> = {
   "dialog.feedSettings.title": "Configuración del feed",
   "dialog.feedSettings.hint":
     "Edita el bloque feed de ote.config.json — el perfil y otros ajustes del editor en ese fichero no se tocan.",
+  "dialog.feedSettings.aboutGroup": "Sobre este feed",
+  "dialog.feedSettings.defaultsGroup": "Valores por defecto para tus eventos",
+  "dialog.feedSettings.defaultsGroupNote":
+    "Todo evento hereda estos valores salvo que declare el suyo propio — y si lo declara, lo sustituye por completo, nunca se combina con lo que hay aquí.",
   "dialog.feedSettings.titleLabel": "Título",
   "dialog.feedSettings.descriptionLabel": "Descripción",
   "dialog.feedSettings.urlLabel": "URL",
@@ -65,6 +69,11 @@ export const es: Record<string, string> = {
     "El idioma en el que están escritos el título/descripción de tu feed (y el nombre/descripción de tus eventos). Solo hace falta si usas traducciones.",
   "dialog.feedSettings.organizersInfo":
     "Quién organiza tu comunidad, por defecto. Cada evento hereda esta lista salvo que declare sus propios organizadores, que entonces la REEMPLAZAN, no se combinan con ella.",
+  "dialog.feedSettings.organizersNote":
+    "El título/URL de arriba dicen quién publica este feed; organizers, quién organiza los eventos que contiene. Si este feed solo publica tus propios eventos, probablemente coincidan. Solo son distintos si agregas eventos de otras comunidades — en ese caso, deja este campo vacío (ver aviso abajo).",
+  "dialog.feedSettings.organizersQuickFill": "Usar los mismos datos que arriba",
+  "dialog.feedSettings.organizersAggregatorWarning":
+    "Aviso: los eventos de este feed declaran organizadores bastante distintos entre sí. Si este feed agrega eventos de otras comunidades, deja este campo vacío — la spec lo exige: rellenarlo atribuiría cada evento agregado a quien lleva este feed, no a quien realmente lo organiza.",
   "dialog.review.title": "Revisar y enviar",
   "dialog.review.hintRepo":
     "Esto abre un issue de GitHub prerrellenado en el repositorio de destino; una persona mantenedora (o la automatización del repositorio) lo convierte en un pull request.",

@@ -36,6 +36,7 @@ import {
 import {
   emptyFeedConfigState,
   fromOteConfig,
+  likelyAggregatorFeed,
   toOteConfigJson,
 } from "./lib/feed-config.js";
 import {
@@ -408,14 +409,39 @@ async function startEditor(repo: string | null): Promise<void> {
     }
 
     let feedState = emptyFeedConfigState();
+    // Computed once per open (from the already-loaded event list, no new
+    // fetch) — see the feedSettingsOpen handler below.
+    let aggregatorLikely = false;
 
     function renderFeedOrganizers(): void {
       feedOrganizersSlot.textContent = "";
+
+      // "Use the same details as above" — visible only while organizers is
+      // still empty; appends one row prefilled from Title/URL, left fully
+      // editable. Declared before renderRepeaterField so its onArrayChange
+      // callback can toggle this button's visibility without a full rebuild.
+      const quickFillBtn = document.createElement("button");
+      quickFillBtn.type = "button";
+      quickFillBtn.className = "secondary organizers-quick-fill";
+      quickFillBtn.textContent = t(
+        "dialog.feedSettings.organizersQuickFill",
+        "Use the same details as above",
+      );
+      quickFillBtn.hidden = feedState.organizers.length > 0;
+      quickFillBtn.addEventListener("click", () => {
+        feedState.organizers = [
+          ...feedState.organizers,
+          { name: feedState.title, url: feedState.url, email: "", type: "" },
+        ];
+        renderFeedOrganizers(); // deliberate, infrequent action — a full rebuild here is fine
+      });
+
       const rendered = renderRepeaterField(
         "organizers",
         feedState.organizers as unknown as Record<string, string>[],
         (_key, items) => {
           feedState.organizers = items as unknown as OrganizerRow[];
+          quickFillBtn.hidden = feedState.organizers.length > 0;
         },
         () => "",
       );
@@ -430,6 +456,37 @@ async function startEditor(repo: string | null): Promise<void> {
           "Who runs your community, by default. Every event inherits this list unless it declares its own organizers, which then REPLACES it, not merges.",
         );
       }
+
+      // title/url above name who PUBLISHES the feed; this field is who
+      // ORGANIZES the events in it — the same distinction REPEATER_SPECS'
+      // own info text can't carry without leaking feed-specific wording
+      // into the event form that reuses it, so it's a separate note here.
+      const note = document.createElement("p");
+      note.className = "hint organizers-feed-note";
+      note.textContent = t(
+        "dialog.feedSettings.organizersNote",
+        "Title/URL above name who publishes this feed; organizers is who organizes the events in it. If this feed only publishes your own events, they probably match. They only differ once you aggregate events from other communities — leave this empty in that case (see the notice below).",
+      );
+
+      const label = rendered.querySelector("label");
+      if (label) {
+        // Inserted in reverse of the desired final order — each .after()
+        // on the same reference node pushes the previous insertion down.
+        label.after(quickFillBtn);
+        if (aggregatorLikely) {
+          const warning = document.createElement("div");
+          warning.className = "warning-box organizers-warning";
+          const p = document.createElement("p");
+          p.textContent = t(
+            "dialog.feedSettings.organizersAggregatorWarning",
+            "Heads up: the events in this feed declare noticeably different organizers. If this feed aggregates events from other communities, leave this field empty — the spec requires it: filling it would attribute every aggregated event to whoever runs this feed, not who actually organizes each one.",
+          );
+          warning.append(p);
+          label.after(warning);
+        }
+        label.after(note);
+      }
+
       feedOrganizersSlot.append(rendered);
     }
 
@@ -449,6 +506,7 @@ async function startEditor(repo: string | null): Promise<void> {
 
     feedSettingsOpen.addEventListener("click", () => {
       feedState = fromOteConfig(config);
+      aggregatorLikely = likelyAggregatorFeed(listed.map((entry) => entry.event));
       feedTitleInput.value = feedState.title;
       feedDescriptionInput.value = feedState.description;
       feedUrlInput.value = feedState.url;

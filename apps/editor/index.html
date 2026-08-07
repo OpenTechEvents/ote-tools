@@ -178,6 +178,8 @@
           Edits ote.config.json's feed block — the profile and other editor
           settings in that file aren't touched.
         </p>
+
+        <h3 data-i18n="dialog.feedSettings.aboutGroup">About this feed</h3>
         <div class="field">
           <label for="feed-title" data-i18n="dialog.feedSettings.titleLabel">Title</label>
           <input id="feed-title" type="text" />
@@ -192,6 +194,13 @@
           <label for="feed-url" data-i18n="dialog.feedSettings.urlLabel">URL</label>
           <input id="feed-url" type="url" />
         </div>
+
+        <h3 data-i18n="dialog.feedSettings.defaultsGroup">Defaults for your events</h3>
+        <p class="hint" data-i18n="dialog.feedSettings.defaultsGroupNote">
+          Every event inherits these unless it declares its own — an event
+          that does replaces the value entirely, it's never merged with
+          what's set here.
+        </p>
         <div class="field pair">
           <div>
             <label for="feed-license" data-i18n="dialog.feedSettings.licenseLabel">License</label>

@@ -1,5 +1,5 @@
 import { cleanRow, isRowEmpty } from "./event-json.js";
-import type { OrganizerRow, OteConfig } from "./types.js";
+import type { OrganizerRow, OteConfig, OteEvent } from "./types.js";
 
 /**
  * Flat, all-string form model for ote.config.json's `feed` block — same
@@ -101,4 +101,24 @@ export function toOteConfigJson(
   else delete feed.translations;
 
   return { ...(rawConfig ?? {}), feed };
+}
+
+/**
+ * True when 3+ distinct organizer sets appear among events that declare
+ * their own `organizers` — the spec's own signal that a feed is (or is
+ * becoming) an aggregator, where `feed.organizers` must stay empty (filling
+ * it would misattribute every event to whoever runs the feed, not who
+ * actually organizes each one). Deliberately conservative: a single
+ * co-organized event alongside a one-community feed — the normal case the
+ * spec itself documents (repeat the feed's own community plus the guest) —
+ * produces exactly 2 distinct sets (the feed's own + the one guest event's),
+ * not 3; this never fires on that case.
+ */
+export function likelyAggregatorFeed(events: readonly OteEvent[]): boolean {
+  const signatures = new Set<string>();
+  for (const event of events) {
+    if (!event.organizers || event.organizers.length === 0) continue;
+    signatures.add([...event.organizers].map((o) => o.name).sort().join("|"));
+  }
+  return signatures.size >= 3;
 }

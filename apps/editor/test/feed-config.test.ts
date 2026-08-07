@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   emptyFeedConfigState,
   fromOteConfig,
+  likelyAggregatorFeed,
   toOteConfigJson,
 } from "../src/lib/feed-config.js";
-import type { OteConfig } from "../src/lib/types.js";
+import type { OteConfig, OteEvent } from "../src/lib/types.js";
 
 // Shaped after OpenTechEvents/ote-template's real ote.config.json (checked
 // via the GitHub API while planning this feature): top-level `_comment*`
@@ -143,5 +144,66 @@ describe("toOteConfigJson", () => {
     // realish had organizers set; clearing them in state should drop the key.
     const feed = result.feed as Record<string, unknown>;
     expect(feed.organizers).toBeUndefined();
+  });
+});
+
+describe("likelyAggregatorFeed", () => {
+  const eventWithOrganizers = (id: string, names: string[]): OteEvent =>
+    ({
+      id,
+      name: id,
+      timezone: "Europe/Madrid",
+      startDate: "2026-06-11T18:30",
+      organizers: names.map((name) => ({ name })),
+    }) as unknown as OteEvent;
+
+  it("no events → false", () => {
+    expect(likelyAggregatorFeed([])).toBe(false);
+  });
+
+  it("events with no organizers of their own → false", () => {
+    const events = [
+      { id: "a", name: "a", timezone: "Europe/Madrid", startDate: "2026-06-11T18:30" },
+      { id: "b", name: "b", timezone: "Europe/Madrid", startDate: "2026-07-11T18:30" },
+    ] as unknown as OteEvent[];
+    expect(likelyAggregatorFeed(events)).toBe(false);
+  });
+
+  it("every event sharing the same organizer set → false", () => {
+    const events = [
+      eventWithOrganizers("a", ["PyAlmería"]),
+      eventWithOrganizers("b", ["PyAlmería"]),
+      eventWithOrganizers("c", ["PyAlmería"]),
+    ];
+    expect(likelyAggregatorFeed(events)).toBe(false);
+  });
+
+  it("one community feed plus a single co-organized guest event (2 sets) → false, the normal case", () => {
+    const events = [
+      eventWithOrganizers("a", ["PyAlmería"]),
+      eventWithOrganizers("b", ["PyAlmería"]),
+      // The one co-organized event: the community plus a guest.
+      eventWithOrganizers("c", ["PyAlmería", "Django Girls Almería"]),
+    ];
+    expect(likelyAggregatorFeed(events)).toBe(false);
+  });
+
+  it("3+ genuinely distinct organizer sets → true", () => {
+    const events = [
+      eventWithOrganizers("a", ["PyAlmería"]),
+      eventWithOrganizers("b", ["GDG Madrid"]),
+      eventWithOrganizers("c", ["React Barcelona"]),
+    ];
+    expect(likelyAggregatorFeed(events)).toBe(true);
+  });
+
+  it("organizer order within an event doesn't create a false distinct set", () => {
+    const events = [
+      eventWithOrganizers("a", ["Alice", "Bob"]),
+      eventWithOrganizers("b", ["Bob", "Alice"]),
+      eventWithOrganizers("c", ["Carol"]),
+    ];
+    // Only 2 distinct sets ({Alice,Bob} and {Carol}) once order is ignored.
+    expect(likelyAggregatorFeed(events)).toBe(false);
   });
 });
