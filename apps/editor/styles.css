@@ -709,6 +709,33 @@ select {
   color: var(--muted);
 }
 
+/* --- Google-Calendar-style single-line date/time — shared by the main
+   form's merged Start+End row and each recurrence row's date/time line;
+   see renderStartEndRow / renderRow's datetimeRow in ui/form.ts. ------- */
+
+.datetime-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.datetime-row > div {
+  flex: 1 1 130px;
+}
+
+.datetime-row > .field {
+  margin: 0;
+}
+
+.datetime-to {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding-bottom: 0.5rem;
+}
+
 .info-wrap {
   position: relative;
   display: inline-block;

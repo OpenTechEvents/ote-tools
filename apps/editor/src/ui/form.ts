@@ -1843,7 +1843,7 @@ export function renderRecurrenceRows(
     fields.className = "repeater-item-fields";
 
     const nameWrap = document.createElement("div");
-    nameWrap.className = "size-l";
+    nameWrap.className = "size-full";
     const nameLabel = document.createElement("label");
     nameLabel.textContent = t("dialog.recurrenceRow.name", "Name (optional)");
     const nameInput = document.createElement("input");
@@ -1852,6 +1852,14 @@ export function renderRecurrenceRows(
     nameInput.value = row.nameOverride;
     nameInput.addEventListener("input", () => (row.nameOverride = nameInput.value));
     nameWrap.append(nameLabel, nameInput);
+
+    // Date, start time, "to", end time — one Google-Calendar-style line.
+    // "Starting date" stays visible as the group's anchor label; Time/End
+    // time keep their own <label> (still reachable via aria-labelledby-
+    // style association through <label for>) but visually hidden, same
+    // treatment as the main form's merged Start/End row.
+    const datetimeRow = document.createElement("div");
+    datetimeRow.className = "size-full datetime-row";
 
     const dateWrap = document.createElement("div");
     const dateLabel = document.createElement("label");
@@ -1863,6 +1871,7 @@ export function renderRecurrenceRows(
 
     const startTimeWrap = document.createElement("div");
     const startTimeLabel = document.createElement("label");
+    startTimeLabel.className = "visually-hidden";
     startTimeLabel.textContent = t("dialog.recurrenceRow.startTime", "Time");
     const startTimeInput = document.createElement("input");
     startTimeInput.type = "time";
@@ -1871,10 +1880,17 @@ export function renderRecurrenceRows(
       row.startTime = startTimeInput.value;
       notifyRowsChanged();
     });
+    startTimeInput.id = nextId("recur-start-time");
+    startTimeLabel.htmlFor = startTimeInput.id;
     startTimeWrap.append(startTimeLabel, startTimeInput);
+
+    const to = document.createElement("span");
+    to.className = "datetime-to";
+    to.textContent = t("ui.to", "to");
 
     const endTimeWrap = document.createElement("div");
     const endTimeLabel = document.createElement("label");
+    endTimeLabel.className = "visually-hidden";
     endTimeLabel.textContent = t("dialog.recurrenceRow.endTime", "End time");
     const endTimeInput = document.createElement("input");
     endTimeInput.type = "time";
@@ -1883,7 +1899,11 @@ export function renderRecurrenceRows(
       row.endTime = endTimeInput.value;
       notifyRowsChanged();
     });
+    endTimeInput.id = nextId("recur-end-time");
+    endTimeLabel.htmlFor = endTimeInput.id;
     endTimeWrap.append(endTimeLabel, endTimeInput);
+
+    datetimeRow.append(dateWrap, startTimeWrap, to, endTimeWrap);
 
     const selectWrap = document.createElement("div");
     selectWrap.className = "size-full";
@@ -1921,7 +1941,7 @@ export function renderRecurrenceRows(
 
     renderRowSelect(row, select);
 
-    fields.append(nameWrap, dateWrap, startTimeWrap, endTimeWrap, selectWrap);
+    fields.append(nameWrap, datetimeRow, selectWrap);
     item.append(remove, fields);
     return item;
   }
@@ -2842,6 +2862,57 @@ function renderField(
   return field;
 }
 
+/**
+ * Start + End on one Google-Calendar-style line ("Aug 7, 2026  5:30pm  to
+ * 6:30pm  Aug 9, 2026") instead of two stacked blocks. Reuses
+ * renderField("startDate"/"endDate", …) completely unchanged underneath —
+ * same data-field-id, required marker, info tooltip, error slot, aria
+ * wiring — only each one's own visible label is hidden (still present for
+ * aria-labelledby, so screen readers still hear "Start, group"/"End,
+ * group") in favor of one shared label above the combined row. Not a
+ * pixel clone of Google's fully label-less pills — a deliberate middle
+ * ground after review: one clear heading instead of two, nothing
+ * rebuilt by hand.
+ */
+function renderStartEndRow(
+  state: FormState,
+  onInput: (key: StateKey, value: string | boolean) => void,
+): HTMLElement {
+  const startField = renderField("startDate", state, onInput);
+  const endField = renderField("endDate", state, onInput);
+  startField.querySelector("label")?.classList.add("visually-hidden");
+  endField.querySelector("label")?.classList.add("visually-hidden");
+
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+
+  const label = document.createElement("label");
+  label.textContent = t("field.startEnd.label", "Start and end");
+  const req = document.createElement("span");
+  req.className = "req";
+  req.textContent = " *";
+  label.append(req);
+  label.append(
+    renderInfoToggle(
+      t(
+        "field.startEnd.info",
+        "Wall-clock times, not fixed instants — Timezone (below) supplies the offset. All-day events use just the date; timed events also need a time. End must match Start's form (both dates, or both date-times) and can't be earlier — leave it empty when there's no defined end.",
+      ),
+    ),
+  );
+  wrap.append(label);
+
+  const row = document.createElement("div");
+  row.className = "datetime-row";
+  const to = document.createElement("span");
+  to.className = "datetime-to";
+  to.textContent = t("ui.to", "to");
+  row.append(startField, to, endField);
+  wrap.append(row);
+
+  return wrap;
+}
+
 /** Whether a field (FIELD_SPECS or repeater) already has something in it. */
 function fieldHasData(id: string, state: FormState): boolean {
   switch (id) {
@@ -3206,14 +3277,19 @@ export function renderForm(
     } else if (section === "when") {
       // allDay/startDate/endDate/timezone are one structural unit (allDay
       // changes how start/end render) — never separately chippable.
-      let startDateFieldEl: HTMLElement | null = null;
-      let endDateFieldEl: HTMLElement | null = null;
+      let startEndRowEl: HTMLElement | null = null;
       for (const id of WHEN_BUNDLED) {
         if (!fieldIds.includes(id)) continue;
+        if (id === "endDate") continue; // rendered together with startDate, below
+        if (id === "startDate") {
+          startEndRowEl = fieldIds.includes("endDate")
+            ? renderStartEndRow(state, onInput)
+            : renderField(id, state, onInput);
+          details.append(startEndRowEl);
+          continue;
+        }
         const fieldEl = renderField(id, state, onInput);
         details.append(fieldEl);
-        if (id === "startDate") startDateFieldEl = fieldEl;
-        if (id === "endDate") endDateFieldEl = fieldEl;
         // Right after "all day", per the organizer's explicit placement —
         // its own rows carry their own dates/times, independent of this
         // draft's own startDate/startTime. Once ≥1 row exists, this
@@ -3227,14 +3303,20 @@ export function renderForm(
             state.name,
             onCustomizeRecurrenceRule,
             (hasRows, first) => {
-              if (startDateFieldEl) startDateFieldEl.hidden = hasRows;
-              if (endDateFieldEl) endDateFieldEl.hidden = hasRows;
+              if (startEndRowEl) startEndRowEl.hidden = hasRows;
               if (!hasRows || !first) return;
               onInput("startDate", first.date);
               onInput("startTime", first.startTime);
+              // Always resolved, never left stale: a leftover endDate from
+              // before rows existed can otherwise sit invalid (e.g. earlier
+              // than the new startDate) on a field the organizer can no
+              // longer see or fix, silently blocking Review & submit.
               if (first.endTime) {
                 onInput("endDate", first.date);
                 onInput("endTime", first.endTime);
+              } else {
+                onInput("endDate", "");
+                onInput("endTime", "");
               }
             },
           );

@@ -303,6 +303,12 @@ export const es: Record<string, string> = {
   "control.endDate.label": "Fecha",
   "control.endTime.label": "Hora",
 
+  // --- field: startDate+endDate merged into one line ---------------------
+  "field.startEnd.label": "Inicio y fin",
+  "field.startEnd.info":
+    "Horas de reloj de pared, no instantes fijos — Zona horaria (abajo) aporta el desfase. Los eventos de todo el día solo usan la fecha; los eventos con hora también necesitan una hora. El fin debe tener el mismo formato que el inicio (ambas solo fecha, o ambas fecha y hora) y no puede ser anterior — déjalo vacío cuando el evento no tenga un final definido.",
+  "ui.to": "a",
+
   // --- field: timezone -----------------------------------------------------------
   "field.timezone.label": "Zona horaria",
   "field.timezone.info":
