@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRecentRepos, withRecentRepo } from "../src/lib/recent-repos.js";
+import {
+  parseRecentRepos,
+  withoutRecentRepo,
+  withRecentRepo,
+} from "../src/lib/recent-repos.js";
 
 describe("parseRecentRepos", () => {
   it("returns an empty list for null/malformed/foreign JSON", () => {
@@ -55,5 +59,21 @@ describe("withRecentRepo", () => {
     expect(result).toHaveLength(6);
     expect(result[0]).toEqual({ repo: "o/new" });
     expect(result).not.toContainEqual({ repo: "o/r5" });
+  });
+});
+
+describe("withoutRecentRepo", () => {
+  it("drops the matching entry, keeping the rest in order", () => {
+    const current = [{ repo: "a/b" }, { repo: "c/d", title: "C/D" }, { repo: "e/f" }];
+    expect(withoutRecentRepo(current, "c/d")).toEqual([{ repo: "a/b" }, { repo: "e/f" }]);
+  });
+
+  it("matches case-insensitively", () => {
+    expect(withoutRecentRepo([{ repo: "A/B" }], "a/b")).toEqual([]);
+  });
+
+  it("is a no-op when the repo isn't in the list", () => {
+    const current = [{ repo: "a/b" }];
+    expect(withoutRecentRepo(current, "x/y")).toEqual(current);
   });
 });

@@ -57,7 +57,7 @@ import {
   resolveProfile,
   type ResolvedProfile,
 } from "./lib/presets.js";
-import { getRecentRepos, recordRepoUsed } from "./lib/recent-repos.js";
+import { forgetRepoUsed, getRecentRepos, recordRepoUsed } from "./lib/recent-repos.js";
 import {
   editorContextFromSearch,
   parseContentsListing,
@@ -341,12 +341,14 @@ async function startEditor(repo: string | null): Promise<void> {
      * One row in either the recent-repos or adopters list: a title/subtitle
      * plus an optional action — a click-to-connect button, a plain "visit"
      * link, or (when neither a repo nor a url can be derived) no action at
-     * all, text only, never silently dropped from the list.
+     * all, text only, never silently dropped from the list — and, for
+     * recent-repos rows only, a "×" to forget that entry.
      */
     function renderPickerRow(
       title: string,
       subtitle: string | undefined,
       action: { label: string; onClick: () => void } | { label: string; href: string } | null,
+      onRemove?: () => void,
     ): HTMLLIElement {
       const li = document.createElement("li");
       const info = document.createElement("div");
@@ -360,36 +362,57 @@ async function startEditor(repo: string | null): Promise<void> {
         info.append(span);
       }
       li.append(info);
+      const actions = document.createElement("div");
+      actions.className = "picker-list-actions";
       if (action && "href" in action) {
         const a = document.createElement("a");
         a.href = action.href;
         a.target = "_blank";
         a.rel = "noopener";
         a.textContent = action.label;
-        li.append(a);
+        actions.append(a);
       } else if (action) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "secondary";
         button.textContent = action.label;
         button.addEventListener("click", action.onClick);
-        li.append(button);
+        actions.append(button);
       }
+      if (onRemove) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "picker-list-remove";
+        remove.setAttribute("aria-label", `${t("ui.remove", "Remove")} ${title}`);
+        remove.textContent = "×";
+        remove.addEventListener("click", onRemove);
+        actions.append(remove);
+      }
+      li.append(actions);
       return li;
     }
 
     const recentSection = el<HTMLDivElement>("repo-connect-recent");
     const recentList = el<HTMLUListElement>("repo-connect-recent-list");
-    const recent = getRecentRepos();
-    recentSection.hidden = recent.length === 0;
-    for (const entry of recent) {
-      recentList.append(
-        renderPickerRow(entry.title ?? entry.repo, entry.title ? entry.repo : undefined, {
-          label: t("action.connect", "Connect"),
-          onClick: () => connectToRepo(entry.repo),
-        }),
-      );
+    function renderRecent(): void {
+      recentList.replaceChildren();
+      const recent = getRecentRepos();
+      recentSection.hidden = recent.length === 0;
+      for (const entry of recent) {
+        recentList.append(
+          renderPickerRow(
+            entry.title ?? entry.repo,
+            entry.title ? entry.repo : undefined,
+            { label: t("action.connect", "Connect"), onClick: () => connectToRepo(entry.repo) },
+            () => {
+              forgetRepoUsed(entry.repo);
+              renderRecent();
+            },
+          ),
+        );
+      }
     }
+    renderRecent();
 
     const adoptersSection = el<HTMLDivElement>("repo-connect-adopters");
     const adoptersList = el<HTMLUListElement>("repo-connect-adopters-list");

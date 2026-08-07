@@ -56,6 +56,15 @@ export function withRecentRepo(
   );
 }
 
+/** Pure: drops `repo` (matched case-insensitively) from the list; a no-op if it isn't there. */
+export function withoutRecentRepo(
+  current: readonly RecentRepo[],
+  repo: string,
+): RecentRepo[] {
+  const key = repo.toLowerCase();
+  return current.filter((r) => r.repo.toLowerCase() !== key);
+}
+
 /** localStorage isn't just possibly-undefined — some runtimes (Node's own experimental global among them) expose it but throw when actually used, so this needs a try/catch, not just a typeof check. */
 function readStorage(): string | null {
   try {
@@ -79,4 +88,8 @@ export function getRecentRepos(): RecentRepo[] {
 
 export function recordRepoUsed(repo: string, title?: string): void {
   writeStorage(JSON.stringify(withRecentRepo(getRecentRepos(), repo, title)));
+}
+
+export function forgetRepoUsed(repo: string): void {
+  writeStorage(JSON.stringify(withoutRecentRepo(getRecentRepos(), repo)));
 }
