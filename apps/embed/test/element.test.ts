@@ -111,4 +111,86 @@ describe("<ote-events>", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenLastCalledWith("https://example.org/b.json");
   });
+
+  const RICH_FEED = JSON.stringify({
+    events: [
+      {
+        name: "Rich Event",
+        startDate: "2999-01-01",
+        url: "https://example.org/rich",
+        image: [{ url: "https://example.org/poster.jpg", alt: "Poster" }],
+        offers: [{ price: 20, currency: "EUR" }],
+        organizers: [{ name: "Fixture Org" }],
+        tags: ["one", "two"],
+        attendanceMode: "online",
+        description: "A rich event with every optional field populated.",
+      },
+    ],
+  });
+
+  it("shows the default fields (image/when/location/attendance/description) but not price/tags/organizer", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    expect(root.querySelector("img.event-image")).toBeTruthy();
+    expect(root.querySelector(".badge")?.textContent).toBe("Online");
+    expect(root.querySelector(".event-description")).toBeTruthy();
+    expect(root.querySelector(".price")).toBeNull();
+    expect(root.querySelector(".tags")).toBeNull();
+    expect(root.querySelector(".event-organizer")).toBeNull();
+  });
+
+  it('fields="price,tags" shows only those, replacing the default set entirely', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("fields", "price,tags");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    expect(root.querySelector(".price")?.textContent).toContain("20");
+    expect(root.querySelectorAll(".tag")).toHaveLength(2);
+    expect(root.querySelector("img.event-image")).toBeNull();
+    expect(root.querySelector(".badge")).toBeNull();
+    expect(root.querySelector(".event-description")).toBeNull();
+  });
+
+  it('fields="organizer" shows the first organizer\'s name', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("fields", "organizer");
+    document.body.append(el);
+    await flush();
+    expect(el.shadowRoot!.querySelector(".event-organizer")?.textContent).toBe("Fixture Org");
+  });
+
+  it("removes a broken thumbnail image from the DOM instead of showing a broken-image icon", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    const img = el.shadowRoot!.querySelector("img.event-image")!;
+    expect(img).toBeTruthy();
+    img.dispatchEvent(new Event("error"));
+    expect(el.shadowRoot!.querySelector("img.event-image")).toBeNull();
+  });
+
+  it('layout="calendar" shows a calendar-host mount point instead of a list once loaded', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("layout", "calendar");
+    document.body.append(el);
+    await flush();
+    expect(el.shadowRoot!.querySelector(".calendar-host")).toBeTruthy();
+    expect(el.shadowRoot!.querySelector("ul.events")).toBeNull();
+  });
 });

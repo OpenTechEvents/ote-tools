@@ -4,21 +4,26 @@ The embeddable `<ote-events>` Web Component (issue #27) plus the playground
 page that doubles as its documentation. Vanilla TypeScript, no framework —
 same esbuild pattern as `apps/editor`/`apps/preview`.
 
-## Two esbuild entry points, two very different audiences
+## Three esbuild entry points, kept deliberately separate
 
-`build.mjs` bundles **two** entry points into `dist/`:
+`build.mjs` bundles **three** entry points into `dist/`:
 
 - `src/main.ts` → `dist/ote-events.js` — the actual deliverable. This is
   what a consumer's `<script type="module" src="...">` loads on their own
   site. Keep it minimal: it must never pull in `src/playground.ts` or
-  anything playground-only.
+  `src/calendar-layout.ts`.
 - `src/playground.ts` → `dist/playground.js` — wires the demo page's
   controls and snippet generator. Loads `dist/ote-events.js` the same way an
   external site would (see `index.html`), so the playground also serves as a
   real-usage smoke test of the widget.
+- `src/calendar-layout.ts` → `dist/calendar-layout.js` — `layout="calendar"`
+  support. Never statically imported by `main.ts`; `element.ts` loads it at
+  runtime via `import(new URL("./calendar-layout.js", import.meta.url).href)`
+  only when a consumer actually requests that layout. See "The calendar
+  layout" below for why.
 
-If you add code that both files need, put it in a third module they both
-import — don't import one entry point from the other.
+If you add code that more than one entry point needs, put it in a fourth
+module they all import — don't import one entry point from another.
 
 ## Static `index.html`/`styles.css` are copied once, not watched
 
@@ -42,7 +47,7 @@ deliberate scope change to discuss, not a bug to quietly fix.
 ## Theming: `--ote-*` CSS custom properties, not `!important` overrides
 
 `src/theme.css.ts` defines the widget's internal look inside its shadow
-root using a `--ote-*`-prefixed set of custom properties (`--ote-bg`,
+root using a `--ote-*`-prefixed set of custom properties (`--ote-surface`,
 `--ote-accent`, etc.). CSS custom properties inherit through the shadow
 boundary even though everything else in the shadow root is encapsulated —
 so a host page can retheme the widget with plain CSS:
@@ -56,6 +61,58 @@ ote-events {
 `theme="light"/"dark"/"auto"` needs no JavaScript: the CSS `:host([theme="dark"])`
 selectors read the attribute directly. An unrecognized `theme` value simply
 falls through to the light defaults — that's intentional, not a bug.
+
+**`:host` has no `background` of its own, on purpose.** Only individual
+pieces (`.event`, `.message`, badges/tags) get `--ote-surface`/
+`--ote-accent-soft` backgrounds. An earlier version painted `:host` with a
+`--ote-bg` variable, which made the *whole widget* — including the grid
+gaps in `layout="cards"` — an opaque rectangle instead of blending into the
+host page (very visible in dark mode against a light page). If you're
+tempted to add a background back to `:host`, don't — that's the bug this
+was, not a feature.
+
+## The `fields` attribute is a full replacement, not a merge
+
+`attrs.ts`'s `parseFields()` returns `DEFAULT_FIELDS` when the attribute is
+absent, empty, or every comma-separated token is unrecognized. Any other
+valid input **replaces** the default entirely — `fields="price,tags"` shows
+*only* price and tags, not the defaults plus those two. This was a
+deliberate choice ("elegir qué campos se muestran y cuales no") over an
+additive/merge scheme, which would need a separate "hide" mechanism to ever
+turn off a default field.
+
+## The calendar layout: why `@event-calendar/core`, not FullCalendar
+
+`apps/preview` uses FullCalendar for its own calendar view. `layout="calendar"`
+here deliberately uses a different library, `@event-calendar/core`, for two
+reasons discovered while spiking this:
+
+1. **Size.** FullCalendar's four `@fullcalendar/*` packages are ~3.8MB
+   unminified; `@event-calendar/core` (which bundles all its views —
+   `DayGrid`/`TimeGrid`/`List`/etc. — as named exports, no separate
+   per-view packages despite what an npm search for
+   `@event-calendar/day-grid` suggests; that package is a stale pre-4.x
+   artifact, stuck at 3.12.0) compiles down to ~133KB minified / ~44KB
+   gzip for core+DayGrid — and it's lazy-loaded, so it only costs anything
+   for a consumer who actually sets `layout="calendar"`.
+2. **Shadow DOM compatibility.** FullCalendar v5+ injects its CSS into
+   `document.head` at runtime — a `<style>` there never reaches into a
+   Shadow DOM at all, so it would render completely unstyled inside this
+   widget. `@event-calendar/core` ships its stylesheet as a real importable
+   file (`@event-calendar/core/index.css`), which `calendar-layout.ts`
+   imports through an esbuild `.css` → `text` loader (configured for that
+   one entry point only, in `build.mjs`) and injects into the widget's own
+   `<style>` element in `element.ts`'s `#mountCalendar()` — verified
+   working end-to-end in Chrome (month grid renders and is fully styled
+   inside the shadow root). Its `createCalendar()` even types its `target`
+   parameter as `Element | Document | ShadowRoot`, so Shadow DOM is a
+   supported use case, not a lucky accident.
+
+`@event-calendar/core`'s compiled `dist/index.js` imports from `svelte`
+at runtime (it's built with Svelte 5 internally) — that's already accounted
+for in the sizes above; no extra esbuild config is needed for it beyond the
+`.css` loader, since `svelte` resolves normally through `node_modules` as a
+transitive dependency.
 
 ## Testing the custom element needs jsdom, not the default Node environment
 

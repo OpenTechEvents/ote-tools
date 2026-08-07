@@ -1,9 +1,11 @@
 export type { PreviewEvent, PreviewFeed } from "./types.js";
 export {
   addDays,
+  cheapestPrice,
   detailRows,
   eventLocation,
   eventWhen,
+  firstImage,
   formatDate,
   isDateOnly,
   nonEmpty,

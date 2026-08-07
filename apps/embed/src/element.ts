@@ -1,14 +1,22 @@
 import { jsonToPreviewFeed } from "@opentechevents/preview-feed";
 import type { PreviewFeed } from "@opentechevents/preview-feed";
 
-import { parseLangAttr, parseLayout, parseLimit, parseShowPast, resolveLang } from "./attrs.js";
-import { renderWidget } from "./render.js";
+import {
+  parseFields,
+  parseLangAttr,
+  parseLayout,
+  parseLimit,
+  parseShowPast,
+  resolveLang,
+} from "./attrs.js";
+import { renderWidget, selectVisibleEvents, type WidgetState } from "./render.js";
 import { WIDGET_CSS } from "./theme.css.js";
 
 type Status = "idle" | "loading" | "loaded" | "error";
+type CalendarHandle = { destroy(): void };
 
 /**
- * `<ote-events feed="..." limit="6" theme="auto" lang="auto" show-past="false" layout="list">`
+ * `<ote-events feed="..." limit="6" theme="auto" lang="auto" show-past="false" layout="list" fields="...">`
  *
  * Fetches a native OTE JSON feed client-side and renders upcoming events.
  * Deliberately JSON-only (not ICS/RSS): OTE's canonical publish format is
@@ -17,26 +25,43 @@ type Status = "idle" | "loading" | "loaded" | "error";
  * the acceptance criteria doesn't call for. See apps/embed/CLAUDE.md.
  */
 export class OteEventsElement extends HTMLElement {
-  static observedAttributes = ["feed", "limit", "theme", "lang", "show-past", "layout"];
+  static observedAttributes = [
+    "feed",
+    "limit",
+    "theme",
+    "lang",
+    "show-past",
+    "layout",
+    "fields",
+  ];
 
+  #styleEl: HTMLStyleElement;
   #container: HTMLElement;
   #feed: PreviewFeed | undefined;
   #status: Status = "idle";
   #errorMessage = "";
   #requestId = 0;
 
+  #calendarHandle: CalendarHandle | undefined;
+  #calendarRequestId = 0;
+  #calendarCssInjected = false;
+
   constructor() {
     super();
     const root = this.attachShadow({ mode: "open" });
-    const style = document.createElement("style");
-    style.textContent = WIDGET_CSS;
+    this.#styleEl = document.createElement("style");
+    this.#styleEl.textContent = WIDGET_CSS;
     this.#container = document.createElement("div");
     this.#container.className = "ote-events";
-    root.append(style, this.#container);
+    root.append(this.#styleEl, this.#container);
   }
 
   connectedCallback(): void {
     void this.#load();
+  }
+
+  disconnectedCallback(): void {
+    this.#teardownCalendar();
   }
 
   attributeChangedCallback(name: string): void {
@@ -81,7 +106,7 @@ export class OteEventsElement extends HTMLElement {
 
   #renderNow(): void {
     const lang = resolveLang(parseLangAttr(this.getAttribute("lang")), navigator.language);
-    renderWidget(this.#container, {
+    const state: WidgetState = {
       status: this.#status,
       errorMessage: this.#errorMessage,
       feed: this.#feed,
@@ -89,7 +114,60 @@ export class OteEventsElement extends HTMLElement {
       limit: parseLimit(this.getAttribute("limit")),
       showPast: parseShowPast(this.getAttribute("show-past")),
       layout: parseLayout(this.getAttribute("layout")),
-    });
+      fields: parseFields(this.getAttribute("fields")),
+    };
+    renderWidget(this.#container, state);
+
+    if (state.layout === "calendar" && state.status === "loaded") {
+      const events = selectVisibleEvents(state);
+      if (events.length > 0) {
+        void this.#mountCalendar(events);
+        return;
+      }
+    }
+    this.#teardownCalendar();
+  }
+
+  /**
+   * `layout="calendar"` is lazy-loaded: `calendar-layout.js` is its own
+   * esbuild entry point, never statically imported by main.ts, fetched here
+   * by a URL relative to this running script — not esbuild's `splitting`
+   * feature, which this repo has no precedent for. See apps/embed/CLAUDE.md.
+   */
+  async #mountCalendar(events: ReturnType<typeof selectVisibleEvents>): Promise<void> {
+    this.#teardownCalendar();
+    const requestId = ++this.#calendarRequestId;
+    try {
+      // A non-literal import() specifier: esbuild leaves this as a genuine
+      // runtime dynamic import rather than trying to statically bundle it.
+      const module = (await import(
+        new URL("./calendar-layout.js", import.meta.url).href
+      )) as typeof import("./calendar-layout.js");
+      if (requestId !== this.#calendarRequestId || !this.isConnected) return;
+
+      if (!this.#calendarCssInjected) {
+        this.#styleEl.textContent += module.CALENDAR_CSS;
+        this.#calendarCssInjected = true;
+      }
+      const host = this.#container.querySelector<HTMLElement>(".calendar-host");
+      if (!host) return;
+      host.replaceChildren(); // clear the "Loading…" placeholder before mounting
+      this.#calendarHandle = module.renderCalendar(host, events, {
+        onEventClick: (event) => {
+          if (event.link) window.open(event.link, "_blank", "noopener");
+        },
+      });
+    } catch (error) {
+      if (requestId !== this.#calendarRequestId || !this.isConnected) return;
+      const host = this.#container.querySelector<HTMLElement>(".calendar-host");
+      if (host) host.textContent = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  #teardownCalendar(): void {
+    this.#calendarRequestId++;
+    this.#calendarHandle?.destroy();
+    this.#calendarHandle = undefined;
   }
 }
 

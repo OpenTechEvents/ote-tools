@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDays,
+  cheapestPrice,
   detailRows,
   eventLocation,
   eventWhen,
+  firstImage,
   formatDate,
   isDateOnly,
   nonEmpty,
@@ -153,5 +155,53 @@ describe("sortedEvents", () => {
     const past2 = at("2000-06-01");
     const result = sortedEvents([past1, future2, past2, future1]);
     expect(result).toEqual([future1, future2, past2, past1]);
+  });
+});
+
+describe("firstImage", () => {
+  it("returns undefined for an absent/empty image list", () => {
+    expect(firstImage(undefined)).toBeUndefined();
+    expect(firstImage([])).toBeUndefined();
+  });
+
+  it("wraps a bare string URL as {url}", () => {
+    expect(firstImage(["https://example.org/a.jpg"])).toEqual({
+      url: "https://example.org/a.jpg",
+    });
+  });
+
+  it("passes an {url, alt} entry through unchanged", () => {
+    expect(firstImage([{ url: "https://example.org/a.jpg", alt: "A poster" }])).toEqual({
+      url: "https://example.org/a.jpg",
+      alt: "A poster",
+    });
+  });
+
+  it("takes the first entry from a mixed string/object list", () => {
+    expect(
+      firstImage([{ url: "https://example.org/first.jpg" }, "https://example.org/second.jpg"]),
+    ).toEqual({ url: "https://example.org/first.jpg" });
+  });
+});
+
+describe("cheapestPrice", () => {
+  it("returns undefined when there are no offers, or none declare a price", () => {
+    expect(cheapestPrice(undefined)).toBeUndefined();
+    expect(cheapestPrice([])).toBeUndefined();
+    expect(cheapestPrice([{ currency: "EUR" }, { price: undefined }])).toBeUndefined();
+  });
+
+  it("picks the lowest priced offer, ignoring price-less ones", () => {
+    expect(
+      cheapestPrice([
+        { price: 45, currency: "EUR" },
+        { price: 30, currency: "EUR" },
+        { currency: "EUR" },
+      ]),
+    ).toEqual({ amount: 30, currency: "EUR" });
+  });
+
+  it("treats a zero price as a valid (free) offer, not absent", () => {
+    expect(cheapestPrice([{ price: 0 }])).toEqual({ amount: 0, currency: undefined });
   });
 });

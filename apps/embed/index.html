@@ -40,8 +40,24 @@
         <select id="layout-select">
           <option value="list" selected>list</option>
           <option value="cards">cards</option>
+          <option value="calendar">calendar</option>
         </select>
         <p class="hint">Presentation of the same event data. Default: list.</p>
+      </div>
+
+      <div class="field">
+        <span class="fields-legend">fields</span>
+        <div class="fields-checkboxes">
+          <label><input type="checkbox" class="field-key-checkbox" value="image" checked /> image</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="when" checked /> when</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="location" checked /> location</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="attendance" checked /> attendance</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="description" checked /> description</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="price" /> price</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="tags" /> tags</label>
+          <label><input type="checkbox" class="field-key-checkbox" value="organizer" /> organizer</label>
+        </div>
+        <p class="hint">Which optional pieces of each event to show. Ignored by the calendar layout.</p>
       </div>
 
       <div class="field">

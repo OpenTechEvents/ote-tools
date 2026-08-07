@@ -24,6 +24,20 @@
       "startDate": "2026-07-01",
       "timezone": "UTC",
       "location": { "onlineUrl": "https://meet.example/fixture" }
+    },
+    {
+      "id": "https://fixture.example/events/workshop",
+      "name": "Priced Workshop",
+      "startDate": "2026-08-10T10:00",
+      "timezone": "Europe/Madrid",
+      "location": { "venue": "Fixture Workshop Room" },
+      "image": ["https://fixture.example/img/workshop.jpg"],
+      "offers": [
+        { "name": "Early bird", "price": 30, "currency": "EUR" },
+        { "name": "Regular", "price": 45, "currency": "EUR" },
+        { "name": "Get tickets", "url": "https://fixture.example/tickets" }
+      ],
+      "organizers": [{ "name": "Fixture Community" }, { "name": "Second Org" }]
     }
   ]
 }
