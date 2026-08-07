@@ -531,11 +531,13 @@ select {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* Read-only until "Enter coordinates manually" (the geo Lat/Lon fields) —
-   reads as plain text, not an editable box, until the toggle actually
-   makes it one. Left/right padding drops to 0 so the value lines up with
-   its own label above it instead of looking indented inside an empty box. */
-.field input[type="text"][readonly] {
+/* Read-only until its own "edit" toggle unlocks it — geo Lat/Lon (text) and
+   the Metadata Slug/Id fields (Id is a "url" input) all use this. Reads as
+   plain text, not an editable box, until then. Left/right padding drops to
+   0 so the value lines up with its own label above it instead of looking
+   indented inside an empty box. */
+.field input[type="text"][readonly],
+.field input[type="url"][readonly] {
   border-color: transparent;
   background: none;
   padding-left: 0;
@@ -543,7 +545,8 @@ select {
   cursor: default;
 }
 
-.field input[type="text"][readonly]:focus-visible {
+.field input[type="text"][readonly]:focus-visible,
+.field input[type="url"][readonly]:focus-visible {
   border-color: transparent;
   box-shadow: none;
   outline: 2px solid var(--accent);
@@ -589,6 +592,17 @@ select {
 
 .field.pair > div {
   flex: 1;
+}
+
+/* Sub-field width hints (`size-s/m/l`, set per control in FIELD_SPECS/
+   REPEATER_SPECS) — a Price or Currency shouldn't claim as much row width
+   as a Name or URL just because they're neighbors. Unset = default (m). */
+.field.pair > div.size-s {
+  flex: 0 1 90px;
+}
+
+.field.pair > div.size-l {
+  flex: 2 1 220px;
 }
 
 .field.pair label {
@@ -779,6 +793,15 @@ select {
   flex: 1 1 130px;
 }
 
+/* Same size-s/m/l hint as .field.pair (see there for why). */
+.repeater-item-fields > div.size-s {
+  flex: 0 1 90px;
+}
+
+.repeater-item-fields > div.size-l {
+  flex: 2 1 200px;
+}
+
 .repeater-item-fields label {
   display: block;
   font-weight: 400;
@@ -844,10 +867,22 @@ select {
   margin: 0.5rem 0;
 }
 
-/* Right padding leaves room for .repeater-remove, same as .repeater-item. */
+/* No reserved padding here (unlike .repeater-item) — the field keeps its
+   full width and the "×" just floats over the corner, low-key until
+   hovered, since it lands on the label row rather than the input itself. */
 .advanced-block {
   position: relative;
-  padding-right: 2.75rem;
+}
+
+.advanced-block > .repeater-remove {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  font-size: 1rem;
+  opacity: 0.55;
+}
+
+.advanced-block > .repeater-remove:hover {
+  opacity: 1;
 }
 
 /* A nudge, not a different affordance — same shape/size as a plain

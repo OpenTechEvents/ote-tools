@@ -181,6 +181,8 @@ interface Control {
   info?: string;
   /** Hidden unless the named sibling control's current value is one of `values`. */
   visibleWhen?: { key: StateKey; values: readonly string[] };
+  /** Row-width hint relative to its siblings — short/fixed-shape values (a price, a 3-letter currency code) don't need as much room as a name or URL. Omit for the default (m). */
+  size?: "s" | "m" | "l";
 }
 
 interface FieldSpec {
@@ -461,17 +463,25 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
     note: "Only for events accepting talk/workshop submissions.",
     info: "The one OTE field with no equivalent in ICS, RSS or plain schema.org — it exists because \"which conferences are still accepting proposals\" is a question only the organizer can answer today.",
     controls: [
-      { key: "cfpUrl", label: "URL", kind: "url", info: "Where speakers submit a proposal." },
+      {
+        key: "cfpUrl",
+        label: "URL",
+        kind: "url",
+        size: "l",
+        info: "Where speakers submit a proposal.",
+      },
       {
         key: "cfpOpensAt",
         label: "Opens at",
         kind: "instant",
+        size: "l",
         info: "When submissions start being accepted.",
       },
       {
         key: "cfpClosesAt",
         label: "Closes at",
         kind: "instant",
+        size: "l",
         info: "Submission deadline — after this, cfpUrl should stop accepting new ones.",
       },
       {
@@ -529,24 +539,28 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
         key: "sourceName",
         label: "Name",
         kind: "text",
+        size: "l",
         info: "Where this data was imported from — a platform name (\"Meetup\") or organization.",
       },
       {
         key: "sourceUrl",
         label: "URL",
         kind: "url",
+        size: "l",
         info: "The exact page or feed this event's data was read from.",
       },
       {
         key: "sourceLicense",
         label: "License",
         kind: "text",
+        size: "s",
         info: "The license the SOURCE data was published under, if stated — not this file's own license (see License above).",
       },
       {
         key: "sourceRetrievedAt",
         label: "Retrieved at",
         kind: "instant",
+        size: "l",
         info: "When this data was fetched — set automatically by the import flow; edit only if importing by hand.",
       },
     ],
@@ -905,6 +919,8 @@ interface RepeaterItemField {
   info?: string;
   /** Hidden unless the named sibling field's current value (within the same row) is one of `values`. */
   visibleWhen?: { key: string; values: readonly string[] };
+  /** Row-width hint relative to its siblings — see Control.size. Omit for the default (m). */
+  size?: "s" | "m" | "l";
 }
 
 interface RepeaterSpec {
@@ -927,6 +943,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         key: "name",
         label: "Name",
         kind: "text",
+        size: "l",
         info: "As attendees would recognize it — the group or person's usual name.",
       },
       {
@@ -934,6 +951,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         label: "URL",
         kind: "url",
         placeholder: "https://…",
+        size: "l",
         info: "Website or profile for this organizer. Leave empty if they don't have one.",
       },
       {
@@ -947,6 +965,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         key: "type",
         label: "Type",
         kind: "select",
+        size: "s",
         options: ["", "organization", "person"],
         info: "Organization or individual person — lets consumers pick the right icon or label.",
       },
@@ -972,6 +991,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         label: "Name",
         kind: "text",
         placeholder: "General admission",
+        size: "l",
         info: "What this tier is called — \"General admission\", \"Early bird\", \"Student\"…",
       },
       {
@@ -979,6 +999,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         label: "Price",
         kind: "number",
         placeholder: "0",
+        size: "s",
         info: "0 means free. Leave empty only when the price itself is unknown — that's not the same as free.",
       },
       {
@@ -986,18 +1007,21 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         label: "Currency",
         kind: "text",
         placeholder: "EUR",
+        size: "s",
         info: "ISO 4217 code (EUR, USD…) — expected alongside a non-zero price.",
       },
       {
         key: "url",
         label: "URL",
         kind: "url",
+        size: "l",
         info: "Where to buy or register for this specific tier.",
       },
       {
         key: "availability",
         label: "Availability",
         kind: "select",
+        size: "s",
         options: ["", "in-stock", "sold-out"],
         info: "sold-out reveals a Waitlist URL below. Leave empty when unknown.",
       },
@@ -1005,6 +1029,7 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         key: "waitlistUrl",
         label: "Waitlist URL",
         kind: "url",
+        size: "l",
         visibleWhen: { key: "availability", values: ["sold-out"] },
         info: "Where interested people can join the waitlist once this tier sells out.",
       },
@@ -1012,12 +1037,14 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         key: "opensAt",
         label: "Opens at",
         kind: "instant",
+        size: "l",
         info: "When this tier becomes available for purchase — not the event's own start.",
       },
       {
         key: "closesAt",
         label: "Closes at",
         kind: "instant",
+        size: "l",
         info: "When this tier stops being available (sale ends) — not the event's own end.",
       },
     ],
@@ -1166,6 +1193,7 @@ function renderRepeaterItemControl(
     if (describedBy) rendered.input.setAttribute("aria-describedby", describedBy);
     if (!field.label) return rendered;
     const wrap = document.createElement("div");
+    if (field.size) wrap.classList.add(`size-${field.size}`);
     const label = document.createElement("label");
     label.htmlFor = rendered.input.id;
     label.textContent = t(`${i18nKey}.label`, field.label);
@@ -1197,6 +1225,7 @@ function renderRepeaterItemControl(
 
   if (!field.label) return { element: input, input };
   const wrap = document.createElement("div");
+  if (field.size) wrap.classList.add(`size-${field.size}`);
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.textContent = t(`${i18nKey}.label`, field.label);
@@ -1816,6 +1845,7 @@ function renderControl(
     rendered.input.dataset.key = control.key;
     if (!control.label) return rendered;
     const wrap = document.createElement("div");
+    if (control.size) wrap.classList.add(`size-${control.size}`);
     const label = document.createElement("label");
     label.htmlFor = rendered.input.id;
     label.textContent = t(`control.${control.key}.label`, control.label);
@@ -1862,6 +1892,7 @@ function renderControl(
 
   if (!control.label) return { element: input, input };
   const wrap = document.createElement("div");
+  if (control.size) wrap.classList.add(`size-${control.size}`);
   const label = document.createElement("label");
   label.htmlFor = input.id;
   label.textContent = t(`control.${control.key}.label`, control.label);
@@ -1932,23 +1963,7 @@ function renderField(
       errorId = appendError(outer);
       // The map is the primary way to set a position — typing raw decimal
       // degrees by hand is the rare case, so it isn't invited by default.
-      // readOnly (not disabled) keeps the values focusable/copyable and
-      // still shows whatever the map writes via main.ts's existing sync.
-      for (const c of controls) {
-        if (c.input instanceof HTMLInputElement) c.input.readOnly = true;
-      }
-      const manualToggle = document.createElement("button");
-      manualToggle.type = "button";
-      manualToggle.className = "link-button";
-      manualToggle.textContent = t("ui.enterCoordinatesManually", "Enter coordinates manually");
-      manualToggle.addEventListener("click", () => {
-        for (const c of controls) {
-          if (c.input instanceof HTMLInputElement) c.input.readOnly = false;
-        }
-        controls[0]?.input.focus();
-        manualToggle.remove();
-      });
-      outer.append(manualToggle);
+      addManualToggle(outer, controls, t("ui.enterCoordinatesManually", "Enter coordinates manually"));
     } else {
       outer.append(label, row);
       noteId = appendNote(outer, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
@@ -1967,6 +1982,12 @@ function renderField(
   const errorId = appendError(field);
   const describedBy = describedByOf(noteId, errorId);
   if (describedBy) controls[0]?.input.setAttribute("aria-describedby", describedBy);
+  // Auto-suggested and rarely meant to be hand-edited — id's own tooltip
+  // says as much ("never change it after publishing"). Reads as proposed
+  // text, not an invitation to type, until Edit unlocks it.
+  if (fieldId === "slug" || fieldId === "id") {
+    addManualToggle(field, controls, t("ui.editSuggested", "Edit"));
+  }
   return field;
 }
 
@@ -2011,6 +2032,35 @@ function clearField(
     onInput("geoLon", "");
   }
   for (const c of FIELD_SPECS[id].controls) onInput(c.key, c.kind === "checkbox" ? false : "");
+}
+
+/**
+ * Makes `controls` read-only (styled as plain text, not an input box — see
+ * `.field input[readonly]` in styles.css) and appends a small toggle that
+ * unlocks them for hand-editing. Used for values that already have a
+ * correct answer most of the time — map-driven coordinates, auto-suggested
+ * slug/id — so typing isn't the first thing invited.
+ */
+function addManualToggle(
+  container: HTMLElement,
+  controls: { input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement }[],
+  toggleLabel: string,
+): void {
+  for (const c of controls) {
+    if (c.input instanceof HTMLInputElement) c.input.readOnly = true;
+  }
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "link-button";
+  toggle.textContent = toggleLabel;
+  toggle.addEventListener("click", () => {
+    for (const c of controls) {
+      if (c.input instanceof HTMLInputElement) c.input.readOnly = false;
+    }
+    controls[0]?.input.focus();
+    toggle.remove();
+  });
+  container.append(toggle);
 }
 
 /** Wraps `inner` with a "×" button styled like a repeater row's, calling `onRemove` when clicked. */

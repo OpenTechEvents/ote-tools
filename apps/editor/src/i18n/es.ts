@@ -360,6 +360,7 @@ export const es: Record<string, string> = {
   "ui.remove": "Eliminar",
   "ui.chips.placeholder": "Escribe para añadir…",
   "ui.enterCoordinatesManually": "Introducir coordenadas manualmente",
+  "ui.editSuggested": "Editar",
   "ui.importGap": "No estaba en el ICS importado — rellénalo a mano si lo sabes.",
   "ui.instant.preview": "UTC: {iso} (introducido en {zone})",
   "ui.instant.yourDeviceTimezone": "la zona horaria de tu dispositivo",
