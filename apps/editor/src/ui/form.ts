@@ -806,6 +806,113 @@ function renderChips(
     if (document.activeElement === input) refreshSuggestions();
   });
 
+  if (control.vocab === "tags") {
+    const exploreBtn = document.createElement("button");
+    exploreBtn.type = "button";
+    exploreBtn.className = "link-button chips-explore";
+    exploreBtn.textContent = t("ui.tags.explore", "Explore tags");
+
+    let dialog: HTMLDialogElement | null = null;
+
+    function tagGroup(title: string, entries: readonly TagSuggestion[]): HTMLElement {
+      const section = document.createElement("section");
+      section.className = "tag-explorer-group";
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+      const chipsWrap = document.createElement("div");
+      chipsWrap.className = "tag-explorer-chips";
+      for (const entry of entries) {
+        const active = values.includes(entry.id);
+        const chipBtn = document.createElement("button");
+        chipBtn.type = "button";
+        chipBtn.className = active ? "tag-explorer-tag active" : "tag-explorer-tag";
+        chipBtn.textContent = entry.label;
+        chipBtn.setAttribute("aria-pressed", String(active));
+        chipBtn.addEventListener("click", () => {
+          if (values.includes(entry.id)) {
+            values = values.filter((v) => v !== entry.id);
+            renderList();
+            commit();
+          } else {
+            add(entry.id);
+          }
+          renderExplorerBody();
+        });
+        chipsWrap.append(chipBtn);
+      }
+      section.append(h3, chipsWrap);
+      return section;
+    }
+
+    function renderExplorerBody(): void {
+      const body = dialog?.querySelector<HTMLElement>(".tag-explorer-body");
+      if (!body) return;
+      body.textContent = "";
+      if (tagVocabEntries.length === 0) {
+        const p = document.createElement("p");
+        p.className = "hint";
+        p.textContent = t("ui.tags.unavailable", "Tags aren't available right now.");
+        body.append(p);
+        return;
+      }
+      // Same-category-as-what's-already-picked, not yet picked — a light
+      // nudge toward filling out a topic, not a hard recommendation engine.
+      const activeCategories = new Set(
+        values
+          .map((v) => tagVocabEntries.find((e) => e.id === v)?.category)
+          .filter((c): c is string => !!c),
+      );
+      if (activeCategories.size > 0) {
+        const suggested = tagVocabEntries.filter(
+          (e) => activeCategories.has(e.category) && !values.includes(e.id),
+        );
+        if (suggested.length > 0) {
+          body.append(tagGroup(t("ui.tags.suggestedForYou", "Suggested for you"), suggested.slice(0, 12)));
+        }
+      }
+      const byCategory = new Map<string, TagSuggestion[]>();
+      for (const entry of tagVocabEntries) {
+        const cat = entry.category || t("ui.tags.otherCategory", "Other");
+        const list = byCategory.get(cat) ?? [];
+        list.push(entry);
+        byCategory.set(cat, list);
+      }
+      for (const [cat, entries] of [...byCategory].sort((a, b) => a[0].localeCompare(b[0]))) {
+        body.append(tagGroup(cat, entries));
+      }
+    }
+
+    exploreBtn.addEventListener("click", async () => {
+      await ensureTagVocabulary();
+      if (!dialog) {
+        dialog = document.createElement("dialog");
+        dialog.className = "tag-explorer";
+        const h2 = document.createElement("h2");
+        h2.id = nextId("tag-explorer-title");
+        h2.textContent = t("ui.tags.explorerTitle", "Explore tags");
+        dialog.setAttribute("aria-labelledby", h2.id);
+        const closeBtn = document.createElement("button");
+        closeBtn.type = "button";
+        closeBtn.className = "dialog-close";
+        closeBtn.setAttribute("aria-label", t("ui.close", "Close"));
+        closeBtn.textContent = "×";
+        closeBtn.addEventListener("click", () => dialog?.close());
+        const body = document.createElement("div");
+        body.className = "tag-explorer-body";
+        dialog.append(h2, closeBtn, body);
+        // Appended to `wrap`, not document.body: `showModal()` promotes it to
+        // the top layer regardless of its DOM parent, and this way it's
+        // discarded automatically along with the rest of the field's
+        // subtree on the next structural re-render — no manual cleanup.
+        wrap.append(dialog);
+      }
+      renderExplorerBody();
+      dialog.showModal();
+    });
+
+    wrap.append(exploreBtn);
+  }
+
   renderList();
   return { element: wrap, input };
 }
@@ -1271,6 +1378,69 @@ function emptyRepeaterRow(key: RepeaterKey): Record<string, string> {
 }
 
 /**
+ * Single shared full-size viewer for every image preview thumbnail on the
+ * page — created once, reused, since there's nothing row-specific about it
+ * beyond whatever src/alt the most recent click passed in.
+ */
+let imageLightbox: HTMLDialogElement | null = null;
+
+function openImageLightbox(src: string, alt: string): void {
+  if (!imageLightbox) {
+    imageLightbox = document.createElement("dialog");
+    imageLightbox.className = "image-lightbox";
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "dialog-close";
+    closeBtn.setAttribute("aria-label", t("ui.close", "Close"));
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", () => imageLightbox?.close());
+    const img = document.createElement("img");
+    imageLightbox.append(closeBtn, img);
+    // A click that lands on the <dialog> element itself (not a descendant)
+    // is a click on its own backdrop area/padding — treat it like Escape.
+    imageLightbox.addEventListener("click", (e) => {
+      if (e.target === imageLightbox) imageLightbox?.close();
+    });
+    document.body.append(imageLightbox);
+  }
+  const img = imageLightbox.querySelector("img")!;
+  img.src = src;
+  img.alt = alt;
+  imageLightbox.showModal();
+}
+
+/**
+ * Small clickable thumbnail next to an image row's URL field — hidden until
+ * the URL has a value, kept live as it's typed/pasted, opens the full-size
+ * lightbox on click. `getAlt` is read at click time (not captured once) so
+ * it reflects whatever the row's own Alt text field currently holds.
+ */
+function renderImagePreview(urlInput: HTMLInputElement, getAlt: () => string): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "image-preview";
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "image-preview-trigger";
+  trigger.setAttribute("aria-label", t("ui.image.viewFullSize", "View full size"));
+  trigger.hidden = true;
+  const img = document.createElement("img");
+  img.alt = "";
+  trigger.append(img);
+  trigger.addEventListener("click", () => openImageLightbox(urlInput.value.trim(), getAlt()));
+  wrap.append(trigger);
+
+  function sync(): void {
+    const url = urlInput.value.trim();
+    trigger.hidden = !url;
+    if (url) img.src = url;
+    else img.removeAttribute("src");
+  }
+  urlInput.addEventListener("input", sync);
+  sync();
+  return wrap;
+}
+
+/**
  * Repeatable group of sub-fields (organizers/image/offers): each row is a
  * card with the field's itemFields as inputs, plus add/remove buttons.
  * Follows the same self-contained-subtree pattern renderChips uses above —
@@ -1360,6 +1530,14 @@ function renderRepeaterField(
         if (driver) linkVisibility(driver, rendered[i], f.visibleWhen.values);
       });
       for (const r of rendered) fields.append(r.element);
+
+      if (fieldId === "image") {
+        const urlInput = byKey.get("url")?.input;
+        const altInput = byKey.get("alt")?.input;
+        if (urlInput instanceof HTMLInputElement) {
+          fields.append(renderImagePreview(urlInput, () => altInput?.value ?? ""));
+        }
+      }
 
       item.append(remove, fields);
       list.append(item);
