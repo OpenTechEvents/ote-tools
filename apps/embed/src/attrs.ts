@@ -6,7 +6,40 @@ export const DEFAULT_LIMIT = 6;
 // validation needed.
 export type LangAttr = "en" | "es" | "auto";
 export type Lang = "en" | "es";
-export type Layout = "list" | "cards";
+export type Layout = "list" | "cards" | "calendar";
+
+export type FieldKey =
+  | "image"
+  | "when"
+  | "location"
+  | "attendance"
+  | "description"
+  | "price"
+  | "tags"
+  | "organizer";
+
+const ALL_FIELDS: readonly FieldKey[] = [
+  "image",
+  "when",
+  "location",
+  "attendance",
+  "description",
+  "price",
+  "tags",
+  "organizer",
+];
+
+export const DEFAULT_FIELDS: readonly FieldKey[] = [
+  "image",
+  "when",
+  "location",
+  "attendance",
+  "description",
+];
+
+function isFieldKey(value: string): value is FieldKey {
+  return (ALL_FIELDS as readonly string[]).includes(value);
+}
 
 export function parseLimit(value: string | null): number {
   if (!value) return DEFAULT_LIMIT;
@@ -29,5 +62,22 @@ export function parseShowPast(value: string | null): boolean {
 }
 
 export function parseLayout(value: string | null): Layout {
-  return value === "cards" ? "cards" : "list";
+  if (value === "cards") return "cards";
+  if (value === "calendar") return "calendar";
+  return "list";
+}
+
+/**
+ * Comma-separated allow-list of which optional fields to render. Absent,
+ * empty, or entirely-unrecognized input falls back to DEFAULT_FIELDS; any
+ * valid non-empty input is a full replacement, not merged with the default —
+ * `fields="price,tags"` shows *only* price and tags.
+ */
+export function parseFields(value: string | null): Set<FieldKey> {
+  if (!value) return new Set(DEFAULT_FIELDS);
+  const requested = value
+    .split(",")
+    .map((token) => token.trim())
+    .filter(isFieldKey);
+  return requested.length > 0 ? new Set(requested) : new Set(DEFAULT_FIELDS);
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_FIELDS,
+  parseFields,
   parseLangAttr,
   parseLayout,
   parseLimit,
@@ -58,10 +60,31 @@ describe("parseShowPast", () => {
 });
 
 describe("parseLayout", () => {
-  it("accepts cards, defaults to list otherwise", () => {
+  it("accepts cards and calendar, defaults to list otherwise", () => {
     expect(parseLayout("cards")).toBe("cards");
+    expect(parseLayout("calendar")).toBe("calendar");
     expect(parseLayout("list")).toBe("list");
     expect(parseLayout("grid")).toBe("list");
     expect(parseLayout(null)).toBe("list");
+  });
+});
+
+describe("parseFields", () => {
+  it("defaults to DEFAULT_FIELDS when absent, empty, or entirely unrecognized", () => {
+    for (const value of [null, "", "bogus", "bogus,alsoBogus"]) {
+      expect(parseFields(value)).toEqual(new Set(DEFAULT_FIELDS));
+    }
+  });
+
+  it("is a full replacement, not a merge, for valid input", () => {
+    expect(parseFields("price,tags")).toEqual(new Set(["price", "tags"]));
+  });
+
+  it("trims whitespace and drops unrecognized tokens, keeping the valid ones", () => {
+    expect(parseFields(" image , bogus, price ")).toEqual(new Set(["image", "price"]));
+  });
+
+  it("dedupes repeated tokens", () => {
+    expect(parseFields("tags,tags,tags")).toEqual(new Set(["tags"]));
   });
 });

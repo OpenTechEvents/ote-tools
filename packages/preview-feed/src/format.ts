@@ -92,3 +92,28 @@ export function eventWhen(event: PreviewEvent): string {
       : formatDate(event.startDate, event.timezone))
   );
 }
+
+/** OTE's `image` field is `(string | {url, alt?})[]`; this picks the first entry. */
+export function firstImage(
+  images: Array<string | { url: string; alt?: string }> | undefined,
+): { url: string; alt?: string } | undefined {
+  const first = images?.[0];
+  if (first === undefined) return undefined;
+  return typeof first === "string" ? { url: first } : first;
+}
+
+/**
+ * Picks the lowest-priced `offers[]` entry that actually declares a price —
+ * an offer with only a `url` ("get tickets") has nothing to compare, so it's
+ * skipped rather than treated as free.
+ */
+export function cheapestPrice(
+  offers: Array<{ price?: number; currency?: string }> | undefined,
+): { amount: number; currency?: string } | undefined {
+  const priced = (offers ?? []).filter(
+    (offer): offer is { price: number; currency?: string } => offer.price !== undefined,
+  );
+  if (priced.length === 0) return undefined;
+  const cheapest = priced.reduce((min, offer) => (offer.price < min.price ? offer : min));
+  return { amount: cheapest.price, currency: cheapest.currency };
+}

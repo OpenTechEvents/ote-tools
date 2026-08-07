@@ -16,7 +16,7 @@ describe("jsonToPreviewFeed", () => {
     expect(feed.title).toBe("OTE Preview Fixture Feed");
     expect(feed.description).toBe("Fixture feed for @opentechevents/preview-feed tests");
     expect(feed.license).toBe("CC-BY-4.0");
-    expect(feed.events).toHaveLength(2);
+    expect(feed.events).toHaveLength(3);
   });
 
   it("maps a full event, folding extra fields into details", () => {
@@ -48,6 +48,23 @@ describe("jsonToPreviewFeed", () => {
       location: "https://meet.example/fixture",
       link: "https://meet.example/fixture",
     });
+  });
+
+  it("parses image (string form), the cheapest priced offer, and the first organizer", () => {
+    const [, , event] = jsonToPreviewFeed(fixture).events;
+    expect(event).toMatchObject({
+      name: "Priced Workshop",
+      image: { url: "https://fixture.example/img/workshop.jpg" },
+      price: { amount: 30, currency: "EUR" },
+      organizerName: "Fixture Community",
+      attendanceMode: undefined,
+    });
+    expect(event!.details).toContainEqual({
+      label: "Image",
+      value: "https://fixture.example/img/workshop.jpg",
+    });
+    expect(event!.details).toContainEqual({ label: "Price", value: "30 EUR" });
+    expect(event!.details).toContainEqual({ label: "Organizer", value: "Fixture Community" });
   });
 
   it("names untitled events rather than leaving name empty", () => {

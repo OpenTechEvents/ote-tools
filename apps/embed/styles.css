@@ -101,6 +101,28 @@ a {
   font-family: inherit;
 }
 
+.fields-legend {
+  display: block;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 0.25rem;
+}
+
+.fields-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.fields-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 400;
+  font-family: inherit;
+  margin-bottom: 0;
+}
+
 .hint {
   margin: 0.25rem 0 0;
   font-size: 0.85rem;

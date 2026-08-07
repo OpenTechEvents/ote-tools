@@ -5,22 +5,27 @@
 // custom properties inherit through the shadow boundary, so a host page can
 // override any of them (e.g. `ote-events { --ote-accent: #e91e63; }`)
 // without piercing the rest of the encapsulation.
+//
+// :host deliberately has no `background` of its own — the widget is meant
+// to blend into whatever page it's embedded in, not paint an opaque box
+// behind itself. Only individual pieces (.event, .message, badges/tags)
+// get a --ote-surface/--ote-accent-soft background, for contrast against
+// the host page's own background, whatever that is.
 export const WIDGET_CSS = `
 :host {
   display: block;
-  --ote-bg: #ffffff;
   --ote-surface: #f6f7f9;
   --ote-border: #e3e6ea;
   --ote-text: #1c2128;
   --ote-muted: #626c77;
   --ote-accent: #3556c8;
   --ote-accent-hover: #2a46a8;
+  --ote-accent-soft: #eef1fb;
   --ote-error: #c4302f;
   --ote-error-bg: #fcf1f1;
   --ote-radius: 8px;
   font-family: var(--ote-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   color: var(--ote-text);
-  background: var(--ote-bg);
 }
 
 /* theme="auto" (the default: also matches when the attribute is absent)
@@ -29,26 +34,26 @@ export const WIDGET_CSS = `
 @media (prefers-color-scheme: dark) {
   :host([theme="auto"]),
   :host(:not([theme])) {
-    --ote-bg: #16181d;
     --ote-surface: #1f2228;
     --ote-border: #33373f;
     --ote-text: #e6e8eb;
     --ote-muted: #9aa2ad;
     --ote-accent: #7d93e8;
     --ote-accent-hover: #97a8ee;
+    --ote-accent-soft: #262c42;
     --ote-error: #f28b82;
     --ote-error-bg: #3a2323;
   }
 }
 
 :host([theme="dark"]) {
-  --ote-bg: #16181d;
   --ote-surface: #1f2228;
   --ote-border: #33373f;
   --ote-text: #e6e8eb;
   --ote-muted: #9aa2ad;
   --ote-accent: #7d93e8;
   --ote-accent-hover: #97a8ee;
+  --ote-accent-soft: #262c42;
   --ote-error: #f28b82;
   --ote-error-bg: #3a2323;
 }
@@ -96,8 +101,49 @@ ul.events.layout-cards {
 .event {
   border: 1px solid var(--ote-border);
   border-radius: var(--ote-radius);
-  padding: 0.9rem 1rem;
   background: var(--ote-surface);
+  overflow: hidden;
+}
+
+/* List layout: image (if any) sits to the left of the text body. */
+.layout-list .event {
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+}
+
+.layout-list .event-image {
+  width: 4.5rem;
+  height: 4.5rem;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+/* Cards layout: image (if any) is a full-width cover strip above the body. */
+.layout-cards .event-body {
+  padding: 0.9rem 1rem;
+}
+
+.layout-cards .event-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 0;
+}
+
+.event-image {
+  display: block;
+  object-fit: cover;
+  border-radius: var(--ote-radius);
+  background: var(--ote-border);
+}
+
+.layout-cards .event-image {
+  border-radius: 0;
+}
+
+.event-body {
+  min-width: 0;
+  flex: 1;
 }
 
 .event-title {
@@ -117,7 +163,8 @@ ul.events.layout-cards {
 }
 
 .event-when,
-.event-location {
+.event-location,
+.event-organizer {
   margin: 0.15rem 0;
   font-size: 0.875rem;
   color: var(--ote-muted);
@@ -126,5 +173,44 @@ ul.events.layout-cards {
 .event-description {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
+}
+
+.event-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0;
+}
+
+.badge,
+.price {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  background: var(--ote-accent-soft);
+  color: var(--ote-accent);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--ote-border);
+  font-size: 0.75rem;
+  color: var(--ote-muted);
+}
+
+.calendar-host {
+  min-height: 20rem;
 }
 `;

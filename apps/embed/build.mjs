@@ -28,6 +28,21 @@ const playground = {
   outfile: "dist/playground.js",
 };
 
+// layout="calendar" support, lazy-loaded by element.ts via a runtime
+// `import()` of this file's own URL — never statically imported by
+// main.ts, so it doesn't add a byte to dist/ote-events.js unless a
+// consumer actually requests the calendar layout. The `.css` -> `text`
+// loader is scoped to this entry point only: it lets calendar-layout.ts
+// import @event-calendar/core's stylesheet as a plain string and inject it
+// into the widget's own Shadow DOM, instead of the library linking/creating
+// a <style> in document.head (which a Shadow DOM wouldn't see at all).
+const calendarLayout = {
+  ...common,
+  entryPoints: ["src/calendar-layout.ts"],
+  outfile: "dist/calendar-layout.js",
+  loader: { ".css": "text" },
+};
+
 mkdirSync("dist", { recursive: true });
 for (const file of ["index.html", "styles.css"]) {
   copyFileSync(file, `dist/${file}`);
@@ -36,8 +51,10 @@ for (const file of ["index.html", "styles.css"]) {
 if (serve) {
   const widgetCtx = await esbuild.context(widget);
   const playgroundCtx = await esbuild.context(playground);
+  const calendarCtx = await esbuild.context(calendarLayout);
   await widgetCtx.watch();
   await playgroundCtx.watch();
+  await calendarCtx.watch();
   const port = Number(process.env.PORT) || undefined;
   const server = await widgetCtx.serve({
     servedir: "dist",
@@ -47,4 +64,5 @@ if (serve) {
 } else {
   await esbuild.build(widget);
   await esbuild.build(playground);
+  await esbuild.build(calendarLayout);
 }

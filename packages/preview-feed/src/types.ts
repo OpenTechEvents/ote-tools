@@ -8,6 +8,11 @@ export interface PreviewEvent {
   link?: string;
   description?: string;
   details?: Array<{ label: string; value: string }>;
+  image?: { url: string; alt?: string };
+  price?: { amount: number; currency?: string };
+  organizerName?: string;
+  tags?: string[];
+  attendanceMode?: "in-person" | "online" | "hybrid";
 }
 
 export interface PreviewFeed {
