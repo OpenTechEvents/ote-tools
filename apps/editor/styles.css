@@ -869,6 +869,56 @@ select {
   font-weight: 500;
 }
 
+.tag-explorer-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.5rem;
+}
+
+.tag-explorer-category {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tag-explorer-category:hover {
+  border-color: var(--accent);
+}
+
+.tag-explorer-category-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.tag-explorer-back {
+  display: block;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+}
+
+.tag-explorer-back:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* --- image preview + lightbox ------------------------------------------------ */
 
 .repeater-item-fields > .image-preview {

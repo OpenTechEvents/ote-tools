@@ -7,6 +7,7 @@
 import { t } from "../i18n/index.js";
 import type { ResolvedProfile, SectionId } from "../lib/presets.js";
 import { FIELD_REGISTRY, SECTIONS } from "../lib/presets.js";
+import { getRecentTags, recordTagUsed } from "../lib/tag-history.js";
 import type { TagSuggestion } from "../lib/tag-vocabulary.js";
 import { loadTagVocabulary, searchVocabulary } from "../lib/tag-vocabulary.js";
 import { filterZones } from "../lib/timezones.js";
@@ -746,6 +747,7 @@ function renderChips(
     setSuggestHidden(true);
     renderList();
     commit();
+    if (control.vocab === "tags") recordTagUsed(clean);
   }
 
   function refreshSuggestions(): void {
@@ -813,12 +815,11 @@ function renderChips(
     exploreBtn.textContent = t("ui.tags.explore", "Explore tags");
 
     let dialog: HTMLDialogElement | null = null;
+    // null = the category list; a category name = drilled into that
+    // category's tags. Reset to the top level each time the dialog opens.
+    let activeCategory: string | null = null;
 
-    function tagGroup(title: string, entries: readonly TagSuggestion[]): HTMLElement {
-      const section = document.createElement("section");
-      section.className = "tag-explorer-group";
-      const h3 = document.createElement("h3");
-      h3.textContent = title;
+    function tagChips(entries: readonly TagSuggestion[]): HTMLElement {
       const chipsWrap = document.createElement("div");
       chipsWrap.className = "tag-explorer-chips";
       for (const entry of entries) {
@@ -840,7 +841,78 @@ function renderChips(
         });
         chipsWrap.append(chipBtn);
       }
-      section.append(h3, chipsWrap);
+      return chipsWrap;
+    }
+
+    function tagGroup(title: string, entries: readonly TagSuggestion[]): HTMLElement {
+      const section = document.createElement("section");
+      section.className = "tag-explorer-group";
+      const h3 = document.createElement("h3");
+      h3.textContent = title;
+      section.append(h3, tagChips(entries));
+      return section;
+    }
+
+    function categoryOf(entry: TagSuggestion): string {
+      return entry.category || t("ui.tags.otherCategory", "Other");
+    }
+
+    function groupByCategory(): Map<string, TagSuggestion[]> {
+      const byCategory = new Map<string, TagSuggestion[]>();
+      for (const entry of tagVocabEntries) {
+        const cat = categoryOf(entry);
+        const list = byCategory.get(cat) ?? [];
+        list.push(entry);
+        byCategory.set(cat, list);
+      }
+      return byCategory;
+    }
+
+    /** Top level: one clickable card per category, not every tag at once. */
+    function renderCategoryList(): HTMLElement {
+      const section = document.createElement("section");
+      section.className = "tag-explorer-group";
+      const h3 = document.createElement("h3");
+      h3.textContent = t("ui.tags.browseByCategory", "Browse by category");
+      const grid = document.createElement("div");
+      grid.className = "tag-explorer-category-grid";
+      const byCategory = [...groupByCategory()].sort((a, b) => a[0].localeCompare(b[0]));
+      for (const [cat, entries] of byCategory) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tag-explorer-category";
+        const name = document.createElement("span");
+        name.textContent = cat;
+        const count = document.createElement("span");
+        count.className = "tag-explorer-category-count";
+        count.textContent = String(entries.length);
+        btn.append(name, count);
+        btn.addEventListener("click", () => {
+          activeCategory = cat;
+          renderExplorerBody();
+        });
+        grid.append(btn);
+      }
+      section.append(h3, grid);
+      return section;
+    }
+
+    /** Drilled into one category: its tags, plus a way back to the list. */
+    function renderCategoryDrilldown(cat: string): HTMLElement {
+      const section = document.createElement("section");
+      section.className = "tag-explorer-group";
+      const backBtn = document.createElement("button");
+      backBtn.type = "button";
+      backBtn.className = "tag-explorer-back";
+      backBtn.textContent = "← " + t("ui.tags.backToCategories", "All categories");
+      backBtn.addEventListener("click", () => {
+        activeCategory = null;
+        renderExplorerBody();
+      });
+      const h3 = document.createElement("h3");
+      h3.textContent = cat;
+      const entries = tagVocabEntries.filter((e) => categoryOf(e) === cat);
+      section.append(backBtn, h3, tagChips(entries));
       return section;
     }
 
@@ -870,16 +942,16 @@ function renderChips(
           body.append(tagGroup(t("ui.tags.suggestedForYou", "Suggested for you"), suggested.slice(0, 12)));
         }
       }
-      const byCategory = new Map<string, TagSuggestion[]>();
-      for (const entry of tagVocabEntries) {
-        const cat = entry.category || t("ui.tags.otherCategory", "Other");
-        const list = byCategory.get(cat) ?? [];
-        list.push(entry);
-        byCategory.set(cat, list);
+      // Tags used on past events (any repo, any session, from localStorage) —
+      // a shortcut for organizers who reuse the same handful of topics.
+      const recent = getRecentTags()
+        .filter((id) => !values.includes(id))
+        .map((id) => tagVocabEntries.find((e) => e.id === id))
+        .filter((e): e is TagSuggestion => !!e);
+      if (recent.length > 0) {
+        body.append(tagGroup(t("ui.tags.recentlyUsed", "Recently used"), recent));
       }
-      for (const [cat, entries] of [...byCategory].sort((a, b) => a[0].localeCompare(b[0]))) {
-        body.append(tagGroup(cat, entries));
-      }
+      body.append(activeCategory === null ? renderCategoryList() : renderCategoryDrilldown(activeCategory));
     }
 
     exploreBtn.addEventListener("click", async () => {
@@ -906,6 +978,7 @@ function renderChips(
         // subtree on the next structural re-render — no manual cleanup.
         wrap.append(dialog);
       }
+      activeCategory = null;
       renderExplorerBody();
       dialog.showModal();
     });
