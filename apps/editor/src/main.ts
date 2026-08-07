@@ -439,6 +439,7 @@ async function startEditor(repo: string | null): Promise<void> {
         renderFeedTranslations(
           feedState.translations,
           () => ({ title: feedState.title, description: feedState.description }),
+          () => feedState.textLanguage,
           (translations) => {
             feedState.translations = translations;
           },

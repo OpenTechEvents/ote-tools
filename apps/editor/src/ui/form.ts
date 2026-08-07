@@ -1809,6 +1809,7 @@ function renderLanguagePicker(
 export function renderFeedTranslations(
   initial: Record<string, { title: string; description: string }>,
   getOriginal: () => { title: string; description: string },
+  getTextLanguage: () => string,
   onChange: (translations: Record<string, { title: string; description: string }>) => void,
 ): HTMLElement {
   let translations = { ...initial };
@@ -1909,9 +1910,18 @@ export function renderFeedTranslations(
 
   field.append(
     renderLanguagePicker(
-      () => Object.keys(translations),
+      () => {
+        const textLanguage = getTextLanguage();
+        return [...(textLanguage ? [textLanguage] : []), ...Object.keys(translations)];
+      },
       (lang) => {
-        if (lang in translations) return;
+        const textLanguage = getTextLanguage();
+        const isTextLanguage =
+          textLanguage !== "" && lang.toLowerCase() === textLanguage.toLowerCase();
+        const exists = Object.keys(translations).some(
+          (l) => l.toLowerCase() === lang.toLowerCase(),
+        );
+        if (isTextLanguage || exists) return;
         translations = { ...translations, [lang]: { title: "", description: "" } };
         renderList();
         commit();
