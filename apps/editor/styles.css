@@ -605,6 +605,21 @@ select {
   flex: 2 1 220px;
 }
 
+.field.pair > div.size-full {
+  flex: 1 1 100%;
+}
+
+/* Checkboxes (Covers travel/accommodation…) size to their own label, never
+   stretched or squeezed — a shrunk column is what makes a short label like
+   "Covers travel" wrap into two lines for no reason. */
+.field.pair > div:has(> input[type="checkbox"]) {
+  flex: 0 0 auto;
+}
+
+.field.pair > div:has(> input[type="checkbox"]) label {
+  white-space: nowrap;
+}
+
 .field.pair label {
   font-weight: 400;
   font-size: 0.8rem;
@@ -800,6 +815,10 @@ select {
 
 .repeater-item-fields > div.size-l {
   flex: 2 1 200px;
+}
+
+.repeater-item-fields > div.size-full {
+  flex: 1 1 100%;
 }
 
 .repeater-item-fields label {

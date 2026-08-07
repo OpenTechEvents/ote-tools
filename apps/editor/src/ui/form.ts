@@ -181,8 +181,8 @@ interface Control {
   info?: string;
   /** Hidden unless the named sibling control's current value is one of `values`. */
   visibleWhen?: { key: StateKey; values: readonly string[] };
-  /** Row-width hint relative to its siblings — short/fixed-shape values (a price, a 3-letter currency code) don't need as much room as a name or URL. Omit for the default (m). */
-  size?: "s" | "m" | "l";
+  /** Row-width hint relative to its siblings — short/fixed-shape values (a price, a 3-letter currency code) don't need as much room as a name or URL. "full" forces its own row, pushing whatever follows onto a fresh line (e.g. so a wide URL above a pair of dates doesn't steal the pair's row). Omit for the default (m). */
+  size?: "s" | "m" | "l" | "full";
 }
 
 interface FieldSpec {
@@ -467,7 +467,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
         key: "cfpUrl",
         label: "URL",
         kind: "url",
-        size: "l",
+        size: "full",
         info: "Where speakers submit a proposal.",
       },
       {
@@ -909,6 +909,35 @@ function renderCombobox(
   return { element: wrap, input };
 }
 
+/**
+ * ISO 4217 active-currency codes — the same enum @opentechevents/schema's
+ * currency $def validates against (see packages/validate/src/
+ * schemas.generated.ts). Copied rather than read from `eventSchema` at
+ * runtime: that schema is an untyped AnySchemaObject, and reaching into its
+ * $defs shape for a UI dropdown would tie this file to internal schema
+ * structure that owes nothing to the editor. Re-copy if the list changes.
+ */
+const CURRENCY_CODES: readonly string[] = [
+  "AED", "AFN", "ALL", "AMD", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM",
+  "BBD", "BDT", "BHD", "BIF", "BMD", "BND", "BOB", "BOV", "BRL", "BSD",
+  "BTN", "BWP", "BYN", "BZD", "CAD", "CDF", "CHE", "CHF", "CHW", "CLF",
+  "CLP", "CNY", "COP", "COU", "CRC", "CUP", "CVE", "CZK", "DJF", "DKK",
+  "DOP", "DZD", "EGP", "ERN", "ETB", "EUR", "FJD", "FKP", "GBP", "GEL",
+  "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL", "HTG", "HUF",
+  "IDR", "ILS", "INR", "IQD", "IRR", "ISK", "JMD", "JOD", "JPY", "KES",
+  "KGS", "KHR", "KMF", "KPW", "KRW", "KWD", "KYD", "KZT", "LAK", "LBP",
+  "LKR", "LRD", "LSL", "LYD", "MAD", "MDL", "MGA", "MKD", "MMK", "MNT",
+  "MOP", "MRU", "MUR", "MVR", "MWK", "MXN", "MXV", "MYR", "MZN", "NAD",
+  "NGN", "NIO", "NOK", "NPR", "NZD", "OMR", "PAB", "PEN", "PGK", "PHP",
+  "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD",
+  "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN",
+  "SVC", "SYP", "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD",
+  "TWD", "TZS", "UAH", "UGX", "USD", "USN", "UYI", "UYU", "UYW", "UZS",
+  "VED", "VES", "VND", "VUV", "WST", "XAD", "XAF", "XAG", "XAU", "XBA",
+  "XBB", "XBC", "XBD", "XCD", "XCG", "XDR", "XOF", "XPD", "XPF", "XPT",
+  "XSU", "XTS", "XUA", "XXX", "YER", "ZAR", "ZMW", "ZWG",
+];
+
 interface RepeaterItemField {
   key: string;
   label: string;
@@ -920,7 +949,7 @@ interface RepeaterItemField {
   /** Hidden unless the named sibling field's current value (within the same row) is one of `values`. */
   visibleWhen?: { key: string; values: readonly string[] };
   /** Row-width hint relative to its siblings — see Control.size. Omit for the default (m). */
-  size?: "s" | "m" | "l";
+  size?: "s" | "m" | "l" | "full";
 }
 
 interface RepeaterSpec {
@@ -1005,16 +1034,16 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
       {
         key: "currency",
         label: "Currency",
-        kind: "text",
-        placeholder: "EUR",
+        kind: "select",
         size: "s",
-        info: "ISO 4217 code (EUR, USD…) — expected alongside a non-zero price.",
+        options: ["", ...CURRENCY_CODES],
+        info: "ISO 4217 code — expected alongside a non-zero price.",
       },
       {
         key: "url",
         label: "URL",
         kind: "url",
-        size: "l",
+        size: "full",
         info: "Where to buy or register for this specific tier.",
       },
       {
