@@ -1,25 +1,24 @@
 {
-  "name": "@opentechevents/preview",
+  "name": "@opentechevents/embed",
   "version": "0.1.0",
-  "description": "Static feed previewer for OTE organizer forks",
+  "description": "Embeddable <ote-events> web component: drop an OTE feed into any website",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --serve",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fullcalendar/core": "^6.1.21",
-    "@fullcalendar/daygrid": "^6.1.21",
-    "@fullcalendar/list": "^6.1.21",
-    "@fullcalendar/timegrid": "^6.1.21",
     "@opentechevents/preview-feed": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.1",
-    "typescript": "^6.0.3"
+    "jsdom": "^30.0.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }
