@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_URL_LENGTH,
+  batchIssueBody,
   directCreateUrl,
   directDeleteUrl,
   directEditUrl,
   directFeedConfigUrl,
   eventJsonFromIssueBody,
   eventJsonText,
+  proposeBatchChangeUrl,
   proposeChangeUrl,
   proposeDeleteUrl,
 } from "../src/lib/links.js";
@@ -77,6 +79,53 @@ describe("proposeChangeUrl", () => {
       expect(under.url.length).toBeLessThanOrEqual(MAX_URL_LENGTH);
     }
     expect(over.kind).toBe("fallback");
+  });
+});
+
+const secondEvent: OteEvent = {
+  id: "https://x.example/events/2026-07-async",
+  name: "Async night #2",
+  startDate: "2026-07-09T18:30:00",
+  timezone: "Europe/Madrid",
+};
+
+describe("batchIssueBody", () => {
+  it("numbers every event with a heading and its own fenced JSON block, in order", () => {
+    const body = batchIssueBody([event, secondEvent]);
+    expect(body).toContain("### 1. Add: Async night");
+    expect(body).toContain("### 2. Add: Async night #2");
+    expect(body.indexOf("### 1.")).toBeLessThan(body.indexOf("### 2."));
+    expect(body).toContain('"id": "https://x.example/events/2026-06-async"');
+    expect(body).toContain('"id": "https://x.example/events/2026-07-async"');
+    expect(body.match(/```json/g)).toHaveLength(2);
+  });
+
+  it("mentions the event count in the intro", () => {
+    expect(batchIssueBody([event, secondEvent, event])).toContain("3 events");
+  });
+});
+
+describe("proposeBatchChangeUrl", () => {
+  it("is always a blank-issue + copy-paste fallback, never a prefilled URL", () => {
+    // Even a tiny 2-event batch: batch submission never tries the
+    // single-event URL-prefill optimization.
+    const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
+    expect(result.kind).toBe("fallback");
+  });
+
+  it("points the blank issue at the right repo, titled with the count, hinting a batch label", () => {
+    const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
+    if (result.kind !== "fallback") throw new Error("expected fallback");
+    const url = new URL(result.url);
+    expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
+    expect(url.searchParams.get("title")).toBe("[ote-event] Add 2 events");
+    expect(url.searchParams.get("labels")).toBe("ote-batch");
+  });
+
+  it("copyText is exactly batchIssueBody's output for the same events", () => {
+    const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
+    if (result.kind !== "fallback") throw new Error("expected fallback");
+    expect(result.copyText).toBe(batchIssueBody([event, secondEvent]));
   });
 });
 

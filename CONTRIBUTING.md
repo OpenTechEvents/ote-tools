@@ -103,6 +103,13 @@ What to try:
   copy-paste fallback; exhausting the unauthenticated GitHub API quota
   (60 req/h) makes the event list fall back to the fork's published
   `feed.json`, with a warning.
+- **"Repeat as a series"** (recurrence rows in the "Cuándo" section) generates
+  every occurrence at once. With a repo connected, its confirm button
+  submits all of them as **one** issue (multiple JSON blocks, always the
+  copy-paste fallback — a batch is never small enough for a URL prefill) —
+  no per-occurrence review, since each is already a complete, independently
+  valid event. Standalone mode (no `?repo=`) still reviews one occurrence at
+  a time, since "submit" there means copy/download, not open an issue.
 
 The logic lives in `apps/editor/src/lib/` (pure, vitest-tested — add tests
 there for any behavior change); `src/main.ts` and `src/ui/` are the DOM layer,

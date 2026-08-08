@@ -1,10 +1,11 @@
 import type { OteEvent } from "./types.js";
 
 /**
- * The two outputs of the editor, per DESIGN.md ("Flujo de escritura"):
- * a prefilled issue in the target repo, or a direct-edit link for the owner.
- * URLs above ~8K chars are rejected by browsers/GitHub, so both prefilled
- * forms fall back to "copy this, then open the blank page".
+ * The outputs of the editor, per DESIGN.md ("Flujo de escritura"): a
+ * prefilled issue in the target repo (one event, or several batched
+ * together — see proposeBatchChangeUrl), or a direct-edit link for the
+ * owner. URLs above ~8K chars are rejected by browsers/GitHub, so every
+ * prefilled form falls back to "copy this, then open the blank page".
  */
 
 export const MAX_URL_LENGTH = 8000;
@@ -18,15 +19,17 @@ export type LinkResult =
       copyText: string;
     };
 
+function fencedEventJson(event: OteEvent): string {
+  return ["```json", JSON.stringify(event, null, 2), "```"].join("\n");
+}
+
 export function issueBody(event: OteEvent, isNew: boolean): string {
   const action = isNew ? "Add" : "Update";
   return [
     `${action} this event. The JSON below was generated with the OTE editor;`,
     "a maintainer (or the repo's automation) will turn it into a PR.",
     "",
-    "```json",
-    JSON.stringify(event, null, 2),
-    "```",
+    fencedEventJson(event),
     "",
   ].join("\n");
 }
@@ -57,6 +60,43 @@ export function proposeChangeUrl(
   const url = `${base}?${params}`;
   if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };
   return { kind: "fallback", url: base, copyText: body };
+}
+
+/** The issue body for a batch submission: one numbered, fenced JSON block
+ * per event, in order — issue-to-pr.mjs extracts every such block, not just
+ * the first, once it sees more than one. */
+export function batchIssueBody(events: OteEvent[]): string {
+  const intro = [
+    `${events.length} events generated with the OTE editor (e.g. a recurring`,
+    "series); a maintainer (or the repo's automation) will turn them into",
+    "one PR with one file per event.",
+    "",
+  ];
+  const blocks = events.flatMap((event, index) => [
+    `### ${index + 1}. Add: ${event.name ?? "(unnamed event)"}`,
+    "",
+    fencedEventJson(event),
+    "",
+  ]);
+  return [...intro, ...blocks].join("\n");
+}
+
+/**
+ * "Proponer cambio" for several new events at once (a generated recurring
+ * series): always a blank-issue + copy-paste flow, never a prefilled URL —
+ * unlike proposeChangeUrl there's no single-event case to optimize for, and
+ * N events' JSON reliably exceeds MAX_URL_LENGTH well before N reaches
+ * double digits, so there is no size worth branching on. `labels` is a
+ * best-effort hint: GitHub silently ignores it if the label doesn't exist
+ * in the target repo, so it's safe to always send.
+ */
+export function proposeBatchChangeUrl(repo: string, events: OteEvent[]): LinkResult {
+  const params = new URLSearchParams({
+    title: `[ote-event] Add ${events.length} events`,
+    labels: "ote-batch",
+  });
+  const base = `https://github.com/${repo}/issues/new?${params}`;
+  return { kind: "fallback", url: base, copyText: batchIssueBody(events) };
 }
 
 /**

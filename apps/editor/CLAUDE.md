@@ -46,6 +46,31 @@ Claude-in-Chrome session (CDP calls time out) until dismissed.
   calling `navigate` again with `force: true` — it discards the dialog
   and proceeds.
 
+## Recurring series: batch-submitted as one issue, not reviewed one by one
+
+With a repo connected, confirming the "Repeat as a series" dialog calls
+`submitRecurringBatch()` (`main.ts`), not `importSelected()` — it proposes
+every checked occurrence as **one** GitHub issue (`proposeBatchChangeUrl`,
+`lib/links.ts`) instead of loading them into the one-by-one import queue
+ICS/JSON-LD import still uses. This was a deliberate change (see
+CONTRIBUTING.md and the commit introducing it): a generated occurrence is
+already a complete, independently valid event — a validated draft with only
+the date changed — so there's nothing left to review per item the way a
+heterogeneous ICS/JSON-LD import needs. Standalone mode (no repo) is
+unaffected: it still goes through the queue, since "submit" there means
+copy/download per item, not open an issue.
+
+Because nothing opens the form per occurrence anymore, `buildRecurringEvents`
+must fill in `id` itself (via the same `suggestSlug`/`suggestId` the form's
+own `refresh()` uses) rather than leaving it `""` for the reactive
+auto-suggest to fill in later — that reactive step only runs when a form
+field changes, which never happens for an occurrence nobody opens.
+
+`proposeBatchChangeUrl` always returns the copy-paste fallback shape, never
+a prefilled URL — unlike single-event `proposeChangeUrl`, there's no small-N
+case worth optimizing for: `MAX_URL_LENGTH` (8000) is reliably exceeded well
+before a handful of full event JSON blocks (~2-2.5KB each) fit in one URL.
+
 ## OTE has no recurrence-rule concept
 
 The spec is explicit: one document per occurrence, always ("un documento

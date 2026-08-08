@@ -18,13 +18,18 @@
 #         pull-requests: write
 #
 # On issues opened/edited (the caller filters the `ote-event` label):
-#   - extracts the event JSON from the first fenced code block of the body,
-#   - validates it with @opentechevents/validate (the same implementation
-#     the validate.yml PR check uses),
+#   - extracts the event JSON from every fenced code block in the body (one
+#     block is the common case; several is a batch — e.g. the OTE editor's
+#     "Submit all as one issue" for a generated recurring series),
+#   - validates each with @opentechevents/validate (the same implementation
+#     the validate.yml PR check uses) — any single block failing rejects
+#     the whole issue, no partial PR,
 #   - invalid → one sticky comment listing what is missing/wrong, no PR;
 #     re-edits update that same comment,
-#   - valid → commits events/<slug>.json to branch ote/issue-<number> and
-#     opens (or updates) a PR that closes the issue.
+#   - valid → commits one events/<slug>.json per block to branch
+#     ote/issue-<number> and opens (or updates) one PR that closes the
+#     issue. A single block behaves exactly as before (one file, same
+#     commit/PR title shape) — this is additive, not a breaking change.
 # On pull_request closed: deletes the merged/abandoned ote/* branch; a
 # non-merged close keeps the issue open for retry.
 #
@@ -101,12 +106,11 @@ jobs:
       - name: Create or update the branch and PR
         if: steps.event.outputs.valid == 'true'
         env:
-          SLUG: ${{ steps.event.outputs.slug }}
+          COUNT: ${{ steps.event.outputs.count }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           BRANCH="ote/issue-${ISSUE_NUMBER}"
-          FILE="events/${SLUG}.json"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -117,36 +121,73 @@ jobs:
           git fetch origin "$DEFAULT_BRANCH"
           git checkout -B "$BRANCH" "origin/${DEFAULT_BRANCH}"
 
-          if git cat-file -e "origin/${DEFAULT_BRANCH}:${FILE}" 2>/dev/null; then
-            ACTION="Update"
-          else
-            ACTION="Add"
-          fi
-
+          # One entry per fenced block in the issue (almost always 1; more
+          # for a batch like a recurring series — see issue-to-pr.mjs).
+          # ACTIONS_FILE (tab-separated Action\tFile) is how each iteration's
+          # result survives the `| while read` subshell below.
           mkdir -p events
-          cp "${RUNNER_TEMP}/ote-event.json" "$FILE"
-          git add "$FILE"
+          ACTIONS_FILE="${RUNNER_TEMP}/ote-actions.tsv"
+          : > "$ACTIONS_FILE"
+          jq -c '.[]' "${RUNNER_TEMP}/ote-events.json" | while IFS= read -r ENTRY; do
+            FILE="events/$(echo "$ENTRY" | jq -r '.slug').json"
+            if git cat-file -e "origin/${DEFAULT_BRANCH}:${FILE}" 2>/dev/null; then
+              ACTION="Update"
+            else
+              ACTION="Add"
+            fi
+            echo "$ENTRY" | jq '.event' > "$FILE"
+            git add "$FILE"
+            printf '%s\t%s\n' "$ACTION" "$FILE" >> "$ACTIONS_FILE"
+          done
 
           if git diff --cached --quiet; then
+            if [ "$COUNT" = "1" ]; then
+              MSG="\`$(cut -f2 "$ACTIONS_FILE")\` on \`${DEFAULT_BRANCH}\` already matches this proposal, so there is nothing to change."
+            else
+              MSG="Every one of the ${COUNT} proposed files already matches \`${DEFAULT_BRANCH}\`, so there is nothing to change."
+            fi
             {
               echo "$COMMENT_MARKER"
               echo "### ✅ Event JSON is valid — already published"
               echo ""
-              echo "\`${FILE}\` on \`${DEFAULT_BRANCH}\` already matches this proposal, so there is nothing to change."
+              echo "$MSG"
             } > "${RUNNER_TEMP}/ote-comment.md"
             exit 0
           fi
 
-          git commit -m "${ACTION} ${FILE} (issue #${ISSUE_NUMBER})"
-          git push --force origin "$BRANCH"
+          # Single-event title/body stay byte-identical to before batch
+          # support existed. Only COUNT>1 gets the new plural wording, with
+          # every file listed regardless of how many share the same action.
+          if [ "$COUNT" = "1" ]; then
+            ACTION=$(cut -f1 "$ACTIONS_FILE")
+            FILE=$(cut -f2 "$ACTIONS_FILE")
+            TITLE="${ACTION} ${FILE} (issue #${ISSUE_NUMBER})"
+            BODY="$(printf '%s\n' \
+              "${ACTION}s \`${FILE}\` from the event JSON proposed in #${ISSUE_NUMBER}." \
+              "" \
+              "The JSON was validated against the OTE event schema before this PR was opened. Merging publishes the event and closes the issue; editing the issue updates this PR." \
+              "" \
+              "Closes #${ISSUE_NUMBER}")"
+          else
+            if [ "$(cut -f1 "$ACTIONS_FILE" | sort -u | wc -l | tr -d '[:space:]')" = "1" ]; then
+              VERB=$(cut -f1 "$ACTIONS_FILE" | head -n1)
+            else
+              VERB="Update"
+            fi
+            TITLE="${VERB} ${COUNT} events (issue #${ISSUE_NUMBER})"
+            FILE_LIST=$(awk -F'\t' '{print "- " $1 " `" $2 "`"}' "$ACTIONS_FILE")
+            BODY="$(printf '%s\n' \
+              "Proposes the following ${COUNT} events, from issue #${ISSUE_NUMBER}:" \
+              "" \
+              "$FILE_LIST" \
+              "" \
+              "The JSON was validated against the OTE event schema before this PR was opened. Merging publishes every event and closes the issue; editing the issue updates this PR." \
+              "" \
+              "Closes #${ISSUE_NUMBER}")"
+          fi
 
-          TITLE="${ACTION} ${FILE} (issue #${ISSUE_NUMBER})"
-          BODY="$(printf '%s\n' \
-            "${ACTION}s \`${FILE}\` from the event JSON proposed in #${ISSUE_NUMBER}." \
-            "" \
-            "The JSON was validated against the OTE event schema before this PR was opened. Merging publishes the event and closes the issue; editing the issue updates this PR." \
-            "" \
-            "Closes #${ISSUE_NUMBER}")"
+          git commit -m "$TITLE"
+          git push --force origin "$BRANCH"
 
           PR_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // empty')
           if [ -z "$PR_URL" ]; then
@@ -180,11 +221,16 @@ jobs:
             gh pr edit "$PR_URL" --title "$TITLE" --body "$BODY"
           fi
 
+          if [ "$COUNT" = "1" ]; then
+            PUBLISHES="merging it publishes \`$(cut -f2 "$ACTIONS_FILE")\`"
+          else
+            PUBLISHES="merging it publishes ${COUNT} events"
+          fi
           {
             echo "$COMMENT_MARKER"
             echo "### ✅ Event JSON is valid"
             echo ""
-            echo "Pull request: ${PR_URL} — merging it publishes \`${FILE}\`."
+            echo "Pull request: ${PR_URL} — ${PUBLISHES}."
             echo ""
             echo "Editing this issue re-validates the JSON and updates the same pull request."
           } > "${RUNNER_TEMP}/ote-comment.md"

@@ -198,6 +198,7 @@ export const es: Record<string, string> = {
   "action.fetch": "Obtener",
   "action.importSelected": "Importar seleccionados",
   "action.addSelected": "Añadir seleccionados",
+  "action.submitBatch": "Enviar todo en un issue",
   "action.done": "Listo",
   "action.copy": "Copiar",
   "action.reset": "Reiniciar",
