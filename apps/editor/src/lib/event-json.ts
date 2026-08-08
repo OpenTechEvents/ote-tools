@@ -359,20 +359,41 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
   };
 }
 
-/**
- * Filename slug suggested from name + start date, fixture style
- * ("2026-06-async"). Diacritics folded, non-alphanumerics collapsed to "-".
- */
-export function suggestSlug(name: string, startDate: string): string {
-  const yearMonth = /^(\d{4}-\d{2})/.exec(startDate)?.[1];
-  const kebab = name
+function kebabCase(name: string): string {
+  return name
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Filename slug suggested from name + start date, fixture style
+ * ("2026-06-async"). Diacritics folded, non-alphanumerics collapsed to "-".
+ * Month-level granularity only — fine for a single event a human reviews
+ * before submitting; NOT unique enough for a batch of same-named
+ * occurrences in the same month (see suggestSeriesSlug).
+ */
+export function suggestSlug(name: string, startDate: string): string {
+  const yearMonth = /^(\d{4}-\d{2})/.exec(startDate)?.[1];
+  const kebab = kebabCase(name);
   if (!kebab) return "";
   return yearMonth ? `${yearMonth}-${kebab}` : kebab;
+}
+
+/**
+ * Filename slug for one occurrence of a generated recurring series
+ * ("2026-06-13-weekly-meetup") — day-level, unlike suggestSlug's
+ * month-level granularity. A weekly (or more frequent) series sharing one
+ * name would otherwise collide every time two occurrences land in the same
+ * month, and nobody reviews each occurrence individually to catch it
+ * (batch submission proposes all of them as one issue, unreviewed — see
+ * apps/editor/CLAUDE.md).
+ */
+export function suggestSeriesSlug(name: string, date: string): string {
+  const kebab = kebabCase(name);
+  return kebab ? `${date}-${kebab}` : date;
 }
 
 /**

@@ -60,18 +60,23 @@ Cada herramienta lee `?repo=`, hace `fetch` del feed y del `ote.config.json` ví
 GitHub Pages puro no puede guardar secretos: OAuth necesita un backend para el intercambio de token. En lugar de montar infraestructura, **el mismo pipeline sirve para el dueño y para la comunidad**:
 
 ```
-Editor central (formulario) ── genera el JSON del evento
+Editor central (formulario) ── genera el JSON de uno o varios eventos
+    │       (varios: p.ej. una serie recurrente generada de una vez)
     │
     ├─ botón "Proponer cambio" ──▶ abre issue prefillado en el fork
-    │       (JSON en bloque de código, vía URL params;
-    │        si excede ~8K chars de URL → fallback "copia y pega")
+    │       (uno o más bloques de código JSON, uno por evento;
+    │        un solo evento va vía URL params — si excede ~8K
+    │        chars de URL → fallback "copia y pega"; un lote de
+    │        varios eventos siempre es "copia y pega", nunca URL)
     │              │
     │              ▼
     │       workflow del fork (on: issues.opened)
-    │              ├─ parsea el JSON del cuerpo
-    │              ├─ valida contra el JSON Schema
-    │              │     └─ inválido → comenta qué falta, no abre PR
-    │              └─ abre PR enlazando el issue
+    │              ├─ parsea CADA bloque JSON del cuerpo
+    │              ├─ valida cada uno contra el JSON Schema
+    │              │     └─ cualquiera inválido → comenta qué falta,
+    │              │        no abre PR (todo o nada, nunca parcial)
+    │              └─ abre UN PR con un fichero events/<slug>.json
+    │                 por evento, enlazando el issue
     │                     └─ el dueño revisa y mergea
     │
     └─ botón "Editar directo" ──▶ github.dev con el fichero (solo dueño, con push)
@@ -82,6 +87,7 @@ Por qué así y no de otra forma:
 - **El dueño mergea su propio PR en segundos**; un tercero (un ponente, alguien de la comunidad que detecta un error) espera aprobación. Un solo código, revisión humana garantizada por diseño, cero auth, cero backend.
 - **No se usan GitHub Issue Forms como formulario de eventos**: son demasiado rígidos (sin campos condicionales, sin arrays — varios ponentes, varias sesiones). El formulario real es la página del editor; el issue es solo el transporte.
 - Coste asumido: la latencia (action + PR + rebuild de Pages) se mide en **minutos, no segundos**. Aceptable para el caso de uso; documentarlo para ajustar expectativas.
+- **Un issue puede proponer varios eventos a la vez** (varios bloques de código, uno por evento) para no obligar a revisar/enviar una serie recurrente ocurrencia por ocurrencia — ver "Repeat as a series" en el editor. Sigue siendo "un documento = una ocurrencia" en el fichero final (cada evento su propio `events/<slug>.json`); lo que cambia es solo cuántos eventos caben en un mismo issue/PR de transporte.
 
 ## Configuración: `ote.config.json`
 

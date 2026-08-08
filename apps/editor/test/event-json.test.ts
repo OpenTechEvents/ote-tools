@@ -4,6 +4,7 @@ import {
   emptyFormState,
   fromEventJson,
   suggestId,
+  suggestSeriesSlug,
   suggestSlug,
   toEventJson,
 } from "../src/lib/event-json.js";
@@ -358,6 +359,27 @@ describe("suggestSlug", () => {
     expect(suggestSlug("DevFest", "")).toBe("devfest");
     expect(suggestSlug("", "2026-06-11")).toBe("");
     expect(suggestSlug("¡¡¡", "2026-06-11")).toBe("");
+  });
+});
+
+describe("suggestSeriesSlug", () => {
+  it("uses the full date (day-level), not just year-month", () => {
+    expect(suggestSeriesSlug("Weekly Meetup", "2026-06-13")).toBe(
+      "2026-06-13-weekly-meetup",
+    );
+  });
+
+  it("gives distinct slugs for two occurrences in the same month — the bug suggestSlug would have here", () => {
+    const a = suggestSeriesSlug("Weekly Meetup", "2026-06-06");
+    const b = suggestSeriesSlug("Weekly Meetup", "2026-06-13");
+    expect(a).not.toBe(b);
+    expect(suggestSlug("Weekly Meetup", "2026-06-06")).toBe(
+      suggestSlug("Weekly Meetup", "2026-06-13"),
+    );
+  });
+
+  it("falls back to the bare date when the name has no kebab-able characters", () => {
+    expect(suggestSeriesSlug("¡¡¡", "2026-06-13")).toBe("2026-06-13");
   });
 });
 

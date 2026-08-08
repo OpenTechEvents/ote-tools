@@ -31,6 +31,7 @@ import {
   emptyFormState,
   fromEventJson,
   suggestId,
+  suggestSeriesSlug,
   suggestSlug,
   toEventJson,
 } from "./lib/event-json.js";
@@ -47,6 +48,7 @@ import {
   directEditUrl,
   directFeedConfigUrl,
   eventJsonText,
+  proposeBatchChangeUrl,
   proposeChangeUrl,
   proposeDeleteUrl,
   type LinkResult,
@@ -1571,11 +1573,17 @@ async function startEditor(repo: string | null): Promise<void> {
   // --- source: recurring series (generated, not imported) --------------------
   // Rule configuration lives inline in the "Cuándo" section (ui/form.ts's
   // renderRecurrenceRows) — one or more rows, each its own date/time/name.
-  // This dialog is now just the results review: onGenerateRecurrenceSeries
-  // (passed into renderForm below) expands every row and feeds the merged
-  // list into the exact same showDetected()/importSelected() queue pipeline
-  // ICS/JSON-LD import already use, so the organizer reviews/edits/submits
-  // each occurrence the same way regardless of source.
+  // This dialog is the results review: onGenerateRecurrenceSeries (passed
+  // into renderForm below) expands every row and shares showDetected()'s
+  // checkbox list with ICS/JSON-LD import, so excluding a one-off exception
+  // works the same way regardless of source. Confirming is where the paths
+  // split: with a repo configured, submitRecurringBatch() below proposes
+  // every checked occurrence as ONE issue (each occurrence is already a
+  // complete, independently valid event — a validated draft with only the
+  // date changed — so there's nothing per-occurrence left to review the way
+  // a heterogeneous ICS/JSON-LD import needs). Standalone mode (no repo)
+  // still goes through the one-by-one importSelected()/queue pipeline,
+  // since "submit" there means "copy/download," not "open a GitHub issue".
   const recurrenceDialog = el<HTMLDialogElement>("recurrence-dialog");
   const recurrenceUi: DetectedUi = {
     list: el<HTMLUListElement>("recurrence-list"),
@@ -1587,6 +1595,12 @@ async function startEditor(repo: string | null): Promise<void> {
       "No occurrences generated — check the recurrence rows above.",
     ),
   };
+  if (hasRepo) {
+    recurrenceUi.confirm.textContent = t(
+      "action.submitBatch",
+      "Submit all as one issue",
+    );
+  }
 
   recurrenceUi.list.addEventListener("input", () => updateConfirm(recurrenceUi));
 
@@ -1595,7 +1609,13 @@ async function startEditor(repo: string | null): Promise<void> {
   );
 
   /** One `ImportedEvent` per date for one series row — everything but
-   * name/startDate/startTime/endDate/endTime/id copied from the draft. */
+   * name/startDate/startTime/endDate/endTime/id copied from the draft.
+   * id is auto-suggested per occurrence rather than left blank: batch
+   * submission (submitRecurringBatch, below) never opens each occurrence
+   * in the form, so nothing else would ever fill it in. Uses
+   * suggestSeriesSlug (day-level), NOT the form's own month-level
+   * suggestSlug — a weekly (or more frequent) series sharing one name would
+   * otherwise mint the same slug for every occurrence in the same month. */
   function buildRecurringEvents(
     series: RecurrenceSeriesInput,
     dates: readonly string[],
@@ -1610,10 +1630,11 @@ async function startEditor(repo: string | null): Promise<void> {
           : state.endDate || series.endTime
             ? date
             : "";
+      const name = series.nameOverride || state.name;
       const occState: FormState = {
         ...state,
-        id: "",
-        name: series.nameOverride || state.name,
+        id: suggestId(config, repo, suggestSeriesSlug(name, date)),
+        name,
         startDate: date,
         startTime: series.startTime,
         endDate,
@@ -1857,9 +1878,33 @@ async function startEditor(repo: string | null): Promise<void> {
     importSelected(jsonldUi, jsonldDialog, "page"),
   );
 
-  el<HTMLButtonElement>("recurrence-confirm").addEventListener("click", () =>
-    importSelected(recurrenceUi, recurrenceDialog, "recurring"),
-  );
+  /**
+   * The recurring-series confirm button, repo-connected case: propose every
+   * checked occurrence as ONE issue instead of loading them into the
+   * one-by-one import queue. Each occurrence is already a complete,
+   * independently valid OteEvent (buildRecurringEvents fills in id/slug up
+   * front — see its own comment), so there's nothing left to review per
+   * item the way a heterogeneous ICS/JSON-LD import needs.
+   */
+  function submitRecurringBatch(): void {
+    if (repo === null) return;
+    const selected = [
+      ...recurrenceUi.list.querySelectorAll<HTMLInputElement>("input:checked"),
+    ].map((box) => detected[Number(box.value)].event as unknown as OteEvent);
+    if (selected.length === 0) return;
+    recurrenceDialog.close();
+    follow(proposeBatchChangeUrl(repo, selected));
+  }
+
+  el<HTMLButtonElement>("recurrence-confirm").addEventListener("click", () => {
+    if (repo === null) {
+      // Standalone mode: "submit" means copy/download per item, not open a
+      // GitHub issue, so the one-by-one queue still applies here.
+      importSelected(recurrenceUi, recurrenceDialog, "recurring");
+      return;
+    }
+    submitRecurringBatch();
+  });
 
   /** Banner: position, per-event warnings, submitted state, nav buttons. */
   function renderImportBanner(): void {

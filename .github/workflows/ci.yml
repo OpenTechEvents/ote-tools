@@ -23,3 +23,8 @@ jobs:
       # This is the only step that type-checks the tests and the app sources.
       - run: pnpm typecheck
       - run: pnpm test
+      # .github/scripts/ isn't a workspace package (pnpm -r doesn't reach
+      # it), so its tests run separately, with Node's built-in test runner —
+      # no extra dependency for one script. Needs packages/validate built
+      # first (already true by this point, via `pnpm build` above).
+      - run: node --test .github/scripts/issue-to-pr.test.mjs
