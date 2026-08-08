@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FIELD_REGISTRY,
   availablePresets,
+  resolvedCustomProfiles,
   resolveProfile,
 } from "../src/lib/presets.js";
 
@@ -44,9 +45,8 @@ describe("resolveProfile", () => {
     expect([...custom.collapsedSections].sort()).toEqual(expected);
   });
 
-  it("customProfile wins over profile: core + listed fields", () => {
+  it("legacy customProfile.fields defaults to preset 'custom' when profile is unset: core + listed fields", () => {
     const resolved = resolveProfile({
-      profile: "meetup",
       customProfile: { fields: ["source", "status"] },
     });
     expect(resolved.preset).toBe("custom");
@@ -59,6 +59,15 @@ describe("resolveProfile", () => {
     // non-core, non-listed fields are hidden
     expect(resolved.fields.has("venue")).toBe(false);
     expect(resolved.warnings).toEqual([]);
+  });
+
+  it("an explicit profile wins over a co-present legacy customProfile.fields (documented behavior change: the legacy field no longer always wins)", () => {
+    const resolved = resolveProfile({
+      profile: "meetup",
+      customProfile: { fields: ["source", "status"] },
+    });
+    expect(resolved.preset).toBe("meetup");
+    expect(resolved.fields.has("status")).toBe(false);
   });
 
   it("customProfile with unknown fields ignores them with a warning", () => {
@@ -143,7 +152,7 @@ describe("resolveProfile", () => {
     expect(resolved.fields.size).toBe(FIELD_REGISTRY.length);
   });
 
-  it('override "custom" re-selects the config customProfile', () => {
+  it('override "custom" re-selects the legacy config customProfile', () => {
     const resolved = resolveProfile(
       { profile: "meetup", customProfile: { fields: ["source"] } },
       "custom",
@@ -152,10 +161,89 @@ describe("resolveProfile", () => {
     expect(resolved.fields.has("source")).toBe(true);
     expect(resolved.fields.has("venue")).toBe(false);
   });
+
+  it("resolves a named custom profile via profile", () => {
+    const resolved = resolveProfile({
+      profile: "sponsors-track",
+      customProfiles: { "sponsors-track": { fields: ["source", "cfp"] } },
+    });
+    expect(resolved.preset).toBe("sponsors-track");
+    expect(resolved.fields.has("source")).toBe(true);
+    expect(resolved.fields.has("cfp")).toBe(true);
+    expect(resolved.fields.has("venue")).toBe(false);
+  });
+
+  it("a custom profile named like a builtin overrides it entirely, not merged", () => {
+    const resolved = resolveProfile({
+      profile: "meetup",
+      customProfiles: { meetup: { fields: ["source"] } },
+    });
+    expect(resolved.preset).toBe("meetup");
+    expect(resolved.fields.has("source")).toBe(true);
+    // the builtin's own field set (e.g. venue, always shown for meetup) is
+    // not merged in — a shadowing custom profile is fully explicit.
+    expect(resolved.fields.has("venue")).toBe(false);
+  });
+
+  it("customProfiles wins over a same-named legacy customProfile.fields", () => {
+    const resolved = resolveProfile({
+      customProfile: { fields: ["source"] },
+      customProfiles: { custom: { fields: ["cfp"] } },
+    });
+    expect(resolved.preset).toBe("custom");
+    expect(resolved.fields.has("cfp")).toBe(true);
+    expect(resolved.fields.has("source")).toBe(false);
+  });
+
+  it("multiple named custom profiles resolve independently by name", () => {
+    const config = {
+      customProfiles: {
+        a: { fields: ["source"] },
+        b: { fields: ["cfp"] },
+      },
+    };
+    const a = resolveProfile(config, "a");
+    const b = resolveProfile(config, "b");
+    expect(a.fields.has("source")).toBe(true);
+    expect(a.fields.has("cfp")).toBe(false);
+    expect(b.fields.has("cfp")).toBe(true);
+    expect(b.fields.has("source")).toBe(false);
+  });
+});
+
+describe("resolvedCustomProfiles", () => {
+  it("returns nothing for a config with neither key", () => {
+    expect(resolvedCustomProfiles(null)).toEqual({});
+    expect(resolvedCustomProfiles({ feed: { title: "x" } })).toEqual({});
+  });
+
+  it("reads the legacy singular key as 'custom'", () => {
+    expect(resolvedCustomProfiles({ customProfile: { fields: ["cfp"] } })).toEqual({
+      custom: ["cfp"],
+    });
+  });
+
+  it("reads the new map, merged with any legacy entry", () => {
+    expect(
+      resolvedCustomProfiles({
+        customProfile: { fields: ["cfp"] },
+        customProfiles: { sponsors: { fields: ["source"] } },
+      }),
+    ).toEqual({ custom: ["cfp"], sponsors: ["source"] });
+  });
+
+  it("the new map wins over the legacy key on a name collision", () => {
+    expect(
+      resolvedCustomProfiles({
+        customProfile: { fields: ["cfp"] },
+        customProfiles: { custom: { fields: ["source"] } },
+      }),
+    ).toEqual({ custom: ["source"] });
+  });
 });
 
 describe("availablePresets", () => {
-  it("offers the three presets, plus custom when the config has one", () => {
+  it("offers the three builtins, plus custom when the config has one", () => {
     expect(availablePresets(null)).toEqual(["meetup", "conference", "all"]);
     expect(availablePresets({ customProfile: { fields: [] } })).toEqual([
       "custom",
@@ -163,5 +251,22 @@ describe("availablePresets", () => {
       "conference",
       "all",
     ]);
+  });
+
+  it("lists every named custom profile before the builtins", () => {
+    expect(
+      availablePresets({
+        customProfiles: {
+          sponsors: { fields: [] },
+          workshops: { fields: [] },
+        },
+      }),
+    ).toEqual(["sponsors", "workshops", "meetup", "conference", "all"]);
+  });
+
+  it("a custom profile named like a builtin replaces it in the list, not duplicates it", () => {
+    expect(
+      availablePresets({ customProfiles: { meetup: { fields: [] } } }),
+    ).toEqual(["meetup", "conference", "all"]);
   });
 });

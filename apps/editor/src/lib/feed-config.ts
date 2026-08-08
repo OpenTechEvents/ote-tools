@@ -1,12 +1,20 @@
 import { cleanRow, isRowEmpty } from "./event-json.js";
+import { resolvedCustomProfiles } from "./presets.js";
 import type { OrganizerRow, OteConfig, OteEvent } from "./types.js";
+
+/** One named custom profile, editable in the Feed Settings dialog. A name
+ * matching a builtin (meetup/conference/all) overrides it. */
+export interface CustomProfileRow {
+  name: string;
+  fields: string[];
+}
 
 /**
  * Flat, all-string form model for ote.config.json — same "" = unset
  * convention as FormState. `feed`'s own sub-fields plus, at the top level,
- * `profile`/`customProfileFields` (config.profile / config.customProfile.
- * fields — outside `feed` in the file, kept here for one shared save
- * action; see toOteConfigJson for exactly how each round-trips).
+ * `profile`/`customProfiles` (config.profile / config.customProfiles —
+ * outside `feed` in the file, kept here for one shared save action; see
+ * toOteConfigJson for exactly how each round-trips).
  */
 export interface FeedConfigState {
   title: string;
@@ -18,16 +26,10 @@ export interface FeedConfigState {
   organizers: OrganizerRow[];
   /** BCP 47 tag → { title?, description? } in that language. */
   translations: Record<string, { title: string; description: string }>;
-  /** "meetup" | "conference" | "all" | "custom" | "" (unset — resolveProfile falls back to "all"). */
+  /** "meetup" | "conference" | "all" | a name in customProfiles | "" (unset — resolveProfile falls back to "all"). */
   profile: string;
-  /**
-   * Only meaningful when profile === "custom". Kept exactly as read from
-   * the file, unfiltered — a fork's config can list an id this editor's
-   * FIELD_REGISTRY doesn't know about (a newer field this build predates),
-   * and saving must not silently drop it just because the checklist UI has
-   * no row for it.
-   */
-  customProfileFields: string[];
+  /** Named custom profiles, in display order. */
+  customProfiles: CustomProfileRow[];
 }
 
 /** A fresh, empty settings draft — used when a repo has no ote.config.json yet. */
@@ -42,17 +44,14 @@ export function emptyFeedConfigState(): FeedConfigState {
     organizers: [],
     translations: {},
     profile: "",
-    customProfileFields: [],
+    customProfiles: [],
   };
 }
 
 /** Reads the `feed` block into form state; a missing config or feed block just yields the empty draft (never throws — same convention as fromEventJson). */
 export function fromOteConfig(config: OteConfig | null): FeedConfigState {
   const feed = config?.feed;
-  // customProfile.fields wins over profile, same precedence resolveProfile
-  // itself uses — so "custom" is what the picker should show as active.
-  const customFields = config?.customProfile?.fields;
-  const hasCustom = Array.isArray(customFields);
+  const customProfiles = resolvedCustomProfiles(config);
   return {
     title: feed?.title ?? "",
     description: feed?.description ?? "",
@@ -72,8 +71,15 @@ export function fromOteConfig(config: OteConfig | null): FeedConfigState {
         { title: entry.title ?? "", description: entry.description ?? "" },
       ]),
     ),
-    profile: hasCustom ? "custom" : (config?.profile ?? ""),
-    customProfileFields: hasCustom ? [...customFields] : [],
+    // Same default-to-"custom" fallback resolveProfile itself uses for a
+    // legacy config that never set `profile` (because customProfile always
+    // won) — keeps the "Default profile" picker in sync with what the live
+    // editor actually resolves for the same file.
+    profile: config?.profile ?? ("custom" in customProfiles ? "custom" : ""),
+    customProfiles: Object.entries(customProfiles).map(([name, fields]) => ({
+      name,
+      fields: [...fields],
+    })),
   };
 }
 
@@ -120,22 +126,22 @@ export function toOteConfigJson(
   else delete feed.translations;
 
   const result: Record<string, unknown> = { ...(rawConfig ?? {}), feed };
-  // customProfile wins over profile per resolveProfile's own precedence —
-  // leaving a stale profile behind when switching to "custom" (or vice
-  // versa) would silently do nothing at read time, which is confusing for
-  // anyone hand-reading the file later. profile === "" (never touched, or
-  // explicitly cleared) drops both, same "absent stays absent" convention
-  // every other field here already follows.
-  if (state.profile === "custom") {
-    result.customProfile = { fields: state.customProfileFields };
-    delete result.profile;
-  } else if (state.profile !== "") {
-    result.profile = state.profile;
-    delete result.customProfile;
-  } else {
-    delete result.profile;
-    delete result.customProfile;
-  }
+
+  if (state.profile !== "") result.profile = state.profile;
+  else delete result.profile;
+
+  // The legacy singular `customProfile` key is read-only (see OteConfig's
+  // doc comment) — any save through this dialog migrates a repo fully onto
+  // `customProfiles`, a one-way, non-breaking upgrade (the old key just
+  // stops being written, it isn't required to keep working elsewhere).
+  delete result.customProfile;
+  const customProfiles = Object.fromEntries(
+    state.customProfiles
+      .filter((row) => row.name.trim() !== "" && row.fields.length > 0)
+      .map((row) => [row.name.trim(), { fields: row.fields }]),
+  );
+  if (Object.keys(customProfiles).length > 0) result.customProfiles = customProfiles;
+  else delete result.customProfiles;
 
   return result;
 }

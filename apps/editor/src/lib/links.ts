@@ -99,12 +99,11 @@ export function directCreateUrl(
 }
 
 /**
- * Feed settings' "Open on GitHub": same URL family as directCreateUrl, at
- * the repo root (no /events/ segment) since ote.config.json isn't inside
- * events/. GitHub's create-file page accepts a filename that already
- * exists and lets the commit update it in place, so this one URL shape
- * covers both "ote.config.json doesn't exist yet" and "it exists, update
- * it" — no separate edit-vs-create branching needed, unlike events.
+ * Feed settings' "Open on GitHub" when ote.config.json does NOT exist yet:
+ * same URL family as directCreateUrl, at the repo root (no /events/
+ * segment) since ote.config.json isn't inside events/. Once the file
+ * exists, directEditFeedConfigUrl (below) is used instead — this one is
+ * unreachable in that case.
  */
 export function directFeedConfigUrl(
   repo: string,
@@ -124,6 +123,15 @@ export function directFeedConfigUrl(
     url: `${base}?${new URLSearchParams({ filename: "ote.config.json" })}`,
     copyText: json,
   };
+}
+
+/**
+ * Feed settings' "Open on GitHub" when ote.config.json already exists:
+ * same github.dev edit family as directEditUrl, at the repo root since
+ * ote.config.json isn't inside events/.
+ */
+export function directEditFeedConfigUrl(repo: string, branch = "HEAD"): string {
+  return `https://github.dev/${repo}/blob/${branch}/ote.config.json`;
 }
 
 /**

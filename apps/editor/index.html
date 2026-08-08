@@ -240,17 +240,17 @@
         <h3 data-i18n="dialog.feedSettings.editorGroup">Editor setup</h3>
         <p class="hint" data-i18n="dialog.feedSettings.editorGroupNote">
           Which fields the editor shows by default when someone opens this
-          feed to add or edit an event.
+          feed to add or edit an event. Add named custom profiles below to
+          pick your own field sets — reuse a builtin's name (meetup,
+          conference, all) to override it.
         </p>
         <div class="mode-toggle" id="feed-profile-toggle" role="radiogroup"
           aria-label="Default profile"></div>
-        <div id="feed-profile-fields-wrap" hidden>
-          <p class="hint" data-i18n="dialog.feedSettings.customFieldsNote">
-            Pick which optional fields to show. Name, dates, and the file's
-            own slug/id are always included, so they're not listed here.
-          </p>
-          <div id="feed-profile-fields" class="field-checklist"></div>
-        </div>
+        <p class="hint" data-i18n="dialog.feedSettings.customProfilesNote">
+          Name, dates, and the file's own slug/id are always included in
+          every custom profile, so they're not listed below.
+        </p>
+        <div id="feed-custom-profiles-slot"></div>
 
         <div class="actions">
           <button id="feed-settings-save" type="button" class="primary" data-i18n="action.openOnGithub">

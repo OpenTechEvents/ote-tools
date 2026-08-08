@@ -24,7 +24,10 @@ export interface OteConfig {
     translations?: Record<string, { title?: string; description?: string }>;
   };
   profile?: string;
+  /** @deprecated read-only synonym for customProfiles.custom; new saves write customProfiles instead. */
   customProfile?: { fields?: string[] };
+  /** Named custom profiles. A name matching a builtin (meetup/conference/all) overrides it. */
+  customProfiles?: Record<string, { fields?: string[] }>;
 }
 
 /** One row of the `organizers` repeater. "" means "not filled in". */

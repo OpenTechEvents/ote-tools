@@ -95,11 +95,13 @@ Todo lo que hoy es "depende del organizador" vive en un único fichero en su for
     "license": "CC-BY-4.0"
   },
 
-  // Qué campos muestra el editor. Presets: "meetup" | "conference" | "all".
+  // Qué campos muestra el editor. Presets: "meetup" | "conference" | "all",
+  // o el nombre de un perfil personalizado definido en customProfiles.
   // "all" = formulario completo con secciones colapsables ("Avanzado: CFP, patrocinios…").
   "profile": "meetup",
-  // Opcional: perfil personalizado (gana sobre profile)
-  "customProfile": { "fields": ["cfp", "sponsors"] },
+  // Opcional: perfiles personalizados con nombre, nombre → lista de campos.
+  // Reutilizar el nombre de un preset (meetup/conference/all) lo sobrescribe.
+  "customProfiles": { "sponsored-track": { "fields": ["cfp", "sponsors"] } },
 
   // Plataformas donde el organizador difunde (ver Difusión)
   "publish": {
@@ -112,7 +114,7 @@ Todo lo que hoy es "depende del organizador" vive en un único fichero en su for
 }
 ```
 
-Racional de los presets: un organizador de meetups no necesita ver campos de CFP; uno de conferencias sí. Una matriz de configuración campo a campo sería sobre-ingeniería para el 90% de los casos — presets primero, perfil custom como escotilla de escape.
+Racional de los presets: un organizador de meetups no necesita ver campos de CFP; uno de conferencias sí. Una matriz de configuración campo a campo sería sobre-ingeniería para el 90% de los casos — presets primero, perfiles personalizados como escotilla de escape. Se pueden definir varios, cada uno con su propio nombre; un nombre que coincide con un preset lo sobrescribe por completo en vez de combinarse con él.
 
 ## Importar desde fuentes existentes
 

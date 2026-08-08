@@ -4,6 +4,7 @@ import {
   MAX_URL_LENGTH,
   directCreateUrl,
   directDeleteUrl,
+  directEditFeedConfigUrl,
   directEditUrl,
   directFeedConfigUrl,
   eventJsonFromIssueBody,
@@ -173,5 +174,19 @@ describe("directFeedConfigUrl", () => {
     expect(result.url).toContain("filename=ote.config.json");
     expect(result.url).not.toContain("value=");
     expect(result.copyText).toContain('"description"');
+  });
+});
+
+describe("directEditFeedConfigUrl", () => {
+  it("opens github.dev on ote.config.json at the repo root", () => {
+    expect(directEditFeedConfigUrl("o/r", "main")).toBe(
+      "https://github.dev/o/r/blob/main/ote.config.json",
+    );
+  });
+
+  it("defaults to HEAD when the branch is unknown", () => {
+    expect(directEditFeedConfigUrl("o/r")).toBe(
+      "https://github.dev/o/r/blob/HEAD/ote.config.json",
+    );
   });
 });

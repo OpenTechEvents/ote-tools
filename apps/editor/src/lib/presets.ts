@@ -110,43 +110,74 @@ const DEFAULT_COLLAPSED_SECTIONS = new Set<SectionId>(
   SECTIONS.filter((s) => !SECTIONS_WITH_REQUIRED.has(s)),
 );
 
-/** Presets the UI can switch between; "custom" only when the config has one. */
+/**
+ * Merges the legacy singular `customProfile.fields` (as key "custom") with
+ * the new `customProfiles` map — single source of truth for "what named
+ * custom profiles does this config define." A name present in both wins
+ * from the new map (see OteConfig's doc comment: the legacy key is
+ * read-only, only `customProfiles` is written on save).
+ */
+export function resolvedCustomProfiles(
+  config: OteConfig | null,
+): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  if (Array.isArray(config?.customProfile?.fields)) {
+    map.custom = config.customProfile.fields;
+  }
+  for (const [name, def] of Object.entries(config?.customProfiles ?? {})) {
+    if (Array.isArray(def?.fields)) map[name] = def.fields;
+  }
+  return map;
+}
+
+/**
+ * Presets the UI can switch between: named custom profiles first (matches
+ * the legacy single-"custom"-profile UI, where it always led the list),
+ * then any builtin not shadowed by a custom profile reusing its name.
+ */
 export function availablePresets(config: OteConfig | null): string[] {
-  const presets = Object.keys(PRESET_EXCLUSIONS);
-  return Array.isArray(config?.customProfile?.fields)
-    ? ["custom", ...presets]
-    : presets;
+  const customNames = Object.keys(resolvedCustomProfiles(config));
+  const builtins = Object.keys(PRESET_EXCLUSIONS).filter(
+    (name) => !customNames.includes(name),
+  );
+  return [...customNames, ...builtins];
 }
 
 /**
  * Resolves which form fields the editor shows for a given ote.config.json.
  *
- * - `customProfile.fields` wins over `profile`: core fields + the listed ids.
- *   Unknown ids (typos, or a field this editor doesn't support at all) are
- *   skipped with a warning.
- * - Otherwise `profile` picks a preset; unknown/missing profile falls back to
- *   "all" with a warning (show everything rather than silently hide fields).
+ * - Any named custom profile (`customProfiles`, or the legacy singular
+ *   `customProfile.fields` read as "custom" — see `resolvedCustomProfiles`)
+ *   resolves to core fields + its listed ids, selected by `profile` (or
+ *   `override`) naming it. Unknown ids (typos, or a field this editor
+ *   doesn't support at all) are skipped with a warning. A legacy config
+ *   that never set `profile` (because `customProfile` used to always win)
+ *   still defaults to "custom", preserving prior behavior.
+ * - Otherwise `profile` picks a builtin preset; unknown/missing profile
+ *   falls back to "all" with a warning (show everything rather than
+ *   silently hide fields).
  * - "all" renders the advanced section collapsed; translations render
  *   collapsed under every preset — it's an optional pass done after the rest
  *   of the event, never the first thing to fill in.
- * - `override` is the UI's profile switcher: a preset name or "custom" that
- *   takes precedence over everything in the config (no warnings — it is an
- *   explicit user choice, not a config problem).
+ * - `override` is the UI's profile switcher: a preset or custom-profile name
+ *   that takes precedence over everything in the config (no warnings — it is
+ *   an explicit user choice, not a config problem).
  */
 export function resolveProfile(
   config: OteConfig | null,
   override?: string,
 ): ResolvedProfile {
   const warnings: string[] = [];
+  const customProfiles = resolvedCustomProfiles(config);
 
-  const useCustom =
-    override === undefined
-      ? Array.isArray(config?.customProfile?.fields)
-      : override === "custom";
-  const customFields = config?.customProfile?.fields;
-  if (useCustom && Array.isArray(customFields)) {
+  let requested = override ?? config?.profile;
+  if (requested === undefined && "custom" in customProfiles) {
+    requested = "custom";
+  }
+
+  if (requested !== undefined && requested in customProfiles) {
     const fields = new Set<string>(CORE_FIELDS);
-    for (const id of customFields) {
+    for (const id of customProfiles[requested]) {
       if (KNOWN_IDS.has(id)) {
         fields.add(id);
       } else {
@@ -156,14 +187,14 @@ export function resolveProfile(
       }
     }
     return {
-      preset: "custom",
+      preset: requested,
       fields,
       collapsedSections: new Set(DEFAULT_COLLAPSED_SECTIONS),
       warnings,
     };
   }
 
-  let preset = override ?? config?.profile;
+  let preset = requested;
   if (preset === undefined) {
     if (config !== null) {
       warnings.push('no "profile" in ote.config.json, showing all fields');

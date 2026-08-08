@@ -41,7 +41,7 @@ describe("emptyFeedConfigState", () => {
       organizers: [],
       translations: {},
       profile: "",
-      customProfileFields: [],
+      customProfiles: [],
     });
   });
 });
@@ -70,20 +70,47 @@ describe("fromOteConfig", () => {
     ]);
   });
 
-  it("plain profile with no customProfile → profile as-is, no custom fields", () => {
+  it("plain profile with no customProfile → profile as-is, no custom profiles", () => {
     const state = fromOteConfig(realish as unknown as OteConfig);
     expect(state.profile).toBe("all");
-    expect(state.customProfileFields).toEqual([]);
+    expect(state.customProfiles).toEqual([]);
   });
 
-  it("customProfile.fields wins over profile, same precedence resolveProfile uses — including an id this editor's FIELD_REGISTRY doesn't recognize, kept unfiltered", () => {
+  it("reads a legacy customProfile.fields as a named 'custom' row, independent of profile — including an id this editor's FIELD_REGISTRY doesn't recognize, kept unfiltered", () => {
     const config = {
-      profile: "meetup", // present but should be ignored, per resolveProfile's own precedence
+      profile: "meetup",
       customProfile: { fields: ["description", "cfp", "sponsors"] }, // "sponsors" is not a real field id yet
     };
     const state = fromOteConfig(config as unknown as OteConfig);
+    // An explicit profile now wins over the legacy key (documented behavior
+    // change from the single-custom-profile model — see presets.test.ts).
+    expect(state.profile).toBe("meetup");
+    expect(state.customProfiles).toEqual([
+      { name: "custom", fields: ["description", "cfp", "sponsors"] },
+    ]);
+  });
+
+  it("a legacy customProfile.fields with no profile set defaults the picker to 'custom', matching resolveProfile", () => {
+    const config = { customProfile: { fields: ["description"] } };
+    const state = fromOteConfig(config as unknown as OteConfig);
     expect(state.profile).toBe("custom");
-    expect(state.customProfileFields).toEqual(["description", "cfp", "sponsors"]);
+    expect(state.customProfiles).toEqual([{ name: "custom", fields: ["description"] }]);
+  });
+
+  it("reads the new customProfiles map as rows, one per name", () => {
+    const config = {
+      profile: "sponsors",
+      customProfiles: {
+        sponsors: { fields: ["source"] },
+        workshops: { fields: ["cfp"] },
+      },
+    };
+    const state = fromOteConfig(config as unknown as OteConfig);
+    expect(state.profile).toBe("sponsors");
+    expect(state.customProfiles).toEqual([
+      { name: "sponsors", fields: ["source"] },
+      { name: "workshops", fields: ["cfp"] },
+    ]);
   });
 });
 
@@ -164,7 +191,7 @@ describe("toOteConfigJson", () => {
     expect(feed.organizers).toBeUndefined();
   });
 
-  it("a profile-less config round-trips with no profile/customProfile written when left untouched", () => {
+  it("a profile-less config round-trips with no profile/customProfiles written when left untouched", () => {
     const noProfile = { feed: { title: "x" } };
     const state = fromOteConfig(noProfile as unknown as OteConfig);
     expect(state.profile).toBe(""); // sanity: the picker would start unselected
@@ -172,9 +199,10 @@ describe("toOteConfigJson", () => {
     const result = toOteConfigJson(state, noProfile as unknown as Record<string, unknown>);
     expect(result.profile).toBeUndefined();
     expect(result.customProfile).toBeUndefined();
+    expect(result.customProfiles).toBeUndefined();
   });
 
-  it("switching to a plain preset clears a pre-existing customProfile", () => {
+  it("switching the default away from a custom profile keeps that profile defined, only changes the default", () => {
     const withCustom = { customProfile: { fields: ["description"] } };
     const state = fromOteConfig(withCustom as unknown as OteConfig);
     expect(state.profile).toBe("custom");
@@ -182,16 +210,62 @@ describe("toOteConfigJson", () => {
     const result = toOteConfigJson(state, withCustom as unknown as Record<string, unknown>);
     expect(result.profile).toBe("meetup");
     expect(result.customProfile).toBeUndefined();
+    expect(result.customProfiles).toEqual({ custom: { fields: ["description"] } });
   });
 
-  it("switching to custom clears a pre-existing profile and writes the checked fields", () => {
+  it("removing a custom profile row (not just switching the default) drops it from customProfiles", () => {
+    const withCustom = { customProfile: { fields: ["description"] } };
+    const state = fromOteConfig(withCustom as unknown as OteConfig);
+    state.profile = "meetup";
+    state.customProfiles = [];
+    const result = toOteConfigJson(state, withCustom as unknown as Record<string, unknown>);
+    expect(result.customProfiles).toBeUndefined();
+  });
+
+  it("adding and selecting a new named custom profile writes it under customProfiles, never the legacy key", () => {
     const withProfile = { profile: "conference" };
     const state = fromOteConfig(withProfile as unknown as OteConfig);
+    state.customProfiles.push({ name: "custom", fields: ["description", "cfp"] });
     state.profile = "custom";
-    state.customProfileFields = ["description", "cfp"];
     const result = toOteConfigJson(state, withProfile as unknown as Record<string, unknown>);
-    expect(result.profile).toBeUndefined();
-    expect(result.customProfile).toEqual({ fields: ["description", "cfp"] });
+    expect(result.profile).toBe("custom");
+    expect(result.customProfile).toBeUndefined();
+    expect(result.customProfiles).toEqual({ custom: { fields: ["description", "cfp"] } });
+  });
+
+  it("writes multiple named custom profiles, dropping rows with a blank name or no fields", () => {
+    const state = emptyFeedConfigState();
+    state.title = "x";
+    state.customProfiles = [
+      { name: "sponsors", fields: ["source"] },
+      { name: "workshops", fields: ["cfp"] },
+      { name: "", fields: ["source"] },
+      { name: "empty", fields: [] },
+    ];
+    const result = toOteConfigJson(state, null);
+    expect(result.customProfiles).toEqual({
+      sponsors: { fields: ["source"] },
+      workshops: { fields: ["cfp"] },
+    });
+  });
+
+  it("a legacy-only config round-trips through fromOteConfig/toOteConfigJson onto the new map shape (migration on save)", () => {
+    const legacy = { customProfile: { fields: ["description"] } };
+    const state = fromOteConfig(legacy as unknown as OteConfig);
+    const result = toOteConfigJson(state, legacy as unknown as Record<string, unknown>);
+    expect(result.profile).toBe("custom");
+    expect(result.customProfile).toBeUndefined();
+    expect(result.customProfiles).toEqual({ custom: { fields: ["description"] } });
+  });
+
+  it("a custom profile named like a builtin round-trips, to support overriding it", () => {
+    const state = emptyFeedConfigState();
+    state.title = "x";
+    state.profile = "meetup";
+    state.customProfiles = [{ name: "meetup", fields: ["source"] }];
+    const result = toOteConfigJson(state, null);
+    expect(result.profile).toBe("meetup");
+    expect(result.customProfiles).toEqual({ meetup: { fields: ["source"] } });
   });
 });
 

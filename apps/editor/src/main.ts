@@ -43,6 +43,7 @@ import {
 import {
   directCreateUrl,
   directDeleteUrl,
+  directEditFeedConfigUrl,
   directEditUrl,
   directFeedConfigUrl,
   eventJsonText,
@@ -638,72 +639,121 @@ async function startEditor(repo: string | null): Promise<void> {
       );
     }
 
-    // Default profile + custom field picker — writes the top-level
-    // profile/customProfile keys (not nested under feed), via the same
+    // Default profile + named custom profiles — writes the top-level
+    // profile/customProfiles keys (not nested under feed), via the same
     // feedState/toOteConfigJson save path as everything else in this view.
     const feedProfileToggle = el<HTMLDivElement>("feed-profile-toggle");
-    const feedProfileFieldsWrap = el<HTMLDivElement>("feed-profile-fields-wrap");
-    const feedProfileFields = el<HTMLDivElement>("feed-profile-fields");
+    const feedCustomProfilesSlot = el<HTMLDivElement>("feed-custom-profiles-slot");
     const coreFieldIds: readonly string[] = CORE_FIELDS;
 
-    function renderFeedProfileFields(): void {
-      feedProfileFieldsWrap.hidden = feedState.profile !== "custom";
-      feedProfileFields.textContent = "";
-      if (feedState.profile !== "custom") return;
-      let currentSection: string | null = null;
-      for (const def of FIELD_REGISTRY) {
-        if (coreFieldIds.includes(def.id)) continue;
-        if (def.section !== currentSection) {
-          currentSection = def.section;
-          const heading = document.createElement("p");
-          heading.className = "field-checklist-section";
-          heading.textContent = t(`section.${def.section}`, SECTION_TITLES[def.section]);
-          feedProfileFields.append(heading);
-        }
+    // Rebuilt on every change (unlike the live #profile-toggle, which only
+    // offers a name once the file already has it) — this is how an
+    // organizer creates a custom profile for the first time and picks the
+    // default. Split from renderFeedCustomProfiles() so renaming a profile
+    // can refresh just this list without losing focus on the name input.
+    function renderFeedProfileToggleOnly(): void {
+      feedProfileToggle.textContent = "";
+      const names = ["meetup", "conference", "all", ...feedState.customProfiles.map((p) => p.name)];
+      for (const name of names) {
         const label = document.createElement("label");
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = feedState.customProfileFields.includes(def.id);
-        checkbox.addEventListener("input", () => {
-          feedState.customProfileFields = checkbox.checked
-            ? [...feedState.customProfileFields, def.id]
-            : feedState.customProfileFields.filter((id) => id !== def.id);
-        });
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "feed-profile";
+        radio.value = name;
+        radio.checked = name === feedState.profile;
         const span = document.createElement("span");
-        span.textContent = t(`field.${def.id}.label`, def.id);
-        label.append(checkbox, span);
-        feedProfileFields.append(label);
+        span.textContent = name;
+        label.append(radio, span);
+        feedProfileToggle.append(label);
+        radio.addEventListener("input", () => {
+          feedState.profile = name;
+        });
       }
     }
 
-    // Always all four, regardless of what this repo's config currently has
-    // (unlike the live #profile-toggle, which only offers "custom" once the
-    // file already has one) — this picker is how an organizer creates one
-    // for the first time. Built once; renderFeedProfileToggle() (called
-    // each time the view opens) only sets which radio is checked.
-    for (const preset of ["meetup", "conference", "all", "custom"]) {
-      const label = document.createElement("label");
-      const radio = document.createElement("input");
-      radio.type = "radio";
-      radio.name = "feed-profile";
-      radio.value = preset;
-      const span = document.createElement("span");
-      span.textContent = preset;
-      label.append(radio, span);
-      feedProfileToggle.append(label);
-      radio.addEventListener("input", () => {
-        feedState.profile = preset;
-        renderFeedProfileFields();
+    function renderFeedCustomProfiles(): void {
+      feedCustomProfilesSlot.textContent = "";
+      const groupLabel = t("dialog.feedSettings.customProfileGroupLabel", "Custom profile");
+
+      feedState.customProfiles.forEach((row, index) => {
+        const item = document.createElement("div");
+        item.className = "repeater-item";
+        item.setAttribute("role", "group");
+        item.setAttribute("aria-label", `${groupLabel} #${index + 1}`);
+
+        const nameLabel = document.createElement("label");
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.value = row.name;
+        nameInput.placeholder = t(
+          "dialog.feedSettings.customProfileNamePlaceholder",
+          "Profile name",
+        );
+        nameInput.addEventListener("input", () => {
+          row.name = nameInput.value;
+          renderFeedProfileToggleOnly();
+        });
+        nameLabel.append(nameInput);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "repeater-remove";
+        remove.setAttribute("aria-label", `${t("ui.remove", "Remove")} ${groupLabel} #${index + 1}`);
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+          const removedName = row.name;
+          feedState.customProfiles.splice(index, 1);
+          if (feedState.profile === removedName) feedState.profile = "";
+          renderFeedProfileToggleOnly();
+          renderFeedCustomProfiles();
+        });
+
+        const fieldsWrap = document.createElement("div");
+        fieldsWrap.className = "field-checklist";
+        let currentSection: string | null = null;
+        for (const def of FIELD_REGISTRY) {
+          if (coreFieldIds.includes(def.id)) continue;
+          if (def.section !== currentSection) {
+            currentSection = def.section;
+            const heading = document.createElement("p");
+            heading.className = "field-checklist-section";
+            heading.textContent = t(`section.${def.section}`, SECTION_TITLES[def.section]);
+            fieldsWrap.append(heading);
+          }
+          const fieldLabel = document.createElement("label");
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = row.fields.includes(def.id);
+          checkbox.addEventListener("input", () => {
+            row.fields = checkbox.checked
+              ? [...row.fields, def.id]
+              : row.fields.filter((id) => id !== def.id);
+          });
+          const span = document.createElement("span");
+          span.textContent = t(`field.${def.id}.label`, def.id);
+          fieldLabel.append(checkbox, span);
+          fieldsWrap.append(fieldLabel);
+        }
+
+        item.append(nameLabel, remove, fieldsWrap);
+        feedCustomProfilesSlot.append(item);
       });
+
+      const addButton = document.createElement("button");
+      addButton.type = "button";
+      addButton.className = "repeater-add";
+      addButton.textContent = t("action.addCustomProfile", "+ Add custom profile");
+      addButton.addEventListener("click", () => {
+        feedState.customProfiles.push({ name: "", fields: [] });
+        renderFeedProfileToggleOnly();
+        renderFeedCustomProfiles();
+      });
+      feedCustomProfilesSlot.append(addButton);
     }
 
     function renderFeedProfileToggle(): void {
-      for (const radio of feedProfileToggle.querySelectorAll<HTMLInputElement>(
-        'input[name="feed-profile"]',
-      )) {
-        radio.checked = radio.value === feedState.profile;
-      }
-      renderFeedProfileFields();
+      renderFeedProfileToggleOnly();
+      renderFeedCustomProfiles();
     }
 
     feedSettingsOpen.addEventListener("click", () => {
@@ -740,13 +790,17 @@ async function startEditor(repo: string | null): Promise<void> {
 
     el<HTMLButtonElement>("feed-settings-save").addEventListener("click", () => {
       if (repo === null) return;
-      follow(
-        directFeedConfigUrl(
-          repo,
-          branch ?? "main",
-          toOteConfigJson(feedState, config as unknown as Record<string, unknown> | null),
-        ),
-      );
+      if (config !== null) {
+        window.open(directEditFeedConfigUrl(repo, branch ?? "main"), "_blank", "noopener");
+      } else {
+        follow(
+          directFeedConfigUrl(
+            repo,
+            branch ?? "main",
+            toOteConfigJson(feedState, config as unknown as Record<string, unknown> | null),
+          ),
+        );
+      }
       view = "list";
       showView();
       renderEventsGrid(eventsSearch.value);

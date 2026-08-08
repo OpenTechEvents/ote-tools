@@ -78,9 +78,11 @@ export const es: Record<string, string> = {
     "Aviso: los eventos de este feed declaran organizadores bastante distintos entre sí. Si este feed agrega eventos de otras comunidades, deja este campo vacío — la spec lo exige: rellenarlo atribuiría cada evento agregado a quien lleva este feed, no a quien realmente lo organiza.",
   "dialog.feedSettings.editorGroup": "Configuración del editor",
   "dialog.feedSettings.editorGroupNote":
-    "Qué campos muestra el editor por defecto cuando alguien abre este feed para añadir o editar un evento.",
-  "dialog.feedSettings.customFieldsNote":
-    "Elige qué campos opcionales mostrar. Nombre, fechas, y el slug/id propios del fichero se incluyen siempre, por eso no aparecen aquí.",
+    "Qué campos muestra el editor por defecto cuando alguien abre este feed para añadir o editar un evento. Añade perfiles personalizados con nombre para elegir tus propios conjuntos de campos — reutiliza el nombre de uno predefinido (meetup, conference, all) para sobrescribirlo.",
+  "dialog.feedSettings.customProfilesNote":
+    "Nombre, fechas, y el slug/id propios del fichero se incluyen siempre en cada perfil personalizado, por eso no aparecen abajo.",
+  "dialog.feedSettings.customProfileNamePlaceholder": "Nombre del perfil",
+  "dialog.feedSettings.customProfileGroupLabel": "Perfil personalizado",
   "dialog.review.title": "Revisar y enviar",
   "dialog.review.hintRepo":
     "Esto abre un issue de GitHub prerrellenado en el repositorio de destino; una persona mantenedora (o la automatización del repositorio) lo convierte en un pull request.",
@@ -192,6 +194,7 @@ export const es: Record<string, string> = {
   "action.downloadJson": "Descargar .json",
   "action.openIssue": "Abrir issue de GitHub",
   "action.openOnGithub": "Abrir en GitHub",
+  "action.addCustomProfile": "+ Añadir perfil personalizado",
   "action.editDirectly": "Editar directamente",
   "action.reviewAndSubmit": "Revisar y enviar",
   "action.reviewAndDownload": "Revisar y descargar",
