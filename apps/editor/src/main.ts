@@ -1602,7 +1602,17 @@ async function startEditor(repo: string | null): Promise<void> {
     );
   }
 
-  recurrenceUi.list.addEventListener("input", () => updateConfirm(recurrenceUi));
+  // Set while a generated series has no partOf and the organizer hasn't
+  // ticked the ack checkbox yet — see onGenerateRecurrenceSeries. Layered on
+  // top of the generic updateConfirm (shared with ICS/JSON-LD import, which
+  // have no such gate) rather than inside it.
+  let recurrenceNeedsPartOfAck = false;
+  function updateRecurrenceConfirm(): void {
+    updateConfirm(recurrenceUi);
+    if (recurrenceNeedsPartOfAck) recurrenceUi.confirm.disabled = true;
+  }
+
+  recurrenceUi.list.addEventListener("input", updateRecurrenceConfirm);
 
   el<HTMLButtonElement>("recurrence-cancel").addEventListener("click", () =>
     recurrenceDialog.close(),
@@ -1630,11 +1640,9 @@ async function startEditor(repo: string | null): Promise<void> {
           : state.endDate || series.endTime
             ? date
             : "";
-      const name = series.nameOverride || state.name;
       const occState: FormState = {
         ...state,
-        id: suggestId(config, repo, suggestSeriesSlug(name, date)),
-        name,
+        id: suggestId(config, repo, suggestSeriesSlug(state.name, date)),
         startDate: date,
         startTime: series.startTime,
         endDate,
@@ -1649,6 +1657,21 @@ async function startEditor(repo: string | null): Promise<void> {
   function onGenerateRecurrenceSeries(series: RecurrenceSeriesInput[]): void {
     if (series.length === 0) return;
     const warnings: ImportedWarning[] = [];
+    // partOf.id is what lets a consumer — or, later, a "bulk-edit this
+    // series" tool — group every occurrence back together; without it,
+    // fixing a mistake means re-editing each generated file by hand. Only
+    // recommended, not required: the schema allows a series with no
+    // partOf, so this warns instead of blocking, gated behind an explicit
+    // ack (below) rather than silently letting it slide by.
+    recurrenceNeedsPartOfAck = !state.partOfId.trim();
+    if (recurrenceNeedsPartOfAck) {
+      warnings.push({
+        message: t(
+          "dialog.recurrence.missingPartOfWarning",
+          'Recommended: fill in "Part of (series)" on the form. It lets every occurrence of this series be grouped together, and makes bulk-editing the series later much easier — without it, fixing something means editing each generated file one by one.',
+        ),
+      });
+    }
     const events: ImportedEvent[] = [];
     series.forEach((s, index) => {
       const dates = expandRecurrenceDates(s.rule);
@@ -1666,6 +1689,28 @@ async function startEditor(repo: string | null): Promise<void> {
     });
     recurrenceDialog.showModal();
     showDetected(recurrenceUi, { events, warnings }, null);
+    // showDetected's own updateConfirm(ui) call just ran (and, with the
+    // partOf warning, wrongly left the button enabled — it only knows
+    // about checked events); append the ack checkbox and re-disable.
+    if (recurrenceNeedsPartOfAck) {
+      const ack = document.createElement("label");
+      ack.className = "warning-ack";
+      const ackCheckbox = document.createElement("input");
+      ackCheckbox.type = "checkbox";
+      ackCheckbox.addEventListener("input", () => {
+        recurrenceNeedsPartOfAck = !ackCheckbox.checked;
+        updateRecurrenceConfirm();
+      });
+      ack.append(
+        ackCheckbox,
+        t(
+          "dialog.recurrence.missingPartOfAck",
+          'I understand, continue without "Part of (series)"',
+        ),
+      );
+      recurrenceUi.warningsBox.append(ack);
+    }
+    updateRecurrenceConfirm();
   }
 
   // --- "Custom recurrence" — Google-Calendar-style modal, shared by every

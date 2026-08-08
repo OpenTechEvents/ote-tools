@@ -107,15 +107,18 @@ export const es: Record<string, string> = {
   "dialog.jsonld.readPasted": "Leer el HTML pegado",
   "dialog.recurrence.title": "Repetir como serie",
   "dialog.recurrence.hint1":
-    "Usa todo lo ya rellenado en el formulario como plantilla compartida para cada ocurrencia — solo cambian la fecha/hora/nombre de cada fila de recurrencia.",
+    "Usa todo lo ya rellenado en el formulario como plantilla compartida para cada ocurrencia — solo cambian la fecha/hora de cada fila de recurrencia.",
   "dialog.recurrence.empty": "No se ha generado ninguna ocurrencia — revisa las filas de recurrencia de arriba.",
   "dialog.recurrence.cappedWarning":
     "Recurrencia #{n}: limitada a {max} ocurrencias — vuelve a generar más adelante para continuar la serie.",
+  "dialog.recurrence.missingPartOfWarning":
+    'Recomendado: rellena "Part of (series)" en el formulario. Permite agrupar todas las ocurrencias de esta serie, y facilita mucho editarla en masa más adelante — sin él, corregir algo significa editar cada fichero generado uno a uno.',
+  "dialog.recurrence.missingPartOfAck":
+    'Entendido, continuar sin rellenar "Part of (series)"',
 
   // --- recurrence: inline row list in "Cuándo" ----------------------------
   "dialog.recurrenceRow.label": "Se repite",
   "dialog.recurrenceRow.addLabel": "+ Añadir recurrencia",
-  "dialog.recurrenceRow.name": "Nombre (opcional)",
   "dialog.recurrenceRow.date": "Fecha de inicio",
   "dialog.recurrenceRow.startTime": "Hora",
   "dialog.recurrenceRow.endTime": "Hora de fin",

@@ -28,7 +28,7 @@ html {
 
 body {
   margin: 0 auto;
-  max-width: 42rem;
+  max-width: 48rem;
   padding: 1rem 1rem 6.5rem; /* room for the sticky action bar */
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   line-height: 1.5;
@@ -1474,13 +1474,13 @@ select {
   color: var(--muted);
 }
 
-@media (min-width: 46rem) {
+@media (min-width: 52rem) {
   #action-bar {
     left: 50%;
     z-index: 9999;
     right: auto;
     transform: translateX(-50%);
-    width: 42rem;
+    width: 48rem;
     border: 1px solid var(--border);
     border-radius: var(--radius) var(--radius) 0 0;
   }
@@ -1882,6 +1882,24 @@ footer {
 
 #recurrence-warnings p {
   margin: 0.2rem 0;
+}
+
+.warning-ack {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0.2rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e6c65c;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.warning-ack input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+  flex-shrink: 0;
 }
 
 #recurrence-list {

@@ -1525,12 +1525,12 @@ function renderImagePreview(urlInput: HTMLInputElement, getAlt: () => string): H
  * One "repeats" row's configuration handed to main.ts at generate-time.
  * Not a FormState field — recurrence is editor-only, never saved to the
  * event JSON itself (OTE has no recurrence-rule concept: one document per
- * occurrence, always). `nameOverride` empty means "use the draft's own
- * name" for every occurrence this row generates.
+ * occurrence, always). Every occurrence this row generates uses the
+ * draft's own name — duplicating the draft first is how you get a
+ * differently-named series.
  */
 export interface RecurrenceSeriesInput {
   key: string;
-  nameOverride: string;
   startTime: string;
   endTime: string;
   /** Gap, in whole days, between each occurrence's own start and end date
@@ -1727,7 +1727,6 @@ function recurrencePresetLabel(kind: RecurrencePresetKind, date: string): string
 
 interface RecurrenceRowState {
   key: string;
-  nameOverride: string;
   date: string;
   /** This reference occurrence's own end date — "" means same day as
    * `date`. Only the gap (see RecurrenceSeriesInput.durationDays) carries
@@ -1752,7 +1751,6 @@ interface RecurrenceRowState {
  */
 export function renderRecurrenceRows(
   defaultDate: string,
-  defaultName: string,
   onCustomize: (current: RecurrenceRule | null, apply: (rule: RecurrenceRule) => void) => void,
   /** Fires on every add/remove and on the first row's own date/time edits —
    * the "when" section uses it to hide the draft's own Start/End (which
@@ -1799,9 +1797,8 @@ export function renderRecurrenceRows(
   }
 
   function currentSeries(): RecurrenceSeriesInput[] {
-    return rows.map(({ key, nameOverride, date, endDate, startTime, endTime, rule }) => ({
+    return rows.map(({ key, date, endDate, startTime, endTime, rule }) => ({
       key,
-      nameOverride,
       startTime,
       endTime,
       durationDays: endDate ? Math.max(0, daysBetweenDates(date, endDate) ?? 0) : 0,
@@ -1852,17 +1849,6 @@ export function renderRecurrenceRows(
 
     const fields = document.createElement("div");
     fields.className = "repeater-item-fields";
-
-    const nameWrap = document.createElement("div");
-    nameWrap.className = "size-full";
-    const nameLabel = document.createElement("label");
-    nameLabel.textContent = t("dialog.recurrenceRow.name", "Name (optional)");
-    const nameInput = document.createElement("input");
-    nameInput.type = "text";
-    nameInput.placeholder = defaultName;
-    nameInput.value = row.nameOverride;
-    nameInput.addEventListener("input", () => (row.nameOverride = nameInput.value));
-    nameWrap.append(nameLabel, nameInput);
 
     // Date, start time, "to", end time — one Google-Calendar-style line.
     // "Starting date" stays visible as the group's anchor label; Time/End
@@ -1984,7 +1970,7 @@ export function renderRecurrenceRows(
 
     renderRowSelect(row, select);
 
-    fields.append(nameWrap, datetimeRow, selectWrap);
+    fields.append(datetimeRow, selectWrap);
     item.append(remove, fields);
     return item;
   }
@@ -1993,7 +1979,6 @@ export function renderRecurrenceRows(
     const date = defaultDate || todayIso();
     const row: RecurrenceRowState = {
       key: nextId("recur"),
-      nameOverride: "",
       date,
       endDate: "",
       startTime: "",
@@ -3344,7 +3329,6 @@ export function renderForm(
         if (id === "allDay") {
           const recurrence = renderRecurrenceRows(
             state.startDate,
-            state.name,
             onCustomizeRecurrenceRule,
             (hasRows, first) => {
               if (startEndRowEl) startEndRowEl.hidden = hasRows;
