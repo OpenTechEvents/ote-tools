@@ -1147,15 +1147,28 @@ async function startEditor(repo: string | null): Promise<void> {
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "secondary";
-    editBtn.textContent = t("action.edit", "Edit");
+    editBtn.textContent = "✏️";
+    editBtn.setAttribute("aria-label", t("action.edit", "Edit"));
+    editBtn.title = t("action.edit", "Edit");
     editBtn.addEventListener("click", () => pickEvent(index));
     actions.append(editBtn);
+
+    const duplicateBtn = document.createElement("button");
+    duplicateBtn.type = "button";
+    duplicateBtn.className = "secondary";
+    duplicateBtn.textContent = "⧉";
+    duplicateBtn.setAttribute("aria-label", t("action.duplicate", "Duplicate"));
+    duplicateBtn.title = t("action.duplicate", "Duplicate");
+    duplicateBtn.addEventListener("click", () => duplicateEvent(entry));
+    actions.append(duplicateBtn);
 
     if (repo !== null) {
       const deleteBtn = document.createElement("button");
       deleteBtn.type = "button";
       deleteBtn.className = "event-card-delete-trigger";
-      deleteBtn.textContent = t("action.delete", "Delete");
+      deleteBtn.textContent = "🗑️";
+      deleteBtn.setAttribute("aria-label", t("action.delete", "Delete"));
+      deleteBtn.title = t("action.delete", "Delete");
       deleteBtn.addEventListener("click", () => openDeleteDialog(entry));
       actions.append(deleteBtn);
     }
@@ -1302,6 +1315,33 @@ async function startEditor(repo: string | null): Promise<void> {
     touched = new Set();
     submitAttempted = false;
     render(extraFieldsFor(chosen.event, profile));
+    view = "form";
+    showView();
+  }
+
+  /** Card "Duplicate": loads entry's fields as a brand-new draft (never an
+   * edit of entry's own file — editSlug stays null) minus its identity and
+   * dates, which need fresh values (issue #38). partOf and everything else
+   * carries over as-is; the organizer clears it by hand if the duplicate
+   * isn't part of the same series. */
+  function duplicateEvent(entry: ListedEvent): void {
+    pauseImportBanner(); // leaving any in-progress import/new-event context
+    isNew = true;
+    editSlug = null;
+    state = fromEventJson(entry.event, ""); // slug "" — needs a fresh one
+    state.id = "";
+    state.startDate = "";
+    state.startTime = "";
+    state.endDate = "";
+    state.endTime = "";
+    state.status = ""; // "" defaults to scheduled, same convention as a blank draft
+    state.updatedAt = ""; // stale timestamp from the source event, not this new one
+    loadedSnapshot = null;
+    slugDirty = false;
+    idDirty = false;
+    touched = new Set();
+    submitAttempted = false;
+    render(extraFieldsFor(entry.event, profile));
     view = "form";
     showView();
   }
