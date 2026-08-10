@@ -9,6 +9,10 @@ import {
 import type { OteEventsElement } from "./element.js";
 import type { EventActionPlacement } from "./render.js";
 
+declare const __EMBED_VERSION__: string;
+
+const EMBED_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_VERSION__}/ote-events.js`;
+
 const feedInput = document.querySelector<HTMLInputElement>("#feed-input")!;
 const feedDataInput = document.querySelector<HTMLTextAreaElement>("#feed-data-input")!;
 const feedSourceField = document.querySelector<HTMLElement>("#feed-source-field")!;
@@ -117,7 +121,7 @@ function buildSnippet(config: {
   fields: string | undefined;
 }): string {
   const lines: string[] = [
-    `<script type="module" src="https://tools.opentechevents.org/embed/ote-events.js"></script>`,
+    `<script type="module" src="${EMBED_SCRIPT_URL}"></script>`,
     "",
   ];
   if (config.fontFamily || config.fontSize) {

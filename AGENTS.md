@@ -28,6 +28,6 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   behavior should use semantic versioning in `apps/embed/package.json`, update
   `apps/embed/CHANGELOG.md`, and regenerate the committed
   `apps/embed/versions/v<version>/` snapshot for releases.
-- `apps/editor` has its own `CLAUDE.md` — dev-workflow gotchas (static
+- `apps/editor` has its own `AGENTS.md` — dev-workflow gotchas (static
   files aren't watched), a recurring CSS `:not([hidden])` pitfall, and
   browser-testing notes specific to that app. Read it before editor work.

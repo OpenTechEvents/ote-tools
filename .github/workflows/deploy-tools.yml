@@ -37,10 +37,14 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site/editor _site/preview _site/embed
+          mkdir -p _site/editor _site/preview _site/embed _site/embed/latest
           cp -R apps/editor/dist/. _site/editor/
           cp -R apps/preview/dist/. _site/preview/
+          if [ -d apps/embed/versions ]; then
+            cp -R apps/embed/versions/. _site/embed/
+          fi
           cp -R apps/embed/dist/. _site/embed/
+          cp -R apps/embed/dist/. _site/embed/latest/
           # Served at tools.opentechevents.org/dashboard-checks.js; the
           # ote-template forks load it from their dashboard. No build step:
           # the file is the artifact.

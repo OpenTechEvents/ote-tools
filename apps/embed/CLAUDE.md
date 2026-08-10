@@ -31,6 +31,55 @@ Same gotcha as `apps/editor`/`apps/preview`: `pnpm dev` copies `index.html`
 and `styles.css` into `dist/` **once**, at server startup. After editing
 either, re-run the copy (or restart `pnpm dev`) before reloading the browser.
 
+## Public embed assets are versioned
+
+The playground can live at `/embed/`, but production snippets should point to
+a fixed asset version such as:
+
+```html
+<script type="module" src="https://tools.opentechevents.org/embed/v0.1.0/ote-events.js"></script>
+```
+
+Use semantic versioning for `apps/embed/package.json`:
+
+- Patch: compatible bug fixes, visual polish, accessibility fixes, docs, or
+  build/deploy fixes that do not change the public API.
+- Minor: compatible additions such as new attributes, CSS custom properties,
+  layouts, default actions, action placements, or TypeScript exports.
+- Major: breaking changes to attributes, properties, custom events, exported
+  types, CSS custom properties, default behavior, or supported browser/runtime
+  assumptions.
+
+Before changing any public widget behavior, decide whether the change needs a
+version bump. If it does, update `apps/embed/package.json` first and keep
+`apps/embed/CHANGELOG.md` in the same commit. If the change is intentionally
+unreleased, keep it under an `Unreleased` heading until the release commit.
+
+`build.mjs` reads `apps/embed/package.json`'s `version` and injects it into
+`playground.ts` as `__EMBED_VERSION__`, so the snippet uses the current fixed
+version automatically. For a release, run:
+
+```sh
+node build.mjs --snapshot-version
+```
+
+That writes the built files to `apps/embed/versions/v<version>/`. Those
+snapshots are committed so future Pages deploys keep old versions available;
+GitHub Pages deploys replace the whole artifact, so relying only on the latest
+build output would silently delete older fixed URLs. The deploy workflow also
+publishes `/embed/latest/` and the legacy `/embed/` alias from the current
+build, but those floating URLs are not recommended for production embeds.
+
+Release checklist for this component:
+
+- Confirm the SemVer bump in `apps/embed/package.json`.
+- Update `apps/embed/CHANGELOG.md`.
+- Run the embed typecheck/tests and `node build.mjs --snapshot-version`.
+- Commit the source changes and the generated `apps/embed/versions/v<version>/`
+  snapshot together.
+- Push `main`, create an annotated tag named `embed-v<version>`, push the tag,
+  and create the GitHub release from that tag.
+
 ## The widget only fetches native JSON OTE feeds — on purpose
 
 `icsToPreviewFeed`/`rssToPreview` (from `@opentechevents/preview-feed`) exist

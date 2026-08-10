@@ -1,8 +1,11 @@
-import { copyFileSync, mkdirSync } from "node:fs";
+import { cpSync, copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 
 import * as esbuild from "esbuild";
 
 const serve = process.argv.includes("--serve");
+const snapshotVersion = process.argv.includes("--snapshot-version");
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+const version = packageJson.version;
 
 const common = {
   bundle: true,
@@ -12,6 +15,9 @@ const common = {
   sourcemap: true,
   minify: !serve,
   logLevel: "info",
+  define: {
+    __EMBED_VERSION__: JSON.stringify(version),
+  },
 };
 
 // The real deliverable: what a consumer's <script src="..."> loads. Keep it
@@ -65,4 +71,11 @@ if (serve) {
   await esbuild.build(widget);
   await esbuild.build(playground);
   await esbuild.build(calendarLayout);
+  if (snapshotVersion) {
+    const target = `versions/v${version}`;
+    rmSync(target, { force: true, recursive: true });
+    mkdirSync(target, { recursive: true });
+    cpSync("dist", target, { recursive: true });
+    console.log(`Snapshotted embed v${version} assets to ${target}/`);
+  }
 }

@@ -1,6 +1,6 @@
 # @opentechevents/embed changelog
 
-## Unreleased
+## 0.1.0
 
 ### Added
 
@@ -27,3 +27,16 @@
 
 - Feature issue: https://github.com/OpenTechEvents/ote-tools/issues/31
 - Documentation tracking issue: https://github.com/OpenTechEvents/ote-tools/issues/45
+
+## Versioned assets
+
+Production embeds should use a fixed versioned URL:
+
+```html
+<script type="module" src="https://tools.opentechevents.org/embed/v0.1.0/ote-events.js"></script>
+```
+
+The floating URLs `https://tools.opentechevents.org/embed/latest/ote-events.js`
+and `https://tools.opentechevents.org/embed/ote-events.js` are useful for
+testing and playground usage, but they may receive non-breaking changes over
+time.
