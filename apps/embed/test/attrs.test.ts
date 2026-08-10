@@ -11,9 +11,9 @@ import {
 } from "../src/attrs.js";
 
 describe("parseLimit", () => {
-  it("defaults to 6 when absent, blank, non-numeric, zero, or negative", () => {
+  it("defaults to no limit when absent, blank, non-numeric, zero, or negative", () => {
     for (const value of [null, "", "abc", "0", "-3"]) {
-      expect(parseLimit(value)).toBe(6);
+      expect(parseLimit(value)).toBe(Infinity);
     }
   });
 
@@ -50,22 +50,24 @@ describe("resolveLang", () => {
 });
 
 describe("parseShowPast", () => {
-  it("is true only for the literal string \"true\"", () => {
+  it('defaults to true and is false only for the literal string "false"', () => {
     expect(parseShowPast("true")).toBe(true);
-    expect(parseShowPast("True")).toBe(false);
-    expect(parseShowPast("1")).toBe(false);
-    expect(parseShowPast(null)).toBe(false);
-    expect(parseShowPast("")).toBe(false);
+    expect(parseShowPast("True")).toBe(true);
+    expect(parseShowPast("1")).toBe(true);
+    expect(parseShowPast(null)).toBe(true);
+    expect(parseShowPast("")).toBe(true);
+    expect(parseShowPast("false")).toBe(false);
+    expect(parseShowPast("False")).toBe(true);
   });
 });
 
 describe("parseLayout", () => {
-  it("accepts cards and calendar, defaults to list otherwise", () => {
+  it("accepts list/cards/calendar, defaults to calendar otherwise", () => {
     expect(parseLayout("cards")).toBe("cards");
     expect(parseLayout("calendar")).toBe("calendar");
     expect(parseLayout("list")).toBe("list");
-    expect(parseLayout("grid")).toBe("list");
-    expect(parseLayout(null)).toBe("list");
+    expect(parseLayout("grid")).toBe("calendar");
+    expect(parseLayout(null)).toBe("calendar");
   });
 });
 

@@ -25,6 +25,7 @@ export const WIDGET_CSS = `
   --ote-error-bg: #fcf1f1;
   --ote-radius: 8px;
   font-family: var(--ote-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: var(--ote-font-size, 1rem);
   color: var(--ote-text);
 }
 
@@ -89,7 +90,10 @@ ul.events {
 ul.events.layout-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
+  border: 1px solid var(--ote-border);
+  border-radius: var(--ote-radius);
+  overflow: hidden;
 }
 
 ul.events.layout-cards {
@@ -105,18 +109,142 @@ ul.events.layout-cards {
   overflow: hidden;
 }
 
-/* List layout: image (if any) sits to the left of the text body. */
 .layout-list .event {
-  display: flex;
-  gap: 0.9rem;
-  padding: 0.9rem 1rem;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ote-border);
 }
 
-.layout-list .event-image {
-  width: 4.5rem;
-  height: 4.5rem;
-  flex-shrink: 0;
+.layout-list .event:last-child {
+  border-bottom: 0;
+}
+
+.event-list-header {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(10rem, max-content) max-content;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--ote-border);
+  background: var(--ote-accent-soft);
+  color: var(--ote-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.event-header-icon {
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: currentColor;
+  justify-self: start;
+}
+
+.icon-updated {
+  border: 1.6px solid currentColor;
+  border-radius: 50%;
+  position: relative;
+}
+
+.icon-updated::after {
+  content: "";
+  position: absolute;
+  left: 0.38rem;
+  top: 0.17rem;
+  width: 0.22rem;
+  height: 0.33rem;
+  border-left: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+}
+
+.event-accordion {
+  background: var(--ote-surface);
+}
+
+.event-summary {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(10rem, max-content) max-content;
+  gap: 1rem;
+  align-items: center;
+  min-height: 3.25rem;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.event-summary::-webkit-details-marker {
+  display: none;
+}
+
+.event-summary::after {
+  content: none;
+}
+
+.event-summary:hover,
+.event-summary:focus-visible {
+  background: var(--ote-accent-soft);
+  outline: none;
+}
+
+.event-summary-title {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.event-summary-when,
+.event-summary-updated {
+  min-width: 0;
+  color: var(--ote-muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.event-details {
+  padding: 0.2rem 1rem 1rem;
+}
+
+.layout-list .event-details .event-image {
+  width: min(100%, 28rem);
+  aspect-ratio: 16 / 9;
+  margin: 0 0 0.85rem;
+  border-radius: var(--ote-radius);
+}
+
+.event-actions {
+  margin: 0 0 0.65rem;
+}
+
+.event-actions a {
+  color: var(--ote-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.event-actions a:hover,
+.event-actions a:focus-visible {
+  color: var(--ote-accent-hover);
+  text-decoration: underline;
+}
+
+.event-detail-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+}
+
+.event-detail-list dt {
+  color: var(--ote-muted);
+  font-weight: 700;
+}
+
+.event-detail-list dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Cards layout: image (if any) is a full-width cover strip above the body. */
@@ -135,6 +263,13 @@ ul.events.layout-cards {
   object-fit: cover;
   border-radius: var(--ote-radius);
   background: var(--ote-border);
+}
+
+.event-image-placeholder {
+  background:
+    linear-gradient(135deg, var(--ote-accent-soft), transparent 55%),
+    linear-gradient(315deg, var(--ote-border), transparent 50%),
+    var(--ote-surface);
 }
 
 .layout-cards .event-image {
@@ -212,5 +347,29 @@ ul.events.layout-cards {
 
 .calendar-host {
   min-height: 20rem;
+}
+
+@media (max-width: 40rem) {
+  .event-list-header {
+    display: none;
+  }
+
+  .event-summary {
+    grid-template-columns: 1fr;
+    gap: 0.25rem 0.75rem;
+  }
+
+  .event-summary-title {
+    grid-column: 1;
+  }
+
+  .event-summary-when,
+  .event-summary-updated {
+    grid-column: 1;
+  }
+
+  .event-detail-list {
+    grid-template-columns: 1fr;
+  }
 }
 `;

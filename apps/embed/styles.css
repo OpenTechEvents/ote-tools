@@ -25,7 +25,7 @@ body {
 
 header,
 main {
-  max-width: 48rem;
+  max-width: 72rem;
   margin: 0 auto;
 }
 
@@ -61,6 +61,16 @@ a {
   margin-bottom: 1.5rem;
 }
 
+.playground-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.controls-column,
+.output-column {
+  min-width: 0;
+}
+
 .panel h2 {
   margin-top: 0;
   font-size: 1.05rem;
@@ -83,6 +93,8 @@ a {
 
 .field input[type="url"],
 .field input[type="number"],
+.field input[type="text"],
+.field textarea,
 .field select {
   width: 100%;
   max-width: 28rem;
@@ -92,6 +104,18 @@ a {
   font-size: 0.95rem;
   color: var(--text);
   background: var(--bg);
+}
+
+.field textarea {
+  max-width: 100%;
+  min-height: 9rem;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.45;
+}
+
+.hint.error {
+  color: #c4302f;
 }
 
 .field-checkbox label {
@@ -114,6 +138,13 @@ a {
   gap: 0.25rem 1rem;
 }
 
+.source-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.source-options label,
 .fields-checkboxes label {
   display: flex;
   align-items: center;
@@ -121,6 +152,13 @@ a {
   font-weight: 400;
   font-family: inherit;
   margin-bottom: 0;
+}
+
+.field input:disabled,
+.field input[type="text"]:disabled,
+.field textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .hint {
@@ -133,6 +171,134 @@ a {
   padding: 1rem;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.widget-frame[data-theme="dark"] {
+  background: #111318;
+  border-color: #33373f;
+}
+
+.widget-frame[data-theme="dark"][data-layout="calendar"] {
+  background: #14171d;
+  border-color: #3a3f49;
+}
+
+.widget-frame[data-theme="auto"] {
+  background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .widget-frame[data-theme="auto"] {
+    background: #111318;
+    border-color: #33373f;
+  }
+
+  .widget-frame[data-theme="auto"][data-layout="calendar"] {
+    background: #14171d;
+    border-color: #3a3f49;
+  }
+}
+
+.preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.segmented-toolbar {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.preview-button {
+  display: grid;
+  grid-template-columns: 1rem auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.preview-button:hover,
+.preview-button:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  outline: none;
+}
+
+.preview-button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(28, 33, 40, 0.08);
+}
+
+.preview-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  color: currentColor;
+}
+
+.icon-calendar {
+  border: 1.8px solid currentColor;
+  border-radius: 3px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 0.25rem / 100% 1.8px no-repeat,
+    linear-gradient(currentColor, currentColor) 33% 0.48rem / 1px 0.42rem no-repeat,
+    linear-gradient(currentColor, currentColor) 66% 0.48rem / 1px 0.42rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.22rem 0.72rem / 0.25rem 0.18rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.62rem 0.72rem / 0.25rem 0.18rem no-repeat;
+}
+
+.icon-list {
+  background:
+    linear-gradient(currentColor, currentColor) 0 0.15rem / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0.45rem / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0.75rem / 100% 2px no-repeat;
+}
+
+.icon-cards {
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 0.43rem 0.43rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.57rem 0 / 0.43rem 0.43rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0.57rem / 0.43rem 0.43rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.57rem 0.57rem / 0.43rem 0.43rem no-repeat;
+  border-radius: 2px;
+}
+
+.icon-light {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  box-shadow:
+    0 -0.38rem 0 -0.28rem currentColor,
+    0 0.38rem 0 -0.28rem currentColor,
+    0.38rem 0 0 -0.28rem currentColor,
+    -0.38rem 0 0 -0.28rem currentColor;
+}
+
+.icon-dark {
+  border-radius: 50%;
+  box-shadow: inset -0.28rem 0 0 currentColor;
+}
+
+.icon-auto {
+  border: 1.8px solid currentColor;
+  border-radius: 50%;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
 }
 
 .snippet-box {
@@ -175,4 +341,20 @@ a {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent-hover);
+}
+
+@media (min-width: 58rem) {
+  .playground-layout {
+    grid-template-columns: minmax(20rem, 0.9fr) minmax(24rem, 1.1fr);
+    align-items: start;
+  }
+
+  .panel {
+    margin-bottom: 0;
+  }
+
+  .output-column {
+    display: grid;
+    gap: 1.5rem;
+  }
 }

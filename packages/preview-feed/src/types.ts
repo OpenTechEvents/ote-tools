@@ -13,6 +13,7 @@ export interface PreviewEvent {
   organizerName?: string;
   tags?: string[];
   attendanceMode?: "in-person" | "online" | "hybrid";
+  updatedAt?: string;
 }
 
 export interface PreviewFeed {

@@ -1,31 +1,37 @@
 import { cheapestPrice, detailRows, eventLocation, firstImage } from "./format.js";
 import type { PreviewFeed } from "./types.js";
 
-export function jsonToPreviewFeed(text: string): PreviewFeed {
-  const json = JSON.parse(text) as {
-    title?: string;
-    description?: string;
-    license?: string;
-    events?: Array<{
-      id?: string;
-      name?: string;
-      startDate?: string;
-      endDate?: string;
-      timezone?: string;
-      location?: { venue?: string; onlineUrl?: string };
-      url?: string;
-      description?: string;
-      status?: string;
-      attendanceMode?: "in-person" | "online" | "hybrid";
-      languages?: string[];
-      tags?: string[];
-      updatedAt?: string;
-      source?: unknown;
-      image?: Array<string | { url: string; alt?: string }>;
-      offers?: Array<{ name?: string; price?: number; currency?: string }>;
-      organizers?: Array<{ name: string }>;
-    }>;
-  };
+export interface OteJsonEvent {
+  id?: string;
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+  timezone?: string;
+  location?: { venue?: string; onlineUrl?: string };
+  url?: string;
+  description?: string;
+  status?: string;
+  attendanceMode?: "in-person" | "online" | "hybrid";
+  languages?: string[];
+  tags?: string[];
+  updatedAt?: string;
+  source?: unknown;
+  image?: Array<string | { url: string; alt?: string }>;
+  offers?: Array<{ name?: string; price?: number; currency?: string }>;
+  organizers?: Array<{ name: string }>;
+}
+
+export interface OteJsonFeed {
+  title?: string;
+  description?: string;
+  license?: string;
+  events?: OteJsonEvent[];
+}
+
+export type OteJsonPreviewInput = OteJsonFeed | OteJsonEvent[];
+
+export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
+  const json = Array.isArray(input) ? { events: input } : input;
   if (!Array.isArray(json.events)) throw new Error("feed.json has no events array");
   return {
     title: json.title,
@@ -48,6 +54,7 @@ export function jsonToPreviewFeed(text: string): PreviewFeed {
         organizerName,
         tags: event.tags,
         attendanceMode: event.attendanceMode,
+        updatedAt: event.updatedAt,
         details: detailRows([
           ["ID", event.id],
           ["Status", event.status],
@@ -64,4 +71,8 @@ export function jsonToPreviewFeed(text: string): PreviewFeed {
       };
     }),
   };
+}
+
+export function jsonToPreviewFeed(text: string): PreviewFeed {
+  return oteJsonToPreviewFeed(JSON.parse(text) as OteJsonPreviewInput);
 }

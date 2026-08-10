@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ote-events — embeddable OTE events widget</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github-dark.min.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -19,30 +20,53 @@
     </p>
   </header>
 
-  <main>
+  <main class="playground-layout">
+    <div class="controls-column">
     <section class="panel controls" aria-labelledby="controls-heading">
       <h2 id="controls-heading">Try it</h2>
 
       <div class="field">
+        <span class="fields-legend">data source</span>
+        <div class="source-options">
+          <label><input type="radio" name="source-mode" value="url" checked /> feed URL</label>
+          <label><input type="radio" name="source-mode" value="json" /> manual JSON</label>
+        </div>
+      </div>
+
+      <div class="field" id="feed-source-field">
         <label for="feed-input">feed</label>
         <input type="url" id="feed-input" value="https://combuilderses.github.io/events/feed.json" />
-        <p class="hint">Required. The URL of an OTE <code>feed.json</code> document.</p>
+        <p class="hint">The URL of an OTE <code>feed.json</code> document.</p>
+      </div>
+
+      <div class="field" id="json-source-field" hidden>
+        <label for="feed-data-input">feedData / event JSON</label>
+        <textarea id="feed-data-input" rows="9" spellcheck="false" disabled placeholder='{"events":[{"name":"Runtime event","startDate":"2999-01-01"}]}'></textarea>
+        <p class="hint">Paste an OTE feed object, an event array, or one OTE event object.</p>
       </div>
 
       <div class="field">
         <label for="limit-input">limit</label>
-        <input type="number" id="limit-input" min="1" step="1" value="6" />
-        <p class="hint">Maximum number of events to show. Default: 6.</p>
+        <input type="number" id="limit-input" min="1" step="1" placeholder="No limit" />
+        <p class="hint">Optional maximum number of events to show. Default: no limit.</p>
       </div>
 
       <div class="field">
-        <label for="layout-select">layout</label>
-        <select id="layout-select">
-          <option value="list" selected>list</option>
-          <option value="cards">cards</option>
-          <option value="calendar">calendar</option>
-        </select>
-        <p class="hint">Presentation of the same event data. Default: list.</p>
+        <label for="placeholder-image-input">placeholder-image override</label>
+        <input type="url" id="placeholder-image-input" placeholder="Optional image URL for cards without images" />
+        <p class="hint">Optional. Cards use a built-in placeholder when an event has no image.</p>
+      </div>
+
+      <div class="field">
+        <label for="font-family-input">font-family</label>
+        <input type="text" id="font-family-input" placeholder='system default, Inter, "Segoe UI", sans-serif' />
+        <p class="hint">Optional CSS font-family for the widget.</p>
+      </div>
+
+      <div class="field">
+        <label for="font-size-input">font-size</label>
+        <input type="text" id="font-size-input" placeholder="1rem, 16px, 0.95em..." />
+        <p class="hint">Optional base font-size for the widget.</p>
       </div>
 
       <div class="field">
@@ -61,16 +85,6 @@
       </div>
 
       <div class="field">
-        <label for="theme-select">theme</label>
-        <select id="theme-select">
-          <option value="auto" selected>auto</option>
-          <option value="light">light</option>
-          <option value="dark">dark</option>
-        </select>
-        <p class="hint">"auto" follows the visitor's OS/browser preference.</p>
-      </div>
-
-      <div class="field">
         <label for="lang-select">lang</label>
         <select id="lang-select">
           <option value="auto" selected>auto</option>
@@ -82,31 +96,66 @@
 
       <div class="field field-checkbox">
         <label for="show-past-checkbox">
-          <input type="checkbox" id="show-past-checkbox" />
+          <input type="checkbox" id="show-past-checkbox" checked />
           show-past
         </label>
-        <p class="hint">Include events whose start date has already passed. Default: off.</p>
+        <p class="hint">Include events whose start date has already passed. Default: on.</p>
       </div>
     </section>
+    </div>
 
+    <div class="output-column">
     <section class="panel" aria-labelledby="preview-heading">
       <h2 id="preview-heading">Live preview</h2>
+      <div class="preview-toolbar">
+        <div class="segmented-toolbar" role="group" aria-label="Preview layout">
+          <button type="button" class="preview-button" data-layout="calendar" aria-pressed="true" title="Calendar layout">
+            <span class="preview-icon icon-calendar" aria-hidden="true"></span>
+            <span>Calendar</span>
+          </button>
+          <button type="button" class="preview-button" data-layout="list" aria-pressed="false" title="List layout">
+            <span class="preview-icon icon-list" aria-hidden="true"></span>
+            <span>List</span>
+          </button>
+          <button type="button" class="preview-button" data-layout="cards" aria-pressed="false" title="Cards layout">
+            <span class="preview-icon icon-cards" aria-hidden="true"></span>
+            <span>Cards</span>
+          </button>
+        </div>
+        <div class="segmented-toolbar" role="group" aria-label="Preview theme">
+          <button type="button" class="preview-button" data-theme="auto" aria-pressed="true" title="Auto theme">
+            <span class="preview-icon icon-auto" aria-hidden="true"></span>
+            <span>Auto</span>
+          </button>
+          <button type="button" class="preview-button" data-theme="light" aria-pressed="false" title="Light theme">
+            <span class="preview-icon icon-light" aria-hidden="true"></span>
+            <span>Light</span>
+          </button>
+          <button type="button" class="preview-button" data-theme="dark" aria-pressed="false" title="Dark theme">
+            <span class="preview-icon icon-dark" aria-hidden="true"></span>
+            <span>Dark</span>
+          </button>
+        </div>
+      </div>
       <div class="widget-frame">
-        <ote-events id="preview-widget" feed="https://combuilderses.github.io/events/feed.json" limit="6"></ote-events>
+        <ote-events id="preview-widget" feed="https://combuilderses.github.io/events/feed.json"></ote-events>
       </div>
     </section>
 
     <section class="panel" aria-labelledby="snippet-heading">
       <h2 id="snippet-heading">Copy-paste snippet</h2>
       <p class="hint">This is the exact markup for the configuration above.</p>
+      <p class="hint error" id="data-error" hidden></p>
       <div class="snippet-box">
-        <pre><code id="snippet-code"></code></pre>
+        <pre><code id="snippet-code" class="language-html"></code></pre>
         <button type="button" id="copy-button">Copy</button>
       </div>
     </section>
+    </div>
   </main>
 
   <script type="module" src="./ote-events.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js"></script>
   <script type="module" src="./playground.js"></script>
 </body>
 </html>

@@ -1,5 +1,9 @@
-import { jsonToPreviewFeed } from "@opentechevents/preview-feed";
-import type { PreviewFeed } from "@opentechevents/preview-feed";
+import { jsonToPreviewFeed, oteJsonToPreviewFeed } from "@opentechevents/preview-feed";
+import type {
+  OteJsonEvent,
+  OteJsonPreviewInput,
+  PreviewFeed,
+} from "@opentechevents/preview-feed";
 
 import {
   parseFields,
@@ -16,7 +20,7 @@ type Status = "idle" | "loading" | "loaded" | "error";
 type CalendarHandle = { destroy(): void };
 
 /**
- * `<ote-events feed="..." limit="6" theme="auto" lang="auto" show-past="false" layout="list" fields="...">`
+ * `<ote-events feed="..." limit="..." theme="auto" lang="auto" show-past="true" layout="calendar" fields="...">`
  *
  * Fetches a native OTE JSON feed client-side and renders upcoming events.
  * Deliberately JSON-only (not ICS/RSS): OTE's canonical publish format is
@@ -33,11 +37,13 @@ export class OteEventsElement extends HTMLElement {
     "show-past",
     "layout",
     "fields",
+    "placeholder-image",
   ];
 
   #styleEl: HTMLStyleElement;
   #container: HTMLElement;
   #feed: PreviewFeed | undefined;
+  #runtimeData: OteJsonPreviewInput | undefined;
   #status: Status = "idle";
   #errorMessage = "";
   #requestId = 0;
@@ -57,7 +63,8 @@ export class OteEventsElement extends HTMLElement {
   }
 
   connectedCallback(): void {
-    void this.#load();
+    if (this.#runtimeData) this.#renderNow();
+    else void this.#load();
   }
 
   disconnectedCallback(): void {
@@ -73,7 +80,34 @@ export class OteEventsElement extends HTMLElement {
     }
   }
 
+  get feedData(): OteJsonPreviewInput | undefined {
+    return this.#runtimeData;
+  }
+
+  set feedData(value: OteJsonPreviewInput | null | undefined) {
+    this.#setRuntimeData(value);
+  }
+
+  get events(): OteJsonEvent[] | undefined {
+    if (!this.#runtimeData) return undefined;
+    return Array.isArray(this.#runtimeData) ? this.#runtimeData : this.#runtimeData.events;
+  }
+
+  set events(value: OteJsonEvent[] | null | undefined) {
+    this.#setRuntimeData(value);
+  }
+
+  get event(): OteJsonEvent | undefined {
+    return this.events?.[0];
+  }
+
+  set event(value: OteJsonEvent | null | undefined) {
+    this.#setRuntimeData(value == null ? value : [value]);
+  }
+
   async #load(): Promise<void> {
+    if (this.#runtimeData) return;
+
     const feedUrl = this.getAttribute("feed");
     if (!feedUrl) {
       this.#status = "error";
@@ -104,6 +138,30 @@ export class OteEventsElement extends HTMLElement {
     this.#renderNow();
   }
 
+  #setRuntimeData(value: OteJsonPreviewInput | null | undefined): void {
+    this.#requestId++;
+
+    if (value == null) {
+      this.#runtimeData = undefined;
+      this.#feed = undefined;
+      this.#errorMessage = "";
+      if (this.isConnected) void this.#load();
+      return;
+    }
+
+    this.#runtimeData = value;
+    try {
+      this.#feed = oteJsonToPreviewFeed(value);
+      this.#status = "loaded";
+      this.#errorMessage = "";
+    } catch (error) {
+      this.#feed = undefined;
+      this.#status = "error";
+      this.#errorMessage = error instanceof Error ? error.message : String(error);
+    }
+    if (this.isConnected) this.#renderNow();
+  }
+
   #renderNow(): void {
     const lang = resolveLang(parseLangAttr(this.getAttribute("lang")), navigator.language);
     const state: WidgetState = {
@@ -115,6 +173,7 @@ export class OteEventsElement extends HTMLElement {
       showPast: parseShowPast(this.getAttribute("show-past")),
       layout: parseLayout(this.getAttribute("layout")),
       fields: parseFields(this.getAttribute("fields")),
+      placeholderImage: this.getAttribute("placeholder-image")?.trim() || undefined,
     };
     renderWidget(this.#container, state);
 
@@ -151,6 +210,10 @@ export class OteEventsElement extends HTMLElement {
       }
       const host = this.#container.querySelector<HTMLElement>(".calendar-host");
       if (!host) return;
+      host.classList.remove("ec-dark", "ec-auto-dark");
+      const theme = this.getAttribute("theme");
+      if (theme === "dark") host.classList.add("ec-dark");
+      else if (theme !== "light") host.classList.add("ec-auto-dark");
       host.replaceChildren(); // clear the "Loading…" placeholder before mounting
       this.#calendarHandle = module.renderCalendar(host, events, {
         onEventClick: (event) => {

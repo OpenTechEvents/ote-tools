@@ -1,4 +1,5 @@
 export type { PreviewEvent, PreviewFeed } from "./types.js";
+export type { OteJsonEvent, OteJsonFeed, OteJsonPreviewInput } from "./json.js";
 export {
   addDays,
   cheapestPrice,
@@ -13,6 +14,6 @@ export {
   sortedEvents,
   truncate,
 } from "./format.js";
-export { jsonToPreviewFeed } from "./json.js";
+export { jsonToPreviewFeed, oteJsonToPreviewFeed } from "./json.js";
 export { calendarTitle, icsToPreviewFeed } from "./ics.js";
 export { rssToPreview } from "./rss.js";

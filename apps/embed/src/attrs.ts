@@ -1,5 +1,3 @@
-export const DEFAULT_LIMIT = 6;
-
 // theme="light|dark|auto" has no parser here: theme.css.ts's :host()
 // selectors read the raw attribute directly (see element.ts), and an
 // unrecognized value simply falls back to the light defaults — no JS
@@ -42,9 +40,9 @@ function isFieldKey(value: string): value is FieldKey {
 }
 
 export function parseLimit(value: string | null): number {
-  if (!value) return DEFAULT_LIMIT;
+  if (!value) return Infinity;
   const n = Number.parseInt(value, 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_LIMIT;
+  return Number.isFinite(n) && n > 0 ? n : Infinity;
 }
 
 export function parseLangAttr(value: string | null): LangAttr {
@@ -58,13 +56,13 @@ export function resolveLang(attr: LangAttr, navigatorLanguage: string): Lang {
 }
 
 export function parseShowPast(value: string | null): boolean {
-  return value === "true";
+  return value !== "false";
 }
 
 export function parseLayout(value: string | null): Layout {
   if (value === "cards") return "cards";
-  if (value === "calendar") return "calendar";
-  return "list";
+  if (value === "list") return "list";
+  return "calendar";
 }
 
 /**

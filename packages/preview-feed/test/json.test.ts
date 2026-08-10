@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { jsonToPreviewFeed } from "../src/json.js";
+import { jsonToPreviewFeed, oteJsonToPreviewFeed } from "../src/json.js";
 
 const fixture = readFileSync(
   fileURLToPath(new URL("../fixtures/feed.json", import.meta.url)),
@@ -72,6 +72,31 @@ describe("jsonToPreviewFeed", () => {
       JSON.stringify({ events: [{ startDate: "2026-01-01" }] }),
     );
     expect(feed.events[0]!.name).toBe("(untitled event)");
+  });
+
+  it("maps an already-parsed OTE feed object", () => {
+    const feed = oteJsonToPreviewFeed({
+      title: "In-memory feed",
+      events: [{ name: "Runtime Event", startDate: "2026-01-01" }],
+    });
+
+    expect(feed.title).toBe("In-memory feed");
+    expect(feed.events[0]).toMatchObject({
+      name: "Runtime Event",
+      startDate: "2026-01-01",
+    });
+  });
+
+  it("maps an already-parsed OTE event array", () => {
+    const feed = oteJsonToPreviewFeed([
+      { name: "First Runtime Event", startDate: "2026-01-01" },
+      { name: "Second Runtime Event", startDate: "2026-01-02" },
+    ]);
+
+    expect(feed.events.map((event) => event.name)).toEqual([
+      "First Runtime Event",
+      "Second Runtime Event",
+    ]);
   });
 
   it("throws when the input has no events array", () => {
