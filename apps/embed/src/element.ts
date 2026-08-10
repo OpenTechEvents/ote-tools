@@ -180,7 +180,7 @@ export class OteEventsElement extends HTMLElement {
     if (state.layout === "calendar" && state.status === "loaded") {
       const events = selectVisibleEvents(state);
       if (events.length > 0) {
-        void this.#mountCalendar(events);
+        void this.#mountCalendar(events, state.lang);
         return;
       }
     }
@@ -193,7 +193,10 @@ export class OteEventsElement extends HTMLElement {
    * by a URL relative to this running script — not esbuild's `splitting`
    * feature, which this repo has no precedent for. See apps/embed/CLAUDE.md.
    */
-  async #mountCalendar(events: ReturnType<typeof selectVisibleEvents>): Promise<void> {
+  async #mountCalendar(
+    events: ReturnType<typeof selectVisibleEvents>,
+    lang: WidgetState["lang"],
+  ): Promise<void> {
     this.#teardownCalendar();
     const requestId = ++this.#calendarRequestId;
     try {
@@ -216,6 +219,7 @@ export class OteEventsElement extends HTMLElement {
       else if (theme !== "light") host.classList.add("ec-auto-dark");
       host.replaceChildren(); // clear the "Loading…" placeholder before mounting
       this.#calendarHandle = module.renderCalendar(host, events, {
+        lang,
         onEventClick: (event) => {
           if (event.link) window.open(event.link, "_blank", "noopener");
         },

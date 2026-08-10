@@ -3,6 +3,8 @@ import type { PreviewEvent } from "@opentechevents/preview-feed";
 import { createCalendar, destroyCalendar, DayGrid } from "@event-calendar/core";
 import type { Calendar } from "@event-calendar/core";
 
+import type { Lang } from "./attrs.js";
+
 // esbuild's `.css` -> `text` loader, configured for this entry point only
 // (see build.mjs), turns this into the stylesheet's plain text content
 // instead of a linked <link>/<style> in the light DOM — the library itself
@@ -43,12 +45,35 @@ function toCalendarEvents(events: PreviewEvent[]) {
   });
 }
 
+export function calendarLocaleOptions(lang: Lang): Calendar.Options {
+  const locale = lang === "es" ? "es-ES" : "en-US";
+  return {
+    locale,
+    firstDay: lang === "es" ? 1 : 0,
+    buttonText:
+      lang === "es"
+        ? { prev: "Mes anterior", next: "Mes siguiente" }
+        : { prev: "Previous month", next: "Next month" },
+    titleFormat: (start) => capitalizeFirst(
+      new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(start),
+    ),
+    dayHeaderFormat: { weekday: "short" },
+    dayHeaderAriaLabelFormat: { weekday: "long" },
+    eventTimeFormat: { hour: "numeric", minute: "2-digit" },
+  };
+}
+
+function capitalizeFirst(value: string): string {
+  return value.charAt(0).toLocaleUpperCase() + value.slice(1);
+}
+
 export function renderCalendar(
   container: HTMLElement,
   events: PreviewEvent[],
-  options: { onEventClick: (event: PreviewEvent) => void },
+  options: { lang: Lang; onEventClick: (event: PreviewEvent) => void },
 ): CalendarHandle {
   const calendar: Calendar = createCalendar(container, [DayGrid], {
+    ...calendarLocaleOptions(options.lang),
     view: "dayGridMonth",
     events: toCalendarEvents(events),
     height: "auto",
