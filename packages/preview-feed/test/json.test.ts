@@ -41,11 +41,12 @@ describe("jsonToPreviewFeed", () => {
     ]);
   });
 
-  it("falls back to the online URL for both location and link when there is no venue/url", () => {
+  it("uses a friendly online location label while preserving the link target", () => {
     const [, event] = jsonToPreviewFeed(fixture).events;
     expect(event).toMatchObject({
       name: "Minimal Fixture Event",
-      location: "https://meet.example/fixture",
+      location: "Online link",
+      locationLink: "https://meet.example/fixture",
       link: "https://meet.example/fixture",
     });
   });

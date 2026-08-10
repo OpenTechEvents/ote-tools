@@ -81,7 +81,30 @@ export function formatDate(value: string | undefined, timezone: string | undefin
 export function eventLocation(event: {
   location?: { venue?: string; onlineUrl?: string };
 }): string {
-  return event.location?.venue ?? event.location?.onlineUrl ?? "online";
+  return event.location?.venue ?? onlineLocationLabel(event.location?.onlineUrl) ?? "online";
+}
+
+export function onlineLocationLabel(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "Online link";
+  }
+
+  if (host === "meet.google.com") return "Google Meet";
+  if (host === "teams.microsoft.com") return "Microsoft Teams";
+  if (host === "meet.jit.si" || host.endsWith(".jitsi.net")) return "Jitsi Meet";
+  if (host === "discord.gg" || host === "discord.com") return "Discord";
+  if (host === "youtube.com" || host === "youtu.be") return "YouTube";
+  if (host === "twitch.tv") return "Twitch";
+  if (host === "lu.ma") return "Luma";
+  if (host.endsWith(".zoom.us") || host === "zoom.us") return "Zoom";
+  if (host.endsWith(".slack.com") || host === "slack.com") return "Slack";
+  if (host.endsWith(".meetup.com") || host === "meetup.com") return "Meetup";
+  if (host.endsWith(".eventbrite.com") || host === "eventbrite.com") return "Eventbrite";
+  return "Online link";
 }
 
 export function eventWhen(event: PreviewEvent): string {

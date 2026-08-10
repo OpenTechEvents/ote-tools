@@ -47,6 +47,7 @@ export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
         endDate: event.endDate,
         timezone: event.timezone,
         location: eventLocation(event),
+        locationLink: event.location?.onlineUrl,
         link: event.url ?? event.location?.onlineUrl,
         description: event.description,
         image,

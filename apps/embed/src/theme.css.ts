@@ -297,10 +297,46 @@ ul.events.layout-cards {
   text-decoration: underline;
 }
 
+.event-location a {
+  color: var(--ote-accent);
+  text-decoration: none;
+}
+
+.event-location > span,
+.event-location a {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-detail-list dd a {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+  color: var(--ote-accent);
+  text-decoration: none;
+}
+
+.event-location a:hover,
+.event-location a:focus-visible,
+.event-detail-list dd a:hover,
+.event-detail-list dd a:focus-visible {
+  color: var(--ote-accent-hover);
+  text-decoration: underline;
+}
+
 .event-when,
 .event-location,
 .event-organizer {
   margin: 0.15rem 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   font-size: 0.875rem;
   color: var(--ote-muted);
 }

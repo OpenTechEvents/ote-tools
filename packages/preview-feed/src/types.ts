@@ -5,6 +5,7 @@ export interface PreviewEvent {
   timezone?: string;
   dateLabel?: string;
   location?: string;
+  locationLink?: string;
   link?: string;
   description?: string;
   details?: Array<{ label: string; value: string }>;

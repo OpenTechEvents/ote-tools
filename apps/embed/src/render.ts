@@ -1,4 +1,10 @@
-import { eventWhen, parseSortDate, sortedEvents, truncate } from "@opentechevents/preview-feed";
+import {
+  eventWhen,
+  onlineLocationLabel,
+  parseSortDate,
+  sortedEvents,
+  truncate,
+} from "@opentechevents/preview-feed";
 import type { PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
 
 import type { FieldKey, Lang, Layout } from "./attrs.js";
@@ -62,6 +68,29 @@ function el<K extends keyof HTMLElementTagNameMap>(
 function withText<T extends HTMLElement>(node: T, text: string): T {
   node.textContent = text;
   return node;
+}
+
+function locationNode(event: PreviewEvent, strings: Strings): HTMLElement {
+  const rawLocation = event.location && event.location !== "online" ? event.location : strings.online;
+  const inferredLink = event.locationLink ?? urlLike(rawLocation);
+  const location = inferredLink ? onlineLocationLabel(inferredLink) ?? strings.online : rawLocation;
+  if (!inferredLink) return withText(el("span"), location);
+  const link = el("a");
+  link.href = inferredLink;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = location;
+  return link;
+}
+
+function urlLike(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isPastEvent(event: PreviewEvent): boolean {
@@ -261,8 +290,9 @@ function renderCardEvent(
   }
 
   if (fields.has("location")) {
-    const location = event.location && event.location !== "online" ? event.location : strings.online;
-    body.append(withText(el("p", "event-location"), location));
+    const location = el("p", "event-location");
+    location.append(locationNode(event, strings));
+    body.append(location);
   }
 
   if (fields.has("organizer") && event.organizerName) {
@@ -292,6 +322,13 @@ const TECHNICAL_DETAIL_LABELS = new Set(["ID", "Source", "Image", "Updated"]);
 function appendDetailRow(list: HTMLDListElement, label: string, value: string | undefined): void {
   if (!value) return;
   list.append(withText(el("dt"), label), withText(el("dd"), value));
+}
+
+function appendDetailNode(list: HTMLDListElement, label: string, value: Node | undefined): void {
+  if (!value) return;
+  const dd = el("dd");
+  dd.append(value);
+  list.append(withText(el("dt"), label), dd);
 }
 
 function iconHeader(className: string, label: string): HTMLElement {
@@ -365,8 +402,7 @@ function renderListEvent(
   const detailList = el("dl", "event-detail-list");
   if (fields.has("when")) appendDetailRow(detailList, strings.when, when);
   if (fields.has("location")) {
-    const location = event.location && event.location !== "online" ? event.location : strings.online;
-    appendDetailRow(detailList, strings.location, location);
+    appendDetailNode(detailList, strings.location, locationNode(event, strings));
   }
   if (fields.has("organizer")) appendDetailRow(detailList, strings.organizer, event.organizerName);
   appendDetailRow(

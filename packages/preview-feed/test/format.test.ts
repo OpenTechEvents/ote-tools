@@ -10,6 +10,7 @@ import {
   formatDate,
   isDateOnly,
   nonEmpty,
+  onlineLocationLabel,
   parseSortDate,
   sortedEvents,
   truncate,
@@ -96,10 +97,29 @@ describe("addDays", () => {
 });
 
 describe("eventLocation", () => {
-  it("prefers venue over onlineUrl, falls back to 'online'", () => {
+  it("prefers venue over onlineUrl, falls back to an online label", () => {
     expect(eventLocation({ location: { venue: "Hall" } })).toBe("Hall");
-    expect(eventLocation({ location: { onlineUrl: "https://x" } })).toBe("https://x");
+    expect(eventLocation({ location: { onlineUrl: "https://x.example/room" } })).toBe(
+      "Online link",
+    );
     expect(eventLocation({})).toBe("online");
+  });
+});
+
+describe("onlineLocationLabel", () => {
+  it("labels recognizable online event platforms", () => {
+    expect(onlineLocationLabel("https://meet.google.com/abc-defg-hij")).toBe("Google Meet");
+    expect(onlineLocationLabel("https://example.zoom.us/j/123")).toBe("Zoom");
+    expect(onlineLocationLabel("https://teams.microsoft.com/l/meetup-join/abc")).toBe(
+      "Microsoft Teams",
+    );
+    expect(onlineLocationLabel("https://discord.gg/example")).toBe("Discord");
+  });
+
+  it("uses a generic label for unknown or invalid URLs", () => {
+    expect(onlineLocationLabel("https://example.org/event")).toBe("Online link");
+    expect(onlineLocationLabel("not a url")).toBe("Online link");
+    expect(onlineLocationLabel(undefined)).toBeUndefined();
   });
 });
 

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineOteEvents, type OteEventsElement } from "../src/element.js";
+import { renderWidget, type WidgetState } from "../src/render.js";
 
 defineOteEvents();
 
@@ -28,6 +29,27 @@ const SAMPLE_FEED = JSON.stringify({
     { name: "Past Event", startDate: "2000-01-01" },
   ],
 });
+
+function rawLocationState(layout: WidgetState["layout"]): WidgetState {
+  return {
+    status: "loaded",
+    errorMessage: "",
+    feed: {
+      events: [
+        {
+          name: "Raw Location Event",
+          startDate: "2999-01-01",
+          location: "https://meet.jit.si/ParliamentaryCommunicationsAspireSomehow",
+        },
+      ],
+    },
+    lang: "en",
+    limit: Number.POSITIVE_INFINITY,
+    showPast: true,
+    layout,
+    fields: new Set(["location"]),
+  };
+}
 
 describe("<ote-events>", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
@@ -252,6 +274,80 @@ describe("<ote-events>", () => {
     document.body.append(el);
     await flush();
     expect(el.shadowRoot!.querySelector(".event-organizer")?.textContent).toBe("Fixture Org");
+  });
+
+  it("shows a friendly online location label instead of the raw URL", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Online Event",
+              startDate: "2999-01-01",
+              location: { onlineUrl: "https://meet.google.com/abc-defg-hij" },
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/online.json");
+    document.body.append(el);
+    await flush();
+
+    const location = el.shadowRoot!.querySelector<HTMLAnchorElement>(".event-location a");
+    expect(location?.textContent).toBe("Google Meet");
+    expect(location?.href).toBe("https://meet.google.com/abc-defg-hij");
+    expect(el.shadowRoot!.textContent).not.toContain("meet.google.com/abc-defg-hij");
+  });
+
+  it("defensively hides raw URL locations in cards", () => {
+    const container = document.createElement("div");
+    renderWidget(container, rawLocationState("cards"));
+
+    const location = container.querySelector<HTMLAnchorElement>(".event-location a");
+    expect(location?.textContent).toBe("Jitsi Meet");
+    expect(location?.href).toBe("https://meet.jit.si/ParliamentaryCommunicationsAspireSomehow");
+    expect(container.textContent).not.toContain("meet.jit.si/ParliamentaryCommunicationsAspireSomehow");
+  });
+
+  it("shows a friendly online location label in the list details", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Online Event",
+              startDate: "2999-01-01",
+              location: { onlineUrl: "https://meet.google.com/abc-defg-hij" },
+            },
+          ],
+        }),
+    });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/online.json");
+    document.body.append(el);
+    await flush();
+
+    const location = el.shadowRoot!.querySelector<HTMLAnchorElement>(
+      ".event-detail-list dd a",
+    );
+    expect(location?.textContent).toBe("Google Meet");
+    expect(location?.href).toBe("https://meet.google.com/abc-defg-hij");
+    expect(el.shadowRoot!.textContent).not.toContain("meet.google.com/abc-defg-hij");
+  });
+
+  it("defensively hides raw URL locations in list details", () => {
+    const container = document.createElement("div");
+    renderWidget(container, rawLocationState("list"));
+
+    const location = container.querySelector<HTMLAnchorElement>(".event-detail-list dd a");
+    expect(location?.textContent).toBe("Jitsi Meet");
+    expect(location?.href).toBe("https://meet.jit.si/ParliamentaryCommunicationsAspireSomehow");
+    expect(container.textContent).not.toContain("meet.jit.si/ParliamentaryCommunicationsAspireSomehow");
   });
 
   it("renders the list layout as table-like accordions with readable metadata", async () => {

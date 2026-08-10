@@ -10,6 +10,7 @@ export {
   formatDate,
   isDateOnly,
   nonEmpty,
+  onlineLocationLabel,
   parseSortDate,
   sortedEvents,
   truncate,
