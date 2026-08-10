@@ -25,4 +25,5 @@
 
 ### References
 
+- Feature issue: https://github.com/OpenTechEvents/ote-tools/issues/31
 - Documentation tracking issue: https://github.com/OpenTechEvents/ote-tools/issues/45
