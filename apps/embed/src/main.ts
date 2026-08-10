@@ -9,4 +9,5 @@ export type {
   EventActionIcon,
   EventActionPlacement,
   EventActionVariant,
+  NativeEventActionConfig,
 } from "./render.js";

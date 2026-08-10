@@ -1,4 +1,4 @@
-import { cpSync, copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 import * as esbuild from "esbuild";
 
@@ -6,6 +6,17 @@ const serve = process.argv.includes("--serve");
 const snapshotVersion = process.argv.includes("--snapshot-version");
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const version = packageJson.version;
+const oteSpecVersion = packageJson.oteSpecVersion;
+const oteSpecSchemaVersion = String(oteSpecVersion).split(".").slice(0, 2).join(".");
+
+function copyStaticFile(file) {
+  const contents = readFileSync(file, "utf8")
+    .replaceAll("__EMBED_VERSION__", version)
+    .replaceAll("__OTE_SPEC_VERSION__", oteSpecVersion)
+    .replaceAll("__OTE_SPEC_SCHEMA_VERSION__", oteSpecSchemaVersion);
+  mkdirSync("dist", { recursive: true });
+  writeFileSync(`dist/${file}`, contents);
+}
 
 const common = {
   bundle: true,
@@ -17,6 +28,7 @@ const common = {
   logLevel: "info",
   define: {
     __EMBED_VERSION__: JSON.stringify(version),
+    __OTE_SPEC_VERSION__: JSON.stringify(oteSpecVersion),
   },
 };
 
@@ -50,9 +62,7 @@ const calendarLayout = {
 };
 
 mkdirSync("dist", { recursive: true });
-for (const file of ["index.html", "styles.css"]) {
-  copyFileSync(file, `dist/${file}`);
-}
+for (const file of ["index.html", "styles.css"]) copyStaticFile(file);
 
 if (serve) {
   const widgetCtx = await esbuild.context(widget);

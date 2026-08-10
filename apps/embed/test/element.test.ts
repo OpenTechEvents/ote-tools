@@ -778,6 +778,35 @@ describe("<ote-events>", () => {
     expect(modalActions?.textContent).toContain("Clone");
   });
 
+  it("renders configured native actions in preview and detail placements", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const actionEvent = vi.fn();
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("event-actions", "none");
+    el.eventActions = [
+      { type: "link", placement: "preview" },
+      { type: "google-calendar", placement: "both" },
+    ];
+    el.addEventListener("ote-event-action", actionEvent);
+    document.body.append(el);
+    await flush();
+
+    const previewActions = el.shadowRoot!.querySelector(".event-preview-actions");
+    expect(previewActions?.textContent).toContain("Open event page");
+    expect(previewActions?.textContent).toContain("Add to calendar");
+    expect(previewActions?.querySelector('a[href="https://example.org/rich"] .action-icon')).toBeTruthy();
+
+    previewActions?.querySelector<HTMLAnchorElement>('a[href="https://example.org/rich"]')?.click();
+    expect(actionEvent.mock.calls.at(-1)?.[0].detail.action).toBe("link");
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    const modalActions = el.shadowRoot!.querySelector(".event-modal > .event-actions");
+    expect(modalActions?.textContent).toContain("Add to calendar");
+    expect(modalActions?.textContent).not.toContain("Open event page");
+  });
+
   it("honors custom action layout filters", async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
     const edit = vi.fn();

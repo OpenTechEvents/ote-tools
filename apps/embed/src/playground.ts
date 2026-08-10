@@ -7,7 +7,7 @@ import {
   type NativeEventAction,
 } from "./attrs.js";
 import type { OteEventsElement } from "./element.js";
-import type { EventActionPlacement } from "./render.js";
+import type { EventAction, EventActionPlacement } from "./render.js";
 
 declare const __EMBED_VERSION__: string;
 
@@ -29,6 +29,9 @@ const eventClickSelect = document.querySelector<HTMLSelectElement>("#event-click
 const eventActionCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".event-action-checkbox"),
 );
+const nativeActionPlacementSelect = document.querySelector<HTMLSelectElement>(
+  "#native-action-placement-select",
+)!;
 const customActionCheckbox = document.querySelector<HTMLInputElement>("#custom-action-checkbox")!;
 const customActionPlacementSelect = document.querySelector<HTMLSelectElement>(
   "#custom-action-placement-select",
@@ -111,6 +114,8 @@ function buildSnippet(config: {
   placeholderImage: string;
   eventClick: EventClickMode;
   eventActions: string | undefined;
+  nativeActions: NativeEventAction[];
+  nativeActionPlacement: EventActionPlacement;
   customAction: boolean;
   customActionPlacement: EventActionPlacement;
   fontFamily: string;
@@ -155,21 +160,33 @@ function buildSnippet(config: {
       "</script>",
     );
   }
-  if (config.customAction) {
+  const nativeActionPropertyLines =
+    config.nativeActionPlacement === "detail"
+      ? []
+      : config.nativeActions.map(
+          (action) => `    { type: "${action}", placement: "${config.nativeActionPlacement}" },`,
+        );
+  const customActionPropertyLines = config.customAction
+    ? [
+        `    {`,
+        `      id: "save",`,
+        `      label: "Save",`,
+        `      icon: "copy",`,
+        `      placement: "${config.customActionPlacement}",`,
+        `      onClick(event) {`,
+        `        alert(\`Custom action for: \${event.name}\`);`,
+        `      },`,
+        `    },`,
+      ]
+    : [];
+  const eventActionPropertyLines = [...nativeActionPropertyLines, ...customActionPropertyLines];
+  if (eventActionPropertyLines.length > 0) {
     lines.push(
       "",
       `<script type="module">`,
       `  await customElements.whenDefined("ote-events");`,
       `  document.querySelector("#events-widget").eventActions = [`,
-      `    {`,
-      `      id: "save",`,
-      `      label: "Save",`,
-      `      icon: "copy",`,
-      `      placement: "${config.customActionPlacement}",`,
-      `      onClick(event) {`,
-      `        alert(\`Custom action for: \${event.name}\`);`,
-      `      },`,
-      `    },`,
+      ...eventActionPropertyLines,
       `  ];`,
       `</script>`,
     );
@@ -281,8 +298,9 @@ function applyAndRender(): void {
   const placeholderImage = placeholderImageInput.value.trim();
   const eventClick = eventClickSelect.value as EventClickMode;
   const eventActions = currentEventActions();
+  const nativeActionPlacement = nativeActionPlacementSelect.value as EventActionPlacement;
   const eventActionsAttr =
-    eventActions.length === 0
+    nativeActionPlacement !== "detail" || eventActions.length === 0
       ? "none"
       : isDefaultEventActions(eventActions)
         ? undefined
@@ -310,19 +328,22 @@ function applyAndRender(): void {
   else widget.setAttribute("event-click", eventClick);
   if (eventActionsAttr) widget.setAttribute("event-actions", eventActionsAttr);
   else widget.removeAttribute("event-actions");
-  widget.eventActions = customAction
-    ? [
-        {
-          id: "save",
-          label: "Save",
-          icon: "copy",
-          placement: customActionPlacement,
-          onClick(event) {
-            alert(`Custom action for: ${event.name}`);
-          },
-        },
-      ]
-    : [];
+  const propertyActions: EventAction[] =
+    nativeActionPlacement === "detail"
+      ? []
+      : eventActions.map((action) => ({ type: action, placement: nativeActionPlacement }));
+  if (customAction) {
+    propertyActions.push({
+      id: "save",
+      label: "Save",
+      icon: "copy",
+      placement: customActionPlacement,
+      onClick(event) {
+        alert(`Custom action for: ${event.name}`);
+      },
+    });
+  }
+  widget.eventActions = propertyActions;
   if (fontFamily) widget.style.setProperty("--ote-font-family", fontFamily);
   else widget.style.removeProperty("--ote-font-family");
   if (fontSize) widget.style.setProperty("--ote-font-size", fontSize);
@@ -351,6 +372,8 @@ function applyAndRender(): void {
     placeholderImage,
     eventClick,
     eventActions: eventActionsAttr,
+    nativeActions: eventActions,
+    nativeActionPlacement,
     customAction,
     customActionPlacement,
     fontFamily,
@@ -367,6 +390,7 @@ for (const control of [
   limitInput,
   placeholderImageInput,
   eventClickSelect,
+  nativeActionPlacementSelect,
   customActionCheckbox,
   customActionPlacementSelect,
   fontFamilyInput,

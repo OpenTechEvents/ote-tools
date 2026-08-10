@@ -1,6 +1,7 @@
 {
   "name": "@opentechevents/embed",
-  "version": "0.1.1",
+  "version": "0.2.0",
+  "oteSpecVersion": "0.3.0",
   "description": "Embeddable <ote-events> web component: drop an OTE feed into any website",
   "license": "MIT",
   "private": true,

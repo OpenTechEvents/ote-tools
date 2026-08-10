@@ -210,7 +210,7 @@ export class OteEventsElement extends HTMLElement {
         this.#renderNow();
       },
       onEventAction: (action, event) => {
-        const actionId = typeof action === "string" ? action : action.id;
+        const actionId = typeof action === "string" ? action : "type" in action ? action.type : action.id;
         this.dispatchEvent(
           new CustomEvent("ote-event-action", { detail: { action: actionId, event } }),
         );

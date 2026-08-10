@@ -25,7 +25,13 @@ export interface CustomEventAction {
   onClick(event: PreviewEvent): void;
 }
 
-export type EventAction = NativeEventAction | CustomEventAction;
+export interface NativeEventActionConfig {
+  type: NativeEventAction;
+  placement?: EventActionPlacement;
+  layouts?: Layout[];
+}
+
+export type EventAction = NativeEventAction | NativeEventActionConfig | CustomEventAction;
 
 export interface WidgetState {
   status: "idle" | "loading" | "loaded" | "error";
@@ -675,7 +681,7 @@ function renderCardEvent(
     body.append(tagList);
   }
 
-  appendPreviewActions(body, event, state);
+  appendPreviewActions(body, event, strings, state);
 
   return item;
 }
@@ -827,13 +833,51 @@ const CALENDAR_ACTIONS = new Set<NativeEventAction>([
   "ics",
 ]);
 
-function actionMatchesLayout(action: CustomEventAction, layout: Layout): boolean {
+function isNativeActionConfig(action: EventAction): action is NativeEventActionConfig {
+  return typeof action !== "string" && "type" in action;
+}
+
+function isCustomAction(action: EventAction): action is CustomEventAction {
+  return typeof action !== "string" && "id" in action;
+}
+
+function nativeActionType(action: NativeEventAction | NativeEventActionConfig): NativeEventAction {
+  return typeof action === "string" ? action : action.type;
+}
+
+function actionMatchesLayout(
+  action: CustomEventAction | NativeEventActionConfig,
+  layout: Layout,
+): boolean {
   return !action.layouts || action.layouts.includes(layout);
 }
 
-function actionMatchesPlacement(action: CustomEventAction, placement: "detail" | "preview"): boolean {
+function actionMatchesPlacement(
+  action: CustomEventAction | NativeEventActionConfig,
+  placement: "detail" | "preview",
+): boolean {
   const actionPlacement = action.placement ?? "detail";
   return actionPlacement === placement || actionPlacement === "both";
+}
+
+function nativeActionMatchesPlacement(
+  action: NativeEventAction | NativeEventActionConfig,
+  placement: "detail" | "preview",
+  layout: Layout,
+): boolean {
+  if (typeof action === "string") return placement === "detail";
+  return actionMatchesPlacement(action, placement) && actionMatchesLayout(action, layout);
+}
+
+function nativeActionsForPlacement(
+  state: WidgetState,
+  placement: "detail" | "preview",
+): Array<NativeEventAction | NativeEventActionConfig> {
+  return state.eventActions.filter(
+    (action): action is NativeEventAction | NativeEventActionConfig =>
+      (typeof action === "string" || isNativeActionConfig(action)) &&
+      nativeActionMatchesPlacement(action, placement, state.layout),
+  );
 }
 
 function customActionsForPlacement(
@@ -842,7 +886,7 @@ function customActionsForPlacement(
 ): CustomEventAction[] {
   return state.eventActions.filter(
     (action): action is CustomEventAction =>
-      typeof action !== "string" &&
+      isCustomAction(action) &&
       actionMatchesPlacement(action, placement) &&
       actionMatchesLayout(action, state.layout),
   );
@@ -850,20 +894,21 @@ function customActionsForPlacement(
 
 function appendNativeActionLink(
   container: HTMLElement,
-  action: NativeEventAction,
+  action: NativeEventAction | NativeEventActionConfig,
   event: PreviewEvent,
   strings: Strings,
   state: WidgetState,
 ): void {
-  const href = eventActionHref(action, event, strings);
+  const type = nativeActionType(action);
+  const href = eventActionHref(type, event, strings);
   if (!href) return;
   const link = el("a");
   link.href = href;
-  link.target = action === "ics" ? "_self" : "_blank";
+  link.target = type === "ics" ? "_self" : "_blank";
   link.rel = "noopener";
-  if (action === "ics") link.setAttribute("download", "event.ics");
-  if (action === "link") link.append(actionIcon("external-link"), document.createTextNode(nativeActionLabel(action, strings)));
-  else link.textContent = nativeActionLabel(action, strings);
+  if (type === "ics") link.setAttribute("download", "event.ics");
+  if (type === "link") link.append(actionIcon("external-link"), document.createTextNode(nativeActionLabel(type, strings)));
+  else link.textContent = nativeActionLabel(type, strings);
   link.addEventListener("click", () => state.onEventAction?.(action, event));
   container.append(link);
 }
@@ -875,9 +920,8 @@ function appendEventActions(
   state: WidgetState,
 ): void {
   const actions = el("div", "event-actions");
-  const calendarActions = state.eventActions.filter(
-    (action): action is NativeEventAction => typeof action === "string" && CALENDAR_ACTIONS.has(action),
-  );
+  const nativeActions = nativeActionsForPlacement(state, "detail");
+  const calendarActions = nativeActions.filter((action) => CALENDAR_ACTIONS.has(nativeActionType(action)));
   if (calendarActions.length > 0) {
     const menu = el("details", "event-action-menu");
     const summary = el("summary", "event-action-menu-trigger");
@@ -892,11 +936,14 @@ function appendEventActions(
     }
   }
 
-  for (const action of state.eventActions) {
-    if (typeof action === "string") {
-      if (!CALENDAR_ACTIONS.has(action)) appendNativeActionLink(actions, action, event, strings, state);
-      continue;
+  for (const action of nativeActions) {
+    if (!CALENDAR_ACTIONS.has(nativeActionType(action))) {
+      appendNativeActionLink(actions, action, event, strings, state);
     }
+  }
+
+  for (const action of state.eventActions) {
+    if (!isCustomAction(action)) continue;
     if (actionMatchesPlacement(action, "detail") && actionMatchesLayout(action, state.layout)) {
       actions.append(customActionButton(action, event, state));
     }
@@ -907,11 +954,32 @@ function appendEventActions(
 function appendPreviewActions(
   container: HTMLElement,
   event: PreviewEvent,
+  strings: Strings,
   state: WidgetState,
 ): void {
+  const nativeActions = nativeActionsForPlacement(state, "preview");
   const customActions = customActionsForPlacement(state, "preview");
-  if (customActions.length === 0) return;
+  if (nativeActions.length === 0 && customActions.length === 0) return;
   const actions = el("div", "event-actions event-preview-actions");
+  const calendarActions = nativeActions.filter((action) => CALENDAR_ACTIONS.has(nativeActionType(action)));
+  if (calendarActions.length > 0) {
+    const menu = el("details", "event-action-menu");
+    const summary = el("summary", "event-action-menu-trigger");
+    summary.append(actionIcon("calendar"), document.createTextNode(strings.addToCalendar));
+    menu.append(summary);
+
+    const menuItems = el("div", "event-action-menu-items");
+    for (const action of calendarActions) appendNativeActionLink(menuItems, action, event, strings, state);
+    if (menuItems.children.length > 0) {
+      menu.append(menuItems);
+      actions.append(menu);
+    }
+  }
+  for (const action of nativeActions) {
+    if (!CALENDAR_ACTIONS.has(nativeActionType(action))) {
+      appendNativeActionLink(actions, action, event, strings, state);
+    }
+  }
   for (const action of customActions) actions.append(customActionButton(action, event, state));
   container.append(actions);
 }

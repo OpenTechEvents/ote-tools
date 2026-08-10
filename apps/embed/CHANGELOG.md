@@ -1,5 +1,16 @@
 # @opentechevents/embed changelog
 
+## 0.2.0
+
+### Added
+
+- Added configurable placement/layout support for native event actions through
+  the JavaScript `eventActions` API, using objects such as
+  `{ type: "link", placement: "preview" }`.
+- Added playground controls and snippets for native action placement.
+- Added component/spec version metadata to the playground header and versioning
+  guide, including release/script links for previous embed versions.
+
 ## 0.1.1
 
 ### Added
@@ -40,7 +51,7 @@
 Production embeds should use a fixed versioned URL:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.1.1/ote-events.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.2.0/ote-events.js"></script>
 ```
 
 The floating URLs `https://tools.opentechevents.org/embed/latest/ote-events.js`

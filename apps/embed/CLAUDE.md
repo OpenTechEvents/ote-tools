@@ -55,9 +55,11 @@ version bump. If it does, update `apps/embed/package.json` first and keep
 `apps/embed/CHANGELOG.md` in the same commit. If the change is intentionally
 unreleased, keep it under an `Unreleased` heading until the release commit.
 
-`build.mjs` reads `apps/embed/package.json`'s `version` and injects it into
-`playground.ts` as `__EMBED_VERSION__`, so the snippet uses the current fixed
-version automatically. For a release, run:
+`build.mjs` reads `apps/embed/package.json`'s `version` and `oteSpecVersion`.
+It injects `version` into `playground.ts` as `__EMBED_VERSION__`, and replaces
+the static HTML placeholders used by the playground header/versioning table.
+This keeps the component version separate from the OTE Spec version the bundle
+is designed to consume. For a release, run:
 
 ```sh
 node build.mjs --snapshot-version
@@ -73,7 +75,14 @@ build, but those floating URLs are not recommended for production embeds.
 Release checklist for this component:
 
 - Confirm the SemVer bump in `apps/embed/package.json`.
+- Confirm `oteSpecVersion` still matches the OTE Spec shape supported by the
+  bundle. This usually follows `@opentechevents/schema`/`packages/validate`'s
+  generated `specVersion`, but the embed is a renderer rather than a full
+  validator.
 - Update `apps/embed/CHANGELOG.md`.
+- Update the playground's version table in `apps/embed/index.html` when a new
+  fixed version is released, keeping the previous rows and their supported OTE
+  Spec versions visible.
 - Run the embed typecheck/tests and `node build.mjs --snapshot-version`.
 - Commit the source changes and the generated `apps/embed/versions/v<version>/`
   snapshot together.
@@ -136,13 +145,25 @@ Consumers that need host-app behavior (for example editor actions like edit,
 clone, or delete) should set the element's `eventActions` property rather than
 trying to pierce the Shadow DOM. The source-of-truth contract is exported from
 `src/main.ts` as TypeScript types: `CustomEventAction`, `EventAction`,
-`EventActionPlacement`, `EventActionIcon`, and `EventActionVariant`.
+`NativeEventActionConfig`, `EventActionPlacement`, `EventActionIcon`, and
+`EventActionVariant`.
 
-Default custom action behavior is deliberately conservative:
+Native actions can be configured as strings for the simple detail-only case
+(`"google-calendar"`, `"link"`) or as objects when they need placement/layout
+control:
+
+```ts
+widget.eventActions = [
+  { type: "google-calendar", placement: "both" },
+  { type: "link", placement: "preview", layouts: ["cards"] },
+];
+```
+
+Default action behavior is deliberately conservative:
 
 - `placement` defaults to `"detail"` (modal for cards/calendar, accordion body
   for list). Use `"preview"` for card preview buttons, or `"both"` for both
-  preview and detail.
+  preview and detail. Preview actions currently render in card previews.
 - `layouts` defaults to every layout. Pass `["cards"]`, `["list"]`, or
   `["calendar"]` to restrict where the action appears.
 - `variant: "danger"` is available for destructive actions.
