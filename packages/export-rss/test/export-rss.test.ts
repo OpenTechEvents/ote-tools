@@ -107,8 +107,24 @@ describe("feedToRss", () => {
     const online = itemFor("https://pyalmeria.example/eventos/2026-06-async");
     // "Q&A" → HTML "Q&amp;A" → embedded in XML as "Q&amp;amp;A".
     expect(online).toContain("Q&amp;amp;A");
-    // Newline in description becomes <br/> in the embedded HTML.
-    expect(online).toContain("&lt;br/&gt;");
+    // Newline in the Markdown description becomes <br> in the embedded HTML.
+    expect(online).toContain("&lt;br&gt;");
+  });
+
+  it("renders a Markdown description to HTML (bold, links)", () => {
+    const item = itemFor("https://mdtest.example/2026-11");
+    expect(item).toContain("&lt;strong&gt;Bold&lt;/strong&gt;");
+    expect(item).toContain(
+      "&lt;a href=&quot;https://example.org/info&quot;&gt;link&lt;/a&gt;",
+    );
+  });
+
+  it("escapes raw HTML found inside a Markdown description instead of passing it through live", () => {
+    const item = itemFor("https://mdtest.example/2026-11");
+    expect(item).not.toContain("<script>");
+    // Content-escaped once for HTML, then the whole item body once more for
+    // XML — same double layer as "Q&A" → "&amp;amp;A" above.
+    expect(item).toContain("&amp;lt;script&amp;gt;");
   });
 
   it("declares the media and dc namespaces on the root element", () => {

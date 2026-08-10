@@ -1,3 +1,5 @@
+import { marked, type Tokens } from "marked";
+
 import type { OteEvent, OteEventStatus, OteFeed } from "./types.js";
 
 export { rssToPreviewFeed } from "./parse.js";
@@ -25,6 +27,26 @@ function escapeXml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// `description` is plain text or Markdown (OTE spec). Raw inline/block HTML
+// in the source is escaped rather than passed through live: the resulting
+// fragment gets embedded unescaped into itemHtml() below (same convention as
+// every other tag there), then the whole item body is escapeXml()'d once for
+// the RSS document — passing raw HTML through here would let it survive that
+// as live markup in any reader that renders <description> as HTML.
+const descriptionRenderer = new marked.Renderer();
+descriptionRenderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeXml(text);
+
+/** Renders an OTE `description` (plain text or Markdown) to an HTML fragment. */
+function descriptionToHtml(markdown: string): string {
+  return marked.parse(markdown, {
+    renderer: descriptionRenderer,
+    // A plain-text description is the common case, and a lone newline in one
+    // reads as an intended line break, not two words meant to run together.
+    breaks: true,
+    async: false,
+  });
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -83,9 +105,7 @@ function itemHtml(event: OteEvent): string {
   }
   if (event.attendanceMode) field("Attendance", escapeXml(event.attendanceMode));
   if (event.description) {
-    parts.push(
-      `<p>${escapeXml(event.description).replace(/\r\n|\r|\n/g, "<br/>")}</p>`,
-    );
+    parts.push(descriptionToHtml(event.description));
   }
   // offers/cfp/eligibility/partOf have no RSS structure to hold them (accepted
   // total loss, per the spec's own mapping tables) — folded into the same

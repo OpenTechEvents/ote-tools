@@ -102,6 +102,13 @@
       "timezone": "Europe/Madrid",
       "status": "moved-online",
       "location": { "onlineUrl": "https://meet.example/pydata-madrid" }
+    },
+    {
+      "id": "https://mdtest.example/2026-11",
+      "name": "Markdown description test",
+      "description": "**Bold** intro with a [link](https://example.org/info).\n\n<script>alert(1)</script> should not run.",
+      "startDate": "2026-11-03T18:00",
+      "timezone": "Europe/Madrid"
     }
   ]
 }

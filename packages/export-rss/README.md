@@ -56,6 +56,15 @@ Decisions worth knowing:
   (`parse.ts`, used by the preview app) — which only recognizes those five
   labels — reads them as part of the free-text description instead of
   silently dropping an unrecognized label.
+- **`description` is plain text or Markdown (OTE spec)** and is rendered to
+  HTML before being embedded (entity-encoded, per the point above) — so a
+  feed reader that treats `<description>` as markup shows real formatting
+  (bold, links, lists) instead of literal Markdown syntax. Raw inline/block
+  HTML found inside the Markdown source is escaped rather than passed
+  through live, so it can't smuggle real markup into whatever renders the
+  item body. A lone newline is treated as a line break (`breaks: true`),
+  since a short plain-text description is the common case and a single `\n`
+  in one reads as an intended break, not two words meant to run together.
 - **`feed.license` is optional (D029).** When every event declares its own
   license instead of a shared feed-level one, there's no single value for
   channel `copyright` to state — RSS's channel model has no per-item

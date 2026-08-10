@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { feedToRss } from "@opentechevents/export-rss";
 import { describe, expect, it } from "vitest";
 
 import { rssToPreview } from "../src/rss.js";
@@ -41,6 +42,26 @@ describe("rssToPreview", () => {
     expect(event!.details).toEqual([
       { label: "GUID", value: "https://fixture.example/events/2026-conf" },
     ]);
+  });
+
+  it("keeps Markdown list/heading content from the description, not just <p> blocks", () => {
+    const rss = feedToRss({
+      specVersion: "0.3.0",
+      title: "Markdown fixture",
+      updatedAt: "2026-01-01T00:00:00Z",
+      events: [
+        {
+          id: "https://fixture.example/md-event",
+          name: "Markdown event",
+          description: "Intro line.\n\n- First item\n- Second item",
+          startDate: "2026-01-10T18:00",
+          timezone: "Europe/Madrid",
+        },
+      ],
+    });
+    const [event] = rssToPreview(rss).events;
+    expect(event!.description).toContain("First item");
+    expect(event!.description).toContain("Second item");
   });
 
   it("falls back to online when the item has no recovered location", () => {

@@ -159,6 +159,33 @@ describe("feedToIcs", () => {
     expect(vevent).toContain("This event has moved online.");
   });
 
+  it("renders event.description as Markdown into X-ALT-DESC;FMTTYPE=text/html, alongside plain-text DESCRIPTION", () => {
+    const vevent = veventFor("https://mdtest.example/2026-11");
+    expect(vevent).toContain("X-ALT-DESC;FMTTYPE=text/html:");
+    expect(vevent).toContain("<strong>Bold</strong>");
+    expect(vevent).toContain('<a href="https://example.org/info">link</a>');
+    // DESCRIPTION stays the literal Markdown source — the universal
+    // plain-text fallback for clients that don't read X-ALT-DESC.
+    expect(vevent).toContain("DESCRIPTION:**Bold** intro");
+  });
+
+  it("escapes raw HTML found inside a Markdown description instead of passing it through live", () => {
+    const vevent = veventFor("https://mdtest.example/2026-11");
+    const altDesc = vevent
+      .split("\r\n")
+      .find((line) => line.startsWith("X-ALT-DESC;FMTTYPE=text/html:"));
+    expect(altDesc).not.toContain("<script>");
+    // escapeHtml runs first ("&lt;script&gt;"), then escapeText backslash-
+    // escapes the semicolons in those entities for the TEXT wire format.
+    expect(altDesc).toContain("&lt\\;script&gt\\;");
+  });
+
+  it("omits X-ALT-DESC when there is nothing to put in it", () => {
+    expect(veventFor("https://minimal.example/meetup/2026-09")).not.toContain(
+      "X-ALT-DESC",
+    );
+  });
+
   it("folds every content line at 75 octets", () => {
     const encoder = new TextEncoder();
     const lines = ics.split("\r\n");

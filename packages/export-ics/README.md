@@ -28,7 +28,7 @@ usage or I/O error.
 | --- | --- |
 | `id` | `UID` |
 | `name` | `SUMMARY` (`;LANGUAGE=<textLanguage>` when set) |
-| `description` | `DESCRIPTION` (`;LANGUAGE=<textLanguage>` when set) |
+| `description` | `DESCRIPTION` (`;LANGUAGE=<textLanguage>` when set, literal Markdown source) + `X-ALT-DESC;FMTTYPE=text/html` (rendered HTML, see below) |
 | `startDate` / `endDate` + `timezone` | `DTSTART` / `DTEND` (see below) |
 | `url` (else `location.onlineUrl`) | `URL` |
 | `location.venue` | `LOCATION` |
@@ -68,3 +68,17 @@ Decisions worth knowing:
 - **Dropped, not approximated**: `attendanceMode`, `languages`, `license`,
   `source` have no iCal equivalent and are omitted. Absent fields stay absent
   (e.g. no `STATUS` is invented when `status` is missing).
+- **`description` is plain text or Markdown (OTE spec)**, but RFC 5545
+  `DESCRIPTION` is TEXT-only — it can't hold markup. `X-ALT-DESC;FMTTYPE=text/html`
+  is the de facto (non-standard, but widely implemented — Outlook 2007+,
+  Thunderbird/Lightning) extension for a rich-text alternative, so it carries
+  the Markdown rendered to HTML. It's built from the same parts as
+  `DESCRIPTION` (the `Online:`/moved-online note, `cfp`/`eligibility`/`offers`
+  text), not just the description alone: Outlook ignores `DESCRIPTION`
+  entirely once `X-ALT-DESC` is present, so nothing may exist only in one of
+  the two. Raw inline/block HTML found inside the Markdown source is escaped
+  rather than passed through live, so it can't smuggle real markup into a
+  client that renders this fragment. Apple Calendar's support for
+  `X-ALT-DESC` is inconsistent; Google Calendar ignores it and always shows
+  plain-text `DESCRIPTION`, which is why that property always stays
+  populated too.

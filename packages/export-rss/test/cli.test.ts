@@ -34,7 +34,7 @@ describe("ote-export-rss CLI", () => {
     const out = join(mkdtempSync(join(tmpdir(), "ote-export-rss-")), "feed.xml");
     expect(runCli([fixture, out], io)).toBe(0);
     expect(readFileSync(out, "utf8")).toContain('<rss version="2.0"');
-    expect(io.outLines[0]).toContain("6 events");
+    expect(io.outLines[0]).toContain("7 events");
   });
 
   it("invalid feed → exit 1 with validation errors", () => {

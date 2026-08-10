@@ -1,3 +1,5 @@
+import { marked, type Tokens } from "marked";
+
 import type { OteEvent, OteEventStatus, OteFeed, OteOrganizer } from "./types.js";
 
 export type {
@@ -18,6 +20,36 @@ export type {
 
 const CRLF = "\r\n";
 const encoder = new TextEncoder();
+
+/** Escapes a value for literal display inside an HTML fragment (X-ALT-DESC). */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// `description` is plain text or Markdown (OTE spec). DESCRIPTION (RFC 5545
+// TEXT) can't hold markup, so this is rendered separately into an HTML
+// fragment for X-ALT-DESC;FMTTYPE=text/html — the de facto (non-standard but
+// widely implemented, e.g. Outlook) extension for rich-text VEVENT
+// descriptions. Raw inline/block HTML in the source is escaped rather than
+// passed through live, so it can't smuggle real markup into a client that
+// renders this fragment.
+const descriptionRenderer = new marked.Renderer();
+descriptionRenderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
+
+/** Renders an OTE `description` (plain text or Markdown) to an HTML fragment. */
+function descriptionToHtml(markdown: string): string {
+  return marked.parse(markdown, {
+    renderer: descriptionRenderer,
+    // A plain-text description is the common case, and a lone newline in one
+    // reads as an intended line break, not two words meant to run together.
+    breaks: true,
+    async: false,
+  });
+}
 
 /** Escapes a value for an iCalendar TEXT property (RFC 5545 §3.3.11). */
 function escapeText(value: string): string {
@@ -147,13 +179,23 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
   // Both event.url and location.onlineUrl map to iCal URL. The canonical page
   // wins; when both exist the attend link is preserved in DESCRIPTION.
   const url = event.url ?? event.location?.onlineUrl;
+  // Built in lockstep with descriptionParts: Outlook ignores DESCRIPTION
+  // entirely once X-ALT-DESC is present, so the HTML version must carry
+  // every fact the plain-text one does, not just the rendered description.
   const descriptionParts: string[] = [];
-  if (event.description) descriptionParts.push(event.description);
+  const htmlParts: string[] = [];
+  if (event.description) {
+    descriptionParts.push(event.description);
+    htmlParts.push(descriptionToHtml(event.description));
+  }
   if (event.url && event.location?.onlineUrl) {
     descriptionParts.push(`Online: ${event.location.onlineUrl}`);
+    const onlineUrl = escapeHtml(event.location.onlineUrl);
+    htmlParts.push(`<p>Online: <a href="${onlineUrl}">${onlineUrl}</a></p>`);
   }
   if (event.status === "moved-online") {
     descriptionParts.push("This event has moved online.");
+    htmlParts.push("<p>This event has moved online.</p>");
   }
   // offers/cfp/eligibility have no iCalendar structure to hold them (accepted
   // total loss, per the spec's own mapping tables) — degraded to readable
@@ -162,10 +204,17 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
   if (event.cfp) {
     const window = event.cfp.closesAt ? ` (closes ${event.cfp.closesAt})` : "";
     descriptionParts.push(`Call for proposals: ${event.cfp.url}${window}`);
+    const cfpUrl = escapeHtml(event.cfp.url);
+    htmlParts.push(
+      `<p>Call for proposals: <a href="${cfpUrl}">${cfpUrl}</a>${escapeHtml(window)}</p>`,
+    );
   }
   if (event.eligibility) {
     const note = event.eligibility.note ? ` — ${event.eligibility.note}` : "";
     descriptionParts.push(`Eligibility: ${event.eligibility.type}${note}`);
+    htmlParts.push(
+      `<p>Eligibility: ${escapeHtml(event.eligibility.type)}${escapeHtml(note)}</p>`,
+    );
   }
   if (event.offers && event.offers.length > 0) {
     const offerLines = event.offers.map((o) => {
@@ -174,12 +223,21 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
       return [o.name, price, o.url].filter((part): part is string => Boolean(part)).join(" — ");
     });
     descriptionParts.push(`Tickets:\n${offerLines.join("\n")}`);
+    htmlParts.push(`<p>Tickets:<br/>${offerLines.map(escapeHtml).join("<br/>")}</p>`);
   }
   if (descriptionParts.length > 0) {
     lines.push(
       ...prop(
         withLanguage("DESCRIPTION", event.textLanguage),
         escapeText(descriptionParts.join("\n\n")),
+      ),
+    );
+  }
+  if (htmlParts.length > 0) {
+    lines.push(
+      ...prop(
+        withLanguage("X-ALT-DESC;FMTTYPE=text/html", event.textLanguage),
+        escapeText(htmlParts.join("\n")),
       ),
     );
   }

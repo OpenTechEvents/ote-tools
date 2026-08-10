@@ -31,14 +31,22 @@ function parseItemDescription(html: string | undefined): {
     "text/html",
   );
   const body = doc.querySelector("main");
-  const paragraphs = Array.from(body?.querySelectorAll("p") ?? []);
+  // Top-level blocks, not just <p>: the Markdown-rendered `description` can
+  // contain <ul>/<ol>/<h1-6>/<blockquote>/etc., and only descending into
+  // direct children (not querySelectorAll, which would also match a <p>
+  // nested inside one of those) avoids double-counting their text.
+  const blocks = Array.from(body?.children ?? []);
   let when: string | undefined;
   let location: string | undefined;
   const description: string[] = [];
 
-  for (const paragraph of paragraphs) {
-    const label = paragraph.querySelector("strong")?.textContent?.trim();
-    const content = paragraph.textContent
+  for (const block of blocks) {
+    // The labeled metadata fields (When/Where/Online/...) are always plain
+    // <p><strong>Label:</strong> ...</p>, emitted by field() in index.ts —
+    // never any other tag, so only <p> needs to be checked for a label.
+    const label =
+      block.tagName === "P" ? block.querySelector("strong")?.textContent?.trim() : undefined;
+    const content = block.textContent
       ?.replace(/^(Status|When|Where|Online|Attendance):\s*/i, "")
       .trim();
     if (!content) continue;
