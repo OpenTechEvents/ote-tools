@@ -20,7 +20,6 @@ import {
 import {
   renderWidget,
   selectVisibleEvents,
-  type EventAction,
   type EventActionsInput,
   type EventBadgesResolver,
   type EventClassNameResolver,
