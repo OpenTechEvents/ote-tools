@@ -1,5 +1,12 @@
 # @opentechevents/embed changelog
 
+## 0.1.1
+
+### Added
+
+- Documented the fixed-version, latest, and legacy embed URLs in the playground
+  so consumers can choose the right update policy before copying the snippet.
+
 ## 0.1.0
 
 ### Added
@@ -33,7 +40,7 @@
 Production embeds should use a fixed versioned URL:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.1.0/ote-events.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.1.1/ote-events.js"></script>
 ```
 
 The floating URLs `https://tools.opentechevents.org/embed/latest/ote-events.js`
