@@ -1,5 +1,11 @@
 # ote-tools
 
+[![CI](https://github.com/OpenTechEvents/ote-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenTechEvents/ote-tools/actions/workflows/ci.yml)
+[![Deploy tools site](https://github.com/OpenTechEvents/ote-tools/actions/workflows/deploy-tools.yml/badge.svg)](https://github.com/OpenTechEvents/ote-tools/actions/workflows/deploy-tools.yml)
+![OTE spec](https://img.shields.io/badge/OTE%20spec-v0.3-2563eb)
+![Node](https://img.shields.io/badge/node-%3E%3D22-339933)
+![pnpm](https://img.shields.io/badge/pnpm-11.13.1-f69220)
+
 Central monorepo for the [OpenTechEvents](https://github.com/OpenTechEvents)
 organizer kit: npm connectors (pure functions, no UI), reusable GitHub Actions
 workflows, and (phase 2) the web dashboard/editor/previewer/embeddable widget.
@@ -10,7 +16,7 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 
 | Package | What it does |
 | --- | --- |
-| [`@opentechevents/validate`](packages/validate/) | Validates OTE Event/Feed documents against the vendored v0.2 JSON Schema. |
+| [`@opentechevents/validate`](packages/validate/) | Validates OTE Event/Feed documents against the vendored v0.3 JSON Schema. |
 | [`@opentechevents/export-ics`](packages/export-ics/) | Valid OTE Feed → iCalendar (RFC 5545). |
 | [`@opentechevents/export-rss`](packages/export-rss/) | Valid OTE Feed → RSS 2.0. |
 | [`@opentechevents/import-ics`](packages/import-ics/) | iCalendar (`.ics`) → partial OTE event documents (review-and-complete). |
@@ -19,6 +25,10 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 
 All connectors are pure functions with a thin CLI on top. They never invent
 data: a field absent in the input stays absent in the output.
+
+Published packages follow the OTE spec minor they implement (`0.3.x` speaks
+OTE spec v0.3). Each package also has its own changelog so fixes and
+improvements can be traced package by package.
 
 ## Reusable workflows
 

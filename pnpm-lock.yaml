@@ -194,6 +194,10 @@ importers:
         version: 4.1.10(@types/node@22.20.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@22.20.1))
 
   packages/import-jsonld:
+    dependencies:
+      '@opentechevents/import-ics':
+        specifier: workspace:*
+        version: link:../import-ics
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

@@ -1,6 +1,6 @@
 {
   "name": "@opentechevents/import-jsonld",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Extracts schema.org Event JSON-LD from an HTML page into partial OTE event documents",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/import-jsonld",
@@ -24,6 +24,9 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/import-ics": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

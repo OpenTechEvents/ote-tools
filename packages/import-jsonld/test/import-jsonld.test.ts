@@ -184,6 +184,33 @@ describe("htmlToEvents · contract", () => {
     expect(warned?.message).toContain("all-day event");
   });
 
+  it("converts HTML in description to Markdown and flags it", () => {
+    const html = `<script type="application/ld+json">{"@type":"Event","name":"X","startDate":"2026-09-01","description":"<p>Hello <strong>world</strong></p>"}</script>`;
+    const { events, warnings } = htmlToEvents(html);
+    expect(events[0].description).toBe("Hello **world**");
+    const warned = warnings.find((w) => w.field === "description");
+    expect(warned?.message).toContain("converted to Markdown");
+  });
+
+  it("a plain-text description is left untouched, no warning", () => {
+    const html = `<script type="application/ld+json">{"@type":"Event","name":"X","startDate":"2026-09-01","description":"Hello world"}</script>`;
+    const { events, warnings } = htmlToEvents(html);
+    expect(events[0].description).toBe("Hello world");
+    expect(warnings.some((w) => w.field === "description")).toBe(false);
+  });
+
+  it("an ellipsis surviving HTML conversion still flags truncation", () => {
+    const html = `<script type="application/ld+json">{"@type":"Event","name":"X","startDate":"2026-09-01","description":"<p>Puertas abiertas...</p>"}</script>`;
+    const { events, warnings } = htmlToEvents(html);
+    expect(events[0].description).toBe("Puertas abiertas...");
+    expect(
+      warnings.filter((w) => w.field === "description").map((w) => w.message),
+    ).toEqual([
+      expect.stringContaining("converted to Markdown"),
+      expect.stringContaining("truncated"),
+    ]);
+  });
+
   it("allDayTimezonePolicy overrides the UTC default", () => {
     const html = `<script type="application/ld+json">{"@type":"Event","name":"X","startDate":"2026-09-01"}</script>`;
     const { events } = htmlToEvents(html, { allDayTimezonePolicy: "America/Bogota" });

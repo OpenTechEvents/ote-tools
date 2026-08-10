@@ -146,14 +146,28 @@ the same filenames at the repository root on the default branch via
   whatever workspace versions aren't on the registry yet. Releasing = bump
   `version` in the package(s), merge, run the workflow.
 
-### Versioning
+### Versioning and changelogs
 
-The published packages track the OTE spec minor they implement: the packages
-that speak v0.3 are versioned `0.3.x`, and they move together, in one release,
-even when a package has no changes of its own. So `@opentechevents/validate`
-0.3.x validates against spec v0.3 — no lookup table needed. Patch releases are
-ours to spend on fixes within that spec minor; the next spec minor moves every
-package to the matching minor. Versions are therefore not per-package semver:
-a package can jump minors (0.1.0 → 0.3.0) with no breaking change of its own.
-The apps (`apps/*`) are `private: true`, never published, and keep their own
-versions.
+The published packages track the OTE spec minor they implement: packages that
+speak OTE spec v0.3 are versioned `0.3.x`. That keeps the compatibility story
+obvious: `@opentechevents/validate` 0.3.x validates against spec v0.3, and
+`@opentechevents/import-jsonld` 0.3.x imports into that same event shape.
+
+Within a spec minor, each package uses SemVer patch releases independently:
+bug fixes and backwards-compatible improvements bump only the package that
+changed (`0.3.0` → `0.3.1`). A new OTE spec minor moves every published
+package to the matching minor, even if one package did not need code changes,
+so consumers can read compatibility without a lookup table. Breaking package
+API changes wait for the next compatible major/minor plan and must be called
+out explicitly in the package changelog.
+
+Every published package has its own `CHANGELOG.md`. Add an `Unreleased` entry
+for user-visible fixes, improvements, warnings, mappings, CLI behavior or
+dependency changes. On release, move those entries under the version being
+published. Keep changelogs focused on the package's behavior, not on commit
+mechanics.
+
+The apps (`apps/*`) are `private: true`, never published to npm, and keep their
+own versions. Consumer-facing apps or artifacts should still have changelogs
+when their deployed behavior matters; `apps/embed` already does because it is a
+public widget.

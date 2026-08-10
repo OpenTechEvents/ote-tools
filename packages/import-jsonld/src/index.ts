@@ -1,3 +1,5 @@
+import { htmlToMarkdown, looksLikeHtml } from "@opentechevents/import-ics";
+
 import type {
   HtmlToEventsOptions,
   ImportResult,
@@ -378,9 +380,21 @@ function mapEvent(
 
   const description = asString(node.description);
   if (description) {
-    event.description = description;
+    let normalizedDescription = description;
+    // Some pages put HTML in their schema.org description even though it's
+    // meant to be plain text. OTE wants plain text or Markdown, so HTML is
+    // re-encoded — and flagged, because the conversion is best-effort and
+    // deserves a human look (same treatment as ICS import).
+    if (looksLikeHtml(description)) {
+      normalizedDescription = htmlToMarkdown(description);
+      warnings.push({
+        field: "description",
+        message: "description contained HTML and was converted to Markdown — review the result",
+      });
+    }
+    event.description = normalizedDescription;
     // Meetup (and others) truncate the JSON-LD description with an ellipsis.
-    if (/(\.\.\.|…)$/.test(description)) {
+    if (/(\.\.\.|…)$/.test(normalizedDescription)) {
       warnings.push({
         field: "description",
         message:
