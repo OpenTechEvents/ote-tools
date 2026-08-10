@@ -1,5 +1,13 @@
-import { DEFAULT_FIELDS, type FieldKey, type Layout } from "./attrs.js";
+import {
+  DEFAULT_EVENT_ACTIONS,
+  DEFAULT_FIELDS,
+  type EventClickMode,
+  type FieldKey,
+  type Layout,
+  type NativeEventAction,
+} from "./attrs.js";
 import type { OteEventsElement } from "./element.js";
+import type { EventActionPlacement } from "./render.js";
 
 const feedInput = document.querySelector<HTMLInputElement>("#feed-input")!;
 const feedDataInput = document.querySelector<HTMLTextAreaElement>("#feed-data-input")!;
@@ -13,6 +21,14 @@ const layoutButtons = Array.from(
   document.querySelectorAll<HTMLButtonElement>("[data-layout]"),
 );
 const placeholderImageInput = document.querySelector<HTMLInputElement>("#placeholder-image-input")!;
+const eventClickSelect = document.querySelector<HTMLSelectElement>("#event-click-select")!;
+const eventActionCheckboxes = Array.from(
+  document.querySelectorAll<HTMLInputElement>(".event-action-checkbox"),
+);
+const customActionCheckbox = document.querySelector<HTMLInputElement>("#custom-action-checkbox")!;
+const customActionPlacementSelect = document.querySelector<HTMLSelectElement>(
+  "#custom-action-placement-select",
+)!;
 const fontFamilyInput = document.querySelector<HTMLInputElement>("#font-family-input")!;
 const fontSizeInput = document.querySelector<HTMLInputElement>("#font-size-input")!;
 const themeButtons = Array.from(
@@ -69,6 +85,19 @@ function isDefaultFields(fields: FieldKey[]): boolean {
   return fields.length === DEFAULT_FIELDS.length && fields.every((field) => defaults.has(field));
 }
 
+function currentEventActions(): NativeEventAction[] {
+  return eventActionCheckboxes
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => checkbox.value as NativeEventAction);
+}
+
+function isDefaultEventActions(actions: NativeEventAction[]): boolean {
+  return (
+    actions.length === DEFAULT_EVENT_ACTIONS.length &&
+    actions.every((action, index) => action === DEFAULT_EVENT_ACTIONS[index])
+  );
+}
+
 function buildSnippet(config: {
   feed: string;
   sourceMode: SourceMode;
@@ -76,6 +105,10 @@ function buildSnippet(config: {
   limit: string;
   layout: string;
   placeholderImage: string;
+  eventClick: EventClickMode;
+  eventActions: string | undefined;
+  customAction: boolean;
+  customActionPlacement: EventActionPlacement;
   fontFamily: string;
   fontSize: string;
   theme: string;
@@ -93,19 +126,22 @@ function buildSnippet(config: {
     if (config.fontSize) lines.push(`    --ote-font-size: ${config.fontSize};`);
     lines.push("  }", "</style>", "");
   }
-  lines.push(
+  const elementLines = [
     `<ote-events id="events-widget"${config.sourceMode === "url" ? ` feed="${attr(config.feed)}"` : ""}`,
     `  layout="${attr(config.layout)}"`,
     `  theme="${attr(config.theme)}"`,
     `  lang="${attr(config.lang)}"`,
-  );
-  if (config.limit) lines.splice(3, 0, `  limit="${attr(config.limit)}"`);
+  ];
+  if (config.limit) elementLines.push(`  limit="${attr(config.limit)}"`);
   if (config.placeholderImage) {
-    lines.splice(config.limit ? 4 : 3, 0, `  placeholder-image="${attr(config.placeholderImage)}"`);
+    elementLines.push(`  placeholder-image="${attr(config.placeholderImage)}"`);
   }
-  if (!config.showPast) lines.push(`  show-past="false"`);
-  if (config.fields) lines.push(`  fields="${attr(config.fields)}"`);
-  lines.push("></ote-events>");
+  if (config.eventClick !== "modal") elementLines.push(`  event-click="${attr(config.eventClick)}"`);
+  if (config.eventActions) elementLines.push(`  event-actions="${attr(config.eventActions)}"`);
+  if (!config.showPast) elementLines.push(`  show-past="false"`);
+  if (config.fields) elementLines.push(`  fields="${attr(config.fields)}"`);
+  elementLines.push("></ote-events>");
+  lines.push(...elementLines);
   if (config.sourceMode === "json" && config.runtimeData) {
     lines.push(
       "",
@@ -113,6 +149,25 @@ function buildSnippet(config: {
       `  await customElements.whenDefined("ote-events");`,
       `  document.querySelector("#events-widget").${config.runtimeData.kind} = ${JSON.stringify(config.runtimeData.value, null, 2)};`,
       "</script>",
+    );
+  }
+  if (config.customAction) {
+    lines.push(
+      "",
+      `<script type="module">`,
+      `  await customElements.whenDefined("ote-events");`,
+      `  document.querySelector("#events-widget").eventActions = [`,
+      `    {`,
+      `      id: "save",`,
+      `      label: "Save",`,
+      `      icon: "copy",`,
+      `      placement: "${config.customActionPlacement}",`,
+      `      onClick(event) {`,
+      `        alert(\`Custom action for: \${event.name}\`);`,
+      `      },`,
+      `    },`,
+      `  ];`,
+      `</script>`,
     );
   }
   return lines.join("\n");
@@ -220,6 +275,16 @@ function applyAndRender(): void {
   const limit = limitInput.value.trim();
   const layout = currentLayout();
   const placeholderImage = placeholderImageInput.value.trim();
+  const eventClick = eventClickSelect.value as EventClickMode;
+  const eventActions = currentEventActions();
+  const eventActionsAttr =
+    eventActions.length === 0
+      ? "none"
+      : isDefaultEventActions(eventActions)
+        ? undefined
+        : eventActions.join(",");
+  const customAction = customActionCheckbox.checked;
+  const customActionPlacement = customActionPlacementSelect.value as EventActionPlacement;
   const fontFamily = fontFamilyInput.value.trim();
   const fontSize = fontSizeInput.value.trim();
   const theme = currentTheme();
@@ -237,6 +302,23 @@ function applyAndRender(): void {
   widgetFrame.dataset.layout = layout;
   if (placeholderImage) widget.setAttribute("placeholder-image", placeholderImage);
   else widget.removeAttribute("placeholder-image");
+  if (eventClick === "modal") widget.removeAttribute("event-click");
+  else widget.setAttribute("event-click", eventClick);
+  if (eventActionsAttr) widget.setAttribute("event-actions", eventActionsAttr);
+  else widget.removeAttribute("event-actions");
+  widget.eventActions = customAction
+    ? [
+        {
+          id: "save",
+          label: "Save",
+          icon: "copy",
+          placement: customActionPlacement,
+          onClick(event) {
+            alert(`Custom action for: ${event.name}`);
+          },
+        },
+      ]
+    : [];
   if (fontFamily) widget.style.setProperty("--ote-font-family", fontFamily);
   else widget.style.removeProperty("--ote-font-family");
   if (fontSize) widget.style.setProperty("--ote-font-size", fontSize);
@@ -263,6 +345,10 @@ function applyAndRender(): void {
     limit,
     layout,
     placeholderImage,
+    eventClick,
+    eventActions: eventActionsAttr,
+    customAction,
+    customActionPlacement,
     fontFamily,
     fontSize,
     theme,
@@ -276,11 +362,15 @@ for (const control of [
   feedInput,
   limitInput,
   placeholderImageInput,
+  eventClickSelect,
+  customActionCheckbox,
+  customActionPlacementSelect,
   fontFamilyInput,
   fontSizeInput,
   langSelect,
   showPastCheckbox,
   ...fieldCheckboxes,
+  ...eventActionCheckboxes,
 ]) {
   control.addEventListener("input", applyAndRender);
   control.addEventListener("change", applyAndRender);

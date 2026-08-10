@@ -81,6 +81,30 @@ deliberate choice ("elegir qué campos se muestran y cuales no") over an
 additive/merge scheme, which would need a separate "hide" mechanism to ever
 turn off a default field.
 
+## Custom event actions are a typed JS API
+
+Consumers that need host-app behavior (for example editor actions like edit,
+clone, or delete) should set the element's `eventActions` property rather than
+trying to pierce the Shadow DOM. The source-of-truth contract is exported from
+`src/main.ts` as TypeScript types: `CustomEventAction`, `EventAction`,
+`EventActionPlacement`, `EventActionIcon`, and `EventActionVariant`.
+
+Default custom action behavior is deliberately conservative:
+
+- `placement` defaults to `"detail"` (modal for cards/calendar, accordion body
+  for list). Use `"preview"` for card preview buttons, or `"both"` for both
+  preview and detail.
+- `layouts` defaults to every layout. Pass `["cards"]`, `["list"]`, or
+  `["calendar"]` to restrict where the action appears.
+- `variant: "danger"` is available for destructive actions.
+- `icon` supports the small built-in action icon set. Keep that set in
+  `render.ts` close to the `EventActionIcon` type.
+
+Behavioral tests in `apps/embed/test/element.test.ts` are the living
+documentation for placement, layout filtering, native calendar actions, and
+the `ote-event-action` DOM event. Update those tests with any API change so
+agent-facing docs do not drift from the implementation.
+
 ## The calendar layout: why `@event-calendar/core`, not FullCalendar
 
 `apps/preview` uses FullCalendar for its own calendar view. `layout="calendar"`

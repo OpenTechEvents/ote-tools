@@ -48,6 +48,8 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     showPast: true,
     layout,
     fields: new Set(["location"]),
+    eventClick: "modal",
+    eventActions: ["google-calendar", "outlook-calendar", "yahoo-calendar", "ics", "link"],
   };
 }
 
@@ -420,6 +422,9 @@ describe("<ote-events>", () => {
       "Last update",
     );
     expect(root.querySelector("details.event-accordion")).toBeTruthy();
+    expect(root.querySelector(".event-details-content")).toBeTruthy();
+    expect(root.querySelector(".event-details-main .event-description")).toBeTruthy();
+    expect(root.querySelector(".event-details-aside .event-detail-list")).toBeTruthy();
     expect(root.querySelector(".event-summary-title")?.textContent).toBe("Rich Event");
     expect(root.querySelector(".event-summary-updated")?.textContent).toMatch(/\d+[ymwdh]|now/);
     expect(root.querySelector(".event-detail-list")?.textContent).toContain("Updated");
@@ -440,6 +445,85 @@ describe("<ote-events>", () => {
     const img = el.shadowRoot!.querySelector<HTMLImageElement>(".event-details img.event-image");
     expect(img).toBeTruthy();
     expect(img?.src).toBe("https://example.org/poster.jpg");
+  });
+
+  it("shows the full description in expanded list details", async () => {
+    const longDescription = `This expanded description should stay complete. ${"Details ".repeat(80)}Final sentence.`;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [{ name: "Long Description", startDate: "2999-01-01", description: longDescription }],
+        }),
+    });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/long.json");
+    document.body.append(el);
+    await flush();
+
+    const description = el.shadowRoot!.querySelector(".event-details-main .event-description");
+    expect(description?.textContent).toContain("Final sentence.");
+    expect(description?.textContent).not.toContain("...");
+  });
+
+  it("keeps long unspaced strings in expanded list descriptions", async () => {
+    const longUrl =
+      "https://meet.jit.si/ParliamentaryCommunicationsAspireSomehowWithAVeryLongRoomName";
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Long URL",
+              startDate: "2999-01-01",
+              description: `Join here: ${longUrl}`,
+            },
+          ],
+        }),
+    });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/long-url.json");
+    document.body.append(el);
+    await flush();
+
+    const description = el.shadowRoot!.querySelector(".event-details-main .event-description");
+    expect(description?.textContent).toContain(longUrl);
+  });
+
+  it("uses a compact expanded list layout for short text-only events", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Short List Event",
+              startDate: "2999-09-17T18:30",
+              description: "Short practical meetup.",
+            },
+          ],
+        }),
+    });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/short-list.json");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".event-details-compact")).toBeTruthy();
+  });
+
+  it("keeps the roomy expanded list layout when an event has an image", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".event-details-compact")).toBeNull();
   });
 
   it("compacts same-day event ranges in the list summary", async () => {
@@ -498,6 +582,259 @@ describe("<ote-events>", () => {
     expect(when?.textContent).not.toContain("Europe/Madrid");
     expect(when?.title).toContain("Europe/Madrid");
     expect(when?.tabIndex).toBe(0);
+  });
+
+  it("opens a detail modal from the cards layout by default", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    const opened = vi.fn();
+    el.addEventListener("ote-event-open", opened);
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    const modal = el.shadowRoot!.querySelector<HTMLElement>(".event-modal");
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(modal).toBeTruthy();
+    expect(modal?.querySelector(".event-modal-content")).toBeTruthy();
+    expect(modal?.querySelector(".event-modal-main .event-description")).toBeTruthy();
+    expect(modal?.querySelector(".event-modal-aside .event-detail-list")).toBeTruthy();
+    expect(modal?.textContent).toContain("Rich Event");
+    expect(modal?.querySelectorAll(".event-action-menu")).toHaveLength(1);
+    expect(modal?.querySelector(".event-action-menu-trigger")?.textContent).toContain(
+      "Add to calendar",
+    );
+    expect(modal?.querySelector(".event-action-menu-trigger .action-icon")).toBeTruthy();
+    expect(modal?.textContent).toContain("Add to Google Calendar");
+    expect(modal?.textContent).toContain("Add to Outlook");
+    expect(modal?.textContent).toContain("Add to Yahoo");
+    expect(modal?.textContent).toContain("Download ICS");
+    expect(modal?.textContent).toContain("Open event page");
+    expect(modal?.querySelector('a[href="https://example.org/rich"] .action-icon')).toBeTruthy();
+    const modalDetails = modal!.querySelector(".event-detail-list")!;
+    const modalActions = modal!.querySelector(".event-actions")!;
+    expect(
+      modalDetails.compareDocumentPosition(modalActions) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const google = modal?.querySelector<HTMLAnchorElement>('a[href^="https://calendar.google.com"]');
+    expect(google?.href).toContain("Rich+Event");
+    expect(google?.href).toContain("action=TEMPLATE");
+
+    el.shadowRoot!.querySelector<HTMLButtonElement>(".event-modal-close")?.click();
+    expect(el.shadowRoot!.querySelector(".event-modal")).toBeNull();
+  });
+
+  it("uses compact friendly dates in the detail modal", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Same-day Modal Event",
+              startDate: "2999-07-31T10:00",
+              endDate: "2999-07-31T11:00",
+              timezone: "Europe/Madrid",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    const when = el.shadowRoot!.querySelector<HTMLElement>(".event-modal .event-detail-when");
+    expect(when?.textContent).toContain("Jul 31");
+    expect((when?.textContent?.match(/Jul 31/g) ?? [])).toHaveLength(1);
+    expect(when?.textContent).toContain("10:00");
+    expect(when?.textContent).toContain("11:00");
+    expect(when?.textContent).not.toContain("Europe/Madrid");
+    expect(when?.title).toContain("Europe/Madrid");
+  });
+
+  it("uses a compact modal layout for short text-only events", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Short Event",
+              startDate: "2999-09-17T18:30",
+              description: "Short practical meetup.",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/short.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    expect(el.shadowRoot!.querySelector(".event-modal-compact")).toBeTruthy();
+  });
+
+  it("keeps the roomy modal layout when an event has an image", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    expect(el.shadowRoot!.querySelector(".event-modal-compact")).toBeNull();
+  });
+
+  it('uses event-click="link" to keep the external-link card behavior', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("event-click", "link");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    expect(open).toHaveBeenCalledWith("https://example.org/rich", "_blank", "noopener");
+    expect(el.shadowRoot!.querySelector(".event-modal")).toBeNull();
+  });
+
+  it("renders custom event actions from the JavaScript API", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const onClick = vi.fn();
+    const actionEvent = vi.fn();
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("event-actions", "none");
+    el.eventActions = [{ id: "favorite", label: "Save favorite", onClick }];
+    el.addEventListener("ote-event-action", actionEvent);
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    el.shadowRoot!.querySelector<HTMLButtonElement>(".event-actions button")?.click();
+
+    expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ name: "Rich Event" }));
+    expect(actionEvent).toHaveBeenCalledTimes(1);
+    expect(actionEvent.mock.calls[0]?.[0].detail.action).toBe("favorite");
+  });
+
+  it("renders custom preview actions in cards without showing detail-only actions", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const edit = vi.fn();
+    const remove = vi.fn();
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.eventActions = [
+      { id: "edit", label: "Edit", icon: "edit", placement: "preview", onClick: edit },
+      {
+        id: "delete",
+        label: "Delete",
+        icon: "trash",
+        variant: "danger",
+        placement: "detail",
+        onClick: remove,
+      },
+    ];
+    document.body.append(el);
+    await flush();
+
+    const previewActions = el.shadowRoot!.querySelector(".event-preview-actions");
+    expect(previewActions?.textContent).toContain("Edit");
+    expect(previewActions?.textContent).not.toContain("Delete");
+    expect(previewActions?.querySelector(".action-icon")).toBeTruthy();
+    expect(previewActions?.querySelector(".event-action-danger")).toBeNull();
+
+    previewActions?.querySelector<HTMLButtonElement>("button")?.click();
+    expect(edit).toHaveBeenCalledWith(expect.objectContaining({ name: "Rich Event" }));
+  });
+
+  it("renders both-placement custom actions in preview and detail", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const clone = vi.fn();
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.eventActions = [{ id: "clone", label: "Clone", icon: "copy", placement: "both", onClick: clone }];
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".event-preview-actions")?.textContent).toContain("Clone");
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    const modalActions = el.shadowRoot!.querySelector(".event-modal > .event-actions");
+    expect(modalActions?.textContent).toContain("Clone");
+  });
+
+  it("honors custom action layout filters", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const edit = vi.fn();
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.eventActions = [
+      { id: "edit", label: "Edit", placement: "preview", layouts: ["list"], onClick: edit },
+    ];
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".event-preview-actions")).toBeNull();
+  });
+
+  it("places list detail actions after the event details", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    const details = el.shadowRoot!.querySelector(".event-detail-list");
+    const actions = el.shadowRoot!.querySelector(".event-actions");
+    expect(
+      details!.compareDocumentPosition(actions!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders Markdown descriptions safely inside the detail modal", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Markdown Event",
+              startDate: "2999-01-01",
+              description:
+                "**Bring questions** about `web components`.\n\n- First item\n- [Project site](https://example.org)",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/markdown.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    const description = el.shadowRoot!.querySelector(".event-modal .event-description");
+
+    expect(description?.querySelector("strong")?.textContent).toBe("Bring questions");
+    expect(description?.querySelector("code")?.textContent).toBe("web components");
+    expect(description?.querySelectorAll("li")).toHaveLength(2);
+    expect(description?.querySelector<HTMLAnchorElement>("a")?.href).toBe("https://example.org/");
+    expect(description?.textContent).not.toContain("**");
   });
 
   it("falls back to a card placeholder when an event image is broken", async () => {

@@ -58,6 +58,44 @@
       </div>
 
       <div class="field">
+        <label for="event-click-select">event-click</label>
+        <select id="event-click-select">
+          <option value="modal" selected>modal</option>
+          <option value="link">link</option>
+          <option value="none">none</option>
+        </select>
+        <p class="hint">What happens when a visitor selects an event. Default: modal.</p>
+      </div>
+
+      <div class="field">
+        <span class="fields-legend">event-actions</span>
+        <div class="fields-checkboxes">
+          <label><input type="checkbox" class="event-action-checkbox" value="google-calendar" checked /> Google Calendar</label>
+          <label><input type="checkbox" class="event-action-checkbox" value="outlook-calendar" checked /> Outlook</label>
+          <label><input type="checkbox" class="event-action-checkbox" value="yahoo-calendar" checked /> Yahoo</label>
+          <label><input type="checkbox" class="event-action-checkbox" value="ics" checked /> ICS</label>
+          <label><input type="checkbox" class="event-action-checkbox" value="link" checked /> event page</label>
+        </div>
+        <p class="hint">Actions shown inside the event detail view. Default: all checked.</p>
+      </div>
+
+      <div class="field custom-action-demo">
+        <label for="custom-action-checkbox">
+          <input type="checkbox" id="custom-action-checkbox" />
+          custom button example
+        </label>
+        <div class="custom-action-options">
+          <label for="custom-action-placement-select">placement</label>
+          <select id="custom-action-placement-select">
+            <option value="preview">preview</option>
+            <option value="detail">detail</option>
+            <option value="both" selected>both</option>
+          </select>
+        </div>
+        <p class="hint">Adds a custom action with an icon that shows an alert for the selected event.</p>
+      </div>
+
+      <div class="field">
         <label for="font-family-input">font-family</label>
         <input type="text" id="font-family-input" placeholder='system default, Inter, "Segoe UI", sans-serif' />
         <p class="hint">Optional CSS font-family for the widget.</p>
@@ -149,6 +187,23 @@
       <div class="snippet-box">
         <pre><code id="snippet-code" class="language-html"></code></pre>
         <button type="button" id="copy-button">Copy</button>
+      </div>
+    </section>
+
+    <section class="panel agent-resource" aria-labelledby="agent-resource-heading">
+      <h2 id="agent-resource-heading">Using AI agents?</h2>
+      <p>
+        The embed package includes an agent-facing guide with the typed
+        <code>eventActions</code> contract, placement rules, and the tests that
+        act as living documentation.
+      </p>
+      <div class="resource-links">
+        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">
+          Read the agent guide
+        </a>
+        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+          View the changelog
+        </a>
       </div>
     </section>
     </div>

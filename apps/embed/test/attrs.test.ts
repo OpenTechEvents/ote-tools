@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_EVENT_ACTIONS,
   DEFAULT_FIELDS,
+  parseEventActions,
+  parseEventClick,
   parseFields,
   parseLangAttr,
   parseLayout,
@@ -68,6 +71,33 @@ describe("parseLayout", () => {
     expect(parseLayout("list")).toBe("list");
     expect(parseLayout("grid")).toBe("calendar");
     expect(parseLayout(null)).toBe("calendar");
+  });
+});
+
+describe("parseEventClick", () => {
+  it("defaults to modal and accepts link/none", () => {
+    expect(parseEventClick(null)).toBe("modal");
+    expect(parseEventClick("modal")).toBe("modal");
+    expect(parseEventClick("link")).toBe("link");
+    expect(parseEventClick("none")).toBe("none");
+    expect(parseEventClick("bogus")).toBe("modal");
+  });
+});
+
+describe("parseEventActions", () => {
+  it("defaults to the native calendar and link actions", () => {
+    expect(parseEventActions(null)).toEqual([...DEFAULT_EVENT_ACTIONS]);
+  });
+
+  it("accepts none to hide native actions", () => {
+    expect(parseEventActions("none")).toEqual([]);
+  });
+
+  it("keeps valid native actions in request order", () => {
+    expect(parseEventActions("link, google-calendar, bogus, link")).toEqual([
+      "link",
+      "google-calendar",
+    ]);
   });
 });
 

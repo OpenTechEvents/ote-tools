@@ -5,6 +5,8 @@
 export type LangAttr = "en" | "es" | "auto";
 export type Lang = "en" | "es";
 export type Layout = "list" | "cards" | "calendar";
+export type EventClickMode = "modal" | "link" | "none";
+export type NativeEventAction = "google-calendar" | "outlook-calendar" | "yahoo-calendar" | "ics" | "link";
 
 export type FieldKey =
   | "image"
@@ -35,6 +37,14 @@ export const DEFAULT_FIELDS: readonly FieldKey[] = [
   "description",
 ];
 
+export const DEFAULT_EVENT_ACTIONS: readonly NativeEventAction[] = [
+  "google-calendar",
+  "outlook-calendar",
+  "yahoo-calendar",
+  "ics",
+  "link",
+];
+
 function isFieldKey(value: string): value is FieldKey {
   return (ALL_FIELDS as readonly string[]).includes(value);
 }
@@ -63,6 +73,31 @@ export function parseLayout(value: string | null): Layout {
   if (value === "cards") return "cards";
   if (value === "list") return "list";
   return "calendar";
+}
+
+export function parseEventClick(value: string | null): EventClickMode {
+  if (value === "link" || value === "none") return value;
+  return "modal";
+}
+
+function isNativeEventAction(value: string): value is NativeEventAction {
+  return (
+    value === "google-calendar" ||
+    value === "outlook-calendar" ||
+    value === "yahoo-calendar" ||
+    value === "ics" ||
+    value === "link"
+  );
+}
+
+export function parseEventActions(value: string | null): NativeEventAction[] {
+  if (value === "none") return [];
+  if (!value) return [...DEFAULT_EVENT_ACTIONS];
+  const requested = value
+    .split(",")
+    .map((token) => token.trim())
+    .filter(isNativeEventAction);
+  return requested.length > 0 ? [...new Set(requested)] : [...DEFAULT_EVENT_ACTIONS];
 }
 
 /**

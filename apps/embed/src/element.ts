@@ -7,13 +7,15 @@ import type {
 
 import {
   parseFields,
+  parseEventActions,
+  parseEventClick,
   parseLangAttr,
   parseLayout,
   parseLimit,
   parseShowPast,
   resolveLang,
 } from "./attrs.js";
-import { renderWidget, selectVisibleEvents, type WidgetState } from "./render.js";
+import { renderWidget, selectVisibleEvents, type EventAction, type WidgetState } from "./render.js";
 import { WIDGET_CSS } from "./theme.css.js";
 
 type Status = "idle" | "loading" | "loaded" | "error";
@@ -38,6 +40,8 @@ export class OteEventsElement extends HTMLElement {
     "layout",
     "fields",
     "placeholder-image",
+    "event-click",
+    "event-actions",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -47,6 +51,8 @@ export class OteEventsElement extends HTMLElement {
   #status: Status = "idle";
   #errorMessage = "";
   #requestId = 0;
+  #selectedEvent: WidgetState["selectedEvent"];
+  #customEventActions: EventAction[] = [];
 
   #calendarHandle: CalendarHandle | undefined;
   #calendarRequestId = 0;
@@ -105,6 +111,15 @@ export class OteEventsElement extends HTMLElement {
     this.#setRuntimeData(value == null ? value : [value]);
   }
 
+  get eventActions(): EventAction[] {
+    return this.#customEventActions;
+  }
+
+  set eventActions(value: EventAction[] | null | undefined) {
+    this.#customEventActions = Array.isArray(value) ? value : [];
+    if (this.isConnected) this.#renderNow();
+  }
+
   async #load(): Promise<void> {
     if (this.#runtimeData) return;
 
@@ -112,6 +127,7 @@ export class OteEventsElement extends HTMLElement {
     if (!feedUrl) {
       this.#status = "error";
       this.#errorMessage = 'Missing required "feed" attribute.';
+      this.#selectedEvent = undefined;
       this.#renderNow();
       return;
     }
@@ -130,10 +146,12 @@ export class OteEventsElement extends HTMLElement {
       if (requestId !== this.#requestId) return;
       this.#feed = feed;
       this.#status = "loaded";
+      this.#selectedEvent = undefined;
     } catch (error) {
       if (requestId !== this.#requestId) return;
       this.#status = "error";
       this.#errorMessage = error instanceof Error ? error.message : String(error);
+      this.#selectedEvent = undefined;
     }
     this.#renderNow();
   }
@@ -145,6 +163,7 @@ export class OteEventsElement extends HTMLElement {
       this.#runtimeData = undefined;
       this.#feed = undefined;
       this.#errorMessage = "";
+      this.#selectedEvent = undefined;
       if (this.isConnected) void this.#load();
       return;
     }
@@ -154,10 +173,12 @@ export class OteEventsElement extends HTMLElement {
       this.#feed = oteJsonToPreviewFeed(value);
       this.#status = "loaded";
       this.#errorMessage = "";
+      this.#selectedEvent = undefined;
     } catch (error) {
       this.#feed = undefined;
       this.#status = "error";
       this.#errorMessage = error instanceof Error ? error.message : String(error);
+      this.#selectedEvent = undefined;
     }
     if (this.isConnected) this.#renderNow();
   }
@@ -174,6 +195,26 @@ export class OteEventsElement extends HTMLElement {
       layout: parseLayout(this.getAttribute("layout")),
       fields: parseFields(this.getAttribute("fields")),
       placeholderImage: this.getAttribute("placeholder-image")?.trim() || undefined,
+      eventClick: parseEventClick(this.getAttribute("event-click")),
+      eventActions: [...parseEventActions(this.getAttribute("event-actions")), ...this.#customEventActions],
+      selectedEvent: this.#selectedEvent,
+      onEventOpen: (event) => {
+        this.dispatchEvent(new CustomEvent("ote-event-open", { detail: { event } }));
+        if (parseEventClick(this.getAttribute("event-click")) === "modal") {
+          this.#selectedEvent = event;
+          this.#renderNow();
+        }
+      },
+      onEventClose: () => {
+        this.#selectedEvent = undefined;
+        this.#renderNow();
+      },
+      onEventAction: (action, event) => {
+        const actionId = typeof action === "string" ? action : action.id;
+        this.dispatchEvent(
+          new CustomEvent("ote-event-action", { detail: { action: actionId, event } }),
+        );
+      },
     };
     renderWidget(this.#container, state);
 
@@ -221,7 +262,14 @@ export class OteEventsElement extends HTMLElement {
       this.#calendarHandle = module.renderCalendar(host, events, {
         lang,
         onEventClick: (event) => {
-          if (event.link) window.open(event.link, "_blank", "noopener");
+          const eventClick = parseEventClick(this.getAttribute("event-click"));
+          this.dispatchEvent(new CustomEvent("ote-event-open", { detail: { event } }));
+          if (eventClick === "link" && event.link) {
+            window.open(event.link, "_blank", "noopener");
+          } else if (eventClick === "modal") {
+            this.#selectedEvent = event;
+            this.#renderNow();
+          }
         },
       });
     } catch (error) {
