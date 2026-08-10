@@ -413,6 +413,37 @@ describe("<ote-events>", () => {
     expect(when).toContain("11:00");
   });
 
+  it("compacts card dates and keeps the timezone in a subtle tooltip", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Same-day Card Event",
+              startDate: "2999-07-31T10:00",
+              endDate: "2999-07-31T11:00",
+              timezone: "Europe/Madrid",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    const when = el.shadowRoot!.querySelector<HTMLElement>(".event-when");
+    expect(when?.textContent).toContain("Jul 31");
+    expect((when?.textContent?.match(/Jul 31/g) ?? [])).toHaveLength(1);
+    expect(when?.textContent).toContain("10:00");
+    expect(when?.textContent).toContain("11:00");
+    expect(when?.textContent).not.toContain("Europe/Madrid");
+    expect(when?.title).toContain("Europe/Madrid");
+    expect(when?.tabIndex).toBe(0);
+  });
+
   it("falls back to a card placeholder when an event image is broken", async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
     const el = document.createElement("ote-events");

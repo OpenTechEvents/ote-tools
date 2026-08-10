@@ -223,6 +223,20 @@ function formatReadableWhen(event: PreviewEvent): string | undefined {
   return start;
 }
 
+function whenNode(event: PreviewEvent): HTMLElement | undefined {
+  const compactWhen = formatCompactWhen(event);
+  const readableWhen = formatReadableWhen(event) ?? eventWhen(event);
+  const when = compactWhen ?? readableWhen;
+  if (!when) return undefined;
+  const node = withText(el("p", "event-when"), when);
+  if (readableWhen && readableWhen !== when) {
+    node.title = readableWhen;
+    node.setAttribute("aria-label", readableWhen);
+    node.tabIndex = 0;
+  }
+  return node;
+}
+
 function renderEventImage(event: PreviewEvent, placeholderImage: string | undefined): HTMLElement | undefined {
   if (!event.image) return undefined;
   const img = el("img", "event-image");
@@ -285,8 +299,8 @@ function renderCardEvent(
   if (badges.children.length > 0) body.append(badges);
 
   if (fields.has("when")) {
-    const when = eventWhen(event);
-    if (when) body.append(withText(el("p", "event-when"), when));
+    const when = whenNode(event);
+    if (when) body.append(when);
   }
 
   if (fields.has("location")) {
