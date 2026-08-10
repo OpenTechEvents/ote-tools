@@ -244,10 +244,39 @@ describe("<ote-events>", () => {
     const root = el.shadowRoot!;
     expect(root.querySelector("img.event-image")).toBeTruthy();
     expect(root.querySelector(".badge")?.textContent).toBe("Online");
+    expect(root.querySelector(".badge svg.badge-icon")?.getAttribute("aria-hidden")).toBe("true");
+    expect(root.querySelector(".event-when")?.nextElementSibling?.className).toBe("event-meta");
+    expect(root.querySelector(".event-meta .event-badges")).toBeTruthy();
+    expect(root.querySelector(".event-meta .event-location")).toBeTruthy();
     expect(root.querySelector(".event-description")).toBeTruthy();
     expect(root.querySelector(".price")).toBeNull();
     expect(root.querySelector(".tags")).toBeNull();
     expect(root.querySelector(".event-organizer")).toBeNull();
+  });
+
+  it("adds icons to every attendance badge mode", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            { name: "Online", startDate: "2999-01-01", attendanceMode: "online" },
+            { name: "In Person", startDate: "2999-01-02", attendanceMode: "in-person" },
+            { name: "Hybrid", startDate: "2999-01-03", attendanceMode: "hybrid" },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/modes.json");
+    document.body.append(el);
+    await flush();
+
+    const badges = [...el.shadowRoot!.querySelectorAll(".attendance-badge")];
+    expect(badges.map((badge) => badge.textContent)).toEqual(["Online", "In person", "Hybrid"]);
+    expect(el.shadowRoot!.querySelector(".attendance-online svg.badge-icon")).toBeTruthy();
+    expect(el.shadowRoot!.querySelector(".attendance-in-person svg.badge-icon")).toBeTruthy();
+    expect(el.shadowRoot!.querySelector(".attendance-hybrid svg.badge-icon")).toBeTruthy();
   });
 
   it('fields="price,tags" shows only those, replacing the default set entirely', async () => {
@@ -300,6 +329,33 @@ describe("<ote-events>", () => {
     expect(location?.textContent).toBe("Google Meet");
     expect(location?.href).toBe("https://meet.google.com/abc-defg-hij");
     expect(el.shadowRoot!.textContent).not.toContain("meet.google.com/abc-defg-hij");
+  });
+
+  it("translates the generic online location label", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Evento online",
+              startDate: "2999-01-01",
+              location: { onlineUrl: "https://example.org/sala" },
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/online.json");
+    el.setAttribute("lang", "es");
+    document.body.append(el);
+    await flush();
+
+    const location = el.shadowRoot!.querySelector<HTMLAnchorElement>(".event-location a");
+    expect(location?.textContent).toBe("Evento en línea");
+    expect(location?.href).toBe("https://example.org/sala");
+    expect(el.shadowRoot!.textContent).not.toContain("Online link");
   });
 
   it("defensively hides raw URL locations in cards", () => {

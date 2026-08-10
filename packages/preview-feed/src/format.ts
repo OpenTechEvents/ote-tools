@@ -90,7 +90,7 @@ export function onlineLocationLabel(url: string | undefined): string | undefined
   try {
     host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
   } catch {
-    return "Online link";
+    return "Online event";
   }
 
   if (host === "meet.google.com") return "Google Meet";
@@ -104,7 +104,7 @@ export function onlineLocationLabel(url: string | undefined): string | undefined
   if (host.endsWith(".slack.com") || host === "slack.com") return "Slack";
   if (host.endsWith(".meetup.com") || host === "meetup.com") return "Meetup";
   if (host.endsWith(".eventbrite.com") || host === "eventbrite.com") return "Eventbrite";
-  return "Online link";
+  return "Online event";
 }
 
 export function eventWhen(event: PreviewEvent): string {

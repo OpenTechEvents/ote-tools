@@ -27,6 +27,7 @@ const STRINGS = {
     empty: "No upcoming events.",
     errorPrefix: "Could not load events: ",
     online: "Online",
+    onlineEvent: "Online event",
     free: "Free",
     updated: "Updated",
     event: "Event",
@@ -42,6 +43,7 @@ const STRINGS = {
     empty: "No hay próximos eventos.",
     errorPrefix: "No se pudieron cargar los eventos: ",
     online: "En línea",
+    onlineEvent: "Evento en línea",
     free: "Gratis",
     updated: "Actualizado",
     event: "Evento",
@@ -70,10 +72,62 @@ function withText<T extends HTMLElement>(node: T, text: string): T {
   return node;
 }
 
+function svgIcon(paths: string[], className: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", className);
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  for (const d of paths) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+function attendanceIcon(mode: NonNullable<PreviewEvent["attendanceMode"]>): SVGSVGElement {
+  const icons = {
+    online: [
+      "M15 10l4.6-2.3A1 1 0 0 1 21 8.6v6.8a1 1 0 0 1-1.4.9L15 14",
+      "M3 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2",
+    ],
+    "in-person": [
+      "M20 10c0 5-8 11-8 11s-8-6-8-11a8 8 0 1 1 16 0",
+      "M12 10h.01",
+    ],
+    hybrid: [
+      "M4 5h9a2 2 0 0 1 2 2v5H2V7a2 2 0 0 1 2-2",
+      "M8 19h4",
+      "M10 12v7",
+      "M18 21s4-3.2 4-6a4 4 0 0 0-8 0c0 2.8 4 6 4 6",
+      "M18 15h.01",
+    ],
+  } satisfies Record<NonNullable<PreviewEvent["attendanceMode"]>, string[]>;
+  return svgIcon(icons[mode], "badge-icon");
+}
+
+function attendanceBadge(
+  mode: NonNullable<PreviewEvent["attendanceMode"]>,
+  label: string,
+): HTMLElement {
+  const badge = el("span", `badge attendance-badge attendance-${mode}`);
+  badge.append(attendanceIcon(mode), document.createTextNode(label));
+  return badge;
+}
+
 function locationNode(event: PreviewEvent, strings: Strings): HTMLElement {
   const rawLocation = event.location && event.location !== "online" ? event.location : strings.online;
   const inferredLink = event.locationLink ?? urlLike(rawLocation);
-  const location = inferredLink ? onlineLocationLabel(inferredLink) ?? strings.online : rawLocation;
+  const location = displayLocationLabel(
+    inferredLink ? onlineLocationLabel(inferredLink) : rawLocation,
+    strings,
+  );
   if (!inferredLink) return withText(el("span"), location);
   const link = el("a");
   link.href = inferredLink;
@@ -81,6 +135,12 @@ function locationNode(event: PreviewEvent, strings: Strings): HTMLElement {
   link.rel = "noopener";
   link.textContent = location;
   return link;
+}
+
+function displayLocationLabel(value: string | undefined, strings: Strings): string {
+  if (!value || value === "online") return strings.online;
+  if (value === "Online link" || value === "Online event") return strings.onlineEvent;
+  return value;
 }
 
 function urlLike(value: string | undefined): string | undefined {
@@ -289,25 +349,27 @@ function renderCardEvent(
   }
   body.append(title);
 
-  const badges = el("div", "event-badges");
-  if (fields.has("attendance") && event.attendanceMode) {
-    badges.append(withText(el("span", "badge"), strings.attendance[event.attendanceMode]));
-  }
-  if (fields.has("price") && event.price) {
-    badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
-  }
-  if (badges.children.length > 0) body.append(badges);
-
   if (fields.has("when")) {
     const when = whenNode(event);
     if (when) body.append(when);
   }
 
+  const badges = el("div", "event-badges");
+  if (fields.has("attendance") && event.attendanceMode) {
+    badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
+  }
+  if (fields.has("price") && event.price) {
+    badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
+  }
+
+  const meta = el("div", "event-meta");
+  if (badges.children.length > 0) meta.append(badges);
   if (fields.has("location")) {
     const location = el("p", "event-location");
     location.append(locationNode(event, strings));
-    body.append(location);
+    meta.append(location);
   }
+  if (meta.children.length > 0) body.append(meta);
 
   if (fields.has("organizer") && event.organizerName) {
     body.append(withText(el("p", "event-organizer"), event.organizerName));
@@ -401,7 +463,7 @@ function renderListEvent(
 
   const badges = el("div", "event-badges");
   if (fields.has("attendance") && event.attendanceMode) {
-    badges.append(withText(el("span", "badge"), strings.attendance[event.attendanceMode]));
+    badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
   }
   if (fields.has("price") && event.price) {
     badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));

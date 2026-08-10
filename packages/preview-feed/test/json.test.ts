@@ -45,7 +45,7 @@ describe("jsonToPreviewFeed", () => {
     const [, event] = jsonToPreviewFeed(fixture).events;
     expect(event).toMatchObject({
       name: "Minimal Fixture Event",
-      location: "Online link",
+      location: "Online event",
       locationLink: "https://meet.example/fixture",
       link: "https://meet.example/fixture",
     });

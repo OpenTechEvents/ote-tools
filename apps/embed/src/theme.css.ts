@@ -341,6 +341,28 @@ ul.events.layout-cards {
   color: var(--ote-muted);
 }
 
+.event-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.35rem 0;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.8125rem;
+}
+
+.event-meta .event-badges {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: inherit;
+}
+
+.event-meta .event-location {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: inherit;
+}
+
 .event-description {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
@@ -355,13 +377,26 @@ ul.events.layout-cards {
 
 .badge,
 .price {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   font-size: 0.75rem;
   line-height: 1.4;
   background: var(--ote-accent-soft);
   color: var(--ote-accent);
+}
+
+.badge-icon {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+}
+
+.event-meta .badge,
+.event-meta .price {
+  font-size: inherit;
 }
 
 .tags {

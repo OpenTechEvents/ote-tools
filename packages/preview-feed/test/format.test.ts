@@ -100,7 +100,7 @@ describe("eventLocation", () => {
   it("prefers venue over onlineUrl, falls back to an online label", () => {
     expect(eventLocation({ location: { venue: "Hall" } })).toBe("Hall");
     expect(eventLocation({ location: { onlineUrl: "https://x.example/room" } })).toBe(
-      "Online link",
+      "Online event",
     );
     expect(eventLocation({})).toBe("online");
   });
@@ -117,8 +117,8 @@ describe("onlineLocationLabel", () => {
   });
 
   it("uses a generic label for unknown or invalid URLs", () => {
-    expect(onlineLocationLabel("https://example.org/event")).toBe("Online link");
-    expect(onlineLocationLabel("not a url")).toBe("Online link");
+    expect(onlineLocationLabel("https://example.org/event")).toBe("Online event");
+    expect(onlineLocationLabel("not a url")).toBe("Online event");
     expect(onlineLocationLabel(undefined)).toBeUndefined();
   });
 });
