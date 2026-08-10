@@ -46,6 +46,7 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     lang: "en",
     limit: Number.POSITIVE_INFINITY,
     showPast: true,
+    sort: "auto",
     layout,
     fields: new Set(["location"]),
     eventClick: "modal",
@@ -727,7 +728,10 @@ describe("<ote-events>", () => {
     el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
     el.shadowRoot!.querySelector<HTMLButtonElement>(".event-actions button")?.click();
 
-    expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ name: "Rich Event" }));
+    expect(onClick).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Rich Event" }),
+      expect.objectContaining({ previewEvent: expect.objectContaining({ name: "Rich Event" }) }),
+    );
     expect(actionEvent).toHaveBeenCalledTimes(1);
     expect(actionEvent.mock.calls[0]?.[0].detail.action).toBe("favorite");
   });
@@ -759,7 +763,10 @@ describe("<ote-events>", () => {
     expect(previewActions?.querySelector(".event-action-danger")).toBeNull();
 
     previewActions?.querySelector<HTMLButtonElement>("button")?.click();
-    expect(edit).toHaveBeenCalledWith(expect.objectContaining({ name: "Rich Event" }));
+    expect(edit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Rich Event" }),
+      expect.objectContaining({ previewEvent: expect.objectContaining({ name: "Rich Event" }) }),
+    );
   });
 
   it("renders both-placement custom actions in preview and detail", async () => {
@@ -920,6 +927,151 @@ describe("<ote-events>", () => {
     );
     expect(placeholder).toBeTruthy();
     expect(placeholder?.src).toBe("https://example.org/placeholder.jpg");
+  });
+
+  it("supports Reader-style in-memory events without fetching or reordering", async () => {
+    const first = {
+      id: "event-later",
+      name: "Later but first",
+      startDate: "2999-02-01",
+      _feedUrl: "https://reader.example/feed-a.json",
+      _feedTitle: "Feed A",
+      _readerRef: "read",
+      source: { origin: "reader" },
+    };
+    const second = {
+      id: "event-earlier",
+      name: "Earlier but second",
+      startDate: "2999-01-01",
+      _feedUrl: "https://reader.example/feed-b.json",
+      _feedTitle: "Feed B",
+      _readerRef: "unread",
+    };
+    const saved = new Set(["event-later"]);
+    const onSave = vi.fn();
+    const actionEvent = vi.fn();
+    const el = createCardsElement();
+    el.setAttribute("sort", "none");
+    el.setAttribute("event-actions", "none");
+    el.events = [first, second];
+    el.eventActions = (context) => [
+      {
+        id: "save",
+        label: saved.has(String(context.originalEvent?.id)) ? "Saved" : "Save",
+        icon: saved.has(String(context.originalEvent?.id)) ? "bookmark" : "star",
+        pressed: saved.has(String(context.originalEvent?.id)),
+        placement: "preview",
+        onClick: onSave,
+      },
+    ];
+    el.eventClassName = (context) => `reader-${String(context.originalEvent?._readerRef)}`;
+    el.eventBadges = (context) => [{ label: context.feed?.title ?? "Feed", icon: "folder" }];
+    el.addEventListener("ote-event-action", actionEvent);
+    document.body.append(el);
+    await flush();
+
+    const cards = [...el.shadowRoot!.querySelectorAll(".layout-cards > li.event")];
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(cards.map((card) => card.querySelector(".event-title")?.textContent)).toEqual([
+      "Later but first",
+      "Earlier but second",
+    ]);
+    expect(cards[0]?.classList.contains("reader-read")).toBe(true);
+    expect(cards[1]?.classList.contains("reader-unread")).toBe(true);
+    expect(cards[0]?.querySelector(".event-custom-badge")?.textContent).toBe("Feed A");
+    expect(cards[0]?.querySelector<HTMLButtonElement>(".event-preview-actions button")?.getAttribute("aria-pressed")).toBe("true");
+
+    cards[0]?.querySelector<HTMLButtonElement>(".event-preview-actions button")?.click();
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Later but first" }),
+      expect.objectContaining({
+        originalEvent: first,
+        index: 0,
+        feed: { url: "https://reader.example/feed-a.json", title: "Feed A" },
+        source: { origin: "reader" },
+      }),
+    );
+    expect(actionEvent.mock.calls[0]?.[0].detail).toEqual(
+      expect.objectContaining({
+        action: "save",
+        previewEvent: expect.objectContaining({ name: "Later but first" }),
+        originalEvent: first,
+        index: 0,
+        feed: { url: "https://reader.example/feed-a.json", title: "Feed A" },
+        source: { origin: "reader" },
+      }),
+    );
+  });
+
+  it("re-resolves function eventActions when host state changes", async () => {
+    const saved = new Set<string>();
+    const el = createCardsElement();
+    el.setAttribute("event-actions", "none");
+    el.events = [{ id: "runtime", name: "Runtime", startDate: "2999-01-01" }];
+    const actions = () => [
+      {
+        id: "bookmark",
+        label: saved.has("runtime") ? "Saved" : "Save",
+        icon: "bookmark" as const,
+        placement: "preview" as const,
+        pressed: saved.has("runtime"),
+        onClick: vi.fn(),
+      },
+    ];
+    el.eventActions = actions;
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".event-preview-actions")?.textContent).toContain("Save");
+
+    saved.add("runtime");
+    el.eventActions = actions;
+
+    expect(el.shadowRoot!.querySelector(".event-preview-actions")?.textContent).toContain("Saved");
+    expect(el.shadowRoot!.querySelector(".event-preview-actions button")?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("renders the added custom action icons", async () => {
+    const el = createCardsElement();
+    el.setAttribute("event-actions", "none");
+    el.events = [{ name: "Icon Event", startDate: "2999-01-01" }];
+    el.eventActions = ["star", "check", "bookmark", "plus", "folder", "collection"].map((icon) => ({
+      id: icon,
+      label: icon,
+      icon: icon as "star" | "check" | "bookmark" | "plus" | "folder" | "collection",
+      placement: "preview",
+      onClick: vi.fn(),
+    }));
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelectorAll(".event-preview-actions .action-icon")).toHaveLength(6);
+  });
+
+  it("uses a custom empty message", async () => {
+    const el = createListElement();
+    el.setAttribute("show-past", "false");
+    el.setAttribute("empty-message", "No events match these filters.");
+    el.events = [{ name: "Past", startDate: "2000-01-01" }];
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".message")?.textContent).toBe("No events match these filters.");
+  });
+
+  it("lets the host change layout around the same in-memory events without refetching", async () => {
+    const el = createListElement();
+    el.events = [{ name: "Layout Runtime", startDate: "2999-01-01" }];
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".layout-list")).toBeTruthy();
+    el.setAttribute("layout", "cards");
+
+    expect(el.shadowRoot!.querySelector(".layout-cards")).toBeTruthy();
+    expect(el.shadowRoot!.textContent).toContain("Layout Runtime");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("defaults to the calendar layout once loaded", async () => {

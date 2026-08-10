@@ -99,7 +99,7 @@ criteria never asked for — OTE's canonical publish format for a site is
 JSON. `@opentechevents/preview-feed` is built with `"sideEffects": false`
 specifically so esbuild tree-shakes those unused converters (and their
 heavier deps) out of this bundle when `src/element.ts` only imports
-`jsonToPreviewFeed`. If ICS/RSS `feed=` support is ever requested, that's a
+`oteJsonToPreviewFeed`. If ICS/RSS `feed=` support is ever requested, that's a
 deliberate scope change to discuss, not a bug to quietly fix.
 
 ## Theming: `--ote-*` CSS custom properties, not `!important` overrides
@@ -145,8 +145,8 @@ Consumers that need host-app behavior (for example editor actions like edit,
 clone, or delete) should set the element's `eventActions` property rather than
 trying to pierce the Shadow DOM. The source-of-truth contract is exported from
 `src/main.ts` as TypeScript types: `CustomEventAction`, `EventAction`,
-`NativeEventActionConfig`, `EventActionPlacement`, `EventActionIcon`, and
-`EventActionVariant`.
+`EventActionsInput`, `EventRenderContext`, `NativeEventActionConfig`,
+`EventActionPlacement`, `EventActionIcon`, and `EventActionVariant`.
 
 Native actions can be configured as strings for the simple detail-only case
 (`"google-calendar"`, `"link"`) or as objects when they need placement/layout
@@ -159,6 +159,49 @@ widget.eventActions = [
 ];
 ```
 
+Host apps such as OTE Reader can also make `eventActions` a function. The
+function receives an `EventRenderContext` and returns actions for that
+specific event, so labels/icons/pressed state can follow external state such
+as folders, read/unread, saved, or collection membership:
+
+```ts
+widget.setAttribute("event-actions", "none");
+widget.setAttribute("sort", "none");
+widget.events = filteredEvents;
+widget.eventActions = (context) => [
+  {
+    id: "save",
+    label: saved.has(context.originalEvent?.id) ? "Saved" : "Save",
+    icon: saved.has(context.originalEvent?.id) ? "bookmark" : "star",
+    pressed: saved.has(context.originalEvent?.id),
+    placement: "preview",
+    onClick(_previewEvent, actionContext) {
+      saveByStableRef(actionContext.originalEvent?.id, actionContext.feed?.url);
+    },
+  },
+];
+```
+
+`onClick` intentionally keeps the old `PreviewEvent` as its first argument and
+adds `EventRenderContext` as the second argument. Do not swap that order in a
+minor release.
+
+The `ote-event-action` DOM event includes both the legacy `event` field and
+the richer context fields: `action`, `previewEvent`, `originalEvent`, `index`,
+`feed`, and `source`.
+
+Private in-memory metadata is allowed. The widget normalizes OTE input into
+`PreviewEvent` for rendering, but it keeps a parallel mapping to the original
+event object. Fields such as `_feedUrl`, `_feedTitle`, or `_readerRef` must
+remain available through `context.originalEvent` and must not be rendered just
+because they exist.
+
+The widget stays stateless from the host app's point of view: it can render
+`el.events = filteredEvents`, accept dynamic `layout` changes, honor
+`sort="none"`, call host actions, and display host-provided `eventClassName`
+or `eventBadges`, but it must not persist favorites, folders, collections,
+read/unread state, subscriptions, or filters itself.
+
 Default action behavior is deliberately conservative:
 
 - `placement` defaults to `"detail"` (modal for cards/calendar, accordion body
@@ -167,13 +210,21 @@ Default action behavior is deliberately conservative:
 - `layouts` defaults to every layout. Pass `["cards"]`, `["list"]`, or
   `["calendar"]` to restrict where the action appears.
 - `variant: "danger"` is available for destructive actions.
-- `icon` supports the small built-in action icon set. Keep that set in
-  `render.ts` close to the `EventActionIcon` type.
+- `icon` supports the small built-in action icon set: `edit`, `trash`,
+  `copy`, `external-link`, `calendar`, `star`, `check`, `bookmark`, `plus`,
+  `folder`, and `collection`. Keep that set in `render.ts` close to the
+  `EventActionIcon` type.
+- `eventClassName(context)` returns host-controlled CSS class names for each
+  event surface.
+- `eventBadges(context)` returns extra non-OTE badges for host state. These
+  are view hints only; the host app owns the underlying state.
+- `empty-message="..."` customizes the empty state text.
 
 Behavioral tests in `apps/embed/test/element.test.ts` are the living
 documentation for placement, layout filtering, native calendar actions, and
-the `ote-event-action` DOM event. Update those tests with any API change so
-agent-facing docs do not drift from the implementation.
+the `ote-event-action` DOM event. The Reader-style in-memory tests are
+especially important: update them with any API change so agent-facing docs do
+not drift from the implementation.
 
 ## The calendar layout: why `@event-calendar/core`, not FullCalendar
 

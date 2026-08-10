@@ -7,22 +7,63 @@ import {
   sortedEvents,
   truncate,
 } from "@opentechevents/preview-feed";
-import type { PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
+import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
 
-import type { EventClickMode, FieldKey, Lang, Layout, NativeEventAction } from "./attrs.js";
+import type { EventClickMode, FieldKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
 
 export type EventActionPlacement = "detail" | "preview" | "both";
-export type EventActionIcon = "edit" | "trash" | "copy" | "external-link" | "calendar";
+export type EventActionIcon =
+  | "edit"
+  | "trash"
+  | "copy"
+  | "external-link"
+  | "calendar"
+  | "star"
+  | "check"
+  | "bookmark"
+  | "plus"
+  | "folder"
+  | "collection";
 export type EventActionVariant = "default" | "danger";
+
+export interface OriginalOteEvent extends OteJsonEvent {
+  [key: string]: unknown;
+}
+
+export interface EventFeedSource {
+  url?: string;
+  title?: string;
+}
+
+export interface EventRenderContext {
+  previewEvent: PreviewEvent;
+  originalEvent?: OriginalOteEvent;
+  index: number;
+  feed?: EventFeedSource;
+  source?: unknown;
+}
+
+export interface EventBadge {
+  label: string;
+  icon?: EventActionIcon;
+  title?: string;
+  tone?: "default" | "success" | "warning" | "danger";
+}
+
+export type EventActionResolver = (context: EventRenderContext) => EventAction[];
+export type EventActionsInput = EventAction[] | EventActionResolver;
+export type EventClassNameResolver = (context: EventRenderContext) => string | string[] | undefined;
+export type EventBadgesResolver = (context: EventRenderContext) => Array<string | EventBadge> | undefined;
 
 export interface CustomEventAction {
   id: string;
   label: string;
   icon?: EventActionIcon;
   variant?: EventActionVariant;
+  pressed?: boolean;
   placement?: EventActionPlacement;
   layouts?: Layout[];
-  onClick(event: PreviewEvent): void;
+  onClick(event: PreviewEvent, context: EventRenderContext): void;
 }
 
 export interface NativeEventActionConfig {
@@ -40,11 +81,16 @@ export interface WidgetState {
   lang: Lang;
   limit: number;
   showPast: boolean;
+  sort: SortMode;
   layout: Layout;
   fields: Set<FieldKey>;
   placeholderImage?: string;
+  emptyMessage?: string;
   eventClick: EventClickMode;
-  eventActions: EventAction[];
+  eventActions: EventActionsInput;
+  eventClassName?: EventClassNameResolver;
+  eventBadges?: EventBadgesResolver;
+  eventContext?(event: PreviewEvent): EventRenderContext;
   selectedEvent?: PreviewEvent;
   onEventOpen?(event: PreviewEvent): void;
   onEventClose?(): void;
@@ -263,6 +309,22 @@ function actionIcon(name: EventActionIcon): SVGSVGElement {
       "M8 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2",
       "M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2",
     ],
+    star: [
+      "M12 2l3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 17.77 5.82 21 7 14.13 2 9.26l6.91-1L12 2",
+    ],
+    check: ["M20 6 9 17l-5-5"],
+    bookmark: ["M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"],
+    plus: ["M12 5v14", "M5 12h14"],
+    folder: [
+      "M4 4h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2",
+    ],
+    collection: [
+      "M4 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2",
+      "M8 2v4",
+      "M16 2v4",
+      "M7 10h10",
+      "M7 14h7",
+    ],
   } satisfies Record<EventActionIcon, string[]>;
   return svgIcon(icons[name], "action-icon");
 }
@@ -323,7 +385,8 @@ function isPastEvent(event: PreviewEvent): boolean {
 /** Sort → filter past (unless show-past) → cap at limit. Shared by every layout. */
 export function selectVisibleEvents(state: WidgetState): PreviewEvent[] {
   if (!state.feed) return [];
-  return sortedEvents(state.feed.events)
+  const events = state.sort === "none" ? [...state.feed.events] : sortedEvents(state.feed.events);
+  return events
     .filter((event) => state.showPast || !isPastEvent(event))
     .slice(0, state.limit);
 }
@@ -622,6 +685,7 @@ function renderCardEvent(
   strings: Strings,
 ): HTMLLIElement {
   const item = el("li", "event");
+  applyEventClassNames(item, event, state);
   attachOpenBehavior(item, event, state);
 
   if (state.fields.has("image")) {
@@ -656,6 +720,7 @@ function renderCardEvent(
   if (state.fields.has("price") && event.price) {
     badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
   }
+  appendCustomBadges(badges, event, state);
 
   const meta = el("div", "event-meta");
   if (badges.children.length > 0) meta.append(badges);
@@ -738,6 +803,7 @@ function renderListEvent(
   state: WidgetState,
 ): HTMLLIElement {
   const item = el("li", "event event-row");
+  applyEventClassNames(item, event, state);
   const details = el("details", "event-accordion");
   item.append(details);
 
@@ -784,6 +850,7 @@ function renderListEvent(
   if (state.fields.has("price") && event.price) {
     badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
   }
+  appendCustomBadges(badges, event, state);
   if (badges.children.length > 0) aside.append(badges);
 
   if (state.fields.has("description")) {
@@ -871,9 +938,10 @@ function nativeActionMatchesPlacement(
 
 function nativeActionsForPlacement(
   state: WidgetState,
+  event: PreviewEvent,
   placement: "detail" | "preview",
 ): Array<NativeEventAction | NativeEventActionConfig> {
-  return state.eventActions.filter(
+  return eventActionsForEvent(state, event).filter(
     (action): action is NativeEventAction | NativeEventActionConfig =>
       (typeof action === "string" || isNativeActionConfig(action)) &&
       nativeActionMatchesPlacement(action, placement, state.layout),
@@ -882,9 +950,10 @@ function nativeActionsForPlacement(
 
 function customActionsForPlacement(
   state: WidgetState,
+  event: PreviewEvent,
   placement: "detail" | "preview",
 ): CustomEventAction[] {
-  return state.eventActions.filter(
+  return eventActionsForEvent(state, event).filter(
     (action): action is CustomEventAction =>
       isCustomAction(action) &&
       actionMatchesPlacement(action, placement) &&
@@ -920,7 +989,7 @@ function appendEventActions(
   state: WidgetState,
 ): void {
   const actions = el("div", "event-actions");
-  const nativeActions = nativeActionsForPlacement(state, "detail");
+  const nativeActions = nativeActionsForPlacement(state, event, "detail");
   const calendarActions = nativeActions.filter((action) => CALENDAR_ACTIONS.has(nativeActionType(action)));
   if (calendarActions.length > 0) {
     const menu = el("details", "event-action-menu");
@@ -942,12 +1011,7 @@ function appendEventActions(
     }
   }
 
-  for (const action of state.eventActions) {
-    if (!isCustomAction(action)) continue;
-    if (actionMatchesPlacement(action, "detail") && actionMatchesLayout(action, state.layout)) {
-      actions.append(customActionButton(action, event, state));
-    }
-  }
+  for (const action of customActionsForPlacement(state, event, "detail")) actions.append(customActionButton(action, event, state));
   if (actions.children.length > 0) container.append(actions);
 }
 
@@ -957,8 +1021,8 @@ function appendPreviewActions(
   strings: Strings,
   state: WidgetState,
 ): void {
-  const nativeActions = nativeActionsForPlacement(state, "preview");
-  const customActions = customActionsForPlacement(state, "preview");
+  const nativeActions = nativeActionsForPlacement(state, event, "preview");
+  const customActions = customActionsForPlacement(state, event, "preview");
   if (nativeActions.length === 0 && customActions.length === 0) return;
   const actions = el("div", "event-actions event-preview-actions");
   const calendarActions = nativeActions.filter((action) => CALENDAR_ACTIONS.has(nativeActionType(action)));
@@ -993,13 +1057,56 @@ function customActionButton(
   button.type = "button";
   button.classList.add("event-custom-action");
   if (action.variant === "danger") button.classList.add("event-action-danger");
+  if (action.pressed !== undefined) button.setAttribute("aria-pressed", String(action.pressed));
   if (action.icon) button.append(actionIcon(action.icon), document.createTextNode(action.label));
   else button.textContent = action.label;
   button.addEventListener("click", () => {
     state.onEventAction?.(action, event);
-    action.onClick(event);
+    action.onClick(event, eventContextFor(state, event));
   });
   return button;
+}
+
+function eventContextFor(state: WidgetState, event: PreviewEvent): EventRenderContext {
+  return (
+    state.eventContext?.(event) ?? {
+      previewEvent: event,
+      index: state.feed?.events.indexOf(event) ?? -1,
+    }
+  );
+}
+
+function eventActionsForEvent(state: WidgetState, event: PreviewEvent): EventAction[] {
+  return typeof state.eventActions === "function"
+    ? state.eventActions(eventContextFor(state, event))
+    : state.eventActions;
+}
+
+function normalizeClassNames(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  const values = Array.isArray(value) ? value : value.split(/\s+/);
+  return values.map((item) => item.trim()).filter(Boolean);
+}
+
+function applyEventClassNames(node: HTMLElement, event: PreviewEvent, state: WidgetState): void {
+  for (const className of normalizeClassNames(state.eventClassName?.(eventContextFor(state, event)))) {
+    node.classList.add(className);
+  }
+}
+
+function appendCustomBadges(container: HTMLElement, event: PreviewEvent, state: WidgetState): void {
+  const badges = state.eventBadges?.(eventContextFor(state, event)) ?? [];
+  for (const badge of badges) {
+    if (typeof badge === "string") {
+      container.append(withText(el("span", "badge event-custom-badge"), badge));
+      continue;
+    }
+    const node = el("span", `badge event-custom-badge event-custom-badge-${badge.tone ?? "default"}`);
+    if (badge.title) node.title = badge.title;
+    if (badge.icon) node.append(actionIcon(badge.icon));
+    node.append(document.createTextNode(badge.label));
+    container.append(node);
+  }
 }
 
 function renderModal(event: PreviewEvent, strings: Strings, state: WidgetState): HTMLElement {
@@ -1013,6 +1120,7 @@ function renderModal(event: PreviewEvent, strings: Strings, state: WidgetState):
   });
 
   const modal = el("section", "event-modal");
+  applyEventClassNames(modal, event, state);
   const descriptionLength = event.description?.trim().length ?? 0;
   if (!event.image && descriptionLength > 0 && descriptionLength <= 180) {
     modal.classList.add("event-modal-compact");
@@ -1050,7 +1158,12 @@ function renderModal(event: PreviewEvent, strings: Strings, state: WidgetState):
       badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
     }
     if (event.price) badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
+    appendCustomBadges(badges, event, state);
     aside.append(badges);
+  } else {
+    const badges = el("div", "event-badges");
+    appendCustomBadges(badges, event, state);
+    if (badges.children.length > 0) aside.append(badges);
   }
 
   if (event.description) main.append(renderMarkdownDescription(event.description));
@@ -1099,7 +1212,7 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
 
   const events = selectVisibleEvents(state);
   if (events.length === 0) {
-    container.append(withText(el("p", "message"), strings.empty));
+    container.append(withText(el("p", "message"), state.emptyMessage ?? strings.empty));
     return;
   }
 

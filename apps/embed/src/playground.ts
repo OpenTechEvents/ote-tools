@@ -171,10 +171,10 @@ function buildSnippet(config: {
         `    {`,
         `      id: "save",`,
         `      label: "Save",`,
-        `      icon: "copy",`,
+        `      icon: "star",`,
         `      placement: "${config.customActionPlacement}",`,
-        `      onClick(event) {`,
-        `        alert(\`Custom action for: \${event.name}\`);`,
+        `      onClick(event, context) {`,
+        `        alert(\`Custom action for: \${event.name} from \${context.feed?.title ?? "this feed"}\`);`,
         `      },`,
         `    },`,
       ]
@@ -197,7 +197,19 @@ function buildSnippet(config: {
 function setSnippet(text: string): void {
   snippetCode.textContent = text;
   snippetCode.removeAttribute("data-highlighted");
-  window.hljs?.highlightElement(snippetCode);
+  highlightCodeBlock(snippetCode);
+}
+
+function highlightCodeBlock(block: Element): void {
+  if (!window.hljs) return;
+  block.removeAttribute("data-highlighted");
+  window.hljs.highlightElement(block);
+}
+
+function highlightStaticCodeBlocks(): void {
+  for (const block of document.querySelectorAll("pre code:not(#snippet-code)")) {
+    highlightCodeBlock(block);
+  }
 }
 
 function parseRuntimeData(value: string): RuntimeData | undefined {
@@ -447,3 +459,5 @@ copyButton.addEventListener("click", () => {
 });
 
 applyAndRender();
+highlightStaticCodeBlocks();
+window.addEventListener("load", highlightStaticCodeBlocks);

@@ -10,6 +10,7 @@ import {
   parseLayout,
   parseLimit,
   parseShowPast,
+  parseSort,
   resolveLang,
 } from "../src/attrs.js";
 
@@ -81,6 +82,15 @@ describe("parseEventClick", () => {
     expect(parseEventClick("link")).toBe("link");
     expect(parseEventClick("none")).toBe("none");
     expect(parseEventClick("bogus")).toBe("modal");
+  });
+});
+
+describe("parseSort", () => {
+  it('accepts none and defaults to auto', () => {
+    expect(parseSort("none")).toBe("none");
+    expect(parseSort("auto")).toBe("auto");
+    expect(parseSort(null)).toBe("auto");
+    expect(parseSort("date")).toBe("auto");
   });
 });
 

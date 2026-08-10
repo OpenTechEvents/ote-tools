@@ -6,6 +6,7 @@ export type LangAttr = "en" | "es" | "auto";
 export type Lang = "en" | "es";
 export type Layout = "list" | "cards" | "calendar";
 export type EventClickMode = "modal" | "link" | "none";
+export type SortMode = "auto" | "none";
 export type NativeEventAction = "google-calendar" | "outlook-calendar" | "yahoo-calendar" | "ics" | "link";
 
 export type FieldKey =
@@ -78,6 +79,10 @@ export function parseLayout(value: string | null): Layout {
 export function parseEventClick(value: string | null): EventClickMode {
   if (value === "link" || value === "none") return value;
   return "modal";
+}
+
+export function parseSort(value: string | null): SortMode {
+  return value === "none" ? "none" : "auto";
 }
 
 function isNativeEventAction(value: string): value is NativeEventAction {

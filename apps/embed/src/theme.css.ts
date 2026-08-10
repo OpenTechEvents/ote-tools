@@ -345,6 +345,12 @@ ul.events.layout-cards {
   color: var(--ote-error);
 }
 
+.event-actions [aria-pressed="true"] {
+  border-color: var(--ote-accent);
+  background: var(--ote-accent);
+  color: var(--ote-surface);
+}
+
 .event-actions .event-action-danger:hover,
 .event-actions .event-action-danger:focus-visible {
   border-color: var(--ote-error);
@@ -529,6 +535,24 @@ ul.events.layout-cards {
   width: 1em;
   height: 1em;
   flex: 0 0 auto;
+}
+
+.event-custom-badge-success {
+  color: #157347;
+}
+
+.event-custom-badge-warning {
+  color: #8a5a00;
+}
+
+.event-custom-badge-danger {
+  background: var(--ote-error-bg);
+  color: var(--ote-error);
+}
+
+.event-custom-badge .action-icon {
+  width: 1em;
+  height: 1em;
 }
 
 .event-meta .badge,

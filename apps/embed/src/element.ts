@@ -1,7 +1,8 @@
-import { jsonToPreviewFeed, oteJsonToPreviewFeed } from "@opentechevents/preview-feed";
+import { oteJsonToPreviewFeed } from "@opentechevents/preview-feed";
 import type {
-  OteJsonEvent,
+  OteJsonFeed,
   OteJsonPreviewInput,
+  PreviewEvent,
   PreviewFeed,
 } from "@opentechevents/preview-feed";
 
@@ -13,13 +14,32 @@ import {
   parseLayout,
   parseLimit,
   parseShowPast,
+  parseSort,
   resolveLang,
 } from "./attrs.js";
-import { renderWidget, selectVisibleEvents, type EventAction, type WidgetState } from "./render.js";
+import {
+  renderWidget,
+  selectVisibleEvents,
+  type EventAction,
+  type EventActionsInput,
+  type EventBadgesResolver,
+  type EventClassNameResolver,
+  type EventFeedSource,
+  type EventRenderContext,
+  type OriginalOteEvent,
+  type WidgetState,
+} from "./render.js";
 import { WIDGET_CSS } from "./theme.css.js";
 
 type Status = "idle" | "loading" | "loaded" | "error";
 type CalendarHandle = { destroy(): void };
+
+export interface OteEventsFeedObject extends Omit<OteJsonFeed, "events"> {
+  events?: OriginalOteEvent[];
+  [key: string]: unknown;
+}
+
+export type OteEventsFeedData = OteEventsFeedObject | OriginalOteEvent[];
 
 /**
  * `<ote-events feed="..." limit="..." theme="auto" lang="auto" show-past="true" layout="calendar" fields="...">`
@@ -42,17 +62,25 @@ export class OteEventsElement extends HTMLElement {
     "placeholder-image",
     "event-click",
     "event-actions",
+    "sort",
+    "empty-message",
   ];
 
   #styleEl: HTMLStyleElement;
   #container: HTMLElement;
   #feed: PreviewFeed | undefined;
-  #runtimeData: OteJsonPreviewInput | undefined;
+  #runtimeData: OteEventsFeedData | undefined;
+  #runtimeDataOverride = false;
+  #originalEvents: OriginalOteEvent[] = [];
+  #feedSource: EventFeedSource | undefined;
+  #contexts = new WeakMap<PreviewEvent, EventRenderContext>();
   #status: Status = "idle";
   #errorMessage = "";
   #requestId = 0;
   #selectedEvent: WidgetState["selectedEvent"];
-  #customEventActions: EventAction[] = [];
+  #customEventActions: EventActionsInput = [];
+  #eventClassName: EventClassNameResolver | undefined;
+  #eventBadges: EventBadgesResolver | undefined;
 
   #calendarHandle: CalendarHandle | undefined;
   #calendarRequestId = 0;
@@ -69,7 +97,7 @@ export class OteEventsElement extends HTMLElement {
   }
 
   connectedCallback(): void {
-    if (this.#runtimeData) this.#renderNow();
+    if (this.#runtimeDataOverride) this.#renderNow();
     else void this.#load();
   }
 
@@ -86,42 +114,60 @@ export class OteEventsElement extends HTMLElement {
     }
   }
 
-  get feedData(): OteJsonPreviewInput | undefined {
+  get feedData(): OteEventsFeedData | undefined {
     return this.#runtimeData;
   }
 
-  set feedData(value: OteJsonPreviewInput | null | undefined) {
+  set feedData(value: OteEventsFeedData | null | undefined) {
     this.#setRuntimeData(value);
   }
 
-  get events(): OteJsonEvent[] | undefined {
+  get events(): OriginalOteEvent[] | undefined {
     if (!this.#runtimeData) return undefined;
     return Array.isArray(this.#runtimeData) ? this.#runtimeData : this.#runtimeData.events;
   }
 
-  set events(value: OteJsonEvent[] | null | undefined) {
+  set events(value: OriginalOteEvent[] | null | undefined) {
     this.#setRuntimeData(value);
   }
 
-  get event(): OteJsonEvent | undefined {
+  get event(): OriginalOteEvent | undefined {
     return this.events?.[0];
   }
 
-  set event(value: OteJsonEvent | null | undefined) {
+  set event(value: OriginalOteEvent | null | undefined) {
     this.#setRuntimeData(value == null ? value : [value]);
   }
 
-  get eventActions(): EventAction[] {
+  get eventActions(): EventActionsInput {
     return this.#customEventActions;
   }
 
-  set eventActions(value: EventAction[] | null | undefined) {
-    this.#customEventActions = Array.isArray(value) ? value : [];
+  set eventActions(value: EventActionsInput | null | undefined) {
+    this.#customEventActions = Array.isArray(value) || typeof value === "function" ? value : [];
+    if (this.isConnected) this.#renderNow();
+  }
+
+  get eventClassName(): EventClassNameResolver | undefined {
+    return this.#eventClassName;
+  }
+
+  set eventClassName(value: EventClassNameResolver | null | undefined) {
+    this.#eventClassName = typeof value === "function" ? value : undefined;
+    if (this.isConnected) this.#renderNow();
+  }
+
+  get eventBadges(): EventBadgesResolver | undefined {
+    return this.#eventBadges;
+  }
+
+  set eventBadges(value: EventBadgesResolver | null | undefined) {
+    this.#eventBadges = typeof value === "function" ? value : undefined;
     if (this.isConnected) this.#renderNow();
   }
 
   async #load(): Promise<void> {
-    if (this.#runtimeData) return;
+    if (this.#runtimeDataOverride) return;
 
     const feedUrl = this.getAttribute("feed");
     if (!feedUrl) {
@@ -142,9 +188,15 @@ export class OteEventsElement extends HTMLElement {
       const response = await fetch(feedUrl);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = await response.text();
-      const feed = jsonToPreviewFeed(text);
+      const runtimeData = JSON.parse(text) as OteEventsFeedData;
+      const feed = oteJsonToPreviewFeed(runtimeData as OteJsonPreviewInput);
       if (requestId !== this.#requestId) return;
       this.#feed = feed;
+      this.#runtimeData = runtimeData;
+      this.#runtimeDataOverride = false;
+      this.#originalEvents = originalEvents(runtimeData);
+      this.#feedSource = feedSource(runtimeData, feedUrl);
+      this.#contexts = buildContexts(feed, this.#originalEvents, this.#feedSource);
       this.#status = "loaded";
       this.#selectedEvent = undefined;
     } catch (error) {
@@ -156,12 +208,16 @@ export class OteEventsElement extends HTMLElement {
     this.#renderNow();
   }
 
-  #setRuntimeData(value: OteJsonPreviewInput | null | undefined): void {
+  #setRuntimeData(value: OteEventsFeedData | null | undefined): void {
     this.#requestId++;
 
     if (value == null) {
       this.#runtimeData = undefined;
+      this.#runtimeDataOverride = false;
       this.#feed = undefined;
+      this.#originalEvents = [];
+      this.#feedSource = undefined;
+      this.#contexts = new WeakMap();
       this.#errorMessage = "";
       this.#selectedEvent = undefined;
       if (this.isConnected) void this.#load();
@@ -169,13 +225,20 @@ export class OteEventsElement extends HTMLElement {
     }
 
     this.#runtimeData = value;
+    this.#runtimeDataOverride = true;
     try {
-      this.#feed = oteJsonToPreviewFeed(value);
+      this.#feed = oteJsonToPreviewFeed(value as OteJsonPreviewInput);
+      this.#originalEvents = originalEvents(value);
+      this.#feedSource = feedSource(value);
+      this.#contexts = buildContexts(this.#feed, this.#originalEvents, this.#feedSource);
       this.#status = "loaded";
       this.#errorMessage = "";
       this.#selectedEvent = undefined;
     } catch (error) {
       this.#feed = undefined;
+      this.#originalEvents = [];
+      this.#feedSource = undefined;
+      this.#contexts = new WeakMap();
       this.#status = "error";
       this.#errorMessage = error instanceof Error ? error.message : String(error);
       this.#selectedEvent = undefined;
@@ -192,14 +255,19 @@ export class OteEventsElement extends HTMLElement {
       lang,
       limit: parseLimit(this.getAttribute("limit")),
       showPast: parseShowPast(this.getAttribute("show-past")),
+      sort: parseSort(this.getAttribute("sort")),
       layout: parseLayout(this.getAttribute("layout")),
       fields: parseFields(this.getAttribute("fields")),
       placeholderImage: this.getAttribute("placeholder-image")?.trim() || undefined,
+      emptyMessage: this.getAttribute("empty-message")?.trim() || undefined,
       eventClick: parseEventClick(this.getAttribute("event-click")),
-      eventActions: [...parseEventActions(this.getAttribute("event-actions")), ...this.#customEventActions],
+      eventActions: this.#eventActionsWithAttributeDefaults(),
+      eventClassName: this.#eventClassName,
+      eventBadges: this.#eventBadges,
+      eventContext: (event) => this.#contexts.get(event) ?? { previewEvent: event, index: -1 },
       selectedEvent: this.#selectedEvent,
       onEventOpen: (event) => {
-        this.dispatchEvent(new CustomEvent("ote-event-open", { detail: { event } }));
+        this.dispatchEvent(new CustomEvent("ote-event-open", { detail: this.#domEventDetail(undefined, event) }));
         if (parseEventClick(this.getAttribute("event-click")) === "modal") {
           this.#selectedEvent = event;
           this.#renderNow();
@@ -212,7 +280,7 @@ export class OteEventsElement extends HTMLElement {
       onEventAction: (action, event) => {
         const actionId = typeof action === "string" ? action : "type" in action ? action.type : action.id;
         this.dispatchEvent(
-          new CustomEvent("ote-event-action", { detail: { action: actionId, event } }),
+          new CustomEvent("ote-event-action", { detail: this.#domEventDetail(actionId, event) }),
         );
       },
     };
@@ -263,7 +331,7 @@ export class OteEventsElement extends HTMLElement {
         lang,
         onEventClick: (event) => {
           const eventClick = parseEventClick(this.getAttribute("event-click"));
-          this.dispatchEvent(new CustomEvent("ote-event-open", { detail: { event } }));
+          this.dispatchEvent(new CustomEvent("ote-event-open", { detail: this.#domEventDetail(undefined, event) }));
           if (eventClick === "link" && event.link) {
             window.open(event.link, "_blank", "noopener");
           } else if (eventClick === "modal") {
@@ -279,11 +347,74 @@ export class OteEventsElement extends HTMLElement {
     }
   }
 
+  #eventActionsWithAttributeDefaults(): EventActionsInput {
+    const attributeActions = parseEventActions(this.getAttribute("event-actions"));
+    const customActions = this.#customEventActions;
+    if (typeof customActions === "function") {
+      return (context) => [...attributeActions, ...customActions(context)];
+    }
+    return [...attributeActions, ...customActions];
+  }
+
+  #domEventDetail(action: string | undefined, event: PreviewEvent): Record<string, unknown> {
+    const context = this.#contexts.get(event) ?? { previewEvent: event, index: -1 };
+    return {
+      ...(action ? { action } : {}),
+      event,
+      previewEvent: event,
+      originalEvent: context.originalEvent,
+      index: context.index,
+      feed: context.feed,
+      source: context.source,
+    };
+  }
+
   #teardownCalendar(): void {
     this.#calendarRequestId++;
     this.#calendarHandle?.destroy();
     this.#calendarHandle = undefined;
   }
+}
+
+function originalEvents(input: OteEventsFeedData): OriginalOteEvent[] {
+  return Array.isArray(input) ? input : Array.isArray(input.events) ? input.events : [];
+}
+
+function stringMeta(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function feedSource(input: OteEventsFeedData, url?: string): EventFeedSource | undefined {
+  const firstEvent = originalEvents(input)[0];
+  const title = !Array.isArray(input) ? stringMeta(input.title ?? input["_feedTitle"]) : undefined;
+  const source = {
+    url: url ?? stringMeta(firstEvent?.["_feedUrl"]),
+    title: title ?? stringMeta(firstEvent?.["_feedTitle"]),
+  };
+  return source.url || source.title ? source : undefined;
+}
+
+function buildContexts(
+  feed: PreviewFeed,
+  originals: OriginalOteEvent[],
+  source: EventFeedSource | undefined,
+): WeakMap<PreviewEvent, EventRenderContext> {
+  const contexts = new WeakMap<PreviewEvent, EventRenderContext>();
+  feed.events.forEach((previewEvent, index) => {
+    const originalEvent = originals[index];
+    const eventFeed = {
+      url: stringMeta(originalEvent?.["_feedUrl"]) ?? source?.url,
+      title: stringMeta(originalEvent?.["_feedTitle"]) ?? source?.title,
+    };
+    contexts.set(previewEvent, {
+      previewEvent,
+      originalEvent,
+      index,
+      feed: eventFeed.url || eventFeed.title ? eventFeed : source,
+      source: originalEvent?.source,
+    });
+  });
+  return contexts;
 }
 
 // theme="light"/"dark"/"auto" needs no JS branch: theme.css.ts's :host()

@@ -1,5 +1,27 @@
 # @opentechevents/embed changelog
 
+## 0.3.0
+
+### Added
+
+- Added host-app integration APIs for OTE Reader-style usage:
+  `sort="none"`, `empty-message`, dynamic `eventActions(context)`,
+  `eventClassName(context)`, and `eventBadges(context)`.
+- Preserved original in-memory OTE event objects, including private metadata
+  such as `_feedUrl`, `_feedTitle`, and `_readerRef`, through
+  `EventRenderContext`.
+- Expanded `ote-event-action` details with `previewEvent`, `originalEvent`,
+  `index`, `feed`, and `source` while keeping the legacy `event` field.
+- Added action icons for `star`, `check`, `bookmark`, `plus`, `folder`, and
+  `collection`.
+- Documented and tested no-refetch in-memory rendering with dynamic layouts,
+  custom actions, host-owned ordering, badges, and classes.
+
+### Changed
+
+- Custom action `onClick` callbacks still receive `PreviewEvent` first and now
+  receive `EventRenderContext` as a second argument.
+
 ## 0.2.0
 
 ### Added
@@ -51,7 +73,7 @@
 Production embeds should use a fixed versioned URL:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.2.0/ote-events.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.3.0/ote-events.js"></script>
 ```
 
 The floating URLs `https://tools.opentechevents.org/embed/latest/ote-events.js`
