@@ -30,6 +30,21 @@ Published packages follow the OTE spec minor they implement (`0.3.x` speaks
 OTE spec v0.3). Each package also has its own changelog so fixes and
 improvements can be traced package by package.
 
+## Apps
+
+| App | What it does |
+| --- | --- |
+| [`editor`](apps/editor/) | Static web editor for OTE events: form → event JSON → prefilled issue or direct edit. |
+| [`preview`](apps/preview/) | Static feed previewer for OTE organizer forks. |
+| [`embed`](apps/embed/) | Embeddable `<ote-events>` web component: drop an OTE feed into any website. |
+| [`dashboard-checks`](apps/dashboard-checks/) | Client-side setup checks + template-update banner for OTE organizer dashboards. |
+
+`editor`, `preview` and `embed` are built and deployed together by
+`deploy-tools.yml`; `dashboard-checks.js` is served as a standalone file.
+Once the `tools.opentechevents.org` custom domain is configured (see
+`.github/workflows/deploy-tools.yml`), they're reachable at
+`tools.opentechevents.org/editor`, `/preview` and `/embed`.
+
 ## Reusable workflows
 
 Organizer repos (forks of `ote-template`) don't copy any build logic — they
