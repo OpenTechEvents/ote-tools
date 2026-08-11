@@ -21,10 +21,13 @@ which exercises the pure helpers exported at the bottom of the file.
 
 1. **Setup check** (on demand — a "Check setup" button, because the
    unauthenticated GitHub API allows only 60 req/h/IP). Against public,
-   CORS-open endpoints it checks: Issues enabled, the `ote-event` label,
-   whether Actions are running and green, whether `ote.config.json` still holds
-   the sample placeholders, and whether the sample events are still published.
-   Results are cached in `sessionStorage` per repo for the session.
+   CORS-open endpoints it checks: Issues enabled, the `ote-event` label, the
+   `ote-batch` label (tags the single issue the editor opens for a generated
+   recurring series — a warning, not a failure, since GitHub silently ignores
+   an unknown label rather than erroring), whether Actions are running and
+   green, whether `ote.config.json` still holds the sample placeholders, and
+   whether the sample events are still published. Results are cached in
+   `sessionStorage` per repo for the session.
 
    The "Allow GitHub Actions to create and approve pull requests" setting
    **cannot** be read unauthenticated (it needs `administration:read`), so it is

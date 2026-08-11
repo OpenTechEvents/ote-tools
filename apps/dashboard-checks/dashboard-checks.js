@@ -238,6 +238,29 @@ function checkLabel(repo) {
   });
 }
 
+// ote-batch tags the single issue the editor opens for a generated recurring
+// series ("Submit all as one issue" — proposeBatchChangeUrl, apps/editor/src/
+// lib/links.ts). Missing it doesn't break anything by itself (GitHub silently
+// ignores an unknown label on issue creation), so this is a warning, not a
+// hard failure like the ote-event label.
+function checkBatchLabel(repo) {
+  return ghGet("/repos/" + repo + "/labels/ote-batch").then(function (res) {
+    if (!res) return unknownResult("batch-label", "ote-batch label");
+    if (res.status === 200) return result("pass", "batch-label", "The ote-batch label exists");
+    if (res.status === 404) {
+      return result(
+        "warn",
+        "batch-label",
+        "The ote-batch label is missing",
+        "The editor tags recurring-series batch issues with it. Create a label named exactly ote-batch.",
+        "https://github.com/" + repo + "/labels",
+        "Manage labels",
+      );
+    }
+    return unknownResult("batch-label", "ote-batch label");
+  });
+}
+
 function checkActions(repo) {
   return ghGet("/repos/" + repo + "/actions/runs?per_page=1").then(function (res) {
     if (!res || !res.ok || !res.body) return unknownResult("actions", "GitHub Actions");
@@ -335,6 +358,7 @@ function runSetupChecks(repo) {
   return Promise.all([
     checkIssues(repo),
     checkLabel(repo),
+    checkBatchLabel(repo),
     checkActions(repo),
     checkConfig(repo),
     checkSamples(repo),
