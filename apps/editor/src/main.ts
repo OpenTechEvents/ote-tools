@@ -1930,12 +1930,17 @@ async function startEditor(repo: string | null): Promise<void> {
       linkWord.textContent = t("dialog.recurrence.missingPartOfLinkWord", "here");
       linkWord.addEventListener("click", () => {
         onOpenSeriesPicker(
-          { id: state.partOfId, name: state.partOfName, url: state.partOfUrl },
+          {
+            id: state.partOfId,
+            name: state.partOfName,
+            url: state.partOfUrl,
+            type: state.partOfType,
+          },
           (next) => {
             onInput("partOfId", next.id);
             onInput("partOfName", next.name);
             onInput("partOfUrl", next.url);
-            onInput("partOfType", "series");
+            onInput("partOfType", next.type);
             // Rebuilds `events` (now carrying partOf) and drops the ack row.
             onGenerateRecurrenceSeries(series);
           },
@@ -2135,8 +2140,17 @@ async function startEditor(repo: string | null): Promise<void> {
       ),
     );
 
-  let seriesApply: ((next: { id: string; name: string; url: string }) => void) | null = null;
+  let seriesApply:
+    | ((next: { id: string; name: string; url: string; type: string }) => void)
+    | null = null;
   let seriesIdDirty = false;
+  // The type already on the draft when the dialog opened (e.g. "multipart",
+  // set by hand via the "Part of" chip under "What") — "Create and link"
+  // preserves it rather than assuming "series", so this dialog's own id/name
+  // convenience never silently downgrades a type the organizer already chose
+  // elsewhere. Only a picked-from-search result forces "series" (every
+  // entry in `knownSeries` already is one, by construction).
+  let seriesCurrentType = "";
 
   function updateSeriesCreateConfirm(): void {
     seriesCreateConfirm.disabled =
@@ -2160,7 +2174,7 @@ async function startEditor(repo: string | null): Promise<void> {
       button.type = "button";
       button.textContent = option.name;
       button.addEventListener("click", () => {
-        seriesApply?.(option);
+        seriesApply?.({ ...option, type: "series" });
         seriesApply = null;
         seriesDialog.close();
       });
@@ -2192,10 +2206,11 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   function onOpenSeriesPicker(
-    current: { id: string; name: string; url: string },
-    apply: (next: { id: string; name: string; url: string }) => void,
+    current: { id: string; name: string; url: string; type: string },
+    apply: (next: { id: string; name: string; url: string; type: string }) => void,
   ): void {
     seriesApply = apply;
+    seriesCurrentType = current.type;
     seriesCreateUrl.value = current.url;
     seriesCreateName.value = current.name;
     seriesCreateId.value = current.id;
@@ -2212,13 +2227,10 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   seriesSearchInput.addEventListener("input", () => renderSeriesSearchList(seriesSearchInput.value));
-  seriesSearchCreate.addEventListener("click", () => {
-    seriesCreateUrl.value = "";
-    seriesCreateName.value = "";
-    seriesCreateId.value = "";
-    seriesIdDirty = false;
-    showSeriesCreate();
-  });
+  // Fields already reflect `current` from onOpenSeriesPicker (name/type may
+  // be non-empty even with the search screen showing — only `id` is
+  // guaranteed empty there) — just reveal the create form, don't wipe them.
+  seriesSearchCreate.addEventListener("click", () => showSeriesCreate());
 
   seriesCreateName.addEventListener("input", () => {
     if (!seriesIdDirty) seriesCreateId.value = suggestPartOfId(config, repo, seriesCreateName.value);
@@ -2247,6 +2259,9 @@ async function startEditor(repo: string | null): Promise<void> {
       id: seriesCreateId.value.trim(),
       name: seriesCreateName.value.trim(),
       url: seriesCreateUrl.value.trim(),
+      // Preserves an existing "multipart" rather than assuming "series" —
+      // only defaults to "series" when nothing was set yet.
+      type: seriesCurrentType || "series",
     });
     seriesApply = null;
     seriesDialog.close();

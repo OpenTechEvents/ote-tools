@@ -1917,17 +1917,21 @@ export function renderRecurrenceRows(
     hasRows: boolean,
     first: { date: string; startTime: string; endTime: string } | null,
   ) => void,
-  /** The draft's current partOf.{id,name,url} — read once at render time,
-   * same lifecycle as everything else in this closure-owned subtree (see
-   * the class doc comment above). Editing "Part of" via the manual field
-   * under "What" instead only reflects here on the next full render. */
-  partOf: { id: string; name: string; url: string },
+  /** The draft's current partOf.{id,name,url,type} — read once at render
+   * time, same lifecycle as everything else in this closure-owned subtree
+   * (see the class doc comment above). Editing "Part of" via the manual
+   * field under "What" instead only reflects here on the next full render. */
+  partOf: { id: string; name: string; url: string; type: string },
   onInput: (key: StateKey, value: string | boolean) => void,
   /** main.ts owns the "Link to a series" dialog; this row list only knows
-   * the open/apply callback contract — same pattern as onCustomize above. */
+   * the open/apply callback contract — same pattern as onCustomize above.
+   * `apply`'s `type` is decided by main.ts (e.g. "series" for a picked-
+   * from-search result), NOT hardcoded here — a "multipart" the organizer
+   * already set by hand under "What" must never get silently downgraded
+   * just because this dialog was opened for its id/name convenience. */
   onOpenSeriesPicker: (
-    current: { id: string; name: string; url: string },
-    apply: (next: { id: string; name: string; url: string }) => void,
+    current: { id: string; name: string; url: string; type: string },
+    apply: (next: { id: string; name: string; url: string; type: string }) => void,
   ) => void,
 ): { element: HTMLElement; getSeries: () => RecurrenceSeriesInput[] } {
   const wrap = document.createElement("div");
@@ -1965,10 +1969,11 @@ export function renderRecurrenceRows(
       partOf.id = next.id;
       partOf.name = next.name;
       partOf.url = next.url;
+      partOf.type = next.type;
       onInput("partOfId", next.id);
       onInput("partOfName", next.name);
       onInput("partOfUrl", next.url);
-      onInput("partOfType", "series");
+      onInput("partOfType", next.type);
       renderSeriesLink();
     });
   }
@@ -3628,8 +3633,8 @@ export function renderForm(
   ) => void,
   /** main.ts owns the "Link to a series" dialog; see renderRecurrenceRows. */
   onOpenSeriesPicker: (
-    current: { id: string; name: string; url: string },
-    apply: (next: { id: string; name: string; url: string }) => void,
+    current: { id: string; name: string; url: string; type: string },
+    apply: (next: { id: string; name: string; url: string; type: string }) => void,
   ) => void,
 ): {
   refreshTranslations: () => void;
@@ -3759,7 +3764,7 @@ export function renderForm(
                 onInput("endTime", "");
               }
             },
-            { id: state.partOfId, name: state.partOfName, url: state.partOfUrl },
+            { id: state.partOfId, name: state.partOfName, url: state.partOfUrl, type: state.partOfType },
             onInput,
             onOpenSeriesPicker,
           );

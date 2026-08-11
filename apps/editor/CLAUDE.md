@@ -108,6 +108,13 @@ its own "+" chip (a new event, or any field not part of the active
 profile's default set) — bitten by this with the description
 toolbar/expand button.
 
+## Keep CHANGELOG.md current
+
+`apps/editor/CHANGELOG.md` tracks notable changes to this app, dated
+(not versioned — this app isn't published to npm). Add an entry for any
+user-facing change (new field, changed flow, fixed bug) as part of the
+same session/commit that makes it — don't leave it for a later pass.
+
 ## OTE has no recurrence-rule concept
 
 The spec is explicit: one document per occurrence, always ("un documento

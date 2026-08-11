@@ -24,3 +24,14 @@ tied to semver releases.
   search control replaces the old external search bar next to the map.
 - Fixed the geo-search/geo-results map controls duplicating when an
   unrelated Who/Where field was added via its own "+" chip.
+- Simplified "Link to a series"'s create form: the "Series id (URL)" line
+  stays out of the way until a name exists, then shows compactly inline
+  (value + ⓘ + Edit) instead of its own label/input/hint/button stack;
+  the "doesn't need to resolve" explanation moved into the ⓘ tooltip. The
+  suggested id now lives under `/events/series/<slug>`.
+- Fixed a bug where opening "Link to a series" for any reason — even just
+  to review or tweak the id of an already-linked series — silently reset
+  `partOf.type` back to `"series"`, discarding a `"multipart"` value the
+  organizer had set by hand under "What". The type is now preserved
+  unless the organizer picks a different series from search (which is
+  always `type: "series"` by construction).
