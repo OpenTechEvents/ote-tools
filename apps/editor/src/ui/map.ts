@@ -75,6 +75,11 @@ const PIN = L.divIcon({
   iconAnchor: [9, 9],
 });
 
+/** Feather Icons' "search" glyph — matches ui/form.ts's own copy (the app
+ * has no shared icon system, see that file's comment). */
+const SEARCH_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+
 /** 5 decimals ≈ 1m precision; more is noise in the JSON. */
 function round(value: number): number {
   return Math.round(value * 1e5) / 1e5;
@@ -86,28 +91,9 @@ export function mountGeoMap(
   onChange: (lat: number, lon: number) => void,
   initialQuery = "",
 ): GeoMapHandle {
-  // --- search box ---------------------------------------------------------
-  const searchRow = document.createElement("div");
-  searchRow.className = "geo-search";
-  const searchInput = document.createElement("input");
-  searchInput.type = "text";
-  searchInput.setAttribute("aria-label", "Search a place");
-  searchInput.placeholder = "Search a place (Nominatim / OpenStreetMap)…";
-  // Seeded with the venue text so the address never has to be typed twice.
-  searchInput.value = initialQuery;
-  const searchButton = document.createElement("button");
-  searchButton.type = "button";
-  searchButton.textContent = "Search";
-  searchRow.append(searchInput, searchButton);
-
-  const results = document.createElement("ul");
-  results.className = "geo-results";
-  results.hidden = true;
-
   const mapDiv = document.createElement("div");
   mapDiv.className = "geo-map";
-
-  container.append(searchRow, results, mapDiv);
+  container.append(mapDiv);
 
   // --- map + pin ------------------------------------------------------------
   const map = L.map(mapDiv, { worldCopyJump: true });
@@ -143,47 +129,104 @@ export function mountGeoMap(
     place(e.latlng.lat, e.latlng.lng, true);
   });
 
-  // --- Nominatim search -----------------------------------------------------
-  async function search(): Promise<void> {
-    const query = searchInput.value.trim();
-    if (!query) return;
-    results.textContent = "";
-    results.hidden = false;
-    const loading = document.createElement("li");
-    loading.textContent = "Searching…";
-    results.append(loading);
-    const found = await nominatim(query, 5);
-    results.textContent = "";
-    if (found.length === 0) {
-      const li = document.createElement("li");
-      li.textContent = "No results.";
-      results.append(li);
-      return;
-    }
-    for (const hit of found) {
-      const li = document.createElement("li");
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = hit.display_name;
-      button.addEventListener("click", () => {
-        const lat = Number(hit.lat);
-        const lon = Number(hit.lon);
-        map.setView([lat, lon], 15);
-        place(lat, lon, true);
-        results.hidden = true;
-      });
-      li.append(button);
-      results.append(li);
-    }
-  }
+  // --- Nominatim search: an in-map control (top-left corner, next to
+  // Leaflet's own zoom buttons) instead of a bar above the map — collapsed
+  // to just the icon until clicked. The Venue field's own "Find on map"
+  // button (main.ts) is the primary way to get a pin; this is the manual
+  // fallback for when that doesn't find the right place.
+  const SearchControl = L.Control.extend({
+    options: { position: "topleft" },
+    onAdd(): HTMLElement {
+      // Not "leaflet-bar" — that's Leaflet's own zoom-button chrome, which
+      // would double up with .icon-button's border/background below.
+      const wrap = L.DomUtil.create("div", "geo-map-search");
+      // Without these, a click/scroll/drag started on the search box falls
+      // through to the map underneath (pans it, or drops a pin on "click").
+      L.DomEvent.disableClickPropagation(wrap);
+      L.DomEvent.disableScrollPropagation(wrap);
 
-  searchButton.addEventListener("click", () => void search());
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      void search();
-    }
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "icon-button geo-map-search-toggle";
+      toggle.setAttribute("aria-label", "Search a place");
+      toggle.title = "Search a place";
+      toggle.innerHTML = SEARCH_ICON_SVG;
+
+      const panel = document.createElement("div");
+      panel.className = "geo-map-search-panel";
+      panel.hidden = true;
+
+      const searchRow = document.createElement("div");
+      searchRow.className = "geo-search";
+      const searchInput = document.createElement("input");
+      searchInput.type = "text";
+      searchInput.setAttribute("aria-label", "Search a place");
+      searchInput.placeholder = "Search a place (Nominatim / OpenStreetMap)…";
+      // Seeded with the venue text so the address never has to be typed twice.
+      searchInput.value = initialQuery;
+      const searchButton = document.createElement("button");
+      searchButton.type = "button";
+      searchButton.textContent = "Search";
+      searchRow.append(searchInput, searchButton);
+
+      const results = document.createElement("ul");
+      results.className = "geo-results";
+      results.hidden = true;
+
+      async function search(): Promise<void> {
+        const query = searchInput.value.trim();
+        if (!query) return;
+        results.textContent = "";
+        results.hidden = false;
+        const loading = document.createElement("li");
+        loading.textContent = "Searching…";
+        results.append(loading);
+        const found = await nominatim(query, 5);
+        results.textContent = "";
+        if (found.length === 0) {
+          const li = document.createElement("li");
+          li.textContent = "No results.";
+          results.append(li);
+          return;
+        }
+        for (const hit of found) {
+          const li = document.createElement("li");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = hit.display_name;
+          button.addEventListener("click", () => {
+            const lat = Number(hit.lat);
+            const lon = Number(hit.lon);
+            map.setView([lat, lon], 15);
+            place(lat, lon, true);
+            panel.hidden = true;
+          });
+          li.append(button);
+          results.append(li);
+        }
+      }
+
+      toggle.addEventListener("click", () => {
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden) searchInput.focus();
+      });
+      searchButton.addEventListener("click", () => void search());
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          void search();
+        } else if (e.key === "Escape") {
+          panel.hidden = true;
+          toggle.focus();
+        }
+      });
+
+      panel.append(searchRow, results);
+      wrap.append(toggle, panel);
+      return wrap;
+    },
   });
+  map.addControl(new SearchControl());
 
   return {
     setPosition(lat: number, lon: number): void {

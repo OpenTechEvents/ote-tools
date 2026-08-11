@@ -18,6 +18,7 @@ import {
 import { getRecentTags, recordTagUsed } from "../lib/tag-history.js";
 import type { TagSuggestion } from "../lib/tag-vocabulary.js";
 import { loadTagVocabulary, searchVocabulary } from "../lib/tag-vocabulary.js";
+import { filterTimeOptions } from "../lib/time-options.js";
 import { filterZones } from "../lib/timezones.js";
 import type { FormState } from "../lib/types.js";
 
@@ -256,6 +257,10 @@ export const SECTION_TITLES: Record<SectionId, string> = {
 const EXPAND_ICON_SVG =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
 
+/** Feather Icons' "search" glyph, for the Venue field's "find on map" button. */
+const SEARCH_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+
 const FIELD_SPECS: Record<string, FieldSpec> = {
   name: {
     label: "Name",
@@ -388,7 +393,7 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
   },
   geo: {
     label: "Map position",
-    note: "Search, click the map or drag the pin — or type WGS-84 decimal degrees.",
+    note: "Search, click the map or drag the pin.",
     info: "Optional exact position of the venue. Consumers use it for maps and distance filters; the venue text above stays the human-readable address.",
     controls: [
       { key: "geoLat", label: "Latitude", kind: "text" },
@@ -1104,6 +1109,137 @@ function renderCombobox(
 }
 
 /**
+ * Free-text "HH:MM" combobox for Time fields (startTime/endTime, and the
+ * recurrence rows' own start/end time) — same combo-field/combo-suggest
+ * shape as renderCombobox, but generating its own quarter-hour suggestions
+ * (lib/time-options.ts) instead of taking a fixed options list. Built to
+ * replace the native `<input type="time">` picker: its minute step isn't
+ * honored by every browser/OS (confirmed on Android's wheel picker, which
+ * scrolls every single minute regardless of the `step` attribute), so
+ * there's no reliable native way to offer only :00/:15/:30/:45. Typing an
+ * exact non-quarter value still works — the raw text commits live via
+ * onInput on every keystroke, same as renderCombobox; the OTE schema (not
+ * this widget) is what rejects a malformed time.
+ */
+/**
+ * Wires the suggestion-dropdown + keyboard-nav behavior of the "HH:MM"
+ * combo onto an already-built input/suggest-list pair. Split out from
+ * renderTimeCombo so the recurrence rows' own start/end time inputs
+ * (below) can reuse it too — those live in a per-row RecurrenceRow object,
+ * not FormState, so they can't go through the FormState-bound
+ * renderTimeCombo/onInput plumbing directly.
+ */
+function wireTimeCombo(
+  input: HTMLInputElement,
+  suggest: HTMLUListElement,
+  onCommit: (value: string) => void,
+): void {
+  const nav = createListNav(input, suggest);
+  let currentHits: string[] = [];
+
+  function setSuggestHidden(hidden: boolean): void {
+    suggest.hidden = hidden;
+    input.setAttribute("aria-expanded", String(!hidden));
+  }
+
+  // Routes every commit — typed or clicked/Enter-selected — through a real
+  // "input" event rather than calling onCommit directly for the click/Enter
+  // paths. renderStartEndRow queries this same underlying <input> and adds
+  // its own plain "input" listener (to auto-fill End from Start); without
+  // this, picking a suggestion by mouse/Enter would silently skip that
+  // listener, since only a genuine input event reaches it. setSuggestHidden
+  // runs again after dispatch because refreshSuggestions (below) may have
+  // reopened the list for the now-exact value — a deliberate selection
+  // should close it, not immediately reoffer the thing just picked.
+  function commit(value: string): void {
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    setSuggestHidden(true);
+  }
+
+  function refreshSuggestions(query: string): void {
+    suggest.textContent = "";
+    currentHits = filterTimeOptions(query);
+    nav.reset();
+    setSuggestHidden(currentHits.length === 0);
+    for (const hit of currentHits) {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = hit;
+      // mousedown, not click: it must win over the input's blur
+      button.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        commit(hit);
+      });
+      li.append(button);
+      suggest.append(li);
+    }
+  }
+
+  // Focus browses the full list; only typing narrows it — same as the
+  // timezone combobox, and for the same reason (a field already holding a
+  // valid value shouldn't filter the dropdown down to just itself).
+  input.addEventListener("focus", () => refreshSuggestions(""));
+  input.addEventListener("input", () => {
+    refreshSuggestions(input.value);
+    onCommit(input.value);
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => setSuggestHidden(true), 150);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (nav.handleKey(e)) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = currentHits[nav.selectedIndex >= 0 ? nav.selectedIndex : 0];
+      if (!suggest.hidden && chosen !== undefined) commit(chosen);
+    } else if (e.key === "Escape") {
+      setSuggestHidden(true);
+    }
+  });
+}
+
+function renderTimeCombo(
+  control: Control,
+  state: FormState,
+  onInput: (key: StateKey, value: string | boolean) => void,
+): { element: HTMLElement; input: HTMLInputElement } {
+  const wrap = document.createElement("div");
+  wrap.className = "combo-field";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.id = nextId(control.key);
+  input.dataset.key = control.key;
+  input.autocomplete = "off";
+  input.inputMode = "numeric";
+  input.placeholder =
+    control.placeholder ? t(`control.${control.key}.placeholder`, control.placeholder) : "--:--";
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-expanded", "false");
+  const value = state[control.key];
+  input.value = typeof value === "string" ? value : "";
+
+  const suggest = document.createElement("ul");
+  suggest.id = nextId("listbox");
+  suggest.className = "combo-suggest";
+  suggest.setAttribute("role", "listbox");
+  suggest.hidden = true;
+  input.setAttribute("aria-controls", suggest.id);
+  wrap.append(input, suggest);
+
+  wireTimeCombo(input, suggest, (value) => onInput(control.key, value));
+
+  return { element: wrap, input };
+}
+
+/**
  * ISO 4217 active-currency codes — the same enum @opentechevents/schema's
  * currency $def validates against (see packages/validate/src/
  * schemas.generated.ts). Copied rather than read from `eventSchema` at
@@ -1781,6 +1917,18 @@ export function renderRecurrenceRows(
     hasRows: boolean,
     first: { date: string; startTime: string; endTime: string } | null,
   ) => void,
+  /** The draft's current partOf.{id,name,url} — read once at render time,
+   * same lifecycle as everything else in this closure-owned subtree (see
+   * the class doc comment above). Editing "Part of" via the manual field
+   * under "What" instead only reflects here on the next full render. */
+  partOf: { id: string; name: string; url: string },
+  onInput: (key: StateKey, value: string | boolean) => void,
+  /** main.ts owns the "Link to a series" dialog; this row list only knows
+   * the open/apply callback contract — same pattern as onCustomize above. */
+  onOpenSeriesPicker: (
+    current: { id: string; name: string; url: string },
+    apply: (next: { id: string; name: string; url: string }) => void,
+  ) => void,
 ): { element: HTMLElement; getSeries: () => RecurrenceSeriesInput[] } {
   const wrap = document.createElement("div");
   wrap.className = "field recurrence-rows";
@@ -1806,6 +1954,57 @@ export function renderRecurrenceRows(
   );
   hint.hidden = true;
   wrap.append(hint);
+
+  const seriesLink = document.createElement("p");
+  seriesLink.className = "hint series-link";
+  seriesLink.hidden = true;
+  wrap.append(seriesLink);
+
+  function openSeriesPicker(): void {
+    onOpenSeriesPicker({ ...partOf }, (next) => {
+      partOf.id = next.id;
+      partOf.name = next.name;
+      partOf.url = next.url;
+      onInput("partOfId", next.id);
+      onInput("partOfName", next.name);
+      onInput("partOfUrl", next.url);
+      onInput("partOfType", "series");
+      renderSeriesLink();
+    });
+  }
+
+  function renderSeriesLink(): void {
+    seriesLink.textContent = "";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.addEventListener("click", openSeriesPicker);
+    if (partOf.id) {
+      // Already linked: the "Change" action is secondary, not a call to action.
+      button.className = "link-button";
+      seriesLink.append(
+        `${t("field.when.seriesLink.summary", "Part of: {name}").replace(
+          "{name}",
+          partOf.name || partOf.id,
+        )} · `,
+      );
+      button.textContent = t("field.when.seriesLink.change", "Change");
+    } else {
+      // Not linked yet: styled like the recommended "+ Field" chips
+      // (.repeater-add.recommended) so it reads as an actual call to
+      // action, not a footnote easy to miss.
+      button.className = "repeater-add recommended";
+      seriesLink.append(
+        `${t(
+          "field.when.seriesLink.hint",
+          "Recommended: group these events under a name so you can edit them easily once created.",
+        )} `,
+      );
+      button.textContent = t("field.when.seriesLink.link", "Link to a series");
+    }
+    seriesLink.append(button);
+  }
+
+  renderSeriesLink();
 
   const rows: RecurrenceRowState[] = [];
 
@@ -1865,6 +2064,7 @@ export function renderRecurrenceRows(
       if (index !== -1) rows.splice(index, 1);
       item.remove();
       hint.hidden = rows.length === 0;
+      seriesLink.hidden = rows.length === 0;
       notifyRowsChanged();
     });
 
@@ -1892,16 +2092,31 @@ export function renderRecurrenceRows(
     const startTimeLabel = document.createElement("label");
     startTimeLabel.className = "visually-hidden";
     startTimeLabel.textContent = t("dialog.recurrenceRow.startTime", "Time");
+    const startTimeCombo = document.createElement("div");
+    startTimeCombo.className = "combo-field";
     const startTimeInput = document.createElement("input");
-    startTimeInput.type = "time";
+    startTimeInput.type = "text";
+    startTimeInput.autocomplete = "off";
+    startTimeInput.inputMode = "numeric";
+    startTimeInput.placeholder = "--:--";
+    startTimeInput.setAttribute("role", "combobox");
+    startTimeInput.setAttribute("aria-autocomplete", "list");
+    startTimeInput.setAttribute("aria-expanded", "false");
     startTimeInput.value = row.startTime;
-    startTimeInput.addEventListener("input", () => {
-      row.startTime = startTimeInput.value;
+    startTimeInput.id = nextId("recur-start-time");
+    const startTimeSuggest = document.createElement("ul");
+    startTimeSuggest.id = nextId("listbox");
+    startTimeSuggest.className = "combo-suggest";
+    startTimeSuggest.setAttribute("role", "listbox");
+    startTimeSuggest.hidden = true;
+    startTimeInput.setAttribute("aria-controls", startTimeSuggest.id);
+    wireTimeCombo(startTimeInput, startTimeSuggest, (value) => {
+      row.startTime = value;
       notifyRowsChanged();
     });
-    startTimeInput.id = nextId("recur-start-time");
+    startTimeCombo.append(startTimeInput, startTimeSuggest);
     startTimeLabel.htmlFor = startTimeInput.id;
-    startTimeWrap.append(startTimeLabel, startTimeInput);
+    startTimeWrap.append(startTimeLabel, startTimeCombo);
 
     const to = document.createElement("span");
     to.className = "datetime-to";
@@ -1912,16 +2127,31 @@ export function renderRecurrenceRows(
     const endTimeLabel = document.createElement("label");
     endTimeLabel.className = "visually-hidden";
     endTimeLabel.textContent = t("dialog.recurrenceRow.endTime", "End time");
+    const endTimeCombo = document.createElement("div");
+    endTimeCombo.className = "combo-field";
     const endTimeInput = document.createElement("input");
-    endTimeInput.type = "time";
+    endTimeInput.type = "text";
+    endTimeInput.autocomplete = "off";
+    endTimeInput.inputMode = "numeric";
+    endTimeInput.placeholder = "--:--";
+    endTimeInput.setAttribute("role", "combobox");
+    endTimeInput.setAttribute("aria-autocomplete", "list");
+    endTimeInput.setAttribute("aria-expanded", "false");
     endTimeInput.value = row.endTime;
-    endTimeInput.addEventListener("input", () => {
-      row.endTime = endTimeInput.value;
+    endTimeInput.id = nextId("recur-end-time");
+    const endTimeSuggest = document.createElement("ul");
+    endTimeSuggest.id = nextId("listbox");
+    endTimeSuggest.className = "combo-suggest";
+    endTimeSuggest.setAttribute("role", "listbox");
+    endTimeSuggest.hidden = true;
+    endTimeInput.setAttribute("aria-controls", endTimeSuggest.id);
+    wireTimeCombo(endTimeInput, endTimeSuggest, (value) => {
+      row.endTime = value;
       notifyRowsChanged();
     });
-    endTimeInput.id = nextId("recur-end-time");
+    endTimeCombo.append(endTimeInput, endTimeSuggest);
     endTimeLabel.htmlFor = endTimeInput.id;
-    endTimeWrap.append(endTimeLabel, endTimeInput);
+    endTimeWrap.append(endTimeLabel, endTimeCombo);
 
     // End date — same day as Start by default (empty), settable for a
     // recurring event that itself spans more than one day (e.g. a 2-day
@@ -2010,6 +2240,7 @@ export function renderRecurrenceRows(
     rows.push(row);
     list.append(renderRow(row));
     hint.hidden = false;
+    seriesLink.hidden = false;
     notifyRowsChanged();
   }
 
@@ -2755,6 +2986,18 @@ function renderControl(
   if (control.kind === "combobox") {
     return renderCombobox(control, state, onInput);
   }
+  if (control.kind === "time") {
+    const rendered = renderTimeCombo(control, state, onInput);
+    if (!control.label) return rendered;
+    const wrap = document.createElement("div");
+    if (control.size) wrap.classList.add(`size-${control.size}`);
+    const label = document.createElement("label");
+    label.htmlFor = rendered.input.id;
+    label.textContent = t(`control.${control.key}.label`, control.label);
+    if (control.info) label.append(renderInfoToggle(t(`control.${control.key}.info`, control.info)));
+    wrap.append(label, rendered.element);
+    return { element: wrap, input: rendered.input };
+  }
   if (control.kind === "instant") {
     const current = state[control.key];
     const rendered = renderInstantInput(
@@ -2876,17 +3119,45 @@ function renderField(
     let noteId: string | null;
     let errorId: string;
     if (fieldId === "geo") {
-      // Map first (main.ts mounts Leaflet here), then the hint,
-      // then the coordinate inputs the map keeps in sync.
+      // Map first (main.ts mounts Leaflet here), then one compact line:
+      // the hint, the pin's current coordinates (an <input> each, still
+      // kept in sync by the map's onChange via main.ts's setControlValue
+      // — only their standalone "Latitude"/"Longitude" labels are dropped,
+      // folded into the "Lat, lon:" prefix below), and the manual-entry
+      // escape hatch — all on one line instead of a separate labeled row.
       const slot = document.createElement("div");
       slot.dataset.role = "geo-map";
       outer.append(label, slot);
-      noteId = appendNote(outer, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
-      outer.append(row);
+
+      const [latControl, lonControl] = controls;
+      spec.controls.forEach((c, i) => {
+        if (c.label) controls[i]?.input.setAttribute("aria-label", t(`control.${c.key}.label`, c.label));
+      });
+
+      const summary = document.createElement("p");
+      summary.className = "note geo-summary";
+      noteId = nextId("note");
+      summary.id = noteId;
+      const noteText = spec.note ? t(`field.${fieldId}.note`, spec.note) : "";
+      if (noteText) summary.append(`${noteText} `);
+      const coords = document.createElement("span");
+      coords.className = "geo-coords";
+      coords.append(`${t("field.geo.coordsLabel", "Lat, lon:")} `);
+      if (latControl) {
+        if (latControl.input instanceof HTMLInputElement) latControl.input.placeholder = "–";
+        coords.append(latControl.input);
+      }
+      coords.append(", ");
+      if (lonControl) {
+        if (lonControl.input instanceof HTMLInputElement) lonControl.input.placeholder = "–";
+        coords.append(lonControl.input);
+      }
+      summary.append(coords);
+      outer.append(summary);
       errorId = appendError(outer);
       // The map is the primary way to set a position — typing raw decimal
       // degrees by hand is the rare case, so it isn't invited by default.
-      addManualToggle(outer, controls, t("ui.enterCoordinatesManually", "Enter coordinates manually"));
+      addManualToggle(summary, controls, t("ui.enterCoordinatesManually", "Edit manually"));
     } else {
       outer.append(label, row);
       noteId = appendNote(outer, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
@@ -2989,6 +3260,40 @@ function renderStartEndRow(
   const endField = renderField("endDate", state, onInput);
   startField.querySelector("label")?.classList.add("visually-hidden");
   endField.querySelector("label")?.classList.add("visually-hidden");
+
+  // End date can't be earlier than Start date (see this field's own info
+  // text above) — native `min` nudges the date picker accordingly instead
+  // of only catching it after the fact via validation. End time has no
+  // native picker to constrain (it's the combo below, a plain text input),
+  // so it relies on the default-fill below plus schema validation instead.
+  const startDateInput = startField.querySelector<HTMLInputElement>('[data-key="startDate"]');
+  const startTimeInput = startField.querySelector<HTMLInputElement>('[data-key="startTime"]');
+  const endDateInput = endField.querySelector<HTMLInputElement>('[data-key="endDate"]');
+  const endTimeInput = endField.querySelector<HTMLInputElement>('[data-key="endTime"]');
+  function syncEndDateMin(): void {
+    if (endDateInput) endDateInput.min = startDateInput?.value ?? "";
+  }
+  syncEndDateMin();
+  // Defaults End to Start while End is still empty — a fresh event is far
+  // more often same-day than open-ended, so this saves re-typing the date
+  // and picking a time from scratch. Only fires from the organizer editing
+  // Start (never on mount — an already-loaded event with a genuinely
+  // open-ended End must stay that way), and only while End is still empty,
+  // so it never overwrites a value the organizer set on purpose.
+  function fillEndDefaults(): void {
+    if (endDateInput && startDateInput && endDateInput.value === "") {
+      endDateInput.value = startDateInput.value;
+      onInput("endDate", startDateInput.value);
+    }
+    if (endTimeInput && startTimeInput && endTimeInput.value === "") {
+      endTimeInput.value = startTimeInput.value;
+      onInput("endTime", startTimeInput.value);
+    }
+    syncEndDateMin();
+  }
+  startDateInput?.addEventListener("input", fillEndDefaults);
+  startTimeInput?.addEventListener("input", fillEndDefaults);
+  endDateInput?.addEventListener("input", syncEndDateMin);
 
   const wrap = document.createElement("div");
   wrap.className = "field";
@@ -3186,6 +3491,25 @@ function renderChippableSection(
       );
     } else if (id === "venue") {
       inner = renderField("venue", state, onInput);
+      // "Find on map": inert here (data-role only) — main.ts wires the
+      // click (geocoding, applying the pin, the "not found" hint) the same
+      // way it wires the geo map itself, since that's async DOM behavior
+      // this pure-render function has no business owning.
+      const venueInput = inner.querySelector<HTMLInputElement>('[data-key="venue"]');
+      if (venueInput) {
+        const searchBtn = document.createElement("button");
+        searchBtn.type = "button";
+        searchBtn.className = "icon-button";
+        searchBtn.dataset.role = "venue-geocode";
+        const searchLabel = t("action.findVenueOnMap", "Find on map");
+        searchBtn.setAttribute("aria-label", searchLabel);
+        searchBtn.title = searchLabel;
+        searchBtn.innerHTML = SEARCH_ICON_SVG;
+        const row = document.createElement("div");
+        row.className = "venue-search-row";
+        venueInput.replaceWith(row);
+        row.append(venueInput, searchBtn);
+      }
       inner.append(renderField("geo", state, onInput));
     } else {
       inner = renderField(id, state, onInput);
@@ -3301,6 +3625,11 @@ export function renderForm(
   onCustomizeRecurrenceRule: (
     current: RecurrenceRule | null,
     apply: (rule: RecurrenceRule) => void,
+  ) => void,
+  /** main.ts owns the "Link to a series" dialog; see renderRecurrenceRows. */
+  onOpenSeriesPicker: (
+    current: { id: string; name: string; url: string },
+    apply: (next: { id: string; name: string; url: string }) => void,
   ) => void,
 ): {
   refreshTranslations: () => void;
@@ -3430,6 +3759,9 @@ export function renderForm(
                 onInput("endTime", "");
               }
             },
+            { id: state.partOfId, name: state.partOfName, url: state.partOfUrl },
+            onInput,
+            onOpenSeriesPicker,
           );
           getRecurrenceSeries = recurrence.getSeries;
           details.append(recurrence.element);

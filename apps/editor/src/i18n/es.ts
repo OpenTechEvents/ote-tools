@@ -115,6 +115,30 @@ export const es: Record<string, string> = {
     'Recomendado: rellena "Part of (series)" en el formulario. Permite agrupar todas las ocurrencias de esta serie, y facilita mucho editarla en masa más adelante — sin él, corregir algo significa editar cada fichero generado uno a uno.',
   "dialog.recurrence.missingPartOfAck":
     'Entendido, continuar sin rellenar "Part of (series)"',
+  "dialog.recurrence.missingPartOfLinkPrefix":
+    "O si por el contrario prefieres vincularlo a una serie, puedes hacerlo",
+  "dialog.recurrence.missingPartOfLinkWord": "aquí",
+
+  // --- "Link to a series" dialog (When section, next to Add recurrence) ----
+  "dialog.series.title": "Vincular a una serie",
+  "dialog.series.hint":
+    "Agrupa todas las ocurrencias bajo una identidad compartida, para que se puedan listar juntas — y para que puedas volver a encontrar esta serie la próxima vez que añadas una ocurrencia.",
+  "dialog.series.searchPlaceholder": "Buscar series…",
+  "dialog.series.searchEmpty": "No hay series que coincidan.",
+  "dialog.series.createNew": "+ Crear nueva serie",
+  "dialog.series.pageLabel": "Página dedicada (opcional)",
+  "dialog.series.nameLabel": "Nombre",
+  "dialog.series.idLabel": "Id de la serie (URL)",
+  "dialog.series.idHint":
+    "No hace falta que sea un enlace real que funcione — solo un identificador estable bajo un dominio que controles, compartido por cada ocurrencia de esta serie.",
+  "dialog.series.confirm": "Crear y vincular",
+
+  // --- "When" section: entry point next to Add recurrence ------------------
+  "field.when.seriesLink.hint":
+    "Recomendado: agrupa estos eventos bajo un nombre para poder editarlos fácilmente una vez creados.",
+  "field.when.seriesLink.link": "Vincular a una serie",
+  "field.when.seriesLink.summary": "Parte de: {name}",
+  "field.when.seriesLink.change": "Cambiar",
 
   // --- description "expand" dialog -----------------------------------------
   "dialog.descriptionEditor.title": "Descripción",

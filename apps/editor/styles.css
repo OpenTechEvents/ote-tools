@@ -764,6 +764,62 @@ select {
   color: var(--muted);
 }
 
+/* Map position: the hint, the pin's live coordinates and the "Edit
+   manually" toggle collapsed onto one line (ui/form.ts's fieldId ===
+   "geo" branch) instead of a separate labeled Latitude/Longitude row. */
+.geo-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.35rem;
+}
+
+.geo-coords {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+}
+
+/* Overrides the general `.field input[type="text"]` width:100% — these
+   sit inline in a running line of text, not a block field of their own.
+   No [readonly] guard: stays this compact whether or not "Edit manually"
+   has unlocked them. */
+.geo-summary .geo-coords input[type="text"] {
+  width: 6.5rem;
+  min-height: 1.6rem;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.geo-summary .link-button {
+  margin-top: 0;
+}
+
+/* Venue: the text input and its "Find on map" button on one line
+   (ui/form.ts's renderOne, id === "venue"). align-items: stretch (rather
+   than center) plus .icon-button's own height: auto below make the
+   button match the input's actual rendered height exactly, instead of
+   guessing a fixed height that has to be kept in sync by hand. */
+.venue-search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.venue-search-row input {
+  flex: 1;
+}
+
+.venue-search-row .icon-button {
+  height: auto;
+  width: 2.6rem;
+}
+
+.venue-geocode-hint {
+  display: block;
+  margin-top: 0.3rem;
+}
+
 /* --- Google-Calendar-style single-line date/time — shared by the main
    form's merged Start+End row and each recurrence row's date/time line;
    see renderStartEndRow / renderRow's datetimeRow in ui/form.ts. ------- */
@@ -1419,6 +1475,39 @@ select {
   }
 }
 
+/* In-map search control (ui/map.ts's SearchControl) — a corner control
+   like Leaflet's own zoom buttons, collapsed to just the icon until
+   clicked, so it doesn't compete with the map for space by default. */
+.geo-map-search {
+  position: relative;
+}
+
+.geo-map-search-toggle {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.geo-map-search-panel {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.4rem);
+  z-index: 1000;
+  width: 15rem;
+  max-width: calc(100vw - 3rem);
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.geo-map-search-panel .geo-search {
+  margin: 0;
+}
+
+.geo-map-search-panel .geo-results {
+  margin: 0.4rem 0 0;
+}
+
 /* A button that should read as a link, not a bordered control — e.g. the
    rarely-needed "enter coordinates manually" fallback under the map. */
 .link-button {
@@ -1722,7 +1811,8 @@ footer {
 #repo-connect,
 #delete-dialog,
 #recurrence-dialog,
-#recurrence-custom-dialog {
+#recurrence-custom-dialog,
+#series-dialog {
   border: none;
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
@@ -1735,7 +1825,8 @@ footer {
 #repo-connect::backdrop,
 #delete-dialog::backdrop,
 #recurrence-dialog::backdrop,
-#recurrence-custom-dialog::backdrop {
+#recurrence-custom-dialog::backdrop,
+#series-dialog::backdrop {
   background: rgba(28, 33, 40, 0.45);
 }
 
@@ -1744,7 +1835,8 @@ footer {
 #repo-connect h2,
 #delete-dialog h2,
 #recurrence-dialog h2,
-#recurrence-custom-dialog h2 {
+#recurrence-custom-dialog h2,
+#series-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
 }
@@ -2051,15 +2143,36 @@ footer {
   margin: 0.2rem 0;
 }
 
+.warning-ack-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0.2rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e6c65c;
+}
+
 .warning-ack {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  margin: 0.5rem 0 0.2rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #e6c65c;
   font-weight: 500;
   cursor: pointer;
+}
+
+.warning-ack-row .hint {
+  margin: 0;
+}
+
+/* Reads as a real inline hyperlink (underlined, accent color) rather than
+   the muted/hover-only treatment .link-button uses elsewhere — it's sitting
+   mid-sentence here, not next to a labelled control, so it needs to look
+   clickable without a hover to prove it. */
+.warning-ack-row .link-button {
+  margin-top: 0;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
 }
 
 .warning-ack input[type="checkbox"] {
@@ -2224,6 +2337,81 @@ footer {
 }
 
 #recurrence-custom-dialog .actions {
+  justify-content: flex-end;
+}
+
+/* --- "Link to a series" (When section entry point + dialog) ---------------- */
+
+/* The recurrence rows' own entry point/summary — same "hint text plus an
+   inline link-styled button" treatment as .geo-summary. :not([hidden]):
+   an author display: rule beats the UA [hidden] { display: none } rule
+   regardless of specificity — see apps/editor/CLAUDE.md. */
+.series-link:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.35rem;
+}
+
+.series-link .link-button {
+  margin-top: 0;
+}
+
+#series-search-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+#series-search-list button {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+#series-search-list button:hover {
+  background: var(--accent-soft);
+}
+
+/* Compact "Series id (URL): https://… ⓘ · Edit" line — hidden until a
+   name exists (nothing to suggest an id from yet), then sits on one row
+   instead of its own label/input/hint/button stack. Same flex-row-of-
+   inline-bits treatment as .geo-summary. */
+/* :not([hidden]): an author display: rule beats the UA [hidden] {
+   display: none } rule regardless of specificity — see
+   apps/editor/CLAUDE.md. Bitten by this once already in this file
+   (.series-link) — same fix here. */
+.series-id-summary:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.series-id-summary input[type="url"] {
+  flex: 1 1 12rem;
+  width: auto;
+  min-height: 1.6rem;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.series-id-summary .link-button {
+  margin-top: 0;
+}
+
+#series-dialog .actions {
   justify-content: flex-end;
 }
 

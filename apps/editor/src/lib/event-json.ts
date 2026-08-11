@@ -412,9 +412,22 @@ export function suggestSeriesSlug(name: string, date: string): string {
 }
 
 /**
- * Default event id: a URI under the publisher's domain. Prefers the feed's
- * canonical URL from ote.config.json; falls back to the fork's Pages URL.
- * Always editable — the suggestion is a convenience, not a rule.
+ * Publisher's own domain: the feed's canonical URL from ote.config.json,
+ * falling back to the fork's Pages URL, falling back to opentechevents.org
+ * when there's no repo context (standalone mode). Shared base for every
+ * "suggest a URI under this organizer's domain" helper below.
+ */
+function resolveOrganizerBase(config: OteConfig | null, repo: string | null): string {
+  const feedUrl = config?.feed?.url?.replace(/\/+$/, "");
+  if (feedUrl) return feedUrl;
+  if (repo === null) return "https://opentechevents.org";
+  const [owner, name] = repo.split("/");
+  return `https://${owner}.github.io/${name}`;
+}
+
+/**
+ * Default event id: a URI under the publisher's domain. Always editable —
+ * the suggestion is a convenience, not a rule.
  */
 export function suggestId(
   config: OteConfig | null,
@@ -422,9 +435,21 @@ export function suggestId(
   slug: string,
 ): string {
   if (!slug) return "";
-  const feedUrl = config?.feed?.url?.replace(/\/+$/, "");
-  if (feedUrl) return `${feedUrl}/events/${slug}`;
-  if (repo === null) return `https://opentechevents.org/events/${slug}`;
-  const [owner, name] = repo.split("/");
-  return `https://${owner}.github.io/${name}/events/${slug}`;
+  return `${resolveOrganizerBase(config, repo)}/events/${slug}`;
+}
+
+/**
+ * Default `partOf.id` for a newly-minted series: same domain convention as
+ * suggestId, under /events/series/ — grouped under the same /events/ root
+ * as the occurrence documents themselves, but its own series/ subpath so
+ * it's never mistaken for one of them. Always editable.
+ */
+export function suggestPartOfId(
+  config: OteConfig | null,
+  repo: string | null,
+  name: string,
+): string {
+  const kebab = kebabCase(name);
+  if (!kebab) return "";
+  return `${resolveOrganizerBase(config, repo)}/events/series/${kebab}`;
 }

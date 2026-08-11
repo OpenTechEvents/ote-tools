@@ -4,6 +4,7 @@ import {
   emptyFormState,
   fromEventJson,
   suggestId,
+  suggestPartOfId,
   suggestSeriesSlug,
   suggestSlug,
   toEventJson,
@@ -422,5 +423,33 @@ describe("suggestId", () => {
 
   it("returns '' without a slug", () => {
     expect(suggestId(null, "o/r", "")).toBe("");
+  });
+
+  it("falls back to opentechevents.org in standalone mode (no repo)", () => {
+    expect(suggestId(null, null, "s")).toBe("https://opentechevents.org/events/s");
+  });
+});
+
+describe("suggestPartOfId", () => {
+  it("prefers the feed url from ote.config.json, under /events/series/", () => {
+    expect(
+      suggestPartOfId({ feed: { url: "https://pyalmeria.example/" } }, "o/r", "Weekly Meetup"),
+    ).toBe("https://pyalmeria.example/events/series/weekly-meetup");
+  });
+
+  it("falls back to the fork's Pages URL", () => {
+    expect(suggestPartOfId(null, "octocat/my-events", "Weekly Meetup")).toBe(
+      "https://octocat.github.io/my-events/events/series/weekly-meetup",
+    );
+  });
+
+  it("falls back to opentechevents.org in standalone mode (no repo)", () => {
+    expect(suggestPartOfId(null, null, "Weekly Meetup")).toBe(
+      "https://opentechevents.org/events/series/weekly-meetup",
+    );
+  });
+
+  it("returns '' when the name has no kebab-able characters", () => {
+    expect(suggestPartOfId(null, "o/r", "¡¡¡")).toBe("");
   });
 });

@@ -32,10 +32,12 @@ import {
   emptyFormState,
   fromEventJson,
   suggestId,
+  suggestPartOfId,
   suggestSeriesSlug,
   suggestSlug,
   toEventJson,
 } from "./lib/event-json.js";
+import { collectKnownSeries, type SeriesOption } from "./lib/series.js";
 import {
   emptyFeedConfigState,
   fromOteConfig,
@@ -294,6 +296,8 @@ async function startEditor(repo: string | null): Promise<void> {
 
   // Declared before refresh() uses it; filled asynchronously by loadEvents.
   let listed: ListedEvent[] = [];
+  // "Link to a series" dialog's search list — recomputed alongside `listed`.
+  let knownSeries: SeriesOption[] = [];
 
   // Fields the last ICS import did not carry; null = no import in progress.
   let importMissing: Set<string> | null = null;
@@ -967,6 +971,12 @@ async function startEditor(repo: string | null): Promise<void> {
     mapHandle = null;
     const slot = form.querySelector<HTMLElement>('[data-role="geo-map"]');
     if (!slot) return;
+    // onSectionRebuilt fires for any chippable section (Where, What/Who/
+    // Metadata) — when a different section rebuilds, this slot's own DOM
+    // survives untouched, so mountGeoMap's container.append(...) would pile
+    // a second search box/results list/map div onto the first unless we
+    // clear it here first.
+    slot.replaceChildren();
     const lat = Number(state.geoLat);
     const lon = Number(state.geoLon);
     const initial =
@@ -987,6 +997,65 @@ async function startEditor(repo: string | null): Promise<void> {
       },
       state.venue, // seeds the map search: the address is typed once
     );
+  }
+
+  /**
+   * The Venue field's "Find on map" button (ui/form.ts builds it inert,
+   * data-role only — geocoding is async DOM behavior that belongs here,
+   * same split as mountMap). Guarded by a `wired` dataset flag: unlike
+   * mountMap, this doesn't tear down and rebuild its own DOM on every
+   * call, so without the guard, a rebuild of an unrelated chippable
+   * section (Who, Metadata — see onSectionRebuilt below) would find this
+   * same persisted button and attach a second click listener rather than
+   * a harmless no-op.
+   */
+  function wireVenueGeocode(): void {
+    const button = form.querySelector<HTMLButtonElement>('[data-role="venue-geocode"]');
+    if (!button || button.dataset.wired) return;
+    button.dataset.wired = "true";
+    const venueInput = form.querySelector<HTMLInputElement>('[data-key="venue"]');
+    let hint: HTMLElement | null = null;
+    const clearHint = () => {
+      hint?.remove();
+      hint = null;
+    };
+    venueInput?.addEventListener("input", clearHint);
+    // Enter in the Venue field is equivalent to clicking the lupa — no
+    // reason to make the mouse mandatory for the same search.
+    venueInput?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      button.click();
+    });
+    button.addEventListener("click", () => {
+      const venue = state.venue.trim();
+      clearHint();
+      if (!venue) return;
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      void geocodeVenue(venue).then((hit) => {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        if (hit === null) {
+          hint = document.createElement("span");
+          hint.className = "hint venue-geocode-hint";
+          hint.textContent = t(
+            "hint.venueNotFound",
+            "No location found — search or click the map below.",
+          );
+          button.after(hint);
+          return;
+        }
+        state.geoLat = String(Math.round(hit.lat * 1e5) / 1e5);
+        state.geoLon = String(Math.round(hit.lon * 1e5) / 1e5);
+        setControlValue("geoLat", state.geoLat);
+        setControlValue("geoLon", state.geoLon);
+        touched.add("geo");
+        mapHandle?.setPosition(hit.lat, hit.lon);
+        refresh();
+        saveCurrentItem();
+      });
+    });
   }
 
   // --- description: inline Edit/Preview toggle (always visible, see
@@ -1139,6 +1208,7 @@ async function startEditor(repo: string | null): Promise<void> {
   function onSectionRebuilt(): void {
     mountMap();
     mountDescriptionExpand();
+    wireVenueGeocode();
   }
 
   function render(extra: ReadonlySet<string> = new Set()): void {
@@ -1152,6 +1222,7 @@ async function startEditor(repo: string | null): Promise<void> {
       onTranslationsCommit,
       onSectionRebuilt,
       onCustomizeRecurrenceRule,
+      onOpenSeriesPicker,
     );
     refreshTranslations = rendered.refreshTranslations;
     getRecurrenceSeries = rendered.getRecurrenceSeries;
@@ -1160,6 +1231,7 @@ async function startEditor(repo: string | null): Promise<void> {
     markImportGaps(form, importMissing ?? new Set());
     mountMap();
     mountDescriptionExpand();
+    wireVenueGeocode();
     refresh();
   }
 
@@ -1345,6 +1417,7 @@ async function startEditor(repo: string | null): Promise<void> {
         );
       }
     }
+    knownSeries = collectKnownSeries(listed.map(({ event }) => event));
     eventsSearch.placeholder = t("nav.comboFilter", "Type to filter, or pick an event…");
     eventsSearch.disabled = listed.length === 0;
     renderEventsGrid(eventsSearch.value);
@@ -1820,12 +1893,17 @@ async function startEditor(repo: string | null): Promise<void> {
       }
       events.push(...buildRecurringEvents(s, dates));
     });
-    recurrenceDialog.showModal();
+    // Re-entrant: the ack row's own "Link to a series" shortcut below calls
+    // this function again once linked, to rebuild `events` with the now-set
+    // partOf baked in — showModal() throws on an already-open dialog.
+    if (!recurrenceDialog.open) recurrenceDialog.showModal();
     showDetected(recurrenceUi, { events, warnings }, null);
     // showDetected's own updateConfirm(ui) call just ran (and, with the
     // partOf warning, wrongly left the button enabled — it only knows
     // about checked events); append the ack checkbox and re-disable.
     if (recurrenceNeedsPartOfAck) {
+      const ackRow = document.createElement("div");
+      ackRow.className = "warning-ack-row";
       const ack = document.createElement("label");
       ack.className = "warning-ack";
       const ackCheckbox = document.createElement("input");
@@ -1841,7 +1919,38 @@ async function startEditor(repo: string | null): Promise<void> {
           'I understand, continue without "Part of (series)"',
         ),
       );
-      recurrenceUi.warningsBox.append(ack);
+      // A plain sentence with the action word as the link, rather than a
+      // second button sitting next to the checkbox — reads as guidance
+      // toward the alternative, not a second, ambiguous toggle.
+      const linkRow = document.createElement("p");
+      linkRow.className = "hint";
+      const linkWord = document.createElement("button");
+      linkWord.type = "button";
+      linkWord.className = "link-button";
+      linkWord.textContent = t("dialog.recurrence.missingPartOfLinkWord", "here");
+      linkWord.addEventListener("click", () => {
+        onOpenSeriesPicker(
+          { id: state.partOfId, name: state.partOfName, url: state.partOfUrl },
+          (next) => {
+            onInput("partOfId", next.id);
+            onInput("partOfName", next.name);
+            onInput("partOfUrl", next.url);
+            onInput("partOfType", "series");
+            // Rebuilds `events` (now carrying partOf) and drops the ack row.
+            onGenerateRecurrenceSeries(series);
+          },
+        );
+      });
+      linkRow.append(
+        `${t(
+          "dialog.recurrence.missingPartOfLinkPrefix",
+          "Or if you'd rather link it to a series, you can do that",
+        )} `,
+        linkWord,
+        ".",
+      );
+      ackRow.append(ack, linkRow);
+      recurrenceUi.warningsBox.append(ackRow);
     }
     updateRecurrenceConfirm();
   }
@@ -1996,6 +2105,151 @@ async function startEditor(repo: string | null): Promise<void> {
     customApply(rule);
     customApply = null;
     recurrenceCustomDialog.close();
+  });
+
+  // --- "Link to a series" dialog: search existing series, or a short form
+  // to mint a new one — opened from the "When" section's entry point next
+  // to "+ Add recurrence" (renderRecurrenceRows' onOpenSeriesPicker). ------
+  const seriesDialog = el<HTMLDialogElement>("series-dialog");
+  const seriesSearchBlock = el<HTMLDivElement>("series-search");
+  const seriesSearchInput = el<HTMLInputElement>("series-search-input");
+  const seriesSearchList = el<HTMLUListElement>("series-search-list");
+  const seriesSearchEmpty = el<HTMLParagraphElement>("series-search-empty");
+  const seriesSearchCreate = el<HTMLButtonElement>("series-search-create");
+  const seriesCreateBlock = el<HTMLDivElement>("series-create");
+  const seriesCreateUrl = el<HTMLInputElement>("series-create-url");
+  const seriesCreateName = el<HTMLInputElement>("series-create-name");
+  const seriesCreateId = el<HTMLInputElement>("series-create-id");
+  const seriesCreateIdEdit = el<HTMLButtonElement>("series-create-id-edit");
+  const seriesIdSummary = el<HTMLParagraphElement>("series-id-summary");
+  const seriesCreateConfirm = el<HTMLButtonElement>("series-create-confirm");
+
+  document
+    .querySelector('label[for="series-create-id"]')
+    ?.append(
+      renderInfoToggle(
+        t(
+          "dialog.series.idHint",
+          "Doesn't need to be a real, working link — just a stable id under a domain you control, shared by every occurrence of this series.",
+        ),
+      ),
+    );
+
+  let seriesApply: ((next: { id: string; name: string; url: string }) => void) | null = null;
+  let seriesIdDirty = false;
+
+  function updateSeriesCreateConfirm(): void {
+    seriesCreateConfirm.disabled =
+      seriesCreateName.value.trim() === "" || seriesCreateId.value.trim() === "";
+  }
+
+  // Nothing to suggest an id from until a name exists — the whole "Series
+  // id" line stays out of the way until then.
+  function updateSeriesIdSummaryVisibility(): void {
+    seriesIdSummary.hidden = seriesCreateName.value.trim() === "";
+  }
+
+  function renderSeriesSearchList(query: string): void {
+    seriesSearchList.textContent = "";
+    const q = query.trim().toLowerCase();
+    const hits = knownSeries.filter((s) => s.name.toLowerCase().includes(q));
+    seriesSearchEmpty.hidden = hits.length > 0;
+    for (const option of hits) {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = option.name;
+      button.addEventListener("click", () => {
+        seriesApply?.(option);
+        seriesApply = null;
+        seriesDialog.close();
+      });
+      item.append(button);
+      seriesSearchList.append(item);
+    }
+  }
+
+  function showSeriesSearch(): void {
+    seriesSearchBlock.hidden = false;
+    seriesCreateBlock.hidden = true;
+    seriesCreateConfirm.hidden = true;
+    seriesSearchInput.value = "";
+    renderSeriesSearchList("");
+  }
+
+  function showSeriesCreate(): void {
+    seriesSearchBlock.hidden = true;
+    seriesCreateBlock.hidden = false;
+    seriesCreateConfirm.hidden = false;
+    // Reads as a proposed value, not an invitation to type — same
+    // readonly-until-"Edit" treatment as the event's own slug/id fields
+    // (ui/form.ts's addManualToggle). JS can still update .value while
+    // readonly, so auto-suggest-from-name keeps working underneath.
+    seriesCreateId.readOnly = true;
+    seriesCreateIdEdit.hidden = false;
+    updateSeriesIdSummaryVisibility();
+    updateSeriesCreateConfirm();
+  }
+
+  function onOpenSeriesPicker(
+    current: { id: string; name: string; url: string },
+    apply: (next: { id: string; name: string; url: string }) => void,
+  ): void {
+    seriesApply = apply;
+    seriesCreateUrl.value = current.url;
+    seriesCreateName.value = current.name;
+    seriesCreateId.value = current.id;
+    // Editing an already-linked series: typing a name-typo fix shouldn't
+    // silently regenerate the shared id. A fresh link starts clean so
+    // auto-suggest can follow the name as usual.
+    seriesIdDirty = current.id !== "";
+    if (knownSeries.length > 0 && current.id === "") {
+      showSeriesSearch();
+    } else {
+      showSeriesCreate();
+    }
+    seriesDialog.showModal();
+  }
+
+  seriesSearchInput.addEventListener("input", () => renderSeriesSearchList(seriesSearchInput.value));
+  seriesSearchCreate.addEventListener("click", () => {
+    seriesCreateUrl.value = "";
+    seriesCreateName.value = "";
+    seriesCreateId.value = "";
+    seriesIdDirty = false;
+    showSeriesCreate();
+  });
+
+  seriesCreateName.addEventListener("input", () => {
+    if (!seriesIdDirty) seriesCreateId.value = suggestPartOfId(config, repo, seriesCreateName.value);
+    updateSeriesIdSummaryVisibility();
+    updateSeriesCreateConfirm();
+  });
+  seriesCreateId.addEventListener("input", () => {
+    seriesIdDirty = true;
+    updateSeriesCreateConfirm();
+  });
+  seriesCreateIdEdit.addEventListener("click", () => {
+    seriesCreateId.readOnly = false;
+    seriesIdDirty = true;
+    seriesCreateIdEdit.hidden = true;
+    seriesCreateId.focus();
+  });
+
+  el<HTMLButtonElement>("series-dialog-cancel").addEventListener("click", () => {
+    seriesApply = null;
+    seriesDialog.close();
+  });
+
+  seriesCreateConfirm.addEventListener("click", () => {
+    if (!seriesApply) return;
+    seriesApply({
+      id: seriesCreateId.value.trim(),
+      name: seriesCreateName.value.trim(),
+      url: seriesCreateUrl.value.trim(),
+    });
+    seriesApply = null;
+    seriesDialog.close();
   });
 
   // --- "+ New event" menu: blank draft, or either import dialog above -------

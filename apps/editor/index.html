@@ -746,6 +746,101 @@
         </div>
       </dialog>
 
+      <!-- "Link to a series" — opened from the "When" section's entry
+           point next to "+ Add recurrence" (main.ts's openSeriesPicker,
+           wired from ui/form.ts's renderRecurrenceRows). Two screens
+           sharing one dialog, only one visible at a time: #series-search
+           (existing series already used in the connected repo) and
+           #series-create (mint a new one — always the only screen in
+           standalone mode, or once "+ Create new series" is picked). -->
+      <dialog id="series-dialog">
+        <h2 data-i18n="dialog.series.title">Link to a series</h2>
+        <p class="hint" data-i18n="dialog.series.hint">
+          Groups every occurrence under one shared identity, so a consumer
+          can list them together — and so you can find this series again
+          next time you add to it.
+        </p>
+
+        <div id="series-search">
+          <input
+            id="series-search-input"
+            type="text"
+            data-i18n-placeholder="dialog.series.searchPlaceholder"
+            placeholder="Search series…"
+          />
+          <ul id="series-search-list"></ul>
+          <p id="series-search-empty" class="hint" hidden data-i18n="dialog.series.searchEmpty">
+            No matching series.
+          </p>
+          <button
+            id="series-search-create"
+            type="button"
+            class="link-button"
+            data-i18n="dialog.series.createNew"
+          >
+            + Create new series
+          </button>
+        </div>
+
+        <div id="series-create" hidden>
+          <div class="field">
+            <label for="series-create-url" data-i18n="dialog.series.pageLabel">
+              Dedicated page (optional)
+            </label>
+            <input id="series-create-url" type="url" />
+            <!-- No data-i18n: this hint carries a real link, and data-i18n
+                 replaces textContent wholesale on locale switch, which
+                 would strip it — same reason the ICS import dialog's own
+                 <code>-bearing hints above stay English-only. -->
+            <p class="hint">
+              E.g. a workshop's own site, or
+              <a
+                href="https://github.com/ComBuildersES/punto-de-encuentro/blob/main/CONTRIBUTING.md#encuentros-online-mensuales"
+                target="_blank"
+                rel="noopener"
+                >this recurring-meetup example</a
+              >.
+            </p>
+          </div>
+          <div class="field">
+            <label for="series-create-name" data-i18n="dialog.series.nameLabel">Name</label>
+            <input id="series-create-name" type="text" />
+            <!-- Hidden until a name exists — nothing to suggest an id from
+                 yet. main.ts appends the ⓘ info toggle to the label. -->
+            <p class="hint series-id-summary" id="series-id-summary" hidden>
+              <label id="series-create-id-label" for="series-create-id" data-i18n="dialog.series.idLabel"
+                >Series id (URL)</label
+              >:
+              <input id="series-create-id" type="url" readonly />
+              ·
+              <button
+                id="series-create-id-edit"
+                type="button"
+                class="link-button"
+                data-i18n="ui.editSuggested"
+              >
+                Edit
+              </button>
+            </p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="series-dialog-cancel" type="button" class="secondary" data-i18n="action.cancel">
+            Cancel
+          </button>
+          <button
+            id="series-create-confirm"
+            type="button"
+            class="primary"
+            hidden
+            data-i18n="dialog.series.confirm"
+          >
+            Create and link
+          </button>
+        </div>
+      </dialog>
+
       <!-- The compact Description textarea's "⤢ Expand" button (rendered
            in ui/form.ts's renderField) opens this: a much larger view with
            an Edit/Preview toggle, for writing/reviewing a long description
