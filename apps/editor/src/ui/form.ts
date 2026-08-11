@@ -250,6 +250,12 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   metadata: "Metadata",
 };
 
+/** "Maximize" glyph (Feather Icons' maximize-2 path) for the description
+ * field's expand-to-larger-view button — the app has no icon system, this
+ * is one hand-authored SVG string, not a new dependency. */
+const EXPAND_ICON_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+
 const FIELD_SPECS: Record<string, FieldSpec> = {
   name: {
     label: "Name",
@@ -2888,6 +2894,56 @@ function renderField(
   if (fieldId === "slug" || fieldId === "id") {
     addManualToggle(field, controls, t("ui.editSuggested", "Edit"));
   }
+  // Edit/Preview toggle + "expand to a larger view" icon, visible from the
+  // start (not gated behind a click) — main.ts owns the actual behavior
+  // (this only builds slots it finds after render, same pattern as the geo
+  // map — see onWhereRebuilt). controls[0].element is the textarea itself;
+  // .before()/.after() slot the toolbar and preview around it without
+  // disturbing the label/note/error already appended by the caller below.
+  if (fieldId === "description") {
+    const bar = document.createElement("div");
+    bar.className = "description-toolbar";
+
+    const toggle = document.createElement("div");
+    toggle.className = "mode-toggle";
+    toggle.dataset.role = "description-mode-toggle";
+    toggle.setAttribute("role", "radiogroup");
+    toggle.setAttribute("aria-label", specLabel);
+    for (const mode of ["edit", "preview"] as const) {
+      const modeLabel = document.createElement("label");
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "description-mode";
+      radio.value = mode;
+      radio.checked = mode === "edit";
+      const span = document.createElement("span");
+      span.textContent =
+        mode === "edit"
+          ? t("dialog.descriptionEditor.editTab", "Edit")
+          : t("dialog.descriptionEditor.previewTab", "Preview");
+      modeLabel.append(radio, span);
+      toggle.append(modeLabel);
+    }
+    bar.append(toggle);
+
+    const expand = document.createElement("button");
+    expand.type = "button";
+    expand.className = "icon-button";
+    expand.dataset.role = "description-expand";
+    const expandLabel = t("action.expandDescription", "Expand");
+    expand.setAttribute("aria-label", expandLabel);
+    expand.title = expandLabel;
+    expand.innerHTML = EXPAND_ICON_SVG;
+    bar.append(expand);
+
+    controls[0].element.before(bar);
+
+    const preview = document.createElement("div");
+    preview.className = "description-preview";
+    preview.dataset.role = "description-inline-preview";
+    preview.hidden = true;
+    controls[0].element.after(preview);
+  }
   return field;
 }
 
@@ -3213,8 +3269,13 @@ export function renderForm(
   onInput: (key: StateKey, value: string | boolean) => void,
   onArrayInput: (key: RepeaterKey, items: Record<string, string>[]) => void,
   onTranslationsCommit: (patch: TranslationsPatch) => void,
-  /** Called whenever Venue's block (re)appears or disappears — main.ts uses it to (re)mount the geo map, since it can no longer assume the map slot exists right after renderForm returns. */
-  onWhereRebuilt: () => void,
+  /** Called whenever a chippable section's own subtree rebuilds (Where —
+   * Venue's block (re)appearing/disappearing, or What — Description added
+   * via its "+" chip): main.ts uses it to (re)mount the geo map and wire
+   * the description toolbar, since it can no longer assume those slots
+   * exist right after renderForm itself returns — a chip toggle rebuilds
+   * only its own section, not the whole form. */
+  onSectionRebuilt: () => void,
   onCustomizeRecurrenceRule: (
     current: RecurrenceRule | null,
     apply: (rule: RecurrenceRule) => void,
@@ -3370,11 +3431,13 @@ export function renderForm(
           onInput,
           onArrayInput,
           WHERE_DEPENDENTS,
-          onWhereRebuilt,
+          onSectionRebuilt,
         ),
       );
     } else {
-      // what, who, metadata
+      // what, who, metadata — "what" needs onSectionRebuilt too: Description
+      // can arrive via its own "+" chip, not just the section's initial
+      // render (see the onSectionRebuilt param doc above).
       details.append(
         renderChippableSection(
           fieldIds,
@@ -3383,6 +3446,8 @@ export function renderForm(
           state,
           onInput,
           onArrayInput,
+          undefined,
+          onSectionRebuilt,
         ),
       );
     }

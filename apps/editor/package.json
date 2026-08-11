@@ -16,7 +16,8 @@
     "@opentechevents/import-ics": "workspace:*",
     "@opentechevents/import-jsonld": "workspace:*",
     "@opentechevents/validate": "workspace:*",
-    "leaflet": "^1.9.4"
+    "leaflet": "^1.9.4",
+    "marked": "^18.0.9"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.22",

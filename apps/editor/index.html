@@ -746,6 +746,46 @@
         </div>
       </dialog>
 
+      <!-- The compact Description textarea's "⤢ Expand" button (rendered
+           in ui/form.ts's renderField) opens this: a much larger view with
+           an Edit/Preview toggle, for writing/reviewing a long description
+           as a whole. Edits write straight to state.description live (see
+           main.ts) — no separate confirm step, same as the geo map. -->
+      <dialog id="description-editor-dialog">
+        <h2 data-i18n="dialog.descriptionEditor.title">Description</h2>
+
+        <div
+          class="mode-toggle"
+          id="description-editor-mode"
+          role="radiogroup"
+          aria-label="View"
+          data-i18n-aria-label="dialog.descriptionEditor.title"
+        >
+          <label>
+            <input type="radio" name="description-editor-mode" value="edit" checked />
+            <span data-i18n="dialog.descriptionEditor.editTab">Edit</span>
+          </label>
+          <label>
+            <input type="radio" name="description-editor-mode" value="preview" />
+            <span data-i18n="dialog.descriptionEditor.previewTab">Preview</span>
+          </label>
+        </div>
+
+        <textarea
+          id="description-editor-textarea"
+          rows="16"
+          aria-label="Description"
+          data-i18n-aria-label="dialog.descriptionEditor.title"
+        ></textarea>
+        <div id="description-editor-preview" class="description-preview" hidden></div>
+
+        <div class="actions">
+          <button id="description-editor-done" type="button" class="primary" data-i18n="action.done">
+            Done
+          </button>
+        </div>
+      </dialog>
+
       <section id="fallback" hidden>
         <h3 data-i18n="fallback.title">URL too long — copy manually</h3>
         <p data-i18n="fallback.hint">

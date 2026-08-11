@@ -223,6 +223,34 @@ header h1 {
   outline-offset: 2px;
 }
 
+.description-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  min-height: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.icon-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* --- section nav ---------------------------------------------------------- */
 /* Sticks to the top once scrolled past — same visual language as #action-bar
    (blurred translucent band) so the two sticky bars read as one system. */
@@ -1701,6 +1729,118 @@ footer {
 #recurrence-custom-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
+}
+
+/* --- description "expand" dialog: deliberately larger than the shared
+   34rem dialog group above — the whole point is seeing a long description
+   as a whole, not a compact confirmation. ---------------------------------- */
+
+#description-editor-dialog {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(28, 33, 40, 0.25);
+  padding: 1.25rem;
+  width: min(46rem, calc(100vw - 2rem));
+  height: min(75vh, 42rem);
+}
+
+/* Native <dialog> relies on the UA stylesheet's dialog:not([open]) {
+   display: none } — an unconditional `display:` here would win over that
+   (same author-vs-UA-stylesheet pitfall as [hidden], see CLAUDE.md), so
+   the flex layout only applies once the dialog is actually open. */
+#description-editor-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+#description-editor-dialog::backdrop {
+  background: rgba(28, 33, 40, 0.45);
+}
+
+#description-editor-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+#description-editor-mode {
+  align-self: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+/* Toggled via .hidden in main.ts — must stay scoped to :not([hidden]), or
+   this display: rule silently wins over the [hidden] attribute (see
+   apps/editor/CLAUDE.md). */
+#description-editor-textarea:not([hidden]),
+#description-editor-preview:not([hidden]) {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#description-editor-textarea {
+  resize: none;
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.description-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+
+/* Toggled via .hidden — see the CLAUDE.md note above for why this stays
+   scoped to :not([hidden]) instead of a bare selector. */
+[data-role="description-inline-preview"]:not([hidden]) {
+  display: block;
+  min-height: 4.5rem;
+}
+
+.description-preview :first-child {
+  margin-top: 0;
+}
+
+.description-preview :last-child {
+  margin-bottom: 0;
+}
+
+.description-preview h1,
+.description-preview h2,
+.description-preview h3 {
+  margin: 1em 0 0.4em;
+}
+
+.description-preview p,
+.description-preview ul,
+.description-preview ol,
+.description-preview blockquote {
+  margin: 0 0 0.8em;
+}
+
+.description-preview blockquote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 0.75rem;
+  color: var(--muted);
+}
+
+.description-preview code {
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+.description-preview pre code {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+}
+
+#description-editor-dialog .actions {
+  justify-content: flex-end;
 }
 
 /* --- feed settings view -------------------------------------------------- */

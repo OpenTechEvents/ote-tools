@@ -116,6 +116,11 @@ export const es: Record<string, string> = {
   "dialog.recurrence.missingPartOfAck":
     'Entendido, continuar sin rellenar "Part of (series)"',
 
+  // --- description "expand" dialog -----------------------------------------
+  "dialog.descriptionEditor.title": "Descripción",
+  "dialog.descriptionEditor.editTab": "Editar",
+  "dialog.descriptionEditor.previewTab": "Vista previa",
+
   // --- recurrence: inline row list in "Cuándo" ----------------------------
   "dialog.recurrenceRow.label": "Se repite",
   "dialog.recurrenceRow.addLabel": "+ Añadir recurrencia",
@@ -213,6 +218,7 @@ export const es: Record<string, string> = {
     "No se pudo determinar el nombre de archivo de este evento a partir del feed.",
   "action.edit": "Editar",
   "action.duplicate": "Duplicar",
+  "action.expandDescription": "Ampliar",
   "action.delete": "Eliminar",
   "action.deleteDirect": "Eliminar en GitHub",
   "action.deleteViaIssue": "Proponer eliminación",

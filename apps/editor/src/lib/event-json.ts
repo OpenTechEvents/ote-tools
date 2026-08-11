@@ -1,4 +1,14 @@
+import { htmlToMarkdown, looksLikeHtml } from "@opentechevents/import-ics";
+
 import type { FormState, OteConfig, OteEvent } from "./types.js";
+
+/** Converts to Markdown only when the value actually looks like HTML — a
+ * safety net for a description read from a file written before this
+ * conversion existed, or by another tool (fresh imports already convert at
+ * import time, see packages/import-ics and packages/import-jsonld). */
+function normalizeDescription(value: string): string {
+  return looksLikeHtml(value) ? htmlToMarkdown(value) : value;
+}
 
 /** A fresh, empty form. `timezone` is injected by the caller (browser TZ). */
 export function emptyFormState(timezone = ""): FormState {
@@ -284,7 +294,7 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     slug,
     id: json.id ?? "",
     name: json.name ?? "",
-    description: json.description ?? "",
+    description: normalizeDescription(json.description ?? ""),
     url: json.url ?? "",
     tags: (json.tags ?? []).join(", "),
     languages: (json.languages ?? []).join(", "),
@@ -348,7 +358,7 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     translations: Object.fromEntries(
       Object.entries(json.translations ?? {}).map(([lang, entry]) => [
         lang,
-        { name: entry.name ?? "", description: entry.description ?? "" },
+        { name: entry.name ?? "", description: normalizeDescription(entry.description ?? "") },
       ]),
     ),
     eligibilityNoteTranslations: unwrapTranslations(

@@ -117,6 +117,19 @@ describe("fromEventJson / round-trip", () => {
     expect(toEventJson(fromEventJson(event, "s"))).toEqual(event);
   });
 
+  it("converts a description that already contains HTML (e.g. a file predating this conversion)", () => {
+    const state = fromEventJson(
+      { ...event, description: "<p>Hello <strong>world</strong></p>" },
+      "s",
+    );
+    expect(state.description).toBe("Hello **world**");
+  });
+
+  it("leaves a plain-text/Markdown description untouched", () => {
+    const state = fromEventJson({ ...event, description: "**Hello** world" }, "s");
+    expect(state.description).toBe("**Hello** world");
+  });
+
   it("round-trips an all-day event unchanged", () => {
     const allDay: OteEvent = {
       id: "https://x.example/events/devfest",
@@ -303,6 +316,17 @@ describe("toEventJson / fromEventJson — translations", () => {
       es: "Solo estudiantes universitarios",
     });
     expect(state.partOfNameTranslations).toEqual({ es: "Serie DevFest" });
+  });
+
+  it("converts HTML in a translated description on load, same as the primary one", () => {
+    const state = fromEventJson(
+      {
+        ...withTranslations,
+        translations: { es: { name: "X", description: "<em>Hola</em>" } },
+      },
+      "devfest",
+    );
+    expect(state.translations.es?.description).toBe("*Hola*");
   });
 
   it("round-trips a full translations fixture unchanged", () => {

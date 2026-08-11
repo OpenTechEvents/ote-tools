@@ -6,6 +6,7 @@
 
 import { icsToEvents } from "@opentechevents/import-ics";
 import { htmlToEvents } from "@opentechevents/import-jsonld";
+import { marked } from "marked";
 
 import { loadAdopters, type Adopter } from "./lib/adopters.js";
 import { findCollisions } from "./lib/collisions.js";
@@ -988,6 +989,87 @@ async function startEditor(repo: string | null): Promise<void> {
     );
   }
 
+  // --- description: inline Edit/Preview toggle (always visible, see
+  // ui/form.ts's fieldId === "description" block) + a "⤢ expand" icon
+  // opening a larger dialog for the same textarea. Both write straight to
+  // state.description live, no separate confirm step — same as the geo
+  // map. Wired the same way mountMap wires the geo slot: main.ts finds the
+  // elements ui/form.ts built after each render, since they don't exist
+  // beforehand. ---
+  const descriptionEditorDialog = el<HTMLDialogElement>("description-editor-dialog");
+  const descriptionEditorTextarea = el<HTMLTextAreaElement>("description-editor-textarea");
+  const descriptionEditorPreview = el<HTMLDivElement>("description-editor-preview");
+
+  function renderDescriptionPreview(target: HTMLElement, source: string): void {
+    target.innerHTML = marked.parse(source, { async: false });
+  }
+
+  /** The compact field's own preview (if that's its active tab) doesn't
+   * see edits made from the larger dialog — its textarea has its own input
+   * listener, but the dialog writes state.description directly. Called
+   * after every dialog edit to keep the two in sync. */
+  function syncInlineDescriptionPreview(): void {
+    const preview = form.querySelector<HTMLDivElement>(
+      '[data-role="description-inline-preview"]',
+    );
+    if (!preview || preview.hidden) return;
+    renderDescriptionPreview(preview, state.description);
+  }
+
+  descriptionEditorTextarea.addEventListener("input", () => {
+    onInput("description", descriptionEditorTextarea.value);
+    setControlValue("description", descriptionEditorTextarea.value);
+    syncInlineDescriptionPreview();
+  });
+
+  el<HTMLDivElement>("description-editor-mode").addEventListener("input", () => {
+    const isPreview =
+      descriptionEditorDialog.querySelector<HTMLInputElement>(
+        'input[name="description-editor-mode"]:checked',
+      )?.value === "preview";
+    descriptionEditorTextarea.hidden = isPreview;
+    descriptionEditorPreview.hidden = !isPreview;
+    if (isPreview) renderDescriptionPreview(descriptionEditorPreview, descriptionEditorTextarea.value);
+  });
+
+  el<HTMLButtonElement>("description-editor-done").addEventListener("click", () =>
+    descriptionEditorDialog.close(),
+  );
+
+  function mountDescriptionExpand(): void {
+    const toolbar = form.querySelector<HTMLElement>('[data-role="description-mode-toggle"]');
+    const textarea = form.querySelector<HTMLTextAreaElement>('[data-key="description"]');
+    const preview = form.querySelector<HTMLDivElement>(
+      '[data-role="description-inline-preview"]',
+    );
+    const expandBtn = form.querySelector<HTMLButtonElement>('[data-role="description-expand"]');
+    if (!toolbar || !textarea || !preview || !expandBtn) return;
+
+    toolbar.addEventListener("input", () => {
+      const isPreview =
+        toolbar.querySelector<HTMLInputElement>("input:checked")?.value === "preview";
+      textarea.hidden = isPreview;
+      preview.hidden = !isPreview;
+      if (isPreview) renderDescriptionPreview(preview, textarea.value);
+    });
+
+    expandBtn.addEventListener("click", () => {
+      const mode =
+        toolbar.querySelector<HTMLInputElement>("input:checked")?.value === "preview"
+          ? "preview"
+          : "edit";
+      descriptionEditorTextarea.value = state.description;
+      descriptionEditorTextarea.hidden = mode === "preview";
+      descriptionEditorPreview.hidden = mode !== "preview";
+      if (mode === "preview") renderDescriptionPreview(descriptionEditorPreview, state.description);
+      const radio = descriptionEditorDialog.querySelector<HTMLInputElement>(
+        `input[name="description-editor-mode"][value="${mode}"]`,
+      );
+      if (radio) radio.checked = true;
+      descriptionEditorDialog.showModal();
+    });
+  }
+
   /** One pill per rendered section — jumps to it, opening it first if collapsed. */
   /** Wires a toggle button + dropdown panel: click toggles, outside click/Escape closes. Returns close(). */
   function wireDropdown(
@@ -1049,6 +1131,16 @@ async function startEditor(repo: string | null): Promise<void> {
     sectionNav.append(toggle, list);
   }
 
+  /** Passed into renderForm as onSectionRebuilt: a chippable section (Where,
+   * What) rebuilding its own subtree — e.g. Description added via its "+"
+   * chip — doesn't go through render() below, so anything that mounts
+   * after the fact (the geo map, the description toolbar/expand wiring)
+   * has to be re-run from here too, not just at the bottom of render(). */
+  function onSectionRebuilt(): void {
+    mountMap();
+    mountDescriptionExpand();
+  }
+
   function render(extra: ReadonlySet<string> = new Set()): void {
     const rendered = renderForm(
       form,
@@ -1058,7 +1150,7 @@ async function startEditor(repo: string | null): Promise<void> {
       onInput,
       onArrayInput,
       onTranslationsCommit,
-      mountMap,
+      onSectionRebuilt,
       onCustomizeRecurrenceRule,
     );
     refreshTranslations = rendered.refreshTranslations;
@@ -1067,6 +1159,7 @@ async function startEditor(repo: string | null): Promise<void> {
     setAllDay(form, state.allDay);
     markImportGaps(form, importMissing ?? new Set());
     mountMap();
+    mountDescriptionExpand();
     refresh();
   }
 
