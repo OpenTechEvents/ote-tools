@@ -44,3 +44,13 @@ tied to semver releases.
   the series' event name — "Add `<name>` series (N events)" instead of
   just "Add N events" — to match the count-only case reserved for an
   (unreachable in practice) empty batch.
+- Repo mode's events list now renders through the shared `<ote-events>`
+  widget (`apps/embed`) instead of a hand-built card grid, closing part of
+  [#47](https://github.com/OpenTechEvents/ote-tools/issues/47). Cards gain
+  a click-to-preview detail modal — the exact rendering a public visitor
+  would see — for free; edit/duplicate/delete stay as inline card buttons,
+  now wired through the widget's `eventActions` API instead of custom DOM.
+  The widget is self-hosted from the editor's own build (copied from
+  `apps/embed/dist` at build time) rather than loaded from a public URL,
+  so local dev and CI don't depend on the network or on a previously
+  deployed embed version.

@@ -440,114 +440,15 @@ header h1 {
   color: var(--muted);
 }
 
-#events-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  gap: 1rem;
-}
-
-.event-card {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.event-card-thumb {
-  aspect-ratio: 16 / 9;
-  background: var(--bg);
-  /* Rounds just the top corners (not `overflow: hidden` on the whole
-     card) — an ancestor clip was cutting off the delete dialog when it
-     used to live here as an in-card dropdown; kept this way since it's
-     the right fix regardless of how the delete action is presented. */
-  border-radius: var(--radius) var(--radius) 0 0;
-  overflow: hidden;
-}
-
-.event-card-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* The grid/card rendering itself lives inside the <ote-events> widget's own
+   shadow root (apps/embed) — this just places it and matches its accent
+   color to the editor's own palette via the widget's documented --ote-*
+   custom-property theming hook (see apps/embed/CLAUDE.md). */
+#events-widget {
   display: block;
-}
-
-/* No image: a flat placeholder pattern, not a network request — never a
-   broken-image flash, never an extra fetch for events that just don't have
-   a poster yet. */
-.event-card-thumb.placeholder {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--bg),
-    var(--bg) 10px,
-    var(--border) 10px,
-    var(--border) 11px
-  );
-}
-
-.event-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.85rem;
-}
-
-.event-card-meta {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-.event-card-body h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.event-card-location {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.event-card-status {
-  align-self: flex-start;
-  border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.78rem;
-  font-weight: 500;
-  background: var(--error-bg);
-  color: var(--error);
-}
-
-.event-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.event-card-actions button {
-  width: 2.25rem;
-  height: 2.25rem;
-  min-height: 0;
-  padding: 0;
-  font-size: 1.05rem;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.event-card-delete-trigger {
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  color: var(--muted);
-}
-
-.event-card-delete-trigger:hover {
-  border-color: var(--error);
-  color: var(--error);
+  margin-top: 1rem;
+  --ote-accent: var(--accent);
+  --ote-accent-soft: var(--accent-soft);
 }
 
 /* --- form sections ---------------------------------------------------------- */

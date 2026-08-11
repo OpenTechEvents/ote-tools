@@ -38,6 +38,9 @@ importers:
       '@opentechevents/build-feed':
         specifier: workspace:*
         version: link:../../packages/build-feed
+      '@opentechevents/embed':
+        specifier: workspace:*
+        version: link:../embed
       '@opentechevents/import-ics':
         specifier: workspace:*
         version: link:../../packages/import-ics

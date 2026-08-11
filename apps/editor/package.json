@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@opentechevents/build-feed": "workspace:*",
+    "@opentechevents/embed": "workspace:*",
     "@opentechevents/import-ics": "workspace:*",
     "@opentechevents/import-jsonld": "workspace:*",
     "@opentechevents/validate": "workspace:*",

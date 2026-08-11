@@ -4,6 +4,11 @@
  * this file only connects them to the page.
  */
 
+import type {
+  CustomEventAction,
+  OriginalOteEvent,
+  OteEventsElement,
+} from "@opentechevents/embed/src/main.js";
 import { icsToEvents } from "@opentechevents/import-ics";
 import { htmlToEvents } from "@opentechevents/import-jsonld";
 import { marked } from "marked";
@@ -1238,11 +1243,12 @@ async function startEditor(repo: string | null): Promise<void> {
   render();
 
   // --- event listing: contents API first, Pages feed.json fallback -------
-  // Rendered as a searchable card grid (events-list-view), repo mode's
-  // landing view — pickEvent()/directDeleteUrl()/proposeDeleteUrl() give
-  // each card its actions.
+  // Rendered by the shared <ote-events> widget (apps/embed), repo mode's
+  // landing view — eventActions below gives each card its edit/duplicate/
+  // delete buttons; pickEvent()/directDeleteUrl()/proposeDeleteUrl() do the
+  // actual work.
   const eventsSearch = el<HTMLInputElement>("events-search");
-  const eventsGrid = el<HTMLDivElement>("events-grid");
+  const eventsWidget = el<OteEventsElement>("events-widget");
   const eventsEmpty = el<HTMLParagraphElement>("events-empty");
   const eventsRefresh = el<HTMLButtonElement>("events-refresh");
 
@@ -1251,97 +1257,43 @@ async function startEditor(repo: string | null): Promise<void> {
     return `${day} — ${event.name ?? event.id}`;
   }
 
-  /** First image's URL, if any — an image entry is a bare string or an {url, alt} object; "first is primary" is the same convention documented on REPEATER_SPECS.image in ui/form.ts. */
-  function firstImageUrl(event: OteEvent): string | null {
-    const first = event.image?.[0];
-    if (typeof first === "string") return first || null;
-    return first?.url || null;
-  }
+  // EventRenderContext.originalEvent only hands back the event object we
+  // gave the widget, not our own listed[] index — this maps it back to its
+  // ListedEvent (by reference), rebuilt on every renderEventsGrid() call.
+  let entryByEvent = new Map<OteEvent, ListedEvent>();
 
-  function renderEventCard(entry: ListedEvent, index: number): HTMLElement {
-    const { event } = entry;
-    const card = document.createElement("article");
-    card.className = "event-card";
-
-    const thumb = document.createElement("div");
-    thumb.className = "event-card-thumb";
-    const imageUrl = firstImageUrl(event);
-    if (imageUrl) {
-      const img = document.createElement("img");
-      img.src = imageUrl;
-      img.alt = "";
-      thumb.append(img);
-    } else {
-      thumb.classList.add("placeholder");
-    }
-    card.append(thumb);
-
-    const body = document.createElement("div");
-    body.className = "event-card-body";
-
-    const meta = document.createElement("p");
-    meta.className = "event-card-meta";
-    const day = (event.startDate ?? "").split("T")[0];
-    meta.append(day || t("ui.eventCard.noDate", "No date"));
-    if (event.attendanceMode && event.attendanceMode !== "in-person") {
-      meta.append(` · ${event.attendanceMode}`);
-    }
-    body.append(meta);
-
-    const name = document.createElement("h3");
-    name.textContent = event.name || event.id;
-    body.append(name);
-
-    if (event.location?.venue) {
-      const loc = document.createElement("p");
-      loc.className = "event-card-location";
-      loc.textContent = `📍 ${event.location.venue}`;
-      body.append(loc);
-    }
-
-    if (event.status && event.status !== "scheduled") {
-      const statusBadge = document.createElement("span");
-      statusBadge.className = `event-card-status status-${event.status}`;
-      statusBadge.textContent = t(`ui.eventStatus.${event.status}`, event.status);
-      body.append(statusBadge);
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "event-card-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "secondary";
-    editBtn.textContent = "✏️";
-    editBtn.setAttribute("aria-label", t("action.edit", "Edit"));
-    editBtn.title = t("action.edit", "Edit");
-    editBtn.addEventListener("click", () => pickEvent(index));
-    actions.append(editBtn);
-
-    const duplicateBtn = document.createElement("button");
-    duplicateBtn.type = "button";
-    duplicateBtn.className = "secondary";
-    duplicateBtn.textContent = "⧉";
-    duplicateBtn.setAttribute("aria-label", t("action.duplicate", "Duplicate"));
-    duplicateBtn.title = t("action.duplicate", "Duplicate");
-    duplicateBtn.addEventListener("click", () => duplicateEvent(entry));
-    actions.append(duplicateBtn);
-
+  eventsWidget.eventActions = (context): CustomEventAction[] => {
+    const entry = context.originalEvent && entryByEvent.get(context.originalEvent as OteEvent);
+    if (!entry) return [];
+    const index = listed.indexOf(entry);
+    const actions: CustomEventAction[] = [
+      {
+        id: "edit",
+        label: t("action.edit", "Edit"),
+        icon: "edit",
+        placement: "preview",
+        onClick: () => pickEvent(index),
+      },
+      {
+        id: "duplicate",
+        label: t("action.duplicate", "Duplicate"),
+        icon: "copy",
+        placement: "preview",
+        onClick: () => duplicateEvent(entry),
+      },
+    ];
     if (repo !== null) {
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "event-card-delete-trigger";
-      deleteBtn.textContent = "🗑️";
-      deleteBtn.setAttribute("aria-label", t("action.delete", "Delete"));
-      deleteBtn.title = t("action.delete", "Delete");
-      deleteBtn.addEventListener("click", () => openDeleteDialog(entry));
-      actions.append(deleteBtn);
+      actions.push({
+        id: "delete",
+        label: t("action.delete", "Delete"),
+        icon: "trash",
+        variant: "danger",
+        placement: "preview",
+        onClick: () => openDeleteDialog(entry),
+      });
     }
-
-    body.append(actions);
-    card.append(body);
-    return card;
-  }
+    return actions;
+  };
 
   // A single shared dialog (not a per-card dropdown, which used to get
   // clipped by the card's own rounded-corner overflow and, for cards near
@@ -1380,13 +1332,14 @@ async function startEditor(repo: string | null): Promise<void> {
   }
 
   function renderEventsGrid(query: string): void {
-    eventsGrid.textContent = "";
     eventsEmpty.hidden = listed.length > 0;
     const q = query.trim().toLowerCase();
-    const hits = listed
-      .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => eventLabel(entry.event).toLowerCase().includes(q));
-    for (const { entry, index } of hits) eventsGrid.append(renderEventCard(entry, index));
+    const hits = listed.filter((entry) => eventLabel(entry.event).toLowerCase().includes(q));
+    entryByEvent = new Map(hits.map((entry) => [entry.event, entry]));
+    // OteEvent is a structural superset of the widget's OriginalOteEvent
+    // (which only adds an index signature for private metadata) — same cast
+    // pattern as the transient `_localizeImages` key elsewhere in this app.
+    eventsWidget.events = hits.map((entry) => entry.event) as unknown as OriginalOteEvent[];
   }
 
   eventsSearch.addEventListener("input", () => renderEventsGrid(eventsSearch.value));

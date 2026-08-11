@@ -176,7 +176,7 @@
         <p id="events-empty" class="hint" hidden data-i18n="nav.comboEmpty">
           No events found in this repository
         </p>
-        <div id="events-grid"></div>
+        <ote-events id="events-widget" layout="cards" sort="none" theme="light"></ote-events>
       </section>
 
       <!-- Edits ote.config.json's `feed` block only (title/description/
@@ -905,6 +905,7 @@
       >
     </footer>
 
+    <script type="module" src="./embed/ote-events.js"></script>
     <script type="module" src="./main.js"></script>
   </body>
 </html>
