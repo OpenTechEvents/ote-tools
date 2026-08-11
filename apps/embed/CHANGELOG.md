@@ -1,5 +1,15 @@
 # @opentechevents/embed changelog
 
+## 0.3.1
+
+### Fixed
+
+- Custom badges from `eventBadges(context)` (and the built-in attendance/CFP
+  badges) no longer break the card/list layout when given a long label: the
+  label truncates with an ellipsis, the badge falls back to `title` for the
+  full text on hover, and the meta row wraps instead of squeezing the
+  location text down to a sliver.
+
 ## 0.3.0
 
 ### Added

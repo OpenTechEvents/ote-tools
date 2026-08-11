@@ -1098,13 +1098,16 @@ function appendCustomBadges(container: HTMLElement, event: PreviewEvent, state: 
   const badges = state.eventBadges?.(eventContextFor(state, event)) ?? [];
   for (const badge of badges) {
     if (typeof badge === "string") {
-      container.append(withText(el("span", "badge event-custom-badge"), badge));
+      const node = el("span", "badge event-custom-badge event-custom-badge-default");
+      node.title = badge;
+      node.append(withText(el("span", "event-custom-badge-label"), badge));
+      container.append(node);
       continue;
     }
     const node = el("span", `badge event-custom-badge event-custom-badge-${badge.tone ?? "default"}`);
-    if (badge.title) node.title = badge.title;
+    node.title = badge.title ?? badge.label;
     if (badge.icon) node.append(actionIcon(badge.icon));
-    node.append(document.createTextNode(badge.label));
+    node.append(withText(el("span", "event-custom-badge-label"), badge.label));
     container.append(node);
   }
 }

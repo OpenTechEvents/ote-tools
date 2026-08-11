@@ -482,6 +482,7 @@ ul.events.layout-cards {
 
 .event-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem;
   margin: 0.35rem 0;
@@ -491,7 +492,10 @@ ul.events.layout-cards {
 }
 
 .event-meta .event-badges {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   margin: 0;
   font-size: inherit;
 }
@@ -525,6 +529,8 @@ ul.events.layout-cards {
   gap: 0.25rem;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
+  min-width: 0;
+  max-width: 100%;
   font-size: 0.75rem;
   line-height: 1.4;
   background: var(--ote-accent-soft);
@@ -535,6 +541,13 @@ ul.events.layout-cards {
   width: 1em;
   height: 1em;
   flex: 0 0 auto;
+}
+
+.event-custom-badge-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .event-custom-badge-success {
