@@ -35,3 +35,12 @@ tied to semver releases.
   organizer had set by hand under "What". The type is now preserved
   unless the organizer picks a different series from search (which is
   always `type: "series"` by construction).
+- Fixed the batch issue opened for a generated recurring series (repo
+  mode) never triggering the `issue-to-pr` GitHub Action: the issue only
+  carried the `ote-batch` label, but the reusable workflow's caller-side
+  gate requires the `ote-event` label specifically (it checks labels, not
+  the `[ote-event]` title prefix), so the run was silently `skipped`
+  every time. The issue now gets both labels. Its title also now includes
+  the series' event name — "Add `<name>` series (N events)" instead of
+  just "Add N events" — to match the count-only case reserved for an
+  (unreachable in practice) empty batch.

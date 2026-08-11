@@ -105,18 +105,32 @@ export function batchIssueBody(events: OteEvent[], imagesToLocalize?: string[]):
  * series): always a blank-issue + copy-paste flow, never a prefilled URL —
  * unlike proposeChangeUrl there's no single-event case to optimize for, and
  * N events' JSON reliably exceeds MAX_URL_LENGTH well before N reaches
- * double digits, so there is no size worth branching on. `labels` is a
- * best-effort hint: GitHub silently ignores it if the label doesn't exist
- * in the target repo, so it's safe to always send.
+ * double digits, so there is no size worth branching on.
+ *
+ * `labels` MUST include `ote-event`, not just `ote-batch`: the reusable
+ * issue-to-pr workflow's caller-side gate
+ * (`contains(github.event.issue.labels.*.name, 'ote-event')`) checks labels,
+ * not the title prefix, so an issue missing it is silently skipped, not
+ * failed. Unlike the single-event flow (proposeChangeUrl), which gets its
+ * label from the repo's issue *template* rather than the `labels=` URL
+ * param — because a `labels=` param only takes effect when the issue
+ * author has triage permission, which an anonymous proposer usually
+ * doesn't — this batch flow is only ever reached from a connected repo the
+ * organizer themselves is editing, so they do have that permission and the
+ * URL param works.
  */
 export function proposeBatchChangeUrl(
   repo: string,
   events: OteEvent[],
   imagesToLocalize?: string[],
 ): LinkResult {
+  const name = events[0]?.name;
+  const title = name
+    ? `[ote-event] Add ${name} series (${events.length} events)`
+    : `[ote-event] Add ${events.length} events`;
   const params = new URLSearchParams({
-    title: `[ote-event] Add ${events.length} events`,
-    labels: "ote-batch",
+    title,
+    labels: "ote-event,ote-batch",
   });
   const base = `https://github.com/${repo}/issues/new?${params}`;
   return { kind: "fallback", url: base, copyText: batchIssueBody(events, imagesToLocalize) };

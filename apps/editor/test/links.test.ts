@@ -114,13 +114,20 @@ describe("proposeBatchChangeUrl", () => {
     expect(result.kind).toBe("fallback");
   });
 
-  it("points the blank issue at the right repo, titled with the count, hinting a batch label", () => {
+  it("points the blank issue at the right repo, titled with the series name and count", () => {
     const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
     if (result.kind !== "fallback") throw new Error("expected fallback");
     const url = new URL(result.url);
     expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
-    expect(url.searchParams.get("title")).toBe("[ote-event] Add 2 events");
-    expect(url.searchParams.get("labels")).toBe("ote-batch");
+    expect(url.searchParams.get("title")).toBe("[ote-event] Add Async night series (2 events)");
+    expect(url.searchParams.get("labels")).toBe("ote-event,ote-batch");
+  });
+
+  it("falls back to a count-only title for an empty batch", () => {
+    const result = proposeBatchChangeUrl("o/r", []);
+    if (result.kind !== "fallback") throw new Error("expected fallback");
+    const url = new URL(result.url);
+    expect(url.searchParams.get("title")).toBe("[ote-event] Add 0 events");
   });
 
   it("copyText is exactly batchIssueBody's output for the same events", () => {
