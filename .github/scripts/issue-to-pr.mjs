@@ -22,7 +22,10 @@
 //   ote-comment.md   issue comment body (only when invalid — the success
 //                    comment is written by the workflow, it needs the PR URL)
 
-import { appendFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import net from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -138,15 +141,181 @@ export function parseIssueBody(body) {
   return results;
 }
 
+// --- opt-in local image copies -------------------------------------------
+//
+// The OTE editor's image repeater has a "save a local copy" checkbox
+// (apps/editor/src/ui/form.ts) that, when checked, adds a transient
+// `_localizeImages` array to the event JSON in the issue body — a subset
+// of `image` URLs the organizer confirmed they have the rights to host.
+// localizeEventImages fetches each one, commits it under assets/<slug>/,
+// and rewrites the event's image URL to point at it — never blocking the
+// PR: a fetch failure just leaves that image as the original external
+// link plus a warning, same as any other "connector never invents data"
+// fallback in this repo.
+//
+// The issue author is anonymous and untrusted (that's the whole point of
+// the propose-change flow), so every fetched URL is adversarial input:
+// https-only, a capped number of manually-followed redirects (each
+// re-checked), a DNS lookup rejecting private/loopback/link-local
+// targets (defense in depth against SSRF, including cloud metadata
+// endpoints), a byte cap, and a timeout.
+
+const EXTENSION_BY_MIME = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/svg+xml": "svg",
+  "image/avif": "avif",
+};
+const KNOWN_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
+
+/** True for IPv4/IPv6 addresses in a loopback, link-local, or private range. */
+export function isPrivateIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    if (lower === "::1" || lower === "::") return true;
+    if (/^fe[89ab]/.test(lower)) return true; // fe80::/10 link-local
+    if (/^f[cd]/.test(lower)) return true; // fc00::/7 unique local
+    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
+    if (mapped) return isPrivateIp(mapped[1]);
+    return false;
+  }
+  return true; // not a recognizable literal IP — refuse rather than guess
+}
+
+async function assertPublicHost(hostname) {
+  if (net.isIP(hostname)) {
+    if (isPrivateIp(hostname)) {
+      throw new Error(`refusing to fetch from private address ${hostname}`);
+    }
+    return;
+  }
+  if (hostname === "localhost") throw new Error("refusing to fetch from localhost");
+  const { address } = await lookup(hostname);
+  if (isPrivateIp(address)) {
+    throw new Error(`refusing to fetch ${hostname} (resolves to private address ${address})`);
+  }
+}
+
+function extensionFor(contentType, url) {
+  const mime = (contentType || "").split(";")[0].trim().toLowerCase();
+  if (EXTENSION_BY_MIME[mime]) return EXTENSION_BY_MIME[mime];
+  const pathExt = /\.([a-z0-9]+)(?:[?#]|$)/i.exec(new URL(url).pathname)?.[1]?.toLowerCase();
+  if (!pathExt || !KNOWN_EXTENSIONS.has(pathExt)) return null;
+  return pathExt === "jpeg" ? "jpg" : pathExt;
+}
+
+/** Fetches `url`, following redirects manually (each hop re-validated) up to `maxRedirects`. */
+export async function fetchImage(url, { maxBytes, timeoutMs, maxRedirects }) {
+  let currentUrl = url;
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    const parsed = new URL(currentUrl);
+    if (parsed.protocol !== "https:") {
+      throw new Error(`refusing non-https URL (${parsed.protocol})`);
+    }
+    await assertPublicHost(parsed.hostname);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      response = await fetch(currentUrl, { redirect: "manual", signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) throw new Error(`redirect with no Location header (HTTP ${response.status})`);
+      currentUrl = new URL(location, currentUrl).href;
+      continue;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().startsWith("image/")) {
+      throw new Error(`not an image (content-type: ${contentType || "unknown"})`);
+    }
+    const declaredLength = Number(response.headers.get("content-length") ?? "0");
+    if (declaredLength > maxBytes) throw new Error(`too large (${declaredLength} bytes)`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.byteLength > maxBytes) throw new Error(`too large (${buffer.byteLength} bytes)`);
+    return { buffer, contentType };
+  }
+  throw new Error(`too many redirects (>${maxRedirects})`);
+}
+
+/**
+ * Mutates every `{event, slug}` in `results` in place: strips
+ * `_localizeImages` (always — even if empty/malformed, it must never reach
+ * the committed file), and for each URL it lists, tries to download and
+ * stage the matching `image` entry, rewriting its `url` to the
+ * raw.githubusercontent.com path it will live at once committed. Staged
+ * files are recorded as `result.assets` (`{tmpFile, repoPath}`) for the
+ * workflow's shell step to copy into the checkout and `git add`.
+ *
+ * Never throws on a per-image failure — that image just keeps its
+ * original external URL, and a message is added to the returned warnings.
+ */
+export async function localizeEventImages(
+  results,
+  { owner, repo, defaultBranch, tmpDir, maxBytes = 10 * 1024 * 1024, timeoutMs = 15_000, maxRedirects = 5 },
+) {
+  const warnings = [];
+  for (const result of results) {
+    const { event, slug } = result;
+    const urls = Array.isArray(event._localizeImages) ? event._localizeImages : [];
+    delete event._localizeImages;
+    if (urls.length === 0) continue;
+    const assets = [];
+    for (const url of urls) {
+      if (typeof url !== "string") continue;
+      const matches = (event.image ?? []).filter((entry) =>
+        typeof entry === "string" ? entry === url : entry.url === url,
+      );
+      if (matches.length === 0) continue;
+      try {
+        const { buffer, contentType } = await fetchImage(url, { maxBytes, timeoutMs, maxRedirects });
+        const ext = extensionFor(contentType, url);
+        if (!ext) throw new Error(`unrecognized image type (content-type: ${contentType})`);
+        const hash = createHash("sha256").update(url).digest("hex").slice(0, 12);
+        const repoPath = `assets/${slug}/${hash}.${ext}`;
+        const stagingDir = join(tmpDir, "ote-assets", slug);
+        mkdirSync(stagingDir, { recursive: true });
+        const tmpFile = join(stagingDir, `${hash}.${ext}`);
+        writeFileSync(tmpFile, buffer);
+        const newUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${repoPath}`;
+        for (const entry of matches) {
+          if (typeof entry === "string") {
+            event.image[event.image.indexOf(entry)] = newUrl;
+          } else {
+            entry.url = newUrl;
+          }
+        }
+        assets.push({ tmpFile, repoPath });
+      } catch (error) {
+        warnings.push(
+          `Could not save a local copy of ${url} for \`events/${slug}.json\`: ${error.message}. Kept the external link.`,
+        );
+      }
+    }
+    if (assets.length > 0) result.assets = assets;
+  }
+  return warnings;
+}
+
 // Everything below only runs when this file is executed directly (the
 // workflow step) — parseIssueBody/extractFencedBlocks/etc. above are
 // exercised directly by .github/scripts/issue-to-pr.test.mjs, which imports
 // this module without triggering this env/filesystem wiring.
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main();
+  await main();
 }
 
-function main() {
+async function main() {
   const marker = process.env.OTE_COMMENT_MARKER ?? "<!-- ote-issue-to-pr -->";
   const tmp = process.env.RUNNER_TEMP ?? ".";
 
@@ -178,6 +347,19 @@ function main() {
     reject(error);
     return;
   }
+
+  const [owner, repo] = (process.env.GH_REPO ?? "").split("/");
+  const defaultBranch = process.env.DEFAULT_BRANCH || "main";
+  const warnings = await localizeEventImages(results, {
+    owner,
+    repo,
+    defaultBranch,
+    tmpDir: tmp,
+  });
+  if (warnings.length > 0) {
+    writeFileSync(join(tmp, "ote-warnings.md"), warnings.map((w) => `- ${w}`).join("\n") + "\n");
+  }
+
   writeFileSync(join(tmp, "ote-events.json"), JSON.stringify(results, null, 2) + "\n");
   setOutputs({ valid: "true", count: String(results.length) });
 }

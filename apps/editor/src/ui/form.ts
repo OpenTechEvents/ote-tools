@@ -1135,7 +1135,7 @@ const CURRENCY_CODES: readonly string[] = [
 interface RepeaterItemField {
   key: string;
   label: string;
-  kind: "text" | "url" | "email" | "number" | "select" | "instant";
+  kind: "text" | "url" | "email" | "number" | "select" | "instant" | "checkbox";
   options?: string[];
   placeholder?: string;
   /** Longer explanation shown as an ⓘ tooltip next to this sub-field's own label. */
@@ -1202,6 +1202,13 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
     itemFields: [
       { key: "url", label: "URL", kind: "url", placeholder: "https://…" },
       { key: "alt", label: "Alt text", kind: "text" },
+      {
+        key: "saveLocally",
+        label: "Save a local copy (I have the rights to host this image)",
+        kind: "checkbox",
+        size: "full",
+        info: "Only takes effect via \"Propose change\": the target repo's automation downloads the image and commits it alongside the event, instead of linking the external URL. Has no effect on \"Edit directly\" or on the copied/downloaded JSON.",
+      },
     ],
   },
   offers: {
@@ -1443,8 +1450,13 @@ function renderRepeaterItemControl(
   if (field.placeholder && "placeholder" in input) {
     input.placeholder = t(`${i18nKey}.placeholder`, field.placeholder);
   }
-  input.value = row[field.key] ?? "";
-  input.addEventListener("input", () => onChange(field.key, input.value));
+  if (input instanceof HTMLInputElement && input.type === "checkbox") {
+    input.checked = row[field.key] === "true";
+    input.addEventListener("input", () => onChange(field.key, input.checked ? "true" : ""));
+  } else {
+    input.value = row[field.key] ?? "";
+    input.addEventListener("input", () => onChange(field.key, input.value));
+  }
 
   if (!field.label) return { element: input, input };
   const wrap = document.createElement("div");
@@ -1453,7 +1465,10 @@ function renderRepeaterItemControl(
   label.htmlFor = input.id;
   label.textContent = t(`${i18nKey}.label`, field.label);
   if (field.info) label.append(renderInfoToggle(t(`${i18nKey}.info`, field.info)));
-  wrap.append(label, input);
+  // Checkbox reads left-to-right as "[x] Label", not label stacked above —
+  // matches renderControl's own checkbox handling below.
+  if (field.kind === "checkbox") wrap.append(input, label);
+  else wrap.append(label, input);
   return { element: wrap, input };
 }
 
@@ -2803,7 +2818,9 @@ function renderControl(
   label.htmlFor = input.id;
   label.textContent = t(`control.${control.key}.label`, control.label);
   if (control.info) label.append(renderInfoToggle(t(`control.${control.key}.info`, control.info)));
-  wrap.append(label, input);
+  // Checkbox reads left-to-right as "[x] Label", not label stacked above.
+  if (control.kind === "checkbox") wrap.append(input, label);
+  else wrap.append(label, input);
   return { element: wrap, input };
 }
 
@@ -2883,7 +2900,12 @@ function renderField(
   }
 
   label.htmlFor = controls[0]?.input.id ?? "";
-  field.append(label, ...controls.map((c) => c.element));
+  // A lone checkbox control with no label of its own (e.g. "All-day
+  // event") uses the field's own label as its caption — put the checkbox
+  // first so it reads "[x] All-day event" on one line, not stacked.
+  const isBareCheckbox = spec.controls.length === 1 && spec.controls[0]?.kind === "checkbox";
+  if (isBareCheckbox) field.append(...controls.map((c) => c.element), label);
+  else field.append(label, ...controls.map((c) => c.element));
   const noteId = appendNote(field, spec.note ? t(`field.${fieldId}.note`, spec.note) : undefined);
   const errorId = appendError(field);
   const describedBy = describedByOf(noteId, errorId);

@@ -169,7 +169,7 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
       { name: "GDG Madrid", url: "", email: "hola@gdgmadrid.example", type: "" },
     ]);
     expect(state.image).toEqual([
-      { url: "https://x.example/poster.png", alt: "", translations: {} },
+      { url: "https://x.example/poster.png", alt: "", saveLocally: "", translations: {} },
     ]);
     expect(state.offers).toEqual([
       {
@@ -216,8 +216,8 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
     const state = emptyFormState();
     state.name = "X";
     state.image = [
-      { url: "https://x.example/a.png", alt: "", translations: {} },
-      { url: "https://x.example/b.png", alt: "Cartel", translations: {} },
+      { url: "https://x.example/a.png", alt: "", saveLocally: "", translations: {} },
+      { url: "https://x.example/b.png", alt: "Cartel", saveLocally: "", translations: {} },
     ];
     expect(toEventJson(state).image).toEqual([
       "https://x.example/a.png",
@@ -345,7 +345,7 @@ describe("toEventJson / fromEventJson — translations", () => {
   it("a row surviving only because of its translations isn't dropped as an empty row", () => {
     const state = emptyFormState();
     state.name = "X";
-    state.image = [{ url: "", alt: "", translations: { es: "Cartel" } }];
+    state.image = [{ url: "", alt: "", saveLocally: "", translations: { es: "Cartel" } }];
     const image = toEventJson(state).image;
     expect(image).toHaveLength(1);
     // url survives empty — schema-invalid on its own, but that's the

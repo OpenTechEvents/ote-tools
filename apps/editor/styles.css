@@ -740,6 +740,24 @@ select {
   white-space: nowrap;
 }
 
+/* Every other field stacks its label above the input — wrong for a single
+   checkbox, which reads left-to-right as "[x] Label" on one line. Matches
+   form.ts appending the checkbox before its label for kind: "checkbox"
+   (renderControl, renderRepeaterItemControl) and the bare "All-day event"
+   field (renderField's isBareCheckbox branch). */
+.field:has(> input[type="checkbox"]),
+.field div:has(> input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field:has(> input[type="checkbox"]) > label,
+.field div:has(> input[type="checkbox"]) label {
+  display: inline;
+  margin-bottom: 0;
+}
+
 .field.pair label {
   font-weight: 400;
   font-size: 0.8rem;

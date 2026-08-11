@@ -2071,7 +2071,12 @@ async function startEditor(repo: string | null): Promise<void> {
     ].map((box) => detected[Number(box.value)].event as unknown as OteEvent);
     if (selected.length === 0) return;
     recurrenceDialog.close();
-    follow(proposeBatchChangeUrl(repo, selected));
+    // Every generated occurrence reuses the source draft's own image list,
+    // so one consent decision on the draft applies uniformly to the batch.
+    const imagesToLocalize = state.image
+      .filter((row) => row.saveLocally === "true" && row.url !== "")
+      .map((row) => row.url);
+    follow(proposeBatchChangeUrl(repo, selected, imagesToLocalize));
   }
 
   el<HTMLButtonElement>("recurrence-confirm").addEventListener("click", () => {
@@ -2347,7 +2352,10 @@ async function startEditor(repo: string | null): Promise<void> {
   el<HTMLButtonElement>("review-confirm").addEventListener("click", () => {
     if (repo === null) return;
     review.close();
-    follow(proposeChangeUrl(repo, toEventJson(state), isNew));
+    const imagesToLocalize = state.image
+      .filter((row) => row.saveLocally === "true" && row.url !== "")
+      .map((row) => row.url);
+    follow(proposeChangeUrl(repo, toEventJson(state), isNew, imagesToLocalize));
     // Submitting the event currently on screen from an import session:
     // remember it (and its id) so the banner can offer the feed check.
     const item = queue[queuePos];

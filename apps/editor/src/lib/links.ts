@@ -19,17 +19,35 @@ export type LinkResult =
       copyText: string;
     };
 
-function fencedEventJson(event: OteEvent): string {
-  return ["```json", JSON.stringify(event, null, 2), "```"].join("\n");
+/**
+ * `imagesToLocalize`, when given, is a transient signal for the target
+ * repo's issue-to-pr automation: URLs (a subset of this event's `image`
+ * entries) the organizer confirmed they have the rights to host, which
+ * the automation should download and commit alongside the event instead
+ * of leaving as an external link. It rides as an extra top-level key on
+ * the JSON blob (the only channel this transport has) and is never part
+ * of the published event — issue-to-pr.mjs strips it before writing the
+ * file. See apps/editor CLAUDE.md / the image repeater's saveLocally
+ * checkbox (ui/form.ts) for where it originates.
+ */
+function fencedEventJson(event: OteEvent, imagesToLocalize?: string[]): string {
+  const body = imagesToLocalize?.length
+    ? { ...event, _localizeImages: imagesToLocalize }
+    : event;
+  return ["```json", JSON.stringify(body, null, 2), "```"].join("\n");
 }
 
-export function issueBody(event: OteEvent, isNew: boolean): string {
+export function issueBody(
+  event: OteEvent,
+  isNew: boolean,
+  imagesToLocalize?: string[],
+): string {
   const action = isNew ? "Add" : "Update";
   return [
     `${action} this event. The JSON below was generated with the OTE editor;`,
     "a maintainer (or the repo's automation) will turn it into a PR.",
     "",
-    fencedEventJson(event),
+    fencedEventJson(event, imagesToLocalize),
     "",
   ].join("\n");
 }
@@ -52,10 +70,11 @@ export function proposeChangeUrl(
   repo: string,
   event: OteEvent,
   isNew: boolean,
+  imagesToLocalize?: string[],
 ): LinkResult {
   const base = `https://github.com/${repo}/issues/new`;
   const title = `[ote-event] ${isNew ? "Add" : "Update"}: ${event.name ?? "(unnamed event)"}`;
-  const body = issueBody(event, isNew);
+  const body = issueBody(event, isNew, imagesToLocalize);
   const params = new URLSearchParams({ title, body });
   const url = `${base}?${params}`;
   if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };
@@ -65,7 +84,7 @@ export function proposeChangeUrl(
 /** The issue body for a batch submission: one numbered, fenced JSON block
  * per event, in order — issue-to-pr.mjs extracts every such block, not just
  * the first, once it sees more than one. */
-export function batchIssueBody(events: OteEvent[]): string {
+export function batchIssueBody(events: OteEvent[], imagesToLocalize?: string[]): string {
   const intro = [
     `${events.length} events generated with the OTE editor (e.g. a recurring`,
     "series); a maintainer (or the repo's automation) will turn them into",
@@ -75,7 +94,7 @@ export function batchIssueBody(events: OteEvent[]): string {
   const blocks = events.flatMap((event, index) => [
     `### ${index + 1}. Add: ${event.name ?? "(unnamed event)"}`,
     "",
-    fencedEventJson(event),
+    fencedEventJson(event, imagesToLocalize),
     "",
   ]);
   return [...intro, ...blocks].join("\n");
@@ -90,13 +109,17 @@ export function batchIssueBody(events: OteEvent[]): string {
  * best-effort hint: GitHub silently ignores it if the label doesn't exist
  * in the target repo, so it's safe to always send.
  */
-export function proposeBatchChangeUrl(repo: string, events: OteEvent[]): LinkResult {
+export function proposeBatchChangeUrl(
+  repo: string,
+  events: OteEvent[],
+  imagesToLocalize?: string[],
+): LinkResult {
   const params = new URLSearchParams({
     title: `[ote-event] Add ${events.length} events`,
     labels: "ote-batch",
   });
   const base = `https://github.com/${repo}/issues/new?${params}`;
-  return { kind: "fallback", url: base, copyText: batchIssueBody(events) };
+  return { kind: "fallback", url: base, copyText: batchIssueBody(events, imagesToLocalize) };
 }
 
 /**

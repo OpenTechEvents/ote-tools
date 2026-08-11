@@ -30,6 +30,13 @@
 #     ote/issue-<number> and opens (or updates) one PR that closes the
 #     issue. A single block behaves exactly as before (one file, same
 #     commit/PR title shape) — this is additive, not a breaking change.
+#   - for images the OTE editor's "save a local copy" checkbox opted into
+#     (a transient `_localizeImages` list on the event JSON — see
+#     issue-to-pr.mjs's localizeEventImages), downloads and commits each
+#     one under assets/<slug>/ alongside the JSON, rewriting its image
+#     url to the raw.githubusercontent.com path it will live at. A
+#     download failure never blocks the PR — that image just keeps its
+#     original external URL and the sticky comment notes it.
 # On pull_request closed: deletes the merged/abandoned ote/* branch; a
 # non-merged close keeps the issue open for retry.
 #
@@ -101,6 +108,7 @@ jobs:
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           OTE_COMMENT_MARKER: ${{ env.COMMENT_MARKER }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: node .ote-tools/.github/scripts/issue-to-pr.mjs
 
       - name: Create or update the branch and PR
@@ -138,6 +146,17 @@ jobs:
             echo "$ENTRY" | jq '.event' > "$FILE"
             git add "$FILE"
             printf '%s\t%s\n' "$ACTION" "$FILE" >> "$ACTIONS_FILE"
+
+            # Opt-in local image copies (issue-to-pr.mjs's localizeEventImages):
+            # staged under RUNNER_TEMP, one entry per successfully downloaded
+            # image — copy each into its final repo path and stage it too.
+            echo "$ENTRY" | jq -c '.assets[]? // empty' | while IFS= read -r ASSET; do
+              TMP_FILE=$(echo "$ASSET" | jq -r '.tmpFile')
+              REPO_PATH=$(echo "$ASSET" | jq -r '.repoPath')
+              mkdir -p "$(dirname "$REPO_PATH")"
+              cp "$TMP_FILE" "$REPO_PATH"
+              git add "$REPO_PATH"
+            done
           done
 
           if git diff --cached --quiet; then
@@ -233,6 +252,12 @@ jobs:
             echo "Pull request: ${PR_URL} — ${PUBLISHES}."
             echo ""
             echo "Editing this issue re-validates the JSON and updates the same pull request."
+            if [ -s "${RUNNER_TEMP}/ote-warnings.md" ]; then
+              echo ""
+              echo "### ⚠️ Some images could not be saved locally"
+              echo ""
+              cat "${RUNNER_TEMP}/ote-warnings.md"
+            fi
           } > "${RUNNER_TEMP}/ote-comment.md"
 
       # One sticky comment per issue, identified by the hidden marker:

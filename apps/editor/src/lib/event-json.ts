@@ -66,9 +66,13 @@ export function emptyFormState(timezone = ""): FormState {
  * a map, not a string.
  */
 export function isRowEmpty(row: object): boolean {
-  return Object.entries(row).every(([key, v]) =>
-    key === "translations" ? Object.keys(v as object).length === 0 : v === "",
-  );
+  return Object.entries(row).every(([key, v]) => {
+    if (key === "translations") return Object.keys(v as object).length === 0;
+    // saveLocally is a checkbox, not data — checking it alone (no url yet)
+    // must not count as "this row is filled in".
+    if (key === "saveLocally") return true;
+    return v === "";
+  });
 }
 
 /**
@@ -325,10 +329,11 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     })),
     image: (json.image ?? []).map((entry) =>
       typeof entry === "string"
-        ? { url: entry, alt: "", translations: {} }
+        ? { url: entry, alt: "", saveLocally: "", translations: {} }
         : {
             url: entry.url,
             alt: entry.alt ?? "",
+            saveLocally: "",
             translations: unwrapTranslations(entry.translations, "alt"),
           },
     ),

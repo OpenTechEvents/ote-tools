@@ -42,10 +42,15 @@ export interface OrganizerRow {
  * One row of the `image` repeater. "" means "not filled in". `translations`
  * is keyed by BCP 47 tag → this image's `alt` in that language; only
  * meaningful once `alt` itself is set (schema: dependentRequired).
+ *
+ * `saveLocally` ("true"/"") is editor-only UI state: it never appears in
+ * the published event (event-json.ts's toEventJson deliberately excludes
+ * it). It only affects the "Proponer cambio" issue body — see links.ts.
  */
 export interface ImageRow {
   url: string;
   alt: string;
+  saveLocally: string;
   translations: Record<string, string>;
 }
 
