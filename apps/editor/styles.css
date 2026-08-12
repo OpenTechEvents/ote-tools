@@ -1261,6 +1261,13 @@ select {
   font-weight: 600;
 }
 
+/* The bulk show/hide toggle isn't a specific field like its sibling chips —
+   dashed and muted so it doesn't compete with them for attention. */
+.repeater-add.show-all-fields {
+  border-style: dashed;
+  color: var(--muted);
+}
+
 /* --- translations ------------------------------------------------------------ */
 /* Language cards reuse .repeater-item/.repeater-item-fields as-is; these are
    the bits specific to a translation slot. */
@@ -2601,6 +2608,19 @@ footer {
   margin-left: auto;
   display: inline-flex;
   gap: 0.3rem;
+}
+
+/* Higher specificity than `#bulk-edit-list label` (id + type), which would
+   otherwise force this nested label to full-width block-flex like the
+   row's own top-level checkbox label. */
+#bulk-edit-list .occurrence-allday {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
 }
 
 #import-submitted {

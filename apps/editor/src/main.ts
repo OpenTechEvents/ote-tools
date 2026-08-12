@@ -1511,8 +1511,8 @@ async function startEditor(repo: string | null): Promise<void> {
     }
     const anyOccurrenceChecked = bulkEditChecklist.getChecked().length > 0;
     const sharedPatch = diffFormState(loadedSnapshot, state);
-    const anyDateOverride = bulkEditChecklist.getDateOverrides().size > 0;
-    bulkEditApply.disabled = !anyOccurrenceChecked || (Object.keys(sharedPatch).length === 0 && !anyDateOverride);
+    const anyOverride = bulkEditChecklist.getOverrides().size > 0;
+    bulkEditApply.disabled = !anyOccurrenceChecked || (Object.keys(sharedPatch).length === 0 && !anyOverride);
   }
 
   function openBulkEditSeries(entry: ListedEvent): void {
@@ -1544,6 +1544,7 @@ async function startEditor(repo: string | null): Promise<void> {
       label: (member) => eventLabel(member.event),
       pastLabel: t("dialog.bulkEdit.past", "past"),
       cancelledLabel: t("dialog.bulkEdit.cancelled", "cancelled"),
+      allDayLabel: t("field.allDay.label", "All-day event"),
     });
     bulkEditChecklist.onChange(updateBulkEditApply);
     updateBulkEditApply();
@@ -2800,9 +2801,9 @@ async function startEditor(repo: string | null): Promise<void> {
     if (bulkEditMembers && bulkEditChecklist && loadedSnapshot) {
       if (repo === null) return;
       const sharedPatch = diffFormState(loadedSnapshot, state);
-      const dateOverrides = bulkEditChecklist.getDateOverrides();
+      const overrides = bulkEditChecklist.getOverrides();
       const checked = bulkEditChecklist.getChecked();
-      const entries = applyBulkEdit(checked, sharedPatch, dateOverrides);
+      const entries = applyBulkEdit(checked, sharedPatch, overrides);
       if (entries.length === 0) {
         const p = document.createElement("p");
         p.textContent = t(

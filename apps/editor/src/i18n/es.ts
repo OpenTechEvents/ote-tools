@@ -273,6 +273,8 @@ export const es: Record<string, string> = {
   "action.deleteSeries": "Eliminar serie",
   "action.selectAll": "Seleccionar todo",
   "action.selectNone": "Seleccionar ninguno",
+  "action.showAllFields": "Mostrar todos los campos",
+  "action.hideExtraFields": "Ocultar campos adicionales",
 
   // --- valid badge -----------------------------------------------------------
   "badge.ready": "✓ Listo",

@@ -3450,6 +3450,12 @@ function renderChippableSection(
     fieldIds.filter((id) => requiredIds.has(id) || fieldHasData(id, state)),
   );
   const blockElements = new Map<string, HTMLElement>();
+  // Fields the "Show all fields" toggle added rather than the organizer
+  // picking them one by one — tracked separately so "Hide extra fields"
+  // only ever collapses fields nobody has typed into yet, never one that
+  // now holds real data (that one stays, same as any other field with
+  // content; only its own "×" removes it from here on).
+  const autoAdded = new Set<string>();
 
   const container = document.createElement("div");
   const blocksRoot = document.createElement("div");
@@ -3569,6 +3575,43 @@ function renderChippableSection(
         renderPicker();
       });
       picker.append(button);
+    }
+
+    // One bulk toggle per section, alongside the individual chips: reveals
+    // every field the current profile hides instead of clicking each "+"
+    // one at a time, and folds back the still-empty ones it added.
+    const hideable = fieldIds.filter(
+      (id) => autoAdded.has(id) && active.has(id) && !fieldHasData(id, state),
+    );
+    if (notActive.length > 0 || hideable.length > 0) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "repeater-add show-all-fields";
+      if (notActive.length > 0) {
+        toggle.textContent = t("action.showAllFields", "Show all fields");
+        toggle.addEventListener("click", () => {
+          for (const id of notActive) {
+            active.add(id);
+            autoAdded.add(id);
+            if (id === "organizers" || id === "image") {
+              onArrayInput(id as RepeaterKey, [emptyRepeaterRow(id as RepeaterKey)]);
+            }
+          }
+          renderBlocks();
+          renderPicker();
+        });
+      } else {
+        toggle.textContent = t("action.hideExtraFields", "Hide extra fields");
+        toggle.addEventListener("click", () => {
+          for (const id of hideable) {
+            active.delete(id);
+            autoAdded.delete(id);
+          }
+          renderBlocks();
+          renderPicker();
+        });
+      }
+      picker.append(toggle);
     }
   }
 

@@ -171,19 +171,25 @@ export function diffEventJson(before: OteEvent, after: OteEvent): Record<string,
   return patch;
 }
 
-export interface DateOverride {
+export interface OccurrenceOverride {
   startDate: string;
   startTime: string;
   endDate: string;
   endTime: string;
+  allDay: boolean;
 }
 
 /**
  * Applies `sharedPatch` (from diffFormState) plus each member's own
- * `dateOverrides` entry (start/end date/time, keyed by slug) onto that
- * member's own current document — round-tripped through
+ * `overrides` entry (start/end date/time and all-day, keyed by slug) onto
+ * that member's own current document — round-tripped through
  * fromEventJson/toEventJson so nested-object writes reuse the exact same
- * serialization the single-event form relies on.
+ * serialization the single-event form relies on. A per-row override wins
+ * over the shared template for that field. Unlike start/end date/time,
+ * `allDay` isn't in `BULK_EDIT_EXCLUDED_FIELDS` — a uniform "All day event"
+ * toggle in the shared template is still a meaningful bulk edit on its own,
+ * so it can be set both ways: for the whole selection via the shared
+ * template, or per occurrence via a row's own override.
  *
  * A member is dropped entirely when nothing actually changed for it
  * specifically (its own value already matched every patched field) —
@@ -192,22 +198,25 @@ export interface DateOverride {
 export function applyBulkEdit(
   members: readonly ListedEvent[],
   sharedPatch: Partial<FormState>,
-  dateOverrides: ReadonlyMap<string, DateOverride>,
+  overrides: ReadonlyMap<string, OccurrenceOverride>,
 ): BulkEditEntry[] {
   const sharedKeys = Object.keys(sharedPatch) as (keyof FormState)[];
-  const DATE_KEYS: (keyof FormState)[] = ["startDate", "startTime", "endDate", "endTime"];
+  const OVERRIDE_KEYS: (keyof FormState)[] = ["startDate", "startTime", "endDate", "endTime", "allDay"];
   const entries: BulkEditEntry[] = [];
   for (const member of members) {
     const before = fromEventJson(member.event, member.slug ?? "");
     const after: FormState = { ...before, ...sharedPatch };
-    const dateOverride = member.slug !== null ? dateOverrides.get(member.slug) : undefined;
-    if (dateOverride) {
-      after.startDate = dateOverride.startDate;
-      after.startTime = dateOverride.startTime;
-      after.endDate = dateOverride.endDate;
-      after.endTime = dateOverride.endTime;
+    const override = member.slug !== null ? overrides.get(member.slug) : undefined;
+    if (override) {
+      after.startDate = override.startDate;
+      after.startTime = override.startTime;
+      after.endDate = override.endDate;
+      after.endTime = override.endTime;
+      after.allDay = override.allDay;
     }
-    const candidateKeys: (keyof FormState)[] = dateOverride ? [...sharedKeys, ...DATE_KEYS] : sharedKeys;
+    const candidateKeys: (keyof FormState)[] = override
+      ? [...new Set([...sharedKeys, ...OVERRIDE_KEYS])]
+      : sharedKeys;
     const changedFields = candidateKeys.filter((key) => fieldsDiffer(key, before[key], after[key]));
     const afterEvent = toEventJson(after);
     const patch = diffEventJson(toEventJson(before), afterEvent);

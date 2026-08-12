@@ -6,6 +6,22 @@ tied to semver releases.
 
 ## 2026-08-12
 
+- **Chippable sections (What/Where/Who/Metadata/the rest of When) get a
+  "Show all fields" / "Hide extra fields" toggle**, alongside the existing
+  per-field "+" chips — reveals every field the current profile hides in
+  that section in one click, instead of clicking each chip individually.
+  "Hide extra fields" only folds back the fields that are still empty;
+  anything the organizer actually filled in stays, same as any other field
+  with content (only its own "×" removes it from there on). The toggle
+  itself only appears when there's something to show or fold back — a
+  section already fully expanded for the active profile (e.g. Metadata
+  under the "meetup" profile, which already defaults to showing license/
+  source/updated-at) shows neither.
+- **"Edit series" gets a per-occurrence "All-day event" toggle**, next to
+  each row's own date/time inputs — previously the shared "All-day event"
+  checkbox in the template could only set the same value for every checked
+  occurrence, with no way to make one occurrence all-day (or timed) while
+  leaving the rest as they were.
 - **Bulk-edit issue bodies dedupe identical changes across files**: when
   several occurrences in a bulk edit end up with the exact same patch (e.g.
   editing a shared template field like `description` with no per-occurrence

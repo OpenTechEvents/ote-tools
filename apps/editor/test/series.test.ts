@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fromEventJson } from "../src/lib/event-json.js";
+import { fromEventJson, splitWallClock } from "../src/lib/event-json.js";
 import {
   applyBulkEdit,
   buildBulkEditTemplate,
@@ -237,7 +237,7 @@ describe("applyBulkEdit", () => {
     const a = listed("A", iso(1), "s1");
     const b = listed("B", iso(2), "s1");
     const overrides = new Map([
-      [a.slug!, { startDate: "2026-12-25", startTime: "10:00", endDate: "", endTime: "" }],
+      [a.slug!, { startDate: "2026-12-25", startTime: "10:00", endDate: "", endTime: "", allDay: false }],
     ]);
     const entries = applyBulkEdit([a, b], {}, overrides);
     expect(entries).toHaveLength(1);
@@ -250,7 +250,7 @@ describe("applyBulkEdit", () => {
   it("combines a shared patch and a date override for the same member", () => {
     const a = listed("A", iso(1), "s1", { license: "CC-BY-4.0" });
     const overrides = new Map([
-      [a.slug!, { startDate: "2026-12-25", startTime: "10:00", endDate: "", endTime: "" }],
+      [a.slug!, { startDate: "2026-12-25", startTime: "10:00", endDate: "", endTime: "", allDay: false }],
     ]);
     const entries = applyBulkEdit([a], { license: "CC0-1.0" }, overrides);
     expect(entries).toHaveLength(1);
@@ -261,7 +261,10 @@ describe("applyBulkEdit", () => {
   it("applies an end date/time override alongside start", () => {
     const a = listed("A", iso(1), "s1", { endDate: iso(1) });
     const overrides = new Map([
-      [a.slug!, { startDate: "2026-12-25", startTime: "10:00", endDate: "2026-12-25", endTime: "12:00" }],
+      [
+        a.slug!,
+        { startDate: "2026-12-25", startTime: "10:00", endDate: "2026-12-25", endTime: "12:00", allDay: false },
+      ],
     ]);
     const entries = applyBulkEdit([a], {}, overrides);
     expect(entries).toHaveLength(1);
@@ -276,5 +279,29 @@ describe("applyBulkEdit", () => {
   it("returns nothing for an empty patch and no date overrides", () => {
     const a = listed("A", iso(1), "s1");
     expect(applyBulkEdit([a], {}, new Map())).toEqual([]);
+  });
+
+  it("applies a shared all-day toggle to every member whose value differs", () => {
+    // allDay isn't a real OteEvent field — a timed event (startDate has a
+    // "T") starts out allDay: false per fromEventJson's own derivation.
+    const a = listed("A", iso(1), "s1");
+    const entries = applyBulkEdit([a], { allDay: true }, new Map());
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.changedFields).toEqual(["allDay"]);
+    expect(entries[0]!.event.startDate).not.toContain("T");
+  });
+
+  it("a per-member all-day override wins over the shared template for that member", () => {
+    const a = listed("A", iso(1), "s1");
+    const b = listed("B", iso(2), "s1");
+    const start = splitWallClock(a.event.startDate);
+    const overrides = new Map([
+      [a.slug!, { startDate: start.date, startTime: start.time, endDate: "", endTime: "", allDay: true }],
+    ]);
+    const entries = applyBulkEdit([a, b], { allDay: false }, overrides);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.event.name).toBe("A");
+    expect(entries[0]!.changedFields).toContain("allDay");
+    expect(entries[0]!.event.startDate).not.toContain("T");
   });
 });
