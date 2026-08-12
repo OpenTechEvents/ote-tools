@@ -748,6 +748,7 @@ function renderCardEvent(
   groups: EventGroups | undefined,
 ): HTMLLIElement {
   const item = el("li", "event");
+  if (isPastEvent(event)) item.classList.add("event-past");
   applyEventClassNames(item, event, state);
   attachOpenBehavior(item, event, state);
 
@@ -872,6 +873,7 @@ function renderListEvent(
   state: WidgetState,
 ): HTMLLIElement {
   const item = el("li", "event event-row");
+  if (isPastEvent(event)) item.classList.add("event-past");
   applyEventClassNames(item, event, state);
   const details = el("details", "event-accordion");
   item.append(details);
@@ -1312,6 +1314,14 @@ function renderModal(
   }
 
   appendEventActions(modal, event, strings, state);
+
+  // `close` isn't in the DOM yet here — the caller appends the returned
+  // backdrop synchronously right after this call. Deferring to a microtask
+  // means the focus() runs after that append lands, so it actually takes
+  // (a detached element can't receive focus). Without this, the keydown
+  // listener above never fires: focus stays wherever it was on the host
+  // page, outside this shadow-DOM subtree, so Escape silently does nothing.
+  queueMicrotask(() => close.focus());
 
   return backdrop;
 }

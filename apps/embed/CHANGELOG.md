@@ -19,6 +19,14 @@
   for the currently-rendered occurrence, so host apps (e.g. the editor's own
   `eventActions`) can react to group membership. `ote-event-action`'s DOM
   event detail carries the same `group` field when applicable.
+- Past occurrences (only reachable with `show-past="true"`) now render at
+  reduced opacity in `list`/`cards` layouts, so upcoming events stand out.
+
+### Fixed
+
+- The detail modal now closes on Escape. The keydown listener already
+  existed but nothing ever moved focus into the modal, so the key never
+  reached it; opening a modal now focuses its close button.
 
 ## 0.3.1
 

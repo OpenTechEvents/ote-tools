@@ -120,6 +120,17 @@ ul.events.layout-cards {
   outline: none;
 }
 
+/* Only reachable with show-past="true" — a past occurrence still opens and
+   reads normally, it's just visually de-emphasized against upcoming ones. */
+.event-past {
+  opacity: 0.55;
+}
+
+.event-past:hover,
+.event-past:focus-visible {
+  opacity: 0.85;
+}
+
 /* group-events="...": layered "stack of cards" effect for a collapsed
    series/multi-part card. .event has overflow:hidden, which clips
    pseudo-elements but not the element's own box-shadow — same trick as

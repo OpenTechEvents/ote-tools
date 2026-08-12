@@ -93,6 +93,20 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.textContent).not.toContain("Past Event");
   });
 
+  it("dims past events with an event-past class, but not upcoming ones", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    const items = [...el.shadowRoot!.querySelectorAll("li.event")];
+    const past = items.find((item) => item.textContent?.includes("Past Event"));
+    const future = items.find((item) => item.textContent?.includes("Future Event"));
+    expect(past?.classList.contains("event-past")).toBe(true);
+    expect(future?.classList.contains("event-past")).toBe(false);
+  });
+
   it("shows a human-readable error state on a non-ok response", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => "" });
     const el = document.createElement("ote-events");
@@ -627,6 +641,26 @@ describe("<ote-events>", () => {
     expect(google?.href).toContain("action=TEMPLATE");
 
     el.shadowRoot!.querySelector<HTMLButtonElement>(".event-modal-close")?.click();
+    expect(el.shadowRoot!.querySelector(".event-modal")).toBeNull();
+  });
+
+  it("focuses the close button on open and closes the modal on Escape", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    const closeButton = el.shadowRoot!.querySelector<HTMLButtonElement>(".event-modal-close");
+    expect(closeButton).toBeTruthy();
+
+    // Focus is moved in a microtask (the element isn't in the DOM yet at the
+    // point renderModal() builds it), so let pending microtasks flush.
+    await Promise.resolve();
+    expect(el.shadowRoot!.activeElement).toBe(closeButton);
+
+    closeButton!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(el.shadowRoot!.querySelector(".event-modal")).toBeNull();
   });
 
