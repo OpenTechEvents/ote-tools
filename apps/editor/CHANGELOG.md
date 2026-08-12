@@ -4,6 +4,19 @@ All notable changes to the OTE event editor are documented here as they
 land. This app isn't published to npm, so entries are dated rather than
 tied to semver releases.
 
+## 2026-08-13
+
+- **"Edit series" warns per field when occurrences already disagree**: any
+  field in the shared bulk-edit template that isn't uniform across the
+  series — e.g. one occurrence's `description` was hand-tweaked — now shows
+  a "N of M differ" badge next to its label as soon as the template opens,
+  before the organizer even edits it. Clicking the badge opens a dialog
+  listing exactly which occurrences differ and their current value.
+  Applying an edited field still overwrites those occurrences as before
+  (no new confirmation gate) — the badge is informational. Editing a field
+  also now shows an inline "Undo" control to revert just that field back to
+  its original loaded value, independent of the whole-form Reset button.
+
 ## 2026-08-12
 
 - **Chippable sections (What/Where/Who/Metadata/the rest of When) get a

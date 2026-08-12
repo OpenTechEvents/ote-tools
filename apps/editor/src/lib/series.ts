@@ -88,7 +88,7 @@ export const BULK_EDIT_EXCLUDED_FIELDS: ReadonlySet<keyof FormState> = new Set([
  * "changed" for these (different references), so they need a structural
  * comparison instead. Plain JSON.stringify is enough: every value here is
  * already JSON-serializable form data, no functions/dates/cycles. */
-const STRUCTURAL_FIELDS: ReadonlySet<keyof FormState> = new Set([
+export const STRUCTURAL_FIELDS: ReadonlySet<keyof FormState> = new Set([
   "organizers",
   "image",
   "offers",
@@ -97,8 +97,36 @@ const STRUCTURAL_FIELDS: ReadonlySet<keyof FormState> = new Set([
   "partOfNameTranslations",
 ]);
 
-function fieldsDiffer(key: keyof FormState, a: unknown, b: unknown): boolean {
+export function fieldsDiffer(key: keyof FormState, a: unknown, b: unknown): boolean {
   return STRUCTURAL_FIELDS.has(key) ? JSON.stringify(a) !== JSON.stringify(b) : a !== b;
+}
+
+/**
+ * For every bulk-editable field (same set `diffFormState` walks — i.e. not
+ * in `BULK_EDIT_EXCLUDED_FIELDS`), which series members already hold a
+ * value different from `template`'s (the bulk-edit form's original loaded
+ * snapshot, itself the header occurrence's own value). This is the "would
+ * editing this field and applying silently overwrite a personalization"
+ * signal the "Edit series" form surfaces per field — computed once when the
+ * form opens, from already-loaded data, not on every keystroke: it answers
+ * "is this field already non-uniform across the series", independent of
+ * whatever the organizer types next. A key with zero differing members is
+ * omitted entirely rather than mapped to `[]`.
+ */
+export function computeDivergentMembers(
+  members: readonly ListedEvent[],
+  template: FormState,
+): Map<keyof FormState, ListedEvent[]> {
+  const result = new Map<keyof FormState, ListedEvent[]>();
+  for (const key of Object.keys(template) as (keyof FormState)[]) {
+    if (BULK_EDIT_EXCLUDED_FIELDS.has(key)) continue;
+    const differing = members.filter((member) => {
+      const value = fromEventJson(member.event, member.slug ?? "")[key];
+      return fieldsDiffer(key, template[key], value);
+    });
+    if (differing.length > 0) result.set(key, differing);
+  }
+  return result;
 }
 
 /**

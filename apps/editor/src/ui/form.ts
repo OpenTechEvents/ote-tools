@@ -1417,6 +1417,27 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
   },
 };
 
+const REPEATER_KEYS: ReadonlySet<string> = new Set(Object.keys(REPEATER_SPECS));
+
+/**
+ * Every `FormState` key rendered inside the DOM field wrapper identified by
+ * `fieldId` (`field.dataset.fieldId`, set by `renderField` and
+ * `renderRepeaterField`) — a field like "cfp" or "eligibility" bundles
+ * several `FormState` keys under one visual field/label, so a caller
+ * comparing per-key data (e.g. bulk-edit divergence) against per-field DOM
+ * needs this to know which keys a given wrapper actually represents.
+ * `organizers`/`image`/`offers` are `REPEATER_SPECS` entries, not
+ * `FIELD_SPECS` ones, but each maps onto exactly its own same-named
+ * `FormState` key. Returns `[]` for a `fieldId` this doesn't recognize
+ * (e.g. the translations sections, which don't render through either spec
+ * table and set no `data-field-id` at all).
+ */
+export function stateKeysForField(fieldId: string): StateKey[] {
+  if (REPEATER_KEYS.has(fieldId)) return [fieldId as StateKey];
+  const spec = FIELD_SPECS[fieldId];
+  return spec ? spec.controls.map((c) => c.key) : [];
+}
+
 /** Local `datetime-local` value ("YYYY-MM-DDTHH:mm") for a stored ISO instant, or "" if unset/unparseable. */
 function isoToLocalDatetimeValue(iso: string): string {
   const d = new Date(iso);

@@ -6,6 +6,7 @@ import {
   buildBulkEditTemplate,
   collectKnownSeries,
   collectSeriesMembers,
+  computeDivergentMembers,
   diffEventJson,
   diffFormState,
 } from "../src/lib/series.js";
@@ -303,5 +304,56 @@ describe("applyBulkEdit", () => {
     expect(entries[0]!.event.name).toBe("A");
     expect(entries[0]!.changedFields).toContain("allDay");
     expect(entries[0]!.event.startDate).not.toContain("T");
+  });
+});
+
+describe("computeDivergentMembers", () => {
+  it("returns an empty map when every member already matches the template", () => {
+    const a = listed("A", iso(1), "s1", { name: "Same", license: "CC0-1.0" });
+    const b = listed("B", iso(2), "s1", { name: "Same", license: "CC0-1.0" });
+    const template = fromEventJson(a.event, a.slug ?? "");
+    expect(computeDivergentMembers([a, b], template)).toEqual(new Map());
+  });
+
+  it("reports a scalar field that differs on one member, keyed by that field", () => {
+    const a = listed("A", iso(1), "s1", { name: "Same", license: "CC-BY-4.0" });
+    const b = listed("B", iso(2), "s1", { name: "Same", license: "CC0-1.0" });
+    const template = fromEventJson(a.event, a.slug ?? "");
+    const result = computeDivergentMembers([a, b], template);
+    expect(result.get("license")).toEqual([b]);
+    expect(result.has("name")).toBe(false);
+  });
+
+  it("uses structural comparison for a repeater field, not reference equality", () => {
+    const organizers = [{ name: "Org" }];
+    const a = listed("A", iso(1), "s1", { organizers });
+    const b = listed("B", iso(2), "s1", { organizers: [{ name: "Org" }] });
+    const template = fromEventJson(a.event, a.slug ?? "");
+    expect(computeDivergentMembers([a, b], template).has("organizers")).toBe(false);
+  });
+
+  it("reports a repeater field that actually differs", () => {
+    const a = listed("A", iso(1), "s1", { organizers: [{ name: "Org" }] });
+    const b = listed("B", iso(2), "s1", {
+      organizers: [{ name: "Different Org" }],
+    });
+    const template = fromEventJson(a.event, a.slug ?? "");
+    expect(computeDivergentMembers([a, b], template).get("organizers")).toEqual([b]);
+  });
+
+  it("never reports an excluded identity/schedule field, even though every member's own id/startDate differs", () => {
+    const a = listed("A", iso(1), "s1");
+    const b = listed("B", iso(5), "s1");
+    const template = fromEventJson(a.event, a.slug ?? "");
+    const result = computeDivergentMembers([a, b], template);
+    expect(result.has("id")).toBe(false);
+    expect(result.has("slug")).toBe(false);
+    expect(result.has("startDate")).toBe(false);
+  });
+
+  it("omits a field entirely when it has no differing members, rather than mapping it to []", () => {
+    const a = listed("A", iso(1), "s1");
+    const template = fromEventJson(a.event, a.slug ?? "");
+    expect(computeDivergentMembers([a], template).has("license")).toBe(false);
   });
 });

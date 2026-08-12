@@ -435,6 +435,34 @@
         </div>
       </dialog>
 
+      <!-- "Edit series": clicking a field's divergence badge (main.ts's
+           mountBulkEditDivergence) opens this to show exactly which
+           occurrences already hold a different value for that field, and
+           what it is — before the organizer decides whether to edit (and
+           overwrite) it in the shared template. One shared dialog,
+           repopulated per click. -->
+      <dialog id="bulk-edit-divergence-dialog">
+        <h2 data-i18n="dialog.bulkEdit.divergence.title">
+          Occurrences with a different value
+        </h2>
+        <p id="bulk-edit-divergence-field-name" class="event-name"></p>
+        <p class="hint" data-i18n="dialog.bulkEdit.divergence.hint">
+          These occurrences already differ from the value shown above.
+          Editing and applying this field will overwrite them too.
+        </p>
+        <ul id="bulk-edit-divergence-list"></ul>
+        <div class="actions">
+          <button
+            id="bulk-edit-divergence-close"
+            type="button"
+            class="secondary"
+            data-i18n="action.close"
+          >
+            Close
+          </button>
+        </div>
+      </dialog>
+
       <!-- Events list view: neither button here deletes anything itself —
            both just open GitHub's own UI for it (its native delete-
            confirmation page, or a prefilled issue), same zero-backend

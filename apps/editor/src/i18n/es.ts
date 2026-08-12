@@ -131,6 +131,10 @@ export const es: Record<string, string> = {
     "Todas las ocurrencias seleccionadas ya coinciden en todos los campos cambiados — no hay nada que enviar.",
   "dialog.bulkEdit.tooLong":
     "Esto sería demasiado grande para una sola issue de GitHub — selecciona menos ocurrencias e inténtalo de nuevo.",
+  "dialog.bulkEdit.divergence.badge": "{n} de {m} difieren",
+  "dialog.bulkEdit.divergence.title": "Ocurrencias con un valor diferente",
+  "dialog.bulkEdit.divergence.hint":
+    "Estas ocurrencias ya difieren del valor mostrado arriba. Editar y aplicar este campo también las sobrescribirá.",
 
   // --- "Delete series" dialog (events list, grouped card action) -----------
   "dialog.deleteSeries.title": "Eliminar la serie",
@@ -275,6 +279,7 @@ export const es: Record<string, string> = {
   "action.selectNone": "Seleccionar ninguno",
   "action.showAllFields": "Mostrar todos los campos",
   "action.hideExtraFields": "Ocultar campos adicionales",
+  "action.close": "Cerrar",
 
   // --- valid badge -----------------------------------------------------------
   "badge.ready": "✓ Listo",
@@ -571,6 +576,7 @@ export const es: Record<string, string> = {
   // --- generic UI chrome -----------------------------------------------------------
   "ui.notSet": "(sin establecer)",
   "ui.remove": "Eliminar",
+  "ui.resetField": "Deshacer",
   "ui.chips.placeholder": "Escribe para añadir…",
   "ui.enterCoordinatesManually": "Introducir coordenadas manualmente",
   "ui.editSuggested": "Editar",

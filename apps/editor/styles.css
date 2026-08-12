@@ -1463,6 +1463,40 @@ select {
   margin-top: 0;
 }
 
+/* "Edit series": a field whose value already differs across the series
+   (mountBulkEditDivergence in main.ts) gets a small clickable badge next to
+   its label — click opens #bulk-edit-divergence-dialog to see which
+   occurrences and their values. */
+.bulk-edit-divergence-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid #e6c65c;
+  border-radius: 999px;
+  background: #fff8e1;
+  color: #7a5b00;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.bulk-edit-divergence-badge:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Undo just this field's edit back to the template's original value —
+   distinct from the whole-form Reset button. Sits inline next to the label,
+   so .link-button's own top margin (meant for a block-level fallback link)
+   would misalign it here. */
+.bulk-edit-field-reset.link-button {
+  display: inline;
+  margin-top: 0;
+  margin-left: 0.5rem;
+}
+
 .geo-pin {
   width: 18px;
   height: 18px;
@@ -2136,7 +2170,8 @@ footer {
 
 #recurrence-list,
 #bulk-edit-list,
-#delete-series-list {
+#delete-series-list,
+#bulk-edit-divergence-list {
   list-style: none;
   margin: 0.5rem 0 0;
   padding: 0.25rem;
@@ -2144,6 +2179,27 @@ footer {
   border-radius: 8px;
   max-height: 14rem;
   overflow-y: auto;
+}
+
+#bulk-edit-divergence-list li {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+#bulk-edit-divergence-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+#bulk-edit-divergence-list .occurrence-name {
+  font-weight: 500;
+}
+
+#bulk-edit-divergence-list pre {
+  margin: 0.2rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 #recurrence-list label,

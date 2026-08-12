@@ -47,7 +47,10 @@ import {
   buildBulkEditTemplate,
   collectKnownSeries,
   collectSeriesMembers,
+  computeDivergentMembers,
   diffFormState,
+  fieldsDiffer,
+  STRUCTURAL_FIELDS,
   type SeriesOption,
 } from "./lib/series.js";
 import {
@@ -112,6 +115,7 @@ import {
   renderRepeaterField,
   SECTION_TITLES,
   setAllDay,
+  stateKeysForField,
   updateErrors,
   type RecurrenceSeriesInput,
   type RepeaterKey,
@@ -307,6 +311,12 @@ async function startEditor(repo: string | null): Promise<void> {
   // draft (see openBulkEditSeries) rather than a normal single-event
   // edit — the members the eventual patch/date-overrides apply to.
   let bulkEditMembers: ListedEvent[] | null = null;
+  // Computed once, alongside bulkEditMembers, in openBulkEditSeries — which
+  // series members already hold a different value than the template's own
+  // loaded snapshot, per field. Read by mountBulkEditDivergence to badge
+  // fields that aren't uniform across the series; doesn't change as the
+  // organizer edits the template (see computeDivergentMembers's own doc).
+  let bulkEditDivergence: Map<keyof FormState, ListedEvent[]> | null = null;
   // Computed once "Review & submit" opens the (shared) review dialog in
   // bulk mode, consumed by review-confirm — so the dialog only ever acts
   // on exactly what it previewed, never a value recomputed after the
@@ -347,7 +357,10 @@ async function startEditor(repo: string | null): Promise<void> {
     // leaving it (Back to events, or any other view transition) always
     // exits bulk mode too, so a later normal single-event edit never
     // inherits stale bulk-mode state.
-    if (view !== "form") bulkEditMembers = null;
+    if (view !== "form") {
+      bulkEditMembers = null;
+      bulkEditDivergence = null;
+    }
     eventsListView.hidden = view !== "list";
     formView.hidden = view !== "form";
     feedSettingsView.hidden = view !== "settings";
@@ -871,6 +884,11 @@ async function startEditor(repo: string | null): Promise<void> {
       documentErrors.hidden = true;
       badge.hidden = true;
       updateBulkEditApply();
+      // Keeps each field's "Undo" control in sync as the organizer types —
+      // onInput/onArrayInput/onTranslationsCommit all funnel through here,
+      // but none of them go through render()/onSectionRebuilt, the only
+      // other places this normally gets re-run.
+      mountBulkEditDivergence();
       draftValid = false;
       return false;
     }
@@ -1251,6 +1269,139 @@ async function startEditor(repo: string | null): Promise<void> {
     sectionNav.append(toggle, list);
   }
 
+  // --- bulk-edit ("Edit series") per-field divergence -----------------------
+
+  const bulkEditDivergenceDialog = el<HTMLDialogElement>("bulk-edit-divergence-dialog");
+  const bulkEditDivergenceFieldName = el<HTMLParagraphElement>("bulk-edit-divergence-field-name");
+  const bulkEditDivergenceList = el<HTMLUListElement>("bulk-edit-divergence-list");
+  el<HTMLButtonElement>("bulk-edit-divergence-close").addEventListener("click", () =>
+    bulkEditDivergenceDialog.close(),
+  );
+
+  /** Plain text for a scalar value, pretty JSON for a structural one (same
+   * STRUCTURAL_FIELDS set diffFormState/computeDivergentMembers use) — good
+   * enough for an organizer-facing detail view that already shows raw JSON
+   * elsewhere (the review dialog). */
+  function formatDivergenceValue(key: keyof FormState, value: unknown): HTMLElement {
+    if (STRUCTURAL_FIELDS.has(key)) {
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(value, null, 2);
+      return pre;
+    }
+    const span = document.createElement("span");
+    span.textContent = value === "" || value === undefined ? t("ui.notSet", "(not set)") : String(value);
+    return span;
+  }
+
+  /** Opens the shared "which occurrences differ" dialog for one field group
+   * (a fieldId may bundle several FormState keys — e.g. "cfp" — so this
+   * shows every differing key for every affected member, not just one). */
+  function openDivergenceDialog(fieldLabel: string, keys: readonly (keyof FormState)[]): void {
+    if (!bulkEditDivergence) return;
+    const byMember = new Map<ListedEvent, (keyof FormState)[]>();
+    for (const key of keys) {
+      for (const member of bulkEditDivergence.get(key) ?? []) {
+        const existing = byMember.get(member);
+        if (existing) existing.push(key);
+        else byMember.set(member, [key]);
+      }
+    }
+    bulkEditDivergenceFieldName.textContent = fieldLabel;
+    bulkEditDivergenceList.textContent = "";
+    for (const [member, memberKeys] of byMember) {
+      const li = document.createElement("li");
+      const name = document.createElement("p");
+      name.className = "occurrence-name";
+      name.textContent = eventLabel(member.event);
+      li.append(name);
+      const memberState = fromEventJson(member.event, member.slug ?? "");
+      for (const key of memberKeys) {
+        li.append(formatDivergenceValue(key, memberState[key]));
+      }
+      bulkEditDivergenceList.append(li);
+    }
+    bulkEditDivergenceDialog.showModal();
+  }
+
+  /** "Undo" next to a field in the bulk-edit template: reverts every
+   * FormState key that field bundles back to the template's own loaded
+   * value, dropping it from the eventual shared patch. Goes through a full
+   * render() (same mechanism resetDraft() uses for the whole form) rather
+   * than an imperative per-control write, since a field group can mix
+   * scalar/checkbox/structural controls that don't share one DOM-update
+   * shape. A deliberate, infrequent click — the re-render cost is fine. */
+  function resetBulkEditField(fieldId: string): void {
+    if (!loadedSnapshot) return;
+    for (const key of stateKeysForField(fieldId)) {
+      (state as unknown as Record<string, unknown>)[key] = structuredClone(loadedSnapshot[key]);
+    }
+    render(extraFieldsFor(toEventJson(state), profile), bulkEditList);
+  }
+
+  /** For every rendered field in the bulk-edit template, badges it when any
+   * series member already diverges from the template's original value
+   * (click → openDivergenceDialog), and adds an "Undo" control when the
+   * organizer has actually edited it. No-ops outside bulk-edit mode. Must
+   * be re-run after ANY DOM rebuild that could affect a field wrapper —
+   * see onSectionRebuilt's own doc comment for why a chippable section's
+   * subtree rebuild doesn't imply render() ran. */
+  /** A field's own label text, stripped of its info-tooltip button (whose
+   * hidden popover span still contributes to plain .textContent) and its
+   * required-marker span — just "Description", not "Description ⓘ<the
+   * whole tooltip paragraph>". */
+  function fieldLabelText(label: HTMLElement): string {
+    const clone = label.cloneNode(true) as HTMLElement;
+    for (const el of clone.querySelectorAll(".info-wrap, .req")) el.remove();
+    return (clone.textContent ?? "").trim();
+  }
+
+  function mountBulkEditDivergence(): void {
+    for (const badge of form.querySelectorAll(".bulk-edit-divergence-badge")) badge.remove();
+    for (const resetBtn of form.querySelectorAll(".bulk-edit-field-reset")) resetBtn.remove();
+    if (!bulkEditMembers || !bulkEditDivergence || !loadedSnapshot) return;
+
+    for (const fieldEl of form.querySelectorAll<HTMLElement>("[data-field-id]")) {
+      const fieldId = fieldEl.dataset.fieldId;
+      if (!fieldId) continue;
+      const label = fieldEl.querySelector("label");
+      if (!label) continue;
+      const keys = stateKeysForField(fieldId);
+      if (keys.length === 0) continue;
+
+      // .after() inserts right after its own element — chaining off `label`
+      // for both would put the second-inserted one BETWEEN label and the
+      // first, reversing the intended order. Track the running insertion
+      // point instead.
+      let insertAfter: HTMLElement = label;
+
+      const differingMembers = new Set<ListedEvent>();
+      for (const key of keys) {
+        for (const member of bulkEditDivergence.get(key) ?? []) differingMembers.add(member);
+      }
+      if (differingMembers.size > 0) {
+        const badge = document.createElement("button");
+        badge.type = "button";
+        badge.className = "bulk-edit-divergence-badge";
+        badge.textContent = t("dialog.bulkEdit.divergence.badge", "{n} of {m} differ")
+          .replace("{n}", String(differingMembers.size))
+          .replace("{m}", String(bulkEditMembers.length));
+        badge.addEventListener("click", () => openDivergenceDialog(fieldLabelText(label), keys));
+        insertAfter.after(badge);
+        insertAfter = badge;
+      }
+
+      const edited = keys.some((key) => fieldsDiffer(key, loadedSnapshot![key], state[key]));
+      if (edited) {
+        const resetBtn = document.createElement("button");
+        resetBtn.type = "button";
+        resetBtn.className = "bulk-edit-field-reset link-button";
+        resetBtn.textContent = t("ui.resetField", "Undo");
+        resetBtn.addEventListener("click", () => resetBulkEditField(fieldId));
+        insertAfter.after(resetBtn);
+      }
+    }
+  }
+
   /** Passed into renderForm as onSectionRebuilt: a chippable section (Where,
    * What) rebuilding its own subtree — e.g. Description added via its "+"
    * chip — doesn't go through render() below, so anything that mounts
@@ -1260,6 +1411,7 @@ async function startEditor(repo: string | null): Promise<void> {
     mountMap();
     mountDescriptionExpand();
     wireVenueGeocode();
+    mountBulkEditDivergence();
   }
 
   function render(extra: ReadonlySet<string> = new Set(), bulkChecklist?: HTMLElement): void {
@@ -1284,6 +1436,7 @@ async function startEditor(repo: string | null): Promise<void> {
     mountMap();
     mountDescriptionExpand();
     wireVenueGeocode();
+    mountBulkEditDivergence();
     refresh();
   }
 
@@ -1525,6 +1678,7 @@ async function startEditor(repo: string | null): Promise<void> {
     isNew = false;
     editSlug = null;
     bulkEditMembers = members;
+    bulkEditDivergence = computeDivergentMembers(members, template);
     state = template;
     loadedSnapshot = structuredClone(template);
     slugDirty = true;
