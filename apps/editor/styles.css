@@ -1535,7 +1535,12 @@ select {
 }
 
 @media (min-width: 52rem) {
-  #action-bar {
+  /* :not([hidden]) needed here too — otherwise this has lower specificity
+     than the base #action-bar:not([hidden]) rule above, so its left/right
+     silently lose against that rule's left:0/right:0 despite coming later
+     in the cascade, leaving width:48rem anchored at left:0 and then shoved
+     off-screen by translateX(-50%) (half its own width, not centered). */
+  #action-bar:not([hidden]) {
     left: 50%;
     z-index: 9999;
     right: auto;

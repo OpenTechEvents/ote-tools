@@ -6,6 +6,13 @@ tied to semver releases.
 
 ## 2026-08-12
 
+- **Fixed: the sticky action bar was shoved off-screen on wide viewports**.
+  Above the 52rem breakpoint the responsive `#action-bar` rule lost its
+  `left`/`right` to the base rule's higher-specificity `:not([hidden])`
+  selector (the rule itself was missing it), so only its
+  `transform: translateX(-50%)` applied on top of the base rule's `left: 0`
+  — shifting the bar half its own width (384px) off the left edge instead
+  of centering it.
 - **Events list polish**: the View toggle now defaults to Grouped instead of
   Individual; a series' stacked card only shows the series-level "Edit
   series"/"Delete series" actions (the single-occurrence Edit/Clone/Delete
