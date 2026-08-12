@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GITHUB_ISSUE_BODY_MAX_LENGTH,
   MAX_URL_LENGTH,
-  batchIssueBody,
+  bulkDeleteIssueBody,
+  bulkEditIssueBody,
   directCreateUrl,
   directDeleteUrl,
   directEditFeedConfigUrl,
@@ -10,10 +12,17 @@ import {
   directFeedConfigUrl,
   eventJsonFromIssueBody,
   eventJsonText,
+  exceedsIssueBodyLimit,
+  patchIssueBody,
   proposeBatchChangeUrl,
+  proposeBulkDeleteUrl,
+  proposeBulkEditUrl,
   proposeChangeUrl,
   proposeDeleteUrl,
+  recurringTemplateIssueBody,
+  type RecurringOccurrenceOverride,
 } from "../src/lib/links.js";
+import type { BulkEditEntry } from "../src/lib/series.js";
 import type { OteEvent } from "../src/lib/types.js";
 
 const event: OteEvent = {
@@ -90,32 +99,48 @@ const secondEvent: OteEvent = {
   timezone: "Europe/Madrid",
 };
 
-describe("batchIssueBody", () => {
-  it("numbers every event with a heading and its own fenced JSON block, in order", () => {
-    const body = batchIssueBody([event, secondEvent]);
-    expect(body).toContain("### 1. Add: Async night");
-    expect(body).toContain("### 2. Add: Async night #2");
-    expect(body.indexOf("### 1.")).toBeLessThan(body.indexOf("### 2."));
-    expect(body).toContain('"id": "https://x.example/events/2026-06-async"');
-    expect(body).toContain('"id": "https://x.example/events/2026-07-async"');
-    expect(body.match(/```json/g)).toHaveLength(2);
+const occurrences: RecurringOccurrenceOverride[] = [
+  { id: "https://x.example/events/2026-06-async", startDate: "2026-06-11T18:30" },
+  { id: "https://x.example/events/2026-07-async", startDate: "2026-07-09T18:30", endDate: "2026-07-09T20:00" },
+];
+
+describe("recurringTemplateIssueBody", () => {
+  it("emits one _oteBatchMode: recurring-template block with the template and occurrences", () => {
+    const body = recurringTemplateIssueBody(event, occurrences);
+    expect(body.match(/```json/g)).toHaveLength(1);
+    const match = /```json\n([\s\S]*?)\n```/.exec(body);
+    const parsed = JSON.parse(match![1]!) as {
+      _oteBatchMode: string;
+      template: OteEvent;
+      occurrences: RecurringOccurrenceOverride[];
+    };
+    expect(parsed._oteBatchMode).toBe("recurring-template");
+    expect(parsed.template).toEqual(event);
+    expect(parsed.occurrences).toEqual(occurrences);
   });
 
-  it("mentions the event count in the intro", () => {
-    expect(batchIssueBody([event, secondEvent, event])).toContain("3 events");
+  it("mentions the occurrence count in the intro", () => {
+    expect(recurringTemplateIssueBody(event, occurrences)).toContain("2 events");
+  });
+
+  it("attaches _localizeImages to the template when given", () => {
+    const body = recurringTemplateIssueBody(event, occurrences, ["https://x.example/img.jpg"]);
+    const match = /```json\n([\s\S]*?)\n```/.exec(body);
+    const parsed = JSON.parse(match![1]!) as { template: { _localizeImages?: string[] } };
+    expect(parsed.template._localizeImages).toEqual(["https://x.example/img.jpg"]);
   });
 });
 
 describe("proposeBatchChangeUrl", () => {
   it("is always a blank-issue + copy-paste fallback, never a prefilled URL", () => {
-    // Even a tiny 2-event batch: batch submission never tries the
+    // Even a tiny 2-occurrence batch: batch submission never tries the
     // single-event URL-prefill optimization.
-    const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
+    const result = proposeBatchChangeUrl("o/r", event, occurrences);
     expect(result.kind).toBe("fallback");
   });
 
   it("points the blank issue at the right repo, titled with the series name and count", () => {
-    const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
+    const result = proposeBatchChangeUrl("o/r", event, occurrences);
     if (result.kind !== "fallback") throw new Error("expected fallback");
     const url = new URL(result.url);
     expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
@@ -123,17 +148,111 @@ describe("proposeBatchChangeUrl", () => {
     expect(url.searchParams.get("labels")).toBe("ote-event,ote-batch");
   });
 
-  it("falls back to a count-only title for an empty batch", () => {
-    const result = proposeBatchChangeUrl("o/r", []);
+  it("falls back to a count-only title when the template has no name", () => {
+    const unnamedTemplate = { ...event } as Record<string, unknown>;
+    delete unnamedTemplate.name;
+    const result = proposeBatchChangeUrl("o/r", unnamedTemplate as unknown as OteEvent, occurrences);
     if (result.kind !== "fallback") throw new Error("expected fallback");
     const url = new URL(result.url);
-    expect(url.searchParams.get("title")).toBe("[ote-event] Add 0 events");
+    expect(url.searchParams.get("title")).toBe("[ote-event] Add 2 events");
   });
 
-  it("copyText is exactly batchIssueBody's output for the same events", () => {
-    const result = proposeBatchChangeUrl("o/r", [event, secondEvent]);
+  it("copyText is exactly recurringTemplateIssueBody's output for the same template/occurrences", () => {
+    const result = proposeBatchChangeUrl("o/r", event, occurrences);
     if (result.kind !== "fallback") throw new Error("expected fallback");
-    expect(result.copyText).toBe(batchIssueBody([event, secondEvent]));
+    expect(result.copyText).toBe(recurringTemplateIssueBody(event, occurrences));
+  });
+});
+
+const bulkEntry: BulkEditEntry = {
+  slug: "2026-06-async",
+  event,
+  changedFields: ["license", "venue"],
+  patch: { license: "CC0-1.0", venue: null },
+};
+
+const secondBulkEntry: BulkEditEntry = {
+  slug: "2026-07-async",
+  event: secondEvent,
+  changedFields: ["license"],
+  patch: { license: "CC0-1.0" },
+};
+
+describe("bulkEditIssueBody", () => {
+  it("numbers every entry with an Update heading, its file path, and its own fenced JSON block", () => {
+    const body = bulkEditIssueBody([bulkEntry, secondBulkEntry]);
+    expect(body).toContain("### 1. Update: Async night (`events/2026-06-async.json`)");
+    expect(body).toContain("### 2. Update: Async night #2 (`events/2026-07-async.json`)");
+    expect(body.indexOf("### 1.")).toBeLessThan(body.indexOf("### 2."));
+    expect(body.match(/```json/g)).toHaveLength(2);
+  });
+
+  it("includes a plain-text Changed: summary per entry, listing only its own changed fields", () => {
+    const body = bulkEditIssueBody([bulkEntry, secondBulkEntry]);
+    expect(body).toContain("Changed: license, venue");
+    expect(body).toContain("Changed: license");
+  });
+
+  it("mentions the event count in the intro", () => {
+    expect(bulkEditIssueBody([bulkEntry, secondBulkEntry])).toContain("2 existing event(s)");
+  });
+
+  it("omits the file path when slug is null", () => {
+    const body = bulkEditIssueBody([{ ...bulkEntry, slug: null }]);
+    expect(body).toContain("### 1. Update: Async night\n");
+    expect(body).not.toContain("events/2026-06-async.json");
+  });
+
+  it("sends a _oteBatchMode: patch block carrying only slug + patch, not the full event", () => {
+    const body = bulkEditIssueBody([bulkEntry]);
+    const match = /```json\n([\s\S]*?)\n```/.exec(body);
+    expect(match).not.toBeNull();
+    const parsed = JSON.parse(match![1]!);
+    expect(parsed).toEqual({
+      _oteBatchMode: "patch",
+      slug: "2026-06-async",
+      patch: { license: "CC0-1.0", venue: null },
+    });
+    expect(body).not.toContain('"timezone"'); // full event fields never appear
+  });
+
+  it("falls back to a full-document block when an entry's slug is null", () => {
+    const body = bulkEditIssueBody([{ ...bulkEntry, slug: null }]);
+    const match = /```json\n([\s\S]*?)\n```/.exec(body);
+    const parsed = JSON.parse(match![1]!);
+    expect(parsed).toEqual(event);
+    expect(parsed._oteBatchMode).toBeUndefined();
+  });
+});
+
+describe("patchIssueBody", () => {
+  it("returns one block per entry, in order", () => {
+    const blocks = patchIssueBody([bulkEntry, secondBulkEntry]);
+    expect(blocks).toHaveLength(2);
+    expect(JSON.parse(/```json\n([\s\S]*?)\n```/.exec(blocks[0]!)![1]!).slug).toBe("2026-06-async");
+    expect(JSON.parse(/```json\n([\s\S]*?)\n```/.exec(blocks[1]!)![1]!).slug).toBe("2026-07-async");
+  });
+});
+
+describe("proposeBulkEditUrl", () => {
+  it("is always a blank-issue + copy-paste fallback, never a prefilled URL", () => {
+    const result = proposeBulkEditUrl("o/r", [bulkEntry, secondBulkEntry]);
+    expect(result.kind).toBe("fallback");
+  });
+
+  it("points the blank issue at the right repo, titled with the count, same ote-batch labels", () => {
+    const result = proposeBulkEditUrl("o/r", [bulkEntry, secondBulkEntry]);
+    if (result.kind !== "fallback") throw new Error("expected fallback");
+    const url = new URL(result.url);
+    expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
+    expect(url.searchParams.get("title")).toBe("[ote-event] Update 2 event(s)");
+    expect(url.searchParams.get("labels")).toBe("ote-event,ote-batch");
+  });
+
+  it("copyText is exactly bulkEditIssueBody's output for the same entries", () => {
+    const result = proposeBulkEditUrl("o/r", [bulkEntry, secondBulkEntry]);
+    if (result.kind !== "fallback") throw new Error("expected fallback");
+    expect(result.copyText).toBe(bulkEditIssueBody([bulkEntry, secondBulkEntry]));
   });
 });
 
@@ -211,6 +330,64 @@ describe("proposeDeleteUrl", () => {
   });
 });
 
+describe("bulkDeleteIssueBody", () => {
+  it("lists every entry as one line with its file path and id, no JSON block", () => {
+    const body = bulkDeleteIssueBody([
+      { slug: "2026-06-async", event },
+      { slug: "2026-07-async", event: secondEvent },
+    ]);
+    expect(body).toContain("- Async night — `events/2026-06-async.json` (id: https://x.example/events/2026-06-async)");
+    expect(body).toContain("- Async night #2 — `events/2026-07-async.json`");
+    expect(body).not.toContain("```json");
+  });
+
+  it("mentions the event count in the intro", () => {
+    expect(bulkDeleteIssueBody([{ slug: "a", event }, { slug: "b", event }])).toContain("these 2 event(s)");
+  });
+
+  it("omits the file path when slug is null", () => {
+    const body = bulkDeleteIssueBody([{ slug: null, event }]);
+    expect(body).toContain(`- Async night (id: ${event.id})`);
+  });
+});
+
+describe("proposeBulkDeleteUrl", () => {
+  it("builds a prefilled issue URL for a normal-sized series, no JSON block", () => {
+    const result = proposeBulkDeleteUrl("o/r", [
+      { slug: "2026-06-async", event },
+      { slug: "2026-07-async", event: secondEvent },
+    ]);
+    expect(result.kind).toBe("url");
+    if (result.kind !== "url") return;
+    const url = new URL(result.url);
+    expect(url.origin + url.pathname).toBe("https://github.com/o/r/issues/new");
+    expect(url.searchParams.get("title")).toBe("[ote-event] Delete 2 event(s)");
+    expect(url.searchParams.get("body") ?? "").not.toContain("```json");
+  });
+
+  it("falls back to a blank issue + copy-paste above the URL limit", () => {
+    const longId = "https://x.example/" + "x".repeat(MAX_URL_LENGTH);
+    const result = proposeBulkDeleteUrl("o/r", [{ slug: "s", event: { ...event, id: longId } }]);
+    expect(result.kind).toBe("fallback");
+    if (result.kind !== "fallback") return;
+    expect(result.url).toBe("https://github.com/o/r/issues/new");
+    expect(result.copyText).toContain(longId);
+  });
+
+  it("embeds exactly bulkDeleteIssueBody's output as the body, for both the URL and fallback shapes", () => {
+    const shortEntries = [{ slug: "2026-06-async", event }];
+    const shortResult = proposeBulkDeleteUrl("o/r", shortEntries);
+    if (shortResult.kind !== "url") throw new Error("expected a prefilled URL for this short body");
+    expect(new URL(shortResult.url).searchParams.get("body")).toBe(bulkDeleteIssueBody(shortEntries));
+
+    const longId = "https://x.example/" + "x".repeat(MAX_URL_LENGTH);
+    const longEntries = [{ slug: "s", event: { ...event, id: longId } }];
+    const longResult = proposeBulkDeleteUrl("o/r", longEntries);
+    if (longResult.kind !== "fallback") throw new Error("expected fallback for this long body");
+    expect(longResult.copyText).toBe(bulkDeleteIssueBody(longEntries));
+  });
+});
+
 describe("directFeedConfigUrl", () => {
   it("builds GitHub's prefilled new-file URL at the repo root (no /events/)", () => {
     const result = directFeedConfigUrl("o/r", "main", { feed: { title: "x" } });
@@ -230,6 +407,33 @@ describe("directFeedConfigUrl", () => {
     expect(result.url).toContain("filename=ote.config.json");
     expect(result.url).not.toContain("value=");
     expect(result.copyText).toContain('"description"');
+  });
+});
+
+describe("exceedsIssueBodyLimit", () => {
+  it("is false at and under GitHub's limit", () => {
+    expect(exceedsIssueBodyLimit("x".repeat(GITHUB_ISSUE_BODY_MAX_LENGTH))).toBe(false);
+    expect(exceedsIssueBodyLimit("x".repeat(GITHUB_ISSUE_BODY_MAX_LENGTH - 1))).toBe(false);
+  });
+
+  it("is true just over the limit", () => {
+    expect(exceedsIssueBodyLimit("x".repeat(GITHUB_ISSUE_BODY_MAX_LENGTH + 1))).toBe(true);
+  });
+
+  it("a real bulkEditIssueBody for a large-ish series can exceed it, even in patch mode", () => {
+    // ~30 entries each changing one large field is a realistic "select
+    // most of a long-running series and edit the description" scenario —
+    // confirms patch mode's smaller payload still isn't a theoretical
+    // limit for the bulk flows this guards (no member-count cap of its
+    // own; a long enough series or big enough field still gets there).
+    const bigEntry: BulkEditEntry = {
+      slug: "s",
+      event: { id: "https://x.example/e", name: "x".repeat(2000), description: "y".repeat(3000) } as OteEvent,
+      changedFields: ["description"],
+      patch: { description: "y".repeat(3000) },
+    };
+    const entries = Array.from({ length: 30 }, () => bigEntry);
+    expect(exceedsIssueBodyLimit(bulkEditIssueBody(entries))).toBe(true);
   });
 });
 

@@ -4,6 +4,41 @@ All notable changes to the OTE event editor are documented here as they
 land. This app isn't published to npm, so entries are dated rather than
 tied to semver releases.
 
+## 2026-08-12
+
+- **Smaller issue bodies for recurring series and bulk edits**: both flows
+  now send a compact diff instead of one full document per event, so they
+  stay well under GitHub's 65536-character issue-body limit even for large
+  series. "Repeat as a series" sends one shared template plus a per-
+  occurrence id/startDate/endDate list; "Edit series" sends only each
+  occurrence's actually-changed fields (a cleared field is sent as `null`,
+  meaning "remove this field"). Both are expanded back into full documents
+  server-side, transparent to the resulting PR.
+- **Group events + edit/delete a whole series**: the events list gained a
+  View: Individual/Grouped toggle (`group-events="series,multipart"` on the
+  `<ote-events>` widget). Grouped, a series/multi-part card shows the
+  widget's own stacked-card look with prev/next browsing; its card actions
+  gain "Edit series" and "Delete series".
+  - **Edit series** reuses the real single-event form: it opens on a
+    synthetic shared template (seeded from the group's next-upcoming
+    occurrence), and a banner replaces the usual Save/Propose actions with
+    an occurrence checklist (future, non-cancelled ones preselected) and
+    an "Apply to selected" button. Whatever you change in the form —
+    including repeaters and translations, not just scalar fields — is
+    diffed against the template's own starting values and applied only to
+    the occurrences you selected; each row also has its own inline
+    date/time so you can nudge an individual occurrence's schedule without
+    touching the rest. Identity/schedule fields (id, slug, dates, status)
+    and the series' own `partOf.id` are inert in the template — editing
+    them there has no effect, by design. No pattern is inferred from
+    existing dates — real series drift from any rule more often than they
+    follow one, so each occurrence's date is shown and edited explicitly
+    instead.
+  - **Delete series** proposes deleting every checked occurrence as one
+    plain-text GitHub issue — nothing preselected by default.
+  - Both submit as a single GitHub issue, reusing the same batch-issue
+    transport the recurring-series generator already uses.
+
 ## 2026-08-11
 
 - **Link to a series**: a guided flow to set `partOf` from the "When"

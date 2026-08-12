@@ -277,7 +277,11 @@ export function toEventJson(state: FormState): OteEvent {
   return event as unknown as OteEvent;
 }
 
-function splitWallClock(value: string | undefined): {
+/** Wall-clock string ("YYYY-MM-DD" or "YYYY-MM-DDTHH:MM") → its date/time
+ * parts, seconds stripped. Exported for the bulk-edit occurrence checklist
+ * (ui/occurrence-checklist.ts), which needs the same split for its inline
+ * per-occurrence date/time inputs. */
+export function splitWallClock(value: string | undefined): {
   date: string;
   time: string;
 } {

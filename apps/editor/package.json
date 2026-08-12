@@ -16,6 +16,7 @@
     "@opentechevents/embed": "workspace:*",
     "@opentechevents/import-ics": "workspace:*",
     "@opentechevents/import-jsonld": "workspace:*",
+    "@opentechevents/preview-feed": "workspace:*",
     "@opentechevents/validate": "workspace:*",
     "leaflet": "^1.9.4",
     "marked": "^18.0.9"

@@ -1,3 +1,4 @@
+import type { BulkEditEntry } from "./series.js";
 import type { OteEvent } from "./types.js";
 
 /**
@@ -9,6 +10,23 @@ import type { OteEvent } from "./types.js";
  */
 
 export const MAX_URL_LENGTH = 8000;
+
+/**
+ * GitHub's own hard cap on an issue body — over this, creating the issue
+ * fails outright (not a silent truncation). MAX_URL_LENGTH above already
+ * keeps every prefilled-URL body well under this by construction, so it
+ * only matters for the copy-paste `fallback` bodies the batch/bulk flows
+ * produce (many events in one issue) — those have no length check of
+ * their own today. Callers should check `exceedsIssueBodyLimit` before
+ * asking the organizer to paste a fallback body into GitHub's form, and
+ * suggest splitting the selection (fewer occurrences) rather than letting
+ * them discover the rejection on GitHub's own page.
+ */
+export const GITHUB_ISSUE_BODY_MAX_LENGTH = 65536;
+
+export function exceedsIssueBodyLimit(body: string): boolean {
+  return body.length > GITHUB_ISSUE_BODY_MAX_LENGTH;
+}
 
 export type LinkResult =
   | { kind: "url"; url: string }
@@ -81,31 +99,51 @@ export function proposeChangeUrl(
   return { kind: "fallback", url: base, copyText: body };
 }
 
-/** The issue body for a batch submission: one numbered, fenced JSON block
- * per event, in order — issue-to-pr.mjs extracts every such block, not just
- * the first, once it sees more than one. */
-export function batchIssueBody(events: OteEvent[], imagesToLocalize?: string[]): string {
+/** A recurring-series occurrence's own varying fields — everything else
+ * comes from the shared template (see recurringTemplateIssueBody). */
+export interface RecurringOccurrenceOverride {
+  id: string;
+  startDate: string;
+  endDate?: string;
+}
+
+/**
+ * The issue body for a recurring-series batch-create: ONE shared template
+ * plus a compact per-occurrence id/startDate/endDate override list, instead
+ * of repeating the ~2-3KB template once per occurrence. A single
+ * `_oteBatchMode: "recurring-template"` fenced block — same "transient
+ * signal riding on the JSON payload" convention as `_localizeImages` above
+ * — expanded back into one full document per occurrence server-side by
+ * .github/scripts/issue-to-pr.mjs's parseRecurringTemplateBlock. The editor
+ * still owns all date math and id suggestion; only the shared template's
+ * repetition is what this avoids.
+ */
+export function recurringTemplateIssueBody(
+  template: OteEvent,
+  occurrences: RecurringOccurrenceOverride[],
+  imagesToLocalize?: string[],
+): string {
   const intro = [
-    `${events.length} events generated with the OTE editor (e.g. a recurring`,
+    `${occurrences.length} events generated with the OTE editor (e.g. a recurring`,
     "series); a maintainer (or the repo's automation) will turn them into",
     "one PR with one file per event.",
     "",
   ];
-  const blocks = events.flatMap((event, index) => [
-    `### ${index + 1}. Add: ${event.name ?? "(unnamed event)"}`,
-    "",
-    fencedEventJson(event, imagesToLocalize),
-    "",
-  ]);
-  return [...intro, ...blocks].join("\n");
+  const templateBody = imagesToLocalize?.length
+    ? { ...template, _localizeImages: imagesToLocalize }
+    : template;
+  const block = [
+    "```json",
+    JSON.stringify({ _oteBatchMode: "recurring-template", template: templateBody, occurrences }, null, 2),
+    "```",
+  ];
+  return [...intro, ...block, ""].join("\n");
 }
 
 /**
- * "Proponer cambio" for several new events at once (a generated recurring
- * series): always a blank-issue + copy-paste flow, never a prefilled URL —
- * unlike proposeChangeUrl there's no single-event case to optimize for, and
- * N events' JSON reliably exceeds MAX_URL_LENGTH well before N reaches
- * double digits, so there is no size worth branching on.
+ * "Proponer cambio" for a generated recurring series: always a blank-issue
+ * + copy-paste flow, never a prefilled URL — the template already carries
+ * enough JSON on its own that a URL-prefill isn't worth attempting.
  *
  * `labels` MUST include `ote-event`, not just `ote-batch`: the reusable
  * issue-to-pr workflow's caller-side gate
@@ -121,19 +159,104 @@ export function batchIssueBody(events: OteEvent[], imagesToLocalize?: string[]):
  */
 export function proposeBatchChangeUrl(
   repo: string,
-  events: OteEvent[],
+  template: OteEvent,
+  occurrences: RecurringOccurrenceOverride[],
   imagesToLocalize?: string[],
 ): LinkResult {
-  const name = events[0]?.name;
+  const name = template.name;
   const title = name
-    ? `[ote-event] Add ${name} series (${events.length} events)`
-    : `[ote-event] Add ${events.length} events`;
+    ? `[ote-event] Add ${name} series (${occurrences.length} events)`
+    : `[ote-event] Add ${occurrences.length} events`;
   const params = new URLSearchParams({
     title,
     labels: "ote-event,ote-batch",
   });
   const base = `https://github.com/${repo}/issues/new?${params}`;
-  return { kind: "fallback", url: base, copyText: batchIssueBody(events, imagesToLocalize) };
+  return {
+    kind: "fallback",
+    url: base,
+    copyText: recurringTemplateIssueBody(template, occurrences, imagesToLocalize),
+  };
+}
+
+/**
+ * The wire block for one bulk-edit entry: a `_oteBatchMode: "patch"` block
+ * carrying only that entry's own changed top-level keys (`entry.patch`,
+ * from `diffEventJson`/`applyBulkEdit` in lib/series.ts — a `null` value
+ * means "delete this key"), expanded back onto the existing
+ * `events/<slug>.json` server-side by issue-to-pr.mjs's `parsePatchBlock`.
+ * An entry with `slug === null` (the feed-fallback listing, with no
+ * confirmed filename) falls back to a full document block instead — patch
+ * mode needs an authoritative existing filename to target, which only a
+ * known slug can give it.
+ */
+function patchBlock(entry: BulkEditEntry): string {
+  if (entry.slug === null) return fencedEventJson(entry.event);
+  return [
+    "```json",
+    JSON.stringify({ _oteBatchMode: "patch", slug: entry.slug, patch: entry.patch }, null, 2),
+    "```",
+  ].join("\n");
+}
+
+/** One `_oteBatchMode: "patch"` (or full-document fallback) block per
+ * entry, in order — see patchBlock. Exposed separately from
+ * bulkEditIssueBody so tests can assert each entry's own wire shape without
+ * parsing the whole issue body back apart. */
+export function patchIssueBody(entries: BulkEditEntry[]): string[] {
+  return entries.map(patchBlock);
+}
+
+/**
+ * The issue body for a bulk edit of several EXISTING events (the editor's
+ * "Edit series" tool): one numbered block per entry, each carrying only its
+ * own changed fields as a `_oteBatchMode: "patch"` block (see
+ * patchIssueBody) instead of the event's full document — a small,
+ * change-scoped payload rather than repeating every untouched field once
+ * per entry. Says "Update", not "Add": the workflow itself doesn't care (it
+ * derives Add vs Update per file by checking whether events/<slug>.json
+ * already exists on the default branch — see issue-to-pr.yml), but a
+ * maintainer reading the issue should see the truth. Each block is preceded
+ * by a plain-text "Changed: ..." line — outside the fenced block, so
+ * extractFencedBlocks ignores it — purely so a maintainer skimming a large
+ * bulk edit can see what changed without diffing every JSON block.
+ */
+export function bulkEditIssueBody(entries: BulkEditEntry[]): string {
+  const intro = [
+    `Bulk edit: ${entries.length} existing event(s) updated together with the OTE`,
+    "editor's \"Edit series\" tool. Each numbered block below patches only the",
+    "fields that actually changed onto the matching events/<slug>.json file —",
+    "a maintainer (or the repo's automation) merges it in, it does not",
+    "replace the file.",
+    "",
+  ];
+  const blocks = patchIssueBody(entries);
+  const sections = entries.flatMap((entry, index) => [
+    `### ${index + 1}. Update: ${entry.event.name ?? "(unnamed event)"}` +
+      (entry.slug ? ` (\`events/${entry.slug}.json\`)` : ""),
+    "",
+    `Changed: ${entry.changedFields.join(", ")}`,
+    "",
+    blocks[index],
+    "",
+  ]);
+  return [...intro, ...sections].join("\n");
+}
+
+/**
+ * "Editar la serie" for several EXISTING events at once. Always a blank-
+ * issue + copy-paste flow, same justification as proposeBatchChangeUrl (N
+ * full event documents reliably exceed MAX_URL_LENGTH well before double
+ * digits). Same "ote-event,ote-batch" labels — see proposeBatchChangeUrl's
+ * own doc comment for why the URL param works here (a connected-repo
+ * organizer has triage permission) but not for the anonymous single-event
+ * proposeChangeUrl flow.
+ */
+export function proposeBulkEditUrl(repo: string, entries: BulkEditEntry[]): LinkResult {
+  const title = `[ote-event] Update ${entries.length} event(s)`;
+  const params = new URLSearchParams({ title, labels: "ote-event,ote-batch" });
+  const base = `https://github.com/${repo}/issues/new?${params}`;
+  return { kind: "fallback", url: base, copyText: bulkEditIssueBody(entries) };
 }
 
 /**
@@ -248,6 +371,41 @@ export function proposeDeleteUrl(
     "",
     "(opened via the OTE editor)",
   ].join("\n");
+  const params = new URLSearchParams({ title, body });
+  const url = `${base}?${params}`;
+  if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };
+  return { kind: "fallback", url: base, copyText: body };
+}
+
+/** One line per event to delete — same plain-text convention as
+ * proposeDeleteUrl (no automated delete-parsing exists, a human reads
+ * this), just a list instead of a single event. */
+export function bulkDeleteIssueBody(entries: Array<{ slug: string | null; event: OteEvent }>): string {
+  const intro = [
+    `Please delete these ${entries.length} event(s) — no longer happening / added by mistake.`,
+    "",
+  ];
+  const lines = entries.map((entry) => {
+    const file = entry.slug !== null ? ` — \`events/${entry.slug}.json\`` : "";
+    return `- ${entry.event.name ?? entry.event.id}${file} (id: ${entry.event.id})`;
+  });
+  return [...intro, ...lines, "", "(opened via the OTE editor)"].join("\n");
+}
+
+/**
+ * "Eliminar serie": the "Delete series" bulk equivalent of proposeDeleteUrl.
+ * Short, plain-text body (a list, not full JSON per event) — a prefilled
+ * URL is realistic for a normal-sized series, unlike the JSON-heavy batch
+ * create/edit flows, so this tries the prefilled URL first like
+ * proposeDeleteUrl/proposeChangeUrl do, rather than always falling back.
+ */
+export function proposeBulkDeleteUrl(
+  repo: string,
+  entries: Array<{ slug: string | null; event: OteEvent }>,
+): LinkResult {
+  const base = `https://github.com/${repo}/issues/new`;
+  const title = `[ote-event] Delete ${entries.length} event(s)`;
+  const body = bulkDeleteIssueBody(entries);
   const params = new URLSearchParams({ title, body });
   const url = `${base}?${params}`;
   if (url.length <= MAX_URL_LENGTH) return { kind: "url", url };

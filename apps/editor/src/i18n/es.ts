@@ -37,6 +37,9 @@ export const es: Record<string, string> = {
   "nav.sectionsMenu": "☰ Secciones",
   "nav.eventsSearchLabel": "Buscar eventos",
   "nav.backToEvents": "← Volver a eventos",
+  "nav.groupEvents": "Vista",
+  "nav.groupEvents.individual": "Individual",
+  "nav.groupEvents.grouped": "Agrupado",
 
   // --- dialogs -----------------------------------------------------------
   "dialog.repoConnect.title": "Conectar un feed",
@@ -118,6 +121,25 @@ export const es: Record<string, string> = {
   "dialog.recurrence.missingPartOfLinkPrefix":
     "O si por el contrario prefieres vincularlo a una serie, puedes hacerlo",
   "dialog.recurrence.missingPartOfLinkWord": "aquí",
+
+  // --- "Edit series" bulk edit banner (form-view, hosting a shared template) ---
+  "dialog.bulkEdit.bannerText":
+    "Editando la plantilla compartida de esta serie. Los campos que cambies se aplican a cada ocurrencia que selecciones en la sección Cuándo, más abajo — ahí también se edita la fecha de cada ocurrencia.",
+  "dialog.bulkEdit.past": "pasado",
+  "dialog.bulkEdit.cancelled": "cancelado",
+  "dialog.bulkEdit.noChanges":
+    "Todas las ocurrencias seleccionadas ya coinciden en todos los campos cambiados — no hay nada que enviar.",
+  "dialog.bulkEdit.tooLong":
+    "Esto sería demasiado grande para una sola issue de GitHub — selecciona menos ocurrencias e inténtalo de nuevo.",
+
+  // --- "Delete series" dialog (events list, grouped card action) -----------
+  "dialog.deleteSeries.title": "Eliminar la serie",
+  "dialog.deleteSeries.hint":
+    "Esta app nunca elimina nada por sí misma — elige qué ocurrencias incluir y luego propón su eliminación como una sola issue de GitHub para que un mantenedor la revise.",
+  "dialog.deleteSeries.status": "{n} ocurrencia(s) en esta serie — ninguna preseleccionada.",
+  "dialog.deleteSeries.confirm": "Proponer eliminación",
+  "dialog.deleteSeries.tooLong":
+    "Esto sería demasiado grande para una sola issue de GitHub — selecciona menos ocurrencias e inténtalo de nuevo.",
 
   // --- "Link to a series" dialog (When section, next to Add recurrence) ----
   "dialog.series.title": "Vincular a una serie",
@@ -247,6 +269,8 @@ export const es: Record<string, string> = {
   "action.deleteDirect": "Eliminar en GitHub",
   "action.deleteViaIssue": "Proponer eliminación",
   "action.refreshEvents": "↻ Actualizar",
+  "action.editSeries": "Editar serie",
+  "action.deleteSeries": "Eliminar serie",
 
   // --- valid badge -----------------------------------------------------------
   "badge.ready": "✓ Listo",

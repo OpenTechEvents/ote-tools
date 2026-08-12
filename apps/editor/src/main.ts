@@ -42,7 +42,14 @@ import {
   suggestSlug,
   toEventJson,
 } from "./lib/event-json.js";
-import { collectKnownSeries, type SeriesOption } from "./lib/series.js";
+import {
+  applyBulkEdit,
+  buildBulkEditTemplate,
+  collectKnownSeries,
+  collectSeriesMembers,
+  diffFormState,
+  type SeriesOption,
+} from "./lib/series.js";
 import {
   emptyFeedConfigState,
   fromOteConfig,
@@ -56,10 +63,14 @@ import {
   directEditUrl,
   directFeedConfigUrl,
   eventJsonText,
+  exceedsIssueBodyLimit,
   proposeBatchChangeUrl,
+  proposeBulkDeleteUrl,
+  proposeBulkEditUrl,
   proposeChangeUrl,
   proposeDeleteUrl,
   type LinkResult,
+  type RecurringOccurrenceOverride,
 } from "./lib/links.js";
 import {
   availablePresets,
@@ -107,6 +118,7 @@ import {
   type TranslationsPatch,
 } from "./ui/form.js";
 import { geocodeVenue, mountGeoMap, type GeoMapHandle } from "./ui/map.js";
+import { renderOccurrenceChecklist } from "./ui/occurrence-checklist.js";
 import { applyStaticTranslations, getLocale, setLocale, t, type Locale } from "./i18n/index.js";
 
 function el<T extends HTMLElement>(id: string): T {
@@ -291,6 +303,15 @@ async function startEditor(repo: string | null): Promise<void> {
   let editSlug: string | null = null;
   // Snapshot of the event as loaded, for "Revert changes" while editing.
   let loadedSnapshot: FormState | null = null;
+  // Non-null while #event-form is hosting a bulk-edit "shared template"
+  // draft (see openBulkEditSeries) rather than a normal single-event
+  // edit — the members the eventual patch/date-overrides apply to.
+  let bulkEditMembers: ListedEvent[] | null = null;
+  // Computed once "Review & submit" opens the (shared) review dialog in
+  // bulk mode, consumed by review-confirm — so the dialog only ever acts
+  // on exactly what it previewed, never a value recomputed after the
+  // organizer might have changed something with the dialog open.
+  let bulkEditPendingResult: LinkResult | null = null;
   // Once the user touches slug/id, stop auto-suggesting over their input.
   let slugDirty = false;
   let idDirty = false;
@@ -317,9 +338,16 @@ async function startEditor(repo: string | null): Promise<void> {
   const profileSwitch = el<HTMLElement>("profile-switch");
   const newEventMenu = el<HTMLDivElement>("new-event-menu");
   const feedSettingsOpen = el<HTMLButtonElement>("feed-settings-open");
+  const actionBar = el<HTMLDivElement>("action-bar");
+  const bulkEditBanner = el<HTMLDivElement>("bulk-edit-banner");
 
   /** Toggles the three top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
   function showView(): void {
+    // Bulk-edit mode only ever makes sense while the form view is up —
+    // leaving it (Back to events, or any other view transition) always
+    // exits bulk mode too, so a later normal single-event edit never
+    // inherits stale bulk-mode state.
+    if (view !== "form") bulkEditMembers = null;
     eventsListView.hidden = view !== "list";
     formView.hidden = view !== "form";
     feedSettingsView.hidden = view !== "settings";
@@ -327,6 +355,11 @@ async function startEditor(repo: string | null): Promise<void> {
     // Profile pre-filters which FORM fields show — meaningless outside the
     // form itself.
     profileSwitch.hidden = view !== "form";
+    // The normal single-event action bar (Reset/Edit directly/Propose) and
+    // the bulk-edit banner are mutually exclusive — bulk mode replaces the
+    // former with the latter while #event-form hosts a shared template.
+    actionBar.hidden = view !== "form" || bulkEditMembers !== null;
+    bulkEditBanner.hidden = view !== "form" || bulkEditMembers === null;
     // "+ New event" and feed settings only make sense from the events
     // list — while editing/adding an event or already in feed settings,
     // they'd either discard the current draft unexpectedly or just be
@@ -828,6 +861,19 @@ async function startEditor(repo: string | null): Promise<void> {
   let draftValid = false;
 
   function refresh(): boolean {
+    // Bulk-edit template: id/slug/startDate are deliberately blank (see
+    // buildBulkEditTemplate) — the normal required-field validation would
+    // be pure noise here, and slug/id auto-suggest/collision-checking
+    // don't apply to a template that's never itself published. Only the
+    // bulk-edit banner's own confirm-button gating runs instead.
+    if (bulkEditMembers) {
+      updateErrors(form, new Map());
+      documentErrors.hidden = true;
+      badge.hidden = true;
+      updateBulkEditApply();
+      draftValid = false;
+      return false;
+    }
     if (isNew) {
       if (!slugDirty) {
         state.slug = suggestSlug(state.name, state.startDate);
@@ -1216,7 +1262,7 @@ async function startEditor(repo: string | null): Promise<void> {
     wireVenueGeocode();
   }
 
-  function render(extra: ReadonlySet<string> = new Set()): void {
+  function render(extra: ReadonlySet<string> = new Set(), bulkChecklist?: HTMLElement): void {
     const rendered = renderForm(
       form,
       profile,
@@ -1228,6 +1274,7 @@ async function startEditor(repo: string | null): Promise<void> {
       onSectionRebuilt,
       onCustomizeRecurrenceRule,
       onOpenSeriesPicker,
+      bulkChecklist,
     );
     refreshTranslations = rendered.refreshTranslations;
     getRecurrenceSeries = rendered.getRecurrenceSeries;
@@ -1251,6 +1298,17 @@ async function startEditor(repo: string | null): Promise<void> {
   const eventsWidget = el<OteEventsElement>("events-widget");
   const eventsEmpty = el<HTMLParagraphElement>("events-empty");
   const eventsRefresh = el<HTMLButtonElement>("events-refresh");
+
+  // Session-only, like the profile toggle — resets to "off" on reload
+  // rather than persisting a per-repo choice. Absent/removed attribute is
+  // apps/embed's own no-grouping default, so "off" needs no setAttribute
+  // call at all, just the removal.
+  for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="events-grouping"]')) {
+    radio.addEventListener("input", () => {
+      if (radio.value === "on") eventsWidget.setAttribute("group-events", "series,multipart");
+      else eventsWidget.removeAttribute("group-events");
+    });
+  }
 
   function eventLabel(event: OteEvent): string {
     const day = (event.startDate ?? "????").split("T")[0];
@@ -1291,6 +1349,29 @@ async function startEditor(repo: string | null): Promise<void> {
         placement: "preview",
         onClick: () => openDeleteDialog(entry),
       });
+      // Only offered on a grouped card (context.group present — the widget
+      // found ≥2 visible siblings sharing partOf.id) with a repo connected
+      // (bulk edit/delete submit a GitHub issue, same gate "delete" uses).
+      // Both re-derive the sibling set from listed rather than
+      // context.group.members (the widget's own PreviewEvent[], no slug)
+      // so they always operate on authoritative, full-fidelity data.
+      if (context.group) {
+        actions.push({
+          id: "edit-series",
+          label: t("action.editSeries", "Edit series"),
+          icon: "collection",
+          placement: "preview",
+          onClick: () => openBulkEditSeries(entry),
+        });
+        actions.push({
+          id: "delete-series",
+          label: t("action.deleteSeries", "Delete series"),
+          icon: "trash",
+          variant: "danger",
+          placement: "preview",
+          onClick: () => openDeleteSeriesDialog(entry),
+        });
+      }
     }
     return actions;
   };
@@ -1330,6 +1411,131 @@ async function startEditor(repo: string | null): Promise<void> {
         : "";
     deleteDialog.showModal();
   }
+
+  // "Delete series": proposes deleting every checked occurrence as one
+  // GitHub issue (plain-text list — see lib/links.ts's
+  // proposeBulkDeleteUrl). Same shared-dialog pattern as single-event
+  // delete above; the occurrence checklist reuses
+  // ui/occurrence-checklist.ts, nothing preselected by default (a
+  // deliberately safer default for a destructive action).
+  const deleteSeriesDialog = el<HTMLDialogElement>("delete-series-dialog");
+  const deleteSeriesStatus = el<HTMLParagraphElement>("delete-series-status");
+  const deleteSeriesList = el<HTMLUListElement>("delete-series-list");
+  const deleteSeriesConfirm = el<HTMLButtonElement>("delete-series-confirm");
+  let deleteSeriesChecklist: ReturnType<typeof renderOccurrenceChecklist> | null = null;
+
+  el<HTMLButtonElement>("delete-series-cancel").addEventListener("click", () => deleteSeriesDialog.close());
+
+  function updateDeleteSeriesConfirm(): void {
+    deleteSeriesConfirm.disabled = (deleteSeriesChecklist?.getChecked().length ?? 0) === 0;
+  }
+
+  function openDeleteSeriesDialog(entry: ListedEvent): void {
+    const partOfId = entry.event.partOf?.id;
+    if (!partOfId) return;
+    const members = collectSeriesMembers(listed, partOfId);
+    deleteSeriesChecklist = renderOccurrenceChecklist(deleteSeriesList, members, {
+      defaultChecked: () => false,
+      label: (member) => eventLabel(member.event),
+      pastLabel: t("dialog.bulkEdit.past", "past"),
+      cancelledLabel: t("dialog.bulkEdit.cancelled", "cancelled"),
+    });
+    deleteSeriesChecklist.onChange(updateDeleteSeriesConfirm);
+    deleteSeriesStatus.textContent = t(
+      "dialog.deleteSeries.status",
+      "{n} occurrence(s) in this series — none preselected.",
+    ).replace("{n}", String(members.length));
+    deleteSeriesStatus.hidden = false;
+    updateDeleteSeriesConfirm();
+    deleteSeriesDialog.showModal();
+  }
+
+  deleteSeriesConfirm.addEventListener("click", () => {
+    if (repo === null || !deleteSeriesChecklist) return;
+    const checked = deleteSeriesChecklist.getChecked();
+    if (checked.length === 0) return;
+    const result = proposeBulkDeleteUrl(repo, checked.map((member) => ({ slug: member.slug, event: member.event })));
+    // GitHub rejects an issue body over 65536 chars outright — warn instead
+    // of letting the organizer discover that on GitHub's own page. Only
+    // the copy-paste fallback shape is at risk (see GITHUB_ISSUE_BODY_MAX_LENGTH).
+    if (result.kind === "fallback" && exceedsIssueBodyLimit(result.copyText)) {
+      deleteSeriesStatus.textContent = t(
+        "dialog.deleteSeries.tooLong",
+        "This would be too large for a single GitHub issue — select fewer occurrences and try again.",
+      );
+      deleteSeriesStatus.hidden = false;
+      return;
+    }
+    deleteSeriesDialog.close();
+    follow(result);
+  });
+
+  // "Edit series": the form temporarily hosts a shared TEMPLATE draft (see
+  // openBulkEditSeries) instead of a normal single-event edit — the same
+  // `state`/`view` swap duplicateEvent() already does, not a second form
+  // instance. Submitted as one GitHub issue (lib/links.ts's
+  // proposeBulkEditUrl, unchanged from before this rework).
+  const bulkEditWarnings = el<HTMLDivElement>("bulk-edit-warnings");
+  const bulkEditList = el<HTMLUListElement>("bulk-edit-list");
+  const bulkEditApply = el<HTMLButtonElement>("bulk-edit-apply");
+  let bulkEditChecklist: ReturnType<typeof renderOccurrenceChecklist> | null = null;
+
+  el<HTMLButtonElement>("bulk-edit-cancel").addEventListener("click", () => {
+    view = "list";
+    showView();
+    renderEventsGrid(eventsSearch.value);
+  });
+
+  function updateBulkEditApply(): void {
+    if (!bulkEditMembers || !bulkEditChecklist || !loadedSnapshot) {
+      bulkEditApply.disabled = true;
+      return;
+    }
+    const anyOccurrenceChecked = bulkEditChecklist.getChecked().length > 0;
+    const sharedPatch = diffFormState(loadedSnapshot, state);
+    const anyDateOverride = bulkEditChecklist.getDateOverrides().size > 0;
+    bulkEditApply.disabled = !anyOccurrenceChecked || (Object.keys(sharedPatch).length === 0 && !anyDateOverride);
+  }
+
+  function openBulkEditSeries(entry: ListedEvent): void {
+    const partOfId = entry.event.partOf?.id;
+    if (!partOfId) return;
+    const members = collectSeriesMembers(listed, partOfId);
+    const template = buildBulkEditTemplate(entry);
+
+    pauseImportBanner(); // leaving any in-progress import/new-event context
+    isNew = false;
+    editSlug = null;
+    bulkEditMembers = members;
+    state = template;
+    loadedSnapshot = structuredClone(template);
+    slugDirty = true;
+    idDirty = true;
+    touched = new Set();
+    submitAttempted = false;
+    render(extraFieldsFor(entry.event, profile), bulkEditList);
+    view = "form";
+    showView();
+
+    bulkEditWarnings.hidden = true;
+    bulkEditWarnings.textContent = "";
+    bulkEditChecklist = renderOccurrenceChecklist(bulkEditList, members, {
+      editableDates: true,
+      defaultChecked: (member, todayIso) =>
+        isFutureEvent(member.event, todayIso) && member.event.status !== "cancelled",
+      label: (member) => eventLabel(member.event),
+      pastLabel: t("dialog.bulkEdit.past", "past"),
+      cancelledLabel: t("dialog.bulkEdit.cancelled", "cancelled"),
+    });
+    bulkEditChecklist.onChange(updateBulkEditApply);
+    updateBulkEditApply();
+  }
+
+  // Changes could be anything — a scalar field, a repeater, a translation,
+  // not just dates — so this reuses the exact same "Review & submit" step
+  // every other save in this app goes through (openReview(), below),
+  // rather than submitting straight from the banner.
+  bulkEditApply.addEventListener("click", () => openReview());
 
   function renderEventsGrid(query: string): void {
     eventsEmpty.hidden = listed.length > 0;
@@ -2298,7 +2504,22 @@ async function startEditor(repo: string | null): Promise<void> {
     const imagesToLocalize = state.image
       .filter((row) => row.saveLocally === "true" && row.url !== "")
       .map((row) => row.url);
-    follow(proposeBatchChangeUrl(repo, selected, imagesToLocalize));
+    // Every selected occurrence is identical except id/startDate/endDate
+    // (buildRecurringEvents' own contract, above) — send the shared
+    // template once plus each occurrence's own override, instead of N
+    // full documents (see lib/links.ts's recurringTemplateIssueBody).
+    const template = { ...selected[0]! } as Record<string, unknown>;
+    delete template.id;
+    delete template.startDate;
+    delete template.endDate;
+    const occurrences: RecurringOccurrenceOverride[] = selected.map((event) =>
+      event.endDate
+        ? { id: event.id, startDate: event.startDate, endDate: event.endDate }
+        : { id: event.id, startDate: event.startDate },
+    );
+    follow(
+      proposeBatchChangeUrl(repo, template as unknown as OteEvent, occurrences, imagesToLocalize),
+    );
   }
 
   el<HTMLButtonElement>("recurrence-confirm").addEventListener("click", () => {
@@ -2553,6 +2774,49 @@ async function startEditor(repo: string | null): Promise<void> {
   el<HTMLButtonElement>("review-download").hidden = hasRepo;
 
   function openReview(): void {
+    // Bulk-edit ("Edit series"): preview every changed file, not this
+    // (inert) template draft. Computed here, not on every keystroke —
+    // review-confirm submits exactly this snapshot, never a value
+    // recomputed after the organizer might have changed something with
+    // the dialog already open.
+    if (bulkEditMembers && bulkEditChecklist && loadedSnapshot) {
+      if (repo === null) return;
+      const sharedPatch = diffFormState(loadedSnapshot, state);
+      const dateOverrides = bulkEditChecklist.getDateOverrides();
+      const checked = bulkEditChecklist.getChecked();
+      const entries = applyBulkEdit(checked, sharedPatch, dateOverrides);
+      if (entries.length === 0) {
+        const p = document.createElement("p");
+        p.textContent = t(
+          "dialog.bulkEdit.noChanges",
+          "Every selected occurrence already matches every changed field — nothing to submit.",
+        );
+        bulkEditWarnings.textContent = "";
+        bulkEditWarnings.append(p);
+        bulkEditWarnings.hidden = false;
+        return;
+      }
+      const result = proposeBulkEditUrl(repo, entries);
+      // GitHub rejects an issue body over 65536 chars outright — catch it
+      // here rather than let the organizer discover that after pasting
+      // into GitHub's own form. Only the copy-paste fallback shape is at
+      // risk (see GITHUB_ISSUE_BODY_MAX_LENGTH).
+      if (result.kind === "fallback" && exceedsIssueBodyLimit(result.copyText)) {
+        const p = document.createElement("p");
+        p.textContent = t(
+          "dialog.bulkEdit.tooLong",
+          "This would be too large for a single GitHub issue — select fewer occurrences and try again.",
+        );
+        bulkEditWarnings.textContent = "";
+        bulkEditWarnings.append(p);
+        bulkEditWarnings.hidden = false;
+        return;
+      }
+      bulkEditPendingResult = result;
+      reviewJson.textContent = result.kind === "fallback" ? result.copyText : "";
+      review.showModal();
+      return;
+    }
     const json = JSON.stringify(toEventJson(state), null, 2);
     reviewJson.textContent = "";
     for (const token of tokenizeJson(json)) {
@@ -2574,6 +2838,14 @@ async function startEditor(repo: string | null): Promise<void> {
   el<HTMLButtonElement>("review-confirm").addEventListener("click", () => {
     if (repo === null) return;
     review.close();
+    if (bulkEditMembers) {
+      if (bulkEditPendingResult) follow(bulkEditPendingResult);
+      bulkEditPendingResult = null;
+      view = "list";
+      showView();
+      renderEventsGrid(eventsSearch.value);
+      return;
+    }
     const imagesToLocalize = state.image
       .filter((row) => row.saveLocally === "true" && row.url !== "")
       .map((row) => row.url);

@@ -416,6 +416,18 @@ header h1 {
   margin: 1rem 0;
 }
 
+.toolbar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar-toggle-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 #events-search {
   flex: 1;
   min-width: 12rem;
@@ -1470,7 +1482,10 @@ select {
 
 /* --- action bar ------------------------------------------------------------- */
 
-#action-bar {
+/* :not([hidden]) — bulk-edit mode toggles this off in favor of
+   #bulk-edit-banner; an unconditional `display:` here would silently win
+   over that (see apps/editor/CLAUDE.md). */
+#action-bar:not([hidden]) {
   position: fixed;
   z-index: 9999;
   bottom: 0;
@@ -1711,6 +1726,7 @@ footer {
 #jsonld-dialog,
 #repo-connect,
 #delete-dialog,
+#delete-series-dialog,
 #recurrence-dialog,
 #recurrence-custom-dialog,
 #series-dialog {
@@ -1725,6 +1741,7 @@ footer {
 #jsonld-dialog::backdrop,
 #repo-connect::backdrop,
 #delete-dialog::backdrop,
+#delete-series-dialog::backdrop,
 #recurrence-dialog::backdrop,
 #recurrence-custom-dialog::backdrop,
 #series-dialog::backdrop {
@@ -1735,12 +1752,18 @@ footer {
 #jsonld-dialog h2,
 #repo-connect h2,
 #delete-dialog h2,
+#delete-series-dialog h2,
 #recurrence-dialog h2,
 #recurrence-custom-dialog h2,
 #series-dialog h2 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
 }
+
+/* --- "Edit series" bulk edit: wider than the shared 34rem dialog group
+   above (it lists ~24 fields), with its own scrollable body so the
+   Cancel/Review & submit actions stay reachable without the whole page
+   scrolling. --------------------------------------------------------------- */
 
 /* --- description "expand" dialog: deliberately larger than the shared
    34rem dialog group above — the whole point is seeing a long description
@@ -2083,7 +2106,9 @@ footer {
   flex-shrink: 0;
 }
 
-#recurrence-list {
+#recurrence-list,
+#bulk-edit-list,
+#delete-series-list {
   list-style: none;
   margin: 0.5rem 0 0;
   padding: 0.25rem;
@@ -2093,7 +2118,9 @@ footer {
   overflow-y: auto;
 }
 
-#recurrence-list label {
+#recurrence-list label,
+#bulk-edit-list label,
+#delete-series-list label {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -2103,17 +2130,22 @@ footer {
   cursor: pointer;
 }
 
-#recurrence-list label:hover {
+#recurrence-list label:hover,
+#bulk-edit-list label:hover,
+#delete-series-list label:hover {
   background: var(--accent-soft);
 }
 
-#recurrence-list input[type="checkbox"] {
+#recurrence-list input[type="checkbox"],
+#bulk-edit-list input[type="checkbox"],
+#delete-series-list input[type="checkbox"] {
   width: 1.05rem;
   height: 1.05rem;
   accent-color: var(--accent);
 }
 
-#recurrence-dialog .actions {
+#recurrence-dialog .actions,
+#delete-series-dialog .actions {
   justify-content: flex-end;
 }
 
@@ -2501,6 +2533,32 @@ footer {
 
 #import-banner .actions {
   flex-wrap: wrap;
+}
+
+/* Same treatment as #import-banner — both are "the form below isn't a
+   normal single-event draft" banners. */
+#bulk-edit-banner {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+#bulk-edit-banner p {
+  margin: 0 0 0.5rem;
+  font-weight: 500;
+}
+
+#bulk-edit-banner .actions {
+  flex-wrap: wrap;
+}
+
+.occurrence-date-inputs {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.3rem;
 }
 
 #import-submitted {

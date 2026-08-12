@@ -7,7 +7,7 @@
 // rules an issue's JSON will be checked against.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -97,6 +97,217 @@ test("parseIssueBody: two events resolving to the same slug is rejected as a col
     () => parseIssueBody(body),
     (error) => error instanceof IssueToPrError && /Duplicate filename/.test(error.title),
   );
+});
+
+// --- recurring-template blocks ----------------------------------------------
+
+const recurringTemplateBlock = (overrides = {}) => ({
+  _oteBatchMode: "recurring-template",
+  template: {
+    name: "Monthly Meetup",
+    timezone: "Europe/Madrid",
+  },
+  occurrences: [
+    { id: "https://example.org/events/2026-06-monthly", startDate: "2026-06-08T18:00" },
+    { id: "https://example.org/events/2026-07-monthly", startDate: "2026-07-13T18:00" },
+    { id: "https://example.org/events/2026-08-monthly", startDate: "2026-08-10T18:00" },
+  ],
+  ...overrides,
+});
+
+test("parseIssueBody: recurring-template block expands into one result per occurrence", () => {
+  const results = parseIssueBody(fence(recurringTemplateBlock()));
+  assert.equal(results.length, 3);
+  assert.deepEqual(results.map((r) => r.slug), [
+    "2026-06-monthly",
+    "2026-07-monthly",
+    "2026-08-monthly",
+  ]);
+  for (const result of results) {
+    assert.equal(result.event.name, "Monthly Meetup");
+    assert.equal(result.event.timezone, "Europe/Madrid");
+  }
+  assert.equal(results[1].event.startDate, "2026-07-13T18:00");
+});
+
+test("parseIssueBody: an occurrence missing a required field fails the whole run", () => {
+  const block = recurringTemplateBlock({
+    template: { timezone: "Europe/Madrid" }, // no name, and occurrence below has no startDate either
+    occurrences: [{ id: "https://example.org/events/2026-06-x" }],
+  });
+  assert.throws(
+    () => parseIssueBody(fence(block)),
+    (error) =>
+      error instanceof IssueToPrError && /not valid against the OTE event schema/.test(error.title),
+  );
+});
+
+test("parseIssueBody: an empty occurrences array is rejected", () => {
+  const block = recurringTemplateBlock({ occurrences: [] });
+  assert.throws(
+    () => parseIssueBody(fence(block)),
+    (error) =>
+      error instanceof IssueToPrError && /non-empty "occurrences" array/.test(error.title),
+  );
+});
+
+test("parseIssueBody: a non-object template is rejected", () => {
+  const block = recurringTemplateBlock({ template: "not an object" });
+  assert.throws(
+    () => parseIssueBody(fence(block)),
+    (error) => error instanceof IssueToPrError && /missing a "template" object/.test(error.title),
+  );
+});
+
+test("parseIssueBody: an unrecognized _oteBatchMode value is rejected", () => {
+  assert.throws(
+    () => parseIssueBody(fence({ _oteBatchMode: "not-a-real-mode" })),
+    (error) =>
+      error instanceof IssueToPrError && /unrecognized "_oteBatchMode" value/.test(error.title),
+  );
+});
+
+test("parseIssueBody: a legacy single-event block still parses exactly as before, alongside a recurring-template block", () => {
+  const body = [
+    fence(validEvent({ id: "https://example.org/events/2026-05-standalone", name: "Standalone" })),
+    fence(recurringTemplateBlock()),
+  ].join("\n\n");
+  const results = parseIssueBody(body);
+  assert.equal(results.length, 4); // 1 legacy + 3 expanded occurrences
+  assert.equal(results[0].slug, "2026-05-standalone");
+  assert.deepEqual(results.slice(1).map((r) => r.slug), [
+    "2026-06-monthly",
+    "2026-07-monthly",
+    "2026-08-monthly",
+  ]);
+});
+
+test("parseIssueBody: duplicate-slug detection spans a legacy block and a recurring-template block", () => {
+  const body = [
+    fence(validEvent({ id: "https://example.org/events/2026-06-monthly", name: "Collides" })),
+    fence(recurringTemplateBlock()),
+  ].join("\n\n");
+  assert.throws(
+    () => parseIssueBody(body),
+    (error) => error instanceof IssueToPrError && /Duplicate filename/.test(error.title),
+  );
+});
+
+test("parseIssueBody: the backend imposes no occurrence-count cap of its own", () => {
+  // The client (apps/editor) caps a single recurrence rule at 24
+  // occurrences — this script never re-asserts that limit itself, it just
+  // expands whatever it's given.
+  const occurrences = Array.from({ length: 30 }, (_, i) => ({
+    id: `https://example.org/events/2026-occ-${i}`,
+    startDate: `2026-01-${String((i % 28) + 1).padStart(2, "0")}T18:00`,
+  }));
+  const results = parseIssueBody(fence(recurringTemplateBlock({ occurrences })));
+  assert.equal(results.length, 30);
+});
+
+// --- patch blocks ------------------------------------------------------
+
+const patchBlock = (overrides = {}) => ({
+  _oteBatchMode: "patch",
+  slug: "2026-06-async",
+  patch: { license: "CC0-1.0" },
+  ...overrides,
+});
+
+function seedEvent(repoRoot, slug, event) {
+  const dir = join(repoRoot, "events");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${slug}.json`), JSON.stringify(event, null, 2));
+}
+
+test("parseIssueBody: a patch block merges onto the existing file and validates the result", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent({ description: "Original description" }));
+    const results = parseIssueBody(fence(patchBlock()), { repoRoot });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].slug, "2026-06-async");
+    assert.equal(results[0].event.license, "CC0-1.0");
+    // Untouched keys survive verbatim from the seeded file.
+    assert.equal(results[0].event.description, "Original description");
+    assert.equal(results[0].event.name, validEvent().name);
+  });
+});
+
+test("parseIssueBody: a null patch value deletes that key", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent({ description: "Will be removed" }));
+    const block = patchBlock({ patch: { description: null } });
+    const results = parseIssueBody(fence(block), { repoRoot });
+    assert.equal("description" in results[0].event, false);
+  });
+});
+
+test("parseIssueBody: a patch targeting a nonexistent file is rejected", () => {
+  withTmpDir((repoRoot) => {
+    assert.throws(
+      () => parseIssueBody(fence(patchBlock({ slug: "does-not-exist" })), { repoRoot }),
+      (error) =>
+        error instanceof IssueToPrError && /patches a file that doesn't exist/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a patch targeting a nonexistent file fails the whole run even mixed with a valid block", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent());
+    const body = [fence(validEvent()), fence(patchBlock({ slug: "does-not-exist" }))].join("\n\n");
+    assert.throws(
+      () => parseIssueBody(body, { repoRoot }),
+      (error) =>
+        error instanceof IssueToPrError && /patches a file that doesn't exist/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a no-op patch (reproducing existing content) succeeds", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent({ license: "CC0-1.0" }));
+    const results = parseIssueBody(fence(patchBlock({ patch: { license: "CC0-1.0" } })), { repoRoot });
+    assert.equal(results[0].event.license, "CC0-1.0");
+  });
+});
+
+test("parseIssueBody: a patch with a missing or invalid slug is rejected", () => {
+  withTmpDir((repoRoot) => {
+    assert.throws(
+      () => parseIssueBody(fence(patchBlock({ slug: undefined })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /missing a valid "slug"/.test(error.title),
+    );
+    assert.throws(
+      () => parseIssueBody(fence(patchBlock({ slug: "not a valid slug!" })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /missing a valid "slug"/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a non-object patch is rejected", () => {
+  withTmpDir((repoRoot) => {
+    assert.throws(
+      () => parseIssueBody(fence(patchBlock({ patch: "not an object" })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /missing a "patch" object/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: patch, full-document, and recurring-template blocks coexist in one issue", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent());
+    const body = [
+      fence(patchBlock()),
+      fence(validEvent({ id: "https://example.org/events/2026-05-standalone", name: "Standalone" })),
+      fence(recurringTemplateBlock()),
+    ].join("\n\n");
+    const results = parseIssueBody(body, { repoRoot });
+    assert.equal(results.length, 5); // 1 patch + 1 legacy + 3 expanded occurrences
+    assert.equal(results[0].slug, "2026-06-async");
+    assert.equal(results[0].event.license, "CC0-1.0");
+    assert.equal(results[1].slug, "2026-05-standalone");
+  });
 });
 
 test("slugFromId: last path segment, .json suffix stripped", () => {

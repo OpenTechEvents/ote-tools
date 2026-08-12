@@ -172,6 +172,20 @@
           <button id="events-refresh" type="button" class="secondary" data-i18n="action.refreshEvents">
             ↻ Refresh
           </button>
+          <div class="toolbar-toggle">
+            <span class="toolbar-toggle-label" data-i18n="nav.groupEvents">View</span>
+            <div class="mode-toggle" id="events-grouping-toggle" role="radiogroup" aria-label="Grouping"
+              data-i18n-aria-label="nav.groupEvents">
+              <label>
+                <input type="radio" name="events-grouping" value="off" checked />
+                <span data-i18n="nav.groupEvents.individual">Individual</span>
+              </label>
+              <label>
+                <input type="radio" name="events-grouping" value="on" />
+                <span data-i18n="nav.groupEvents.grouped">Grouped</span>
+              </label>
+            </div>
+          </div>
         </div>
         <p id="events-empty" class="hint" hidden data-i18n="nav.comboEmpty">
           No events found in this repository
@@ -311,6 +325,39 @@
             data-i18n="importBanner.dismissAll"
           >
             Dismiss all
+          </button>
+        </div>
+      </div>
+
+      <!-- "Edit series": the form below is temporarily hosting a shared
+           TEMPLATE draft (main.ts swaps `state` the same way duplicateEvent
+           does), not a normal single-event edit. Identity/schedule fields
+           in the form itself are inert here — #bulk-edit-list starts as this
+           banner's own child in markup, but ui/form.ts's renderForm()
+           reparents it into the When section (replacing the now-irrelevant
+           date row and "+ Add recurrence") the moment the template renders,
+           so the checklist ends up right where an organizer expects
+           per-occurrence dates to live. -->
+      <div id="bulk-edit-banner" hidden>
+        <p id="bulk-edit-banner-text" data-i18n="dialog.bulkEdit.bannerText">
+          Editing the shared template for this series. Fields you change
+          apply to every occurrence you select in the When section below —
+          dates are edited per-occurrence there too.
+        </p>
+        <div id="bulk-edit-warnings" hidden></div>
+        <ul id="bulk-edit-list" hidden></ul>
+        <div class="actions">
+          <button id="bulk-edit-cancel" type="button" class="secondary" data-i18n="action.cancel">
+            Cancel
+          </button>
+          <button
+            id="bulk-edit-apply"
+            type="button"
+            class="primary"
+            disabled
+            data-i18n="action.reviewAndSubmit"
+          >
+            Review &amp; submit
           </button>
         </div>
       </div>
@@ -558,6 +605,39 @@
             data-i18n="action.addSelected"
           >
             Add selected
+          </button>
+        </div>
+      </dialog>
+
+      <!-- "Delete series": proposes deleting every checked occurrence of a
+           series/multipart group as one GitHub issue (plain-text list, same
+           convention as the single-event #delete-dialog's "Propose
+           deletion" — no automated delete-parsing exists). Opened from a
+           grouped card's "Delete series" action, same gating as "Edit
+           series". Nothing preselected by default, unlike edit's
+           future-preselected checklist — a deliberately safer default for
+           a destructive action. -->
+      <dialog id="delete-series-dialog">
+        <h2 data-i18n="dialog.deleteSeries.title">Delete series</h2>
+        <p class="hint" data-i18n="dialog.deleteSeries.hint">
+          This app never deletes anything itself — pick which occurrences
+          to include, then propose their deletion as one GitHub issue for a
+          maintainer to review.
+        </p>
+        <p id="delete-series-status" class="hint" hidden></p>
+        <ul id="delete-series-list" hidden></ul>
+        <div class="actions">
+          <button id="delete-series-cancel" type="button" class="secondary" data-i18n="action.cancel">
+            Cancel
+          </button>
+          <button
+            id="delete-series-confirm"
+            type="button"
+            class="danger"
+            disabled
+            data-i18n="dialog.deleteSeries.confirm"
+          >
+            Propose deletion
           </button>
         </div>
       </dialog>

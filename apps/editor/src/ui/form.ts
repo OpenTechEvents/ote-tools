@@ -3636,6 +3636,17 @@ export function renderForm(
     current: { id: string; name: string; url: string; type: string },
     apply: (next: { id: string; name: string; url: string; type: string }) => void,
   ) => void,
+  /**
+   * Bulk-edit ("Edit series") mode: main.ts passes its own occurrence
+   * checklist element here instead of a per-occurrence start/end date and
+   * "+ Add recurrence" — neither makes sense against a shared template
+   * standing in for N existing occurrences (dates are edited per-row in
+   * the checklist instead, and there's nothing to *generate*). Reparented
+   * into the When section, right where the date row would otherwise go;
+   * allDay/timezone still render normally, since those genuinely can be
+   * bulk-edited. Omitted (undefined) for a normal single-event edit.
+   */
+  bulkEditChecklist?: HTMLElement,
 ): {
   refreshTranslations: () => void;
   sections: { id: SectionId; title: string }[];
@@ -3728,6 +3739,14 @@ export function renderForm(
         if (!fieldIds.includes(id)) continue;
         if (id === "endDate") continue; // rendered together with startDate, below
         if (id === "startDate") {
+          // Bulk-edit mode: this draft's own start/end is a blank,
+          // inert template field (see buildBulkEditTemplate) — the
+          // organizer edits real per-occurrence dates in the checklist
+          // instead, appended here in the date row's place.
+          if (bulkEditChecklist) {
+            details.append(bulkEditChecklist);
+            continue;
+          }
           startEndRowEl = fieldIds.includes("endDate")
             ? renderStartEndRow(state, onInput)
             : renderField(id, state, onInput);
@@ -3743,7 +3762,11 @@ export function renderForm(
         // anyway) and confusing to leave visible — hide them and keep
         // them mirroring the first row instead, so the draft stays a
         // valid document if submitted directly without generating.
-        if (id === "allDay") {
+        //
+        // Also skipped entirely in bulk-edit mode: "+ Add recurrence"
+        // *generates new* occurrences, which isn't what editing N
+        // existing ones means.
+        if (id === "allDay" && !bulkEditChecklist) {
           const recurrence = renderRecurrenceRows(
             state.startDate,
             onCustomizeRecurrenceRule,
