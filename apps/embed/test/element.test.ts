@@ -1106,7 +1106,7 @@ describe("<ote-events>", () => {
         partOf: { id: "https://fixture.example/series/monthly", type: "series" as const },
       },
     ];
-    el.eventActions = (context) => [
+    el.eventActions = (_context) => [
       {
         id: "noop",
         label: "Noop",

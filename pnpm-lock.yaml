@@ -47,6 +47,9 @@ importers:
       '@opentechevents/import-jsonld':
         specifier: workspace:*
         version: link:../../packages/import-jsonld
+      '@opentechevents/preview-feed':
+        specifier: workspace:*
+        version: link:../../packages/preview-feed
       '@opentechevents/validate':
         specifier: workspace:*
         version: link:../../packages/validate
