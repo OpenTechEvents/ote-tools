@@ -128,15 +128,17 @@ export function firstImage(
 /**
  * Picks the lowest-priced `offers[]` entry that actually declares a price —
  * an offer with only a `url` ("get tickets") has nothing to compare, so it's
- * skipped rather than treated as free.
+ * skipped rather than treated as free. Carries that same offer's `url`
+ * through (the registration/ticket link), so a price display can link out
+ * to where it was quoted.
  */
 export function cheapestPrice(
-  offers: Array<{ price?: number; currency?: string }> | undefined,
-): { amount: number; currency?: string } | undefined {
+  offers: Array<{ price?: number; currency?: string; url?: string }> | undefined,
+): { amount: number; currency?: string; url?: string } | undefined {
   const priced = (offers ?? []).filter(
-    (offer): offer is { price: number; currency?: string } => offer.price !== undefined,
+    (offer): offer is { price: number; currency?: string; url?: string } => offer.price !== undefined,
   );
   if (priced.length === 0) return undefined;
   const cheapest = priced.reduce((min, offer) => (offer.price < min.price ? offer : min));
-  return { amount: cheapest.price, currency: cheapest.currency };
+  return { amount: cheapest.price, currency: cheapest.currency, url: cheapest.url };
 }

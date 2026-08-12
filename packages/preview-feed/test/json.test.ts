@@ -141,4 +141,48 @@ describe("jsonToPreviewFeed", () => {
     });
     expect(feed.events[0]!.partOf).toBeUndefined();
   });
+
+  it("carries eligibility and cfp through untouched", () => {
+    const feed = oteJsonToPreviewFeed({
+      events: [
+        {
+          name: "Members-only Meetup",
+          eligibility: { type: "members-only", note: "Discord members only", url: "https://example.org/join" },
+          cfp: { url: "https://example.org/cfp", closesAt: "2026-07-15T23:59:59+02:00" },
+        },
+      ],
+    });
+    const [event] = feed.events;
+    expect(event!.eligibility).toEqual({
+      type: "members-only",
+      note: "Discord members only",
+      url: "https://example.org/join",
+    });
+    expect(event!.cfp).toEqual({ url: "https://example.org/cfp", closesAt: "2026-07-15T23:59:59+02:00" });
+  });
+
+  it("leaves eligibility and cfp undefined when absent", () => {
+    const feed = oteJsonToPreviewFeed({ events: [{ name: "Plain Event" }] });
+    expect(feed.events[0]!.eligibility).toBeUndefined();
+    expect(feed.events[0]!.cfp).toBeUndefined();
+  });
+
+  it("carries the winning offer's url through as price.url", () => {
+    const feed = oteJsonToPreviewFeed({
+      events: [
+        {
+          name: "Ticketed Event",
+          offers: [
+            { price: 45, currency: "EUR", url: "https://example.org/tickets/general" },
+            { price: 30, currency: "EUR", url: "https://example.org/tickets/early-bird" },
+          ],
+        },
+      ],
+    });
+    expect(feed.events[0]!.price).toEqual({
+      amount: 30,
+      currency: "EUR",
+      url: "https://example.org/tickets/early-bird",
+    });
+  });
 });

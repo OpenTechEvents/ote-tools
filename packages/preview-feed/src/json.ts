@@ -1,5 +1,5 @@
 import { cheapestPrice, detailRows, eventLocation, firstImage } from "./format.js";
-import type { PreviewEventPartOf, PreviewFeed } from "./types.js";
+import type { PreviewEventCfp, PreviewEventEligibility, PreviewEventPartOf, PreviewFeed } from "./types.js";
 
 export interface OteJsonEvent {
   id?: string;
@@ -17,9 +17,11 @@ export interface OteJsonEvent {
   updatedAt?: string;
   source?: unknown;
   image?: Array<string | { url: string; alt?: string }>;
-  offers?: Array<{ name?: string; price?: number; currency?: string }>;
+  offers?: Array<{ name?: string; price?: number; currency?: string; url?: string }>;
   organizers?: Array<{ name: string }>;
   partOf?: { id?: string; type?: "series" | "multipart"; name?: string; url?: string };
+  eligibility?: PreviewEventEligibility;
+  cfp?: PreviewEventCfp;
 }
 
 // The OTE schema requires partOf.id and defaults partOf.type to "series", but
@@ -67,6 +69,8 @@ export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
         attendanceMode: event.attendanceMode,
         updatedAt: event.updatedAt,
         partOf: normalizePartOf(event.partOf),
+        eligibility: event.eligibility,
+        cfp: event.cfp,
         details: detailRows([
           ["ID", event.id],
           ["Status", event.status],

@@ -48,7 +48,8 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     showPast: true,
     sort: "auto",
     layout,
-    fields: new Set(["location"]),
+    previewFields: new Set(["location"]),
+    detailFields: new Set(["location"]),
     groupEvents: new Set(),
     eventClick: "modal",
     eventActions: ["google-calendar", "outlook-calendar", "yahoo-calendar", "ics", "link"],
@@ -242,12 +243,18 @@ describe("<ote-events>", () => {
         startDate: "2999-01-01",
         url: "https://example.org/rich",
         image: [{ url: "https://example.org/poster.jpg", alt: "Poster" }],
-        offers: [{ price: 20, currency: "EUR" }],
+        offers: [{ price: 20, currency: "EUR", url: "https://example.org/tickets" }],
         organizers: [{ name: "Fixture Org" }],
         tags: ["one", "two"],
         attendanceMode: "online",
         description: "A rich event with every optional field populated.",
         updatedAt: "2999-01-02T10:00:00Z",
+        eligibility: {
+          type: "members-only",
+          note: "Discord members only",
+          url: "https://example.org/join",
+        },
+        cfp: { url: "https://example.org/cfp", closesAt: "2026-07-15T23:59:59+02:00" },
       },
     ],
   });
@@ -321,6 +328,75 @@ describe("<ote-events>", () => {
     document.body.append(el);
     await flush();
     expect(el.shadowRoot!.querySelector(".event-organizer")?.textContent).toBe("Fixture Org");
+  });
+
+  it("by default, the detail modal shows every field including eligibility/cfp/a ticket link, unlike the card", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    // Card (preview) stays at DEFAULT_FIELDS: no price/tags/organizer/eligibility/cfp.
+    expect(root.querySelector("li.event .price")).toBeNull();
+    expect(root.querySelector("li.event .eligibility-badge")).toBeNull();
+    expect(root.querySelector("li.event .cfp-badge")).toBeNull();
+
+    root.querySelector<HTMLElement>("li.event")?.click();
+    const modal = root.querySelector(".event-modal");
+    expect(modal).toBeTruthy();
+    expect(modal!.querySelector<HTMLAnchorElement>(".price")?.href).toBe("https://example.org/tickets");
+    expect(modal!.querySelector(".price")?.textContent).toContain("20");
+    const eligibility = modal!.querySelector<HTMLAnchorElement>(".eligibility-badge");
+    expect(eligibility?.textContent).toBe("Members only");
+    expect(eligibility?.href).toBe("https://example.org/join");
+    const cfp = modal!.querySelector<HTMLAnchorElement>(".cfp-badge");
+    expect(cfp?.textContent).toBe("Call for Proposals");
+    expect(cfp?.href).toBe("https://example.org/cfp");
+    expect(modal!.textContent).toContain("Fixture Org");
+    expect(modal!.querySelectorAll(".tags .tag")).toHaveLength(2);
+  });
+
+  it("fields-preview and fields-detail configure the card and modal independently", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("fields-preview", "price,eligibility");
+    el.setAttribute("fields-detail", "organizer,cfp");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    expect(root.querySelector("li.event .price")).toBeTruthy();
+    expect(root.querySelector("li.event .eligibility-badge")).toBeTruthy();
+    expect(root.querySelector("li.event .cfp-badge")).toBeNull();
+    expect(root.querySelector("li.event .event-description")).toBeNull();
+
+    root.querySelector<HTMLElement>("li.event")?.click();
+    const modal = root.querySelector(".event-modal");
+    expect(modal!.querySelector(".cfp-badge")).toBeTruthy();
+    expect(modal!.querySelector(".price")).toBeNull();
+    expect(modal!.querySelector(".eligibility-badge")).toBeNull();
+    expect(modal!.querySelector(".event-description")).toBeNull();
+  });
+
+  it('the legacy "fields" attribute now also narrows the detail modal (it used to render every field unconditionally)', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("fields", "price,tags");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    root.querySelector<HTMLElement>("li.event")?.click();
+    const modal = root.querySelector(".event-modal");
+    expect(modal!.querySelector(".price")).toBeTruthy();
+    expect(modal!.querySelectorAll(".tags .tag")).toHaveLength(2);
+    expect(modal!.querySelector(".event-description")).toBeNull();
+    expect(modal!.querySelector(".eligibility-badge")).toBeNull();
+    expect(modal!.querySelector(".cfp-badge")).toBeNull();
   });
 
   it("shows a friendly online location label instead of the raw URL", async () => {
@@ -989,6 +1065,56 @@ describe("<ote-events>", () => {
     expect(description?.querySelectorAll("li")).toHaveLength(2);
     expect(description?.querySelector<HTMLAnchorElement>("a")?.href).toBe("https://example.org/");
     expect(description?.textContent).not.toContain("**");
+  });
+
+  it("converts a link nested inside bold text, and renders numbered lists as <ol>", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Nested Markdown Event",
+              startDate: "2999-01-01",
+              description:
+                "1. 📅 **Consultar o sincronizar [nuestro calendario](https://combuilderses.github.io/#events)** con tu aplicación favorita:\n2. Segundo paso",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/nested-markdown.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    const description = el.shadowRoot!.querySelector(".event-modal .event-description");
+
+    const list = description?.querySelector("ol");
+    expect(list).toBeTruthy();
+    expect(list?.querySelectorAll("li")).toHaveLength(2);
+    const link = list?.querySelector<HTMLAnchorElement>("strong a");
+    expect(link?.href).toBe("https://combuilderses.github.io/#events");
+    expect(link?.textContent).toBe("nuestro calendario");
+    expect(description?.textContent).not.toContain("[nuestro calendario]");
+  });
+
+  it('"card-width" resolves to --ote-card-min-width on the host element, defaulting to 220px', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/sample.json");
+    document.body.append(el);
+    await flush();
+    expect(el.style.getPropertyValue("--ote-card-min-width")).toBe("220px");
+
+    el.setAttribute("card-width", "small");
+    await flush();
+    expect(el.style.getPropertyValue("--ote-card-min-width")).toBe("160px");
+
+    el.setAttribute("card-width", "340px");
+    await flush();
+    expect(el.style.getPropertyValue("--ote-card-min-width")).toBe("340px");
   });
 
   it("falls back to a card placeholder when an event image is broken", async () => {

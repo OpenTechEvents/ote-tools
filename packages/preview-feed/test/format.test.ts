@@ -224,4 +224,13 @@ describe("cheapestPrice", () => {
   it("treats a zero price as a valid (free) offer, not absent", () => {
     expect(cheapestPrice([{ price: 0 }])).toEqual({ amount: 0, currency: undefined });
   });
+
+  it("carries the winning offer's url through, for a registration/ticket link", () => {
+    expect(
+      cheapestPrice([
+        { price: 45, currency: "EUR", url: "https://example.org/tickets/general" },
+        { price: 30, currency: "EUR", url: "https://example.org/tickets/early-bird" },
+      ]),
+    ).toEqual({ amount: 30, currency: "EUR", url: "https://example.org/tickets/early-bird" });
+  });
 });

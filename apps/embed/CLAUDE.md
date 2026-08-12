@@ -129,6 +129,18 @@ host page (very visible in dark mode against a light page). If you're
 tempted to add a background back to `:host`, don't — that's the bug this
 was, not a feature.
 
+`layout="cards"`'s grid column width is `--ote-card-min-width` (default
+`220px`, used as the min side of `minmax(...)` in the `auto-fill` grid — so
+it controls both card width and, indirectly, how many columns fit). Set it
+directly via host CSS for pixel-exact control, or use the `card-width`
+attribute (`"small"`/`"medium"`/`"large"`, or any raw CSS length) — resolved
+in `attrs.ts#parseCardWidth()` and applied by `element.ts#renderNow()` via
+`this.style.setProperty(...)` on the host element itself, not inside the
+shadow root (custom properties set on the host are still visible to its own
+shadow tree). Deliberately no separate fixed "columns" attribute — turning a
+min-width into a responsive column count via `auto-fill` already adapts
+better across container sizes than a rigid count would.
+
 ## The `fields` attribute is a full replacement, not a merge
 
 `attrs.ts`'s `parseFields()` returns `DEFAULT_FIELDS` when the attribute is
@@ -138,6 +150,45 @@ valid input **replaces** the default entirely — `fields="price,tags"` shows
 deliberate choice ("elegir qué campos se muestran y cuales no") over an
 additive/merge scheme, which would need a separate "hide" mechanism to ever
 turn off a default field.
+
+## `fields-preview`/`fields-detail` split the card from the modal/list-body — with asymmetric defaults
+
+`fields` alone only ever gated the **card** (`renderCardEvent`) and the
+**list layout's accordion body** (`renderListEvent`); the **detail modal**
+(`renderModal`) used to render every optional field unconditionally, with no
+`fields` gating at all — not a designed second surface, an oversight.
+
+`WidgetState` now carries two sets instead of one: `previewFields` (cards)
+and `detailFields` (list body + modal — both are "detail" surfaces, so they
+share one config). Two new attributes, `fields-preview` and `fields-detail`,
+use the same full-replacement `parseFields`-style semantics and can be set
+independently of each other and of `fields`.
+
+The fallback chain in `element.ts#renderNow()`:
+
+```
+previewFields = fields-preview ?? fields ?? DEFAULT_FIELDS
+detailFields  = fields-detail  ?? fields  ?? ALL_FIELDS
+```
+
+The two ends of that chain deliberately use **different** fallbacks
+(`DEFAULT_FIELDS` vs `ALL_FIELDS`), the same "asymmetric default"
+precedent as `group-events` below: it's what makes both surfaces backward
+compatible at once. An embed with no `fields`-anything set keeps its card
+exactly as before (`DEFAULT_FIELDS`) *and* keeps its modal exactly as before
+(everything, now expressed as `ALL_FIELDS` instead of no gating at all). Only
+setting the legacy `fields` attribute changes modal behavior — and that's a
+bug fix, not a regression: `fields` was documented as "what's shown," and the
+modal silently ignoring it was never intentional.
+
+`ALL_FIELDS` includes two field keys with no other home yet, `eligibility`
+and `cfp` (from the OTE schema's `eligibility`/`cfp` event fields, now
+captured by `@opentechevents/preview-feed`'s JSON converter) — both render as
+small badges (`eligibilityBadge`/`cfpBadge` in `render.ts`), linking out when
+the underlying data has a `url`. They're excluded from `DEFAULT_FIELDS` (same
+opt-in-for-new-fields policy as `group-events`), so they only ever appear on
+the card when explicitly requested — but they *do* show up in the detail
+modal by default, since that surface's default is "everything."
 
 ## `group-events` defaults to the opposite of `fields`
 

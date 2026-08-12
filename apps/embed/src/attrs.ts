@@ -19,9 +19,11 @@ export type FieldKey =
   | "description"
   | "price"
   | "tags"
-  | "organizer";
+  | "organizer"
+  | "eligibility"
+  | "cfp";
 
-const ALL_FIELDS: readonly FieldKey[] = [
+export const ALL_FIELDS: readonly FieldKey[] = [
   "image",
   "when",
   "location",
@@ -30,6 +32,8 @@ const ALL_FIELDS: readonly FieldKey[] = [
   "price",
   "tags",
   "organizer",
+  "eligibility",
+  "cfp",
 ];
 
 export const DEFAULT_FIELDS: readonly FieldKey[] = [
@@ -129,6 +133,25 @@ export function parseFields(value: string | null): Set<FieldKey> {
 }
 
 /**
+ * Comma-separated allow-list for the "detail" surfaces — the list layout's
+ * accordion body and the detail modal. Same full-replacement semantics as
+ * `parseFields`, but a different fallback: absent, empty, or
+ * entirely-unrecognized input yields ALL_FIELDS, not DEFAULT_FIELDS. This
+ * preserves the modal's original behavior (it rendered every optional field
+ * unconditionally, with no `fields` gating at all) as the true default —
+ * only an explicit value (here, or via the legacy `fields` attribute)
+ * narrows what the detail surfaces show.
+ */
+export function parseDetailFields(value: string | null): Set<FieldKey> {
+  if (!value) return new Set(ALL_FIELDS);
+  const requested = value
+    .split(",")
+    .map((token) => token.trim())
+    .filter(isFieldKey);
+  return requested.length > 0 ? new Set(requested) : new Set(ALL_FIELDS);
+}
+
+/**
  * Comma-separated opt-in list of `partOf.type` values to collapse into a
  * stacked card in `layout="cards"`. Deliberately the *opposite* default of
  * `parseFields`: absent, empty, or entirely-unrecognized input yields an
@@ -145,4 +168,27 @@ export function parseGroupEvents(value: string | null): Set<GroupKey> {
       .map((token) => token.trim())
       .filter(isGroupKey),
   );
+}
+
+const CARD_WIDTH_PRESETS: Record<string, string> = {
+  small: "160px",
+  medium: "220px",
+  large: "320px",
+};
+
+/**
+ * Resolves `card-width` (only meaningful in `layout="cards"`) into a CSS
+ * length for `--ote-card-min-width`. Accepts the presets `small`/`medium`/
+ * `large`, or any raw CSS length (`"280px"`, `"18rem"`); a bare number is
+ * treated as pixels. Absent or unrecognized falls back to `"220px"` — the
+ * same value that was hardcoded before this attribute existed, so an
+ * existing embed's default card width never changes.
+ */
+export function parseCardWidth(value: string | null): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return CARD_WIDTH_PRESETS.medium!;
+  if (trimmed in CARD_WIDTH_PRESETS) return CARD_WIDTH_PRESETS[trimmed]!;
+  if (/^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}px`;
+  if (/^\d+(\.\d+)?(px|rem|em|ch|vw|%)$/.test(trimmed)) return trimmed;
+  return CARD_WIDTH_PRESETS.medium!;
 }

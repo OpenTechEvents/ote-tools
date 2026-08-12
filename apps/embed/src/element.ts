@@ -7,6 +7,8 @@ import type {
 } from "@opentechevents/preview-feed";
 
 import {
+  parseCardWidth,
+  parseDetailFields,
   parseFields,
   parseEventActions,
   parseEventClick,
@@ -60,6 +62,9 @@ export class OteEventsElement extends HTMLElement {
     "show-past",
     "layout",
     "fields",
+    "fields-preview",
+    "fields-detail",
+    "card-width",
     "group-events",
     "placeholder-image",
     "event-click",
@@ -249,6 +254,11 @@ export class OteEventsElement extends HTMLElement {
   }
 
   #renderNow(): void {
+    // Set on the host element itself (not inside the shadow root): a custom
+    // property set here is still visible to the shadow tree it hosts, and
+    // this is the one piece of layout.cards config that's genuinely a CSS
+    // concern (--ote-card-min-width), not widget state.
+    this.style.setProperty("--ote-card-min-width", parseCardWidth(this.getAttribute("card-width")));
     const lang = resolveLang(parseLangAttr(this.getAttribute("lang")), navigator.language);
     const state: WidgetState = {
       status: this.#status,
@@ -259,7 +269,8 @@ export class OteEventsElement extends HTMLElement {
       showPast: parseShowPast(this.getAttribute("show-past")),
       sort: parseSort(this.getAttribute("sort")),
       layout: parseLayout(this.getAttribute("layout")),
-      fields: parseFields(this.getAttribute("fields")),
+      previewFields: parseFields(this.getAttribute("fields-preview") ?? this.getAttribute("fields")),
+      detailFields: parseDetailFields(this.getAttribute("fields-detail") ?? this.getAttribute("fields")),
       groupEvents: parseGroupEvents(this.getAttribute("group-events")),
       placeholderImage: this.getAttribute("placeholder-image")?.trim() || undefined,
       emptyMessage: this.getAttribute("empty-message")?.trim() || undefined,

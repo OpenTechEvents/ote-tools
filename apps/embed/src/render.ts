@@ -86,7 +86,8 @@ export interface WidgetState {
   showPast: boolean;
   sort: SortMode;
   layout: Layout;
-  fields: Set<FieldKey>;
+  previewFields: Set<FieldKey>;
+  detailFields: Set<FieldKey>;
   groupEvents: Set<GroupKey>;
   placeholderImage?: string;
   emptyMessage?: string;
@@ -117,6 +118,14 @@ const STRINGS = {
     organizer: "Organizer",
     notAvailable: "—",
     attendance: { "in-person": "In person", online: "Online", hybrid: "Hybrid" },
+    eligibility: {
+      open: "Open to all",
+      "members-only": "Members only",
+      "approval-required": "Approval required",
+      restricted: "Restricted",
+    },
+    cfp: "Call for Proposals",
+    cfpCloses: (date: string) => `Call for Proposals — closes ${date}`,
     close: "Close",
     eventDetails: "Event details",
     addToGoogle: "Add to Google Calendar",
@@ -147,6 +156,14 @@ const STRINGS = {
     organizer: "Organizador",
     notAvailable: "—",
     attendance: { "in-person": "Presencial", online: "En línea", hybrid: "Híbrido" },
+    eligibility: {
+      open: "Abierto a todos",
+      "members-only": "Solo miembros",
+      "approval-required": "Requiere aprobación",
+      restricted: "Acceso restringido",
+    },
+    cfp: "Convocatoria de ponencias",
+    cfpCloses: (date: string) => `Convocatoria de ponencias — cierra ${date}`,
     close: "Cerrar",
     eventDetails: "Detalles del evento",
     addToGoogle: "Añadir a Google Calendar",
@@ -180,6 +197,15 @@ function withText<T extends HTMLElement>(node: T, text: string): T {
   return node;
 }
 
+/**
+ * Recursive on purpose: the outer regex isolates a `**bold**`/`*em*` span as
+ * one opaque capture group, so without recursing into that captured text a
+ * link nested inside bold (`**[text](url)**`) would render as literal
+ * bracket/paren text instead of an anchor. `code` spans are the one
+ * exception — they stay literal, matching how code spans work everywhere
+ * else in Markdown. Recursion always terminates: the inner text passed back
+ * in is strictly shorter than the outer match it came from.
+ */
 function appendInlineMarkdown(parent: HTMLElement, text: string): void {
   const pattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_|`([^`]+)`)/g;
   let cursor = 0;
@@ -192,12 +218,16 @@ function appendInlineMarkdown(parent: HTMLElement, text: string): void {
       link.href = match[3];
       link.target = "_blank";
       link.rel = "noopener";
-      link.textContent = match[2];
+      appendInlineMarkdown(link, match[2]);
       parent.append(link);
     } else if (match[4] || match[5]) {
-      parent.append(withText(el("strong"), match[4] ?? match[5] ?? ""));
+      const strong = el("strong");
+      appendInlineMarkdown(strong, match[4] ?? match[5] ?? "");
+      parent.append(strong);
     } else if (match[6] || match[7]) {
-      parent.append(withText(el("em"), match[6] ?? match[7] ?? ""));
+      const em = el("em");
+      appendInlineMarkdown(em, match[6] ?? match[7] ?? "");
+      parent.append(em);
     } else if (match[8]) {
       parent.append(withText(el("code"), match[8]));
     }
@@ -217,7 +247,7 @@ function renderMarkdownDescription(markdown: string, className = "event-descript
   const wrapper = el("div", className);
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   let paragraph: string[] = [];
-  let list: HTMLUListElement | undefined;
+  let list: HTMLUListElement | HTMLOListElement | undefined;
 
   const flushParagraph = () => {
     const text = paragraph.join(" ").trim();
@@ -238,12 +268,15 @@ function renderMarkdownDescription(markdown: string, className = "event-descript
       continue;
     }
 
-    const listMatch = /^[-*]\s+(.+)$/.exec(line);
-    if (listMatch) {
+    const bulletMatch = /^[-*]\s+(.+)$/.exec(line);
+    const orderedMatch = bulletMatch ? null : /^\d+[.)]\s+(.+)$/.exec(line);
+    if (bulletMatch || orderedMatch) {
       flushParagraph();
-      list ??= el("ul");
+      const ordered = Boolean(orderedMatch);
+      if (list && list.tagName.toLowerCase() !== (ordered ? "ol" : "ul")) flushList();
+      list ??= el(ordered ? "ol" : "ul");
       const item = el("li");
-      appendInlineMarkdown(item, listMatch[1] ?? "");
+      appendInlineMarkdown(item, (bulletMatch ?? orderedMatch)?.[1] ?? "");
       list.append(item);
       continue;
     }
@@ -351,6 +384,42 @@ function attendanceBadge(
 ): HTMLElement {
   const badge = el("span", `badge attendance-badge attendance-${mode}`);
   badge.append(attendanceIcon(mode), document.createTextNode(label));
+  return badge;
+}
+
+function eligibilityBadge(
+  eligibility: NonNullable<PreviewEvent["eligibility"]>,
+  strings: Strings,
+): HTMLElement {
+  const label = strings.eligibility[eligibility.type];
+  const badge = eligibility.url ? el("a") : el("span");
+  badge.classList.add("badge", "eligibility-badge");
+  if (eligibility.url) {
+    const link = badge as HTMLAnchorElement;
+    link.href = eligibility.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+  }
+  badge.textContent = label;
+  if (eligibility.note) {
+    badge.title = eligibility.note;
+    badge.setAttribute("aria-label", `${label}: ${eligibility.note}`);
+  }
+  return badge;
+}
+
+function cfpBadge(cfp: NonNullable<PreviewEvent["cfp"]>, strings: Strings): HTMLElement {
+  const badge = el("a", "badge cfp-badge");
+  badge.href = cfp.url;
+  badge.target = "_blank";
+  badge.rel = "noopener";
+  badge.textContent = strings.cfp;
+  const closesAt = formatReadableDate(cfp.closesAt, undefined);
+  if (closesAt) {
+    const title = strings.cfpCloses(closesAt);
+    badge.title = title;
+    badge.setAttribute("aria-label", title);
+  }
   return badge;
 }
 
@@ -465,6 +534,18 @@ function formatPrice(price: NonNullable<PreviewEvent["price"]>, strings: Strings
     }
   }
   return String(price.amount);
+}
+
+/** Links out to the registration/ticket page when the winning offer had a `url`. */
+function priceBadge(price: NonNullable<PreviewEvent["price"]>, strings: Strings): HTMLElement {
+  const text = formatPrice(price, strings);
+  if (!price.url) return withText(el("span", "price"), text);
+  const link = el("a", "price");
+  link.href = price.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = text;
+  return link;
 }
 
 function parseEventDate(value: string | undefined, timezone: string | undefined): Date | undefined {
@@ -758,7 +839,7 @@ function renderCardEvent(
     item.append(renderGroupBadge(groupInfo, strings));
   }
 
-  if (state.fields.has("image")) {
+  if (state.previewFields.has("image")) {
     item.append(renderEventImage(event, state.placeholderImage) ?? renderCardPlaceholder(state.placeholderImage));
   }
 
@@ -778,39 +859,45 @@ function renderCardEvent(
   }
   body.append(title);
 
-  if (state.fields.has("when")) {
+  if (state.previewFields.has("when")) {
     const when = whenNode(event);
     if (when) body.append(when);
   }
 
   const badges = el("div", "event-badges");
-  if (state.fields.has("attendance") && event.attendanceMode) {
+  if (state.previewFields.has("attendance") && event.attendanceMode) {
     badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
   }
-  if (state.fields.has("price") && event.price) {
-    badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
+  if (state.previewFields.has("price") && event.price) {
+    badges.append(priceBadge(event.price, strings));
+  }
+  if (state.previewFields.has("eligibility") && event.eligibility) {
+    badges.append(eligibilityBadge(event.eligibility, strings));
+  }
+  if (state.previewFields.has("cfp") && event.cfp) {
+    badges.append(cfpBadge(event.cfp, strings));
   }
   appendCustomBadges(badges, event, state);
 
   const meta = el("div", "event-meta");
   if (badges.children.length > 0) meta.append(badges);
-  if (state.fields.has("location")) {
+  if (state.previewFields.has("location")) {
     const location = el("p", "event-location");
     location.append(locationNode(event, strings));
     meta.append(location);
   }
   if (meta.children.length > 0) body.append(meta);
 
-  if (state.fields.has("organizer") && event.organizerName) {
+  if (state.previewFields.has("organizer") && event.organizerName) {
     body.append(withText(el("p", "event-organizer"), event.organizerName));
   }
 
-  if (state.fields.has("description")) {
+  if (state.previewFields.has("description")) {
     const description = truncate(event.description, 220);
     if (description) body.append(renderMarkdownDescription(description));
   }
 
-  if (state.fields.has("tags") && event.tags && event.tags.length > 0) {
+  if (state.previewFields.has("tags") && event.tags && event.tags.length > 0) {
     const tagList = el("ul", "tags");
     for (const tag of event.tags) tagList.append(withText(el("li", "tag"), tag));
     body.append(tagList);
@@ -897,7 +984,7 @@ function renderListEvent(
   );
 
   const body = el("div", "event-details");
-  const hasRenderedImage = state.fields.has("image") && Boolean(event.image);
+  const hasRenderedImage = state.detailFields.has("image") && Boolean(event.image);
   const descriptionLength = event.description?.trim().length ?? 0;
   if (!hasRenderedImage && descriptionLength > 0 && descriptionLength <= 180) {
     body.classList.add("event-details-compact");
@@ -915,25 +1002,31 @@ function renderListEvent(
   }
 
   const badges = el("div", "event-badges");
-  if (state.fields.has("attendance") && event.attendanceMode) {
+  if (state.detailFields.has("attendance") && event.attendanceMode) {
     badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
   }
-  if (state.fields.has("price") && event.price) {
-    badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
+  if (state.detailFields.has("price") && event.price) {
+    badges.append(priceBadge(event.price, strings));
+  }
+  if (state.detailFields.has("eligibility") && event.eligibility) {
+    badges.append(eligibilityBadge(event.eligibility, strings));
+  }
+  if (state.detailFields.has("cfp") && event.cfp) {
+    badges.append(cfpBadge(event.cfp, strings));
   }
   appendCustomBadges(badges, event, state);
   if (badges.children.length > 0) aside.append(badges);
 
-  if (state.fields.has("description")) {
+  if (state.detailFields.has("description")) {
     if (event.description) main.append(renderMarkdownDescription(event.description));
   }
 
   const detailList = el("dl", "event-detail-list");
-  if (state.fields.has("when")) appendDetailRow(detailList, strings.when, when);
-  if (state.fields.has("location")) {
+  if (state.detailFields.has("when")) appendDetailRow(detailList, strings.when, when);
+  if (state.detailFields.has("location")) {
     appendDetailNode(detailList, strings.location, locationNode(event, strings));
   }
-  if (state.fields.has("organizer")) appendDetailRow(detailList, strings.organizer, event.organizerName);
+  if (state.detailFields.has("organizer")) appendDetailRow(detailList, strings.organizer, event.organizerName);
   appendDetailRow(
     detailList,
     strings.updated,
@@ -945,7 +1038,7 @@ function renderListEvent(
   }
   if (detailList.children.length > 0) aside.append(detailList);
 
-  if (state.fields.has("tags") && event.tags && event.tags.length > 0) {
+  if (state.detailFields.has("tags") && event.tags && event.tags.length > 0) {
     const tagList = el("ul", "tags");
     for (const tag of event.tags) tagList.append(withText(el("li", "tag"), tag));
     main.append(tagList);
@@ -1266,36 +1359,38 @@ function renderModal(
   content.append(main, aside);
   modal.append(content);
 
-  if (event.image) {
+  if (state.detailFields.has("image") && event.image) {
     const image = renderEventImage(event, state.placeholderImage);
     if (image) aside.append(image);
   }
 
-  if (event.attendanceMode || event.price) {
-    const badges = el("div", "event-badges");
-    if (event.attendanceMode) {
-      badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
-    }
-    if (event.price) badges.append(withText(el("span", "price"), formatPrice(event.price, strings)));
-    appendCustomBadges(badges, event, state);
-    aside.append(badges);
-  } else {
-    const badges = el("div", "event-badges");
-    appendCustomBadges(badges, event, state);
-    if (badges.children.length > 0) aside.append(badges);
+  const badges = el("div", "event-badges");
+  if (state.detailFields.has("attendance") && event.attendanceMode) {
+    badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
+  }
+  if (state.detailFields.has("price") && event.price) badges.append(priceBadge(event.price, strings));
+  if (state.detailFields.has("eligibility") && event.eligibility) {
+    badges.append(eligibilityBadge(event.eligibility, strings));
+  }
+  if (state.detailFields.has("cfp") && event.cfp) badges.append(cfpBadge(event.cfp, strings));
+  appendCustomBadges(badges, event, state);
+  if (badges.children.length > 0) aside.append(badges);
+
+  if (state.detailFields.has("description") && event.description) {
+    main.append(renderMarkdownDescription(event.description));
   }
 
-  if (event.description) main.append(renderMarkdownDescription(event.description));
-
   const detailList = el("dl", "event-detail-list");
-  appendDetailNode(detailList, strings.when, detailWhenNode(event));
+  if (state.detailFields.has("when")) appendDetailNode(detailList, strings.when, detailWhenNode(event));
   // Nav sits right under "When" — the arrows change that specific value, so
   // keeping them adjacent reads as one unit rather than a disconnected control.
   if (groupInfo && groupInfo.total > 1) {
     detailList.append(renderModalNav(groupInfo, strings, state));
   }
-  appendDetailNode(detailList, strings.location, locationNode(event, strings));
-  appendDetailRow(detailList, strings.organizer, event.organizerName);
+  if (state.detailFields.has("location")) {
+    appendDetailNode(detailList, strings.location, locationNode(event, strings));
+  }
+  if (state.detailFields.has("organizer")) appendDetailRow(detailList, strings.organizer, event.organizerName);
   appendDetailRow(
     detailList,
     strings.updated,
@@ -1307,7 +1402,7 @@ function renderModal(
   }
   if (detailList.children.length > 0) aside.append(detailList);
 
-  if (event.tags && event.tags.length > 0) {
+  if (state.detailFields.has("tags") && event.tags && event.tags.length > 0) {
     const tagList = el("ul", "tags");
     for (const tag of event.tags) tagList.append(withText(el("li", "tag"), tag));
     main.append(tagList);

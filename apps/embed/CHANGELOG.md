@@ -21,12 +21,37 @@
   event detail carries the same `group` field when applicable.
 - Past occurrences (only reachable with `show-past="true"`) now render at
   reduced opacity in `list`/`cards` layouts, so upcoming events stand out.
+- `fields-preview` and `fields-detail` attributes let you configure the card
+  (preview) and the detail modal/list-body independently, instead of the
+  single `fields` attribute controlling both. `fields` still works as a
+  shared fallback for both when the specific attribute is absent, so
+  existing embeds are unaffected.
+- `eligibility` and `cfp` are now captured from OTE feeds (via
+  `@opentechevents/preview-feed`) and rendered as small, linkable badges —
+  e.g. "Members only" or "Call for Proposals" — wherever `fields`/
+  `fields-preview`/`fields-detail` includes them. Off by default on the card
+  (same opt-in policy as `group-events`), but shown by default in the detail
+  modal along with every other optional field.
+- A priced event's badge now links to its registration/ticket URL when the
+  winning `offers[]` entry has one (`PreviewEvent.price.url`).
+- `card-width` attribute (`"small"`/`"medium"`/`"large"`, or any raw CSS
+  length) and the underlying `--ote-card-min-width` CSS custom property
+  control the minimum card width — and so, responsively, the column count —
+  in `layout="cards"`. Default (`220px`) is unchanged.
 
 ### Fixed
 
 - The detail modal now closes on Escape. The keydown listener already
   existed but nothing ever moved focus into the modal, so the key never
   reached it; opening a modal now focuses its close button.
+- Markdown inline formatting is now recursive: a link nested inside
+  `**bold**` or `*italic*` (e.g. `**see [our calendar](https://...)**`) now
+  renders as an actual link instead of literal `[text](url)`.
+- Numbered lists (`1. `, `2. `) in Markdown descriptions now render as `<ol>`
+  instead of showing the literal `1. ` prefix as plain text.
+- The detail modal now respects field configuration (`fields`/
+  `fields-detail`) instead of always rendering every optional field
+  unconditionally, regardless of what the card was configured to show.
 
 ## 0.3.1
 

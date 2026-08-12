@@ -126,18 +126,47 @@
       </div>
 
       <div class="field">
-        <span class="fields-legend">fields</span>
+        <label for="card-width-select">card-width</label>
+        <select id="card-width-select">
+          <option value="small">small (160px)</option>
+          <option value="medium" selected>medium (220px, default)</option>
+          <option value="large">large (320px)</option>
+        </select>
+        <p class="hint">Cards layout only. Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
+      </div>
+
+      <div class="field">
+        <span class="fields-legend">fields-preview</span>
         <div class="fields-checkboxes">
-          <label><input type="checkbox" class="field-key-checkbox" value="image" checked /> image</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="when" checked /> when</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="location" checked /> location</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="attendance" checked /> attendance</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="description" checked /> description</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="price" /> price</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="tags" /> tags</label>
-          <label><input type="checkbox" class="field-key-checkbox" value="organizer" /> organizer</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="image" checked /> image</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="when" checked /> when</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="location" checked /> location</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="attendance" checked /> attendance</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="description" checked /> description</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="price" /> price</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="tags" /> tags</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="organizer" /> organizer</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="eligibility" /> eligibility</label>
+          <label><input type="checkbox" class="field-key-preview-checkbox" value="cfp" /> cfp</label>
         </div>
-        <p class="hint">Which optional pieces of each event to show. Ignored by the calendar layout.</p>
+        <p class="hint">Which optional pieces of each event to show on the card (the preview surface). Ignored by the calendar layout. Defaults to image/when/location/attendance/description.</p>
+      </div>
+
+      <div class="field">
+        <span class="fields-legend">fields-detail</span>
+        <div class="fields-checkboxes">
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="image" checked /> image</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="when" checked /> when</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="location" checked /> location</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="attendance" checked /> attendance</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="description" checked /> description</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="price" checked /> price</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="tags" checked /> tags</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="organizer" checked /> organizer</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="eligibility" checked /> eligibility</label>
+          <label><input type="checkbox" class="field-key-detail-checkbox" value="cfp" checked /> cfp</label>
+        </div>
+        <p class="hint">Which optional pieces of each event to show in the detail modal and the list layout's expanded row. Defaults to everything.</p>
       </div>
 
       <div class="field">

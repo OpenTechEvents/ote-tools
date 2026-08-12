@@ -98,7 +98,7 @@ ul.events.layout-list {
 
 ul.events.layout-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--ote-card-min-width, 220px), 1fr));
   gap: 1rem;
 }
 
@@ -562,6 +562,21 @@ ul.events.layout-cards {
   color: var(--ote-accent);
 }
 
+/* eligibility/cfp badges, and a priced offer with a registration link, are
+   sometimes rendered as <a> rather than <span> — undo the browser's default
+   link underline, matching .event-description a's hover-only underline. */
+a.badge,
+a.price {
+  text-decoration: none;
+}
+
+a.badge:hover,
+a.badge:focus-visible,
+a.price:hover,
+a.price:focus-visible {
+  text-decoration: underline;
+}
+
 /* Positioned after .badge so its background/color win the cascade
    (equal specificity, later rule wins) — this badge needs contrast against
    a photo, not the pill's usual accent-soft styling. */
@@ -816,7 +831,8 @@ ul.events.layout-cards {
   margin-top: 0;
 }
 
-.event-description ul {
+.event-description ul,
+.event-description ol {
   padding-left: 1.25rem;
 }
 

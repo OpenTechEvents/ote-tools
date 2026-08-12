@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ALL_FIELDS,
   DEFAULT_EVENT_ACTIONS,
   DEFAULT_FIELDS,
+  parseCardWidth,
+  parseDetailFields,
   parseEventActions,
   parseEventClick,
   parseFields,
@@ -129,6 +132,47 @@ describe("parseFields", () => {
 
   it("dedupes repeated tokens", () => {
     expect(parseFields("tags,tags,tags")).toEqual(new Set(["tags"]));
+  });
+});
+
+describe("parseDetailFields", () => {
+  it("defaults to ALL_FIELDS (not DEFAULT_FIELDS) when absent, empty, or entirely unrecognized", () => {
+    for (const value of [null, "", "bogus", "bogus,alsoBogus"]) {
+      expect(parseDetailFields(value)).toEqual(new Set(ALL_FIELDS));
+    }
+  });
+
+  it("is a full replacement, not a merge, for valid input", () => {
+    expect(parseDetailFields("price,tags")).toEqual(new Set(["price", "tags"]));
+  });
+
+  it("trims whitespace and drops unrecognized tokens, keeping the valid ones", () => {
+    expect(parseDetailFields(" image , bogus, price ")).toEqual(new Set(["image", "price"]));
+  });
+
+  it("accepts the new eligibility and cfp field keys", () => {
+    expect(parseFields("eligibility,cfp")).toEqual(new Set(["eligibility", "cfp"]));
+    expect(parseDetailFields("eligibility,cfp")).toEqual(new Set(["eligibility", "cfp"]));
+  });
+});
+
+describe("parseCardWidth", () => {
+  it('defaults to "220px" when absent, blank, or unrecognized', () => {
+    for (const value of [null, "", "  ", "bogus"]) {
+      expect(parseCardWidth(value)).toBe("220px");
+    }
+  });
+
+  it("maps small/medium/large presets", () => {
+    expect(parseCardWidth("small")).toBe("160px");
+    expect(parseCardWidth("medium")).toBe("220px");
+    expect(parseCardWidth("large")).toBe("320px");
+  });
+
+  it("passes through a raw CSS length, treating a bare number as pixels", () => {
+    expect(parseCardWidth("280")).toBe("280px");
+    expect(parseCardWidth("280px")).toBe("280px");
+    expect(parseCardWidth("18rem")).toBe("18rem");
   });
 });
 

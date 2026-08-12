@@ -1,4 +1,5 @@
 import {
+  ALL_FIELDS,
   DEFAULT_EVENT_ACTIONS,
   DEFAULT_FIELDS,
   type EventClickMode,
@@ -44,8 +45,12 @@ const themeButtons = Array.from(
 );
 const langSelect = document.querySelector<HTMLSelectElement>("#lang-select")!;
 const showPastCheckbox = document.querySelector<HTMLInputElement>("#show-past-checkbox")!;
-const fieldCheckboxes = Array.from(
-  document.querySelectorAll<HTMLInputElement>(".field-key-checkbox"),
+const cardWidthSelect = document.querySelector<HTMLSelectElement>("#card-width-select")!;
+const previewFieldCheckboxes = Array.from(
+  document.querySelectorAll<HTMLInputElement>(".field-key-preview-checkbox"),
+);
+const detailFieldCheckboxes = Array.from(
+  document.querySelectorAll<HTMLInputElement>(".field-key-detail-checkbox"),
 );
 const groupEventsCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".group-key-checkbox"),
@@ -87,13 +92,21 @@ function attr(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function currentFields(): FieldKey[] {
-  return fieldCheckboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value as FieldKey);
+function checkedFields(checkboxes: HTMLInputElement[]): FieldKey[] {
+  return checkboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value as FieldKey);
 }
 
-function isDefaultFields(fields: FieldKey[]): boolean {
-  const defaults = new Set(DEFAULT_FIELDS);
-  return fields.length === DEFAULT_FIELDS.length && fields.every((field) => defaults.has(field));
+function currentPreviewFields(): FieldKey[] {
+  return checkedFields(previewFieldCheckboxes);
+}
+
+function currentDetailFields(): FieldKey[] {
+  return checkedFields(detailFieldCheckboxes);
+}
+
+function matchesFieldSet(fields: FieldKey[], reference: readonly FieldKey[]): boolean {
+  const set = new Set(reference);
+  return fields.length === reference.length && fields.every((field) => set.has(field));
 }
 
 function currentGroupEvents(): GroupKey[] {
@@ -131,7 +144,9 @@ function buildSnippet(config: {
   theme: string;
   lang: string;
   showPast: boolean;
-  fields: string | undefined;
+  cardWidth: string | undefined;
+  fieldsPreview: string | undefined;
+  fieldsDetail: string | undefined;
   groupEvents: string | undefined;
 }): string {
   const lines: string[] = [
@@ -157,7 +172,9 @@ function buildSnippet(config: {
   if (config.eventClick !== "modal") elementLines.push(`  event-click="${attr(config.eventClick)}"`);
   if (config.eventActions) elementLines.push(`  event-actions="${attr(config.eventActions)}"`);
   if (!config.showPast) elementLines.push(`  show-past="false"`);
-  if (config.fields) elementLines.push(`  fields="${attr(config.fields)}"`);
+  if (config.cardWidth) elementLines.push(`  card-width="${attr(config.cardWidth)}"`);
+  if (config.fieldsPreview) elementLines.push(`  fields-preview="${attr(config.fieldsPreview)}"`);
+  if (config.fieldsDetail) elementLines.push(`  fields-detail="${attr(config.fieldsDetail)}"`);
   if (config.groupEvents) elementLines.push(`  group-events="${attr(config.groupEvents)}"`);
   elementLines.push("></ote-events>");
   lines.push(...elementLines);
@@ -334,8 +351,12 @@ function applyAndRender(): void {
   const theme = currentTheme();
   const lang = langSelect.value;
   const showPast = showPastCheckbox.checked;
-  const fields = currentFields();
-  const fieldsAttr = isDefaultFields(fields) ? undefined : fields.join(",");
+  const cardWidth = cardWidthSelect.value;
+  const cardWidthAttr = cardWidth === "medium" ? undefined : cardWidth;
+  const previewFields = currentPreviewFields();
+  const previewFieldsAttr = matchesFieldSet(previewFields, DEFAULT_FIELDS) ? undefined : previewFields.join(",");
+  const detailFields = currentDetailFields();
+  const detailFieldsAttr = matchesFieldSet(detailFields, ALL_FIELDS) ? undefined : detailFields.join(",");
   const groupEvents = currentGroupEvents();
   const groupEventsAttr = groupEvents.length > 0 ? groupEvents.join(",") : undefined;
   const runtimeDataResult = readRuntimeData(mode);
@@ -377,8 +398,12 @@ function applyAndRender(): void {
   widget.setAttribute("lang", lang);
   if (showPast) widget.removeAttribute("show-past");
   else widget.setAttribute("show-past", "false");
-  if (fieldsAttr) widget.setAttribute("fields", fieldsAttr);
-  else widget.removeAttribute("fields");
+  if (cardWidthAttr) widget.setAttribute("card-width", cardWidthAttr);
+  else widget.removeAttribute("card-width");
+  if (previewFieldsAttr) widget.setAttribute("fields-preview", previewFieldsAttr);
+  else widget.removeAttribute("fields-preview");
+  if (detailFieldsAttr) widget.setAttribute("fields-detail", detailFieldsAttr);
+  else widget.removeAttribute("fields-detail");
   if (groupEventsAttr) widget.setAttribute("group-events", groupEventsAttr);
   else widget.removeAttribute("group-events");
   if (mode === "json" && runtimeDataResult.status === "valid") {
@@ -407,7 +432,9 @@ function applyAndRender(): void {
     theme,
     lang,
     showPast,
-    fields: fieldsAttr,
+    cardWidth: cardWidthAttr,
+    fieldsPreview: previewFieldsAttr,
+    fieldsDetail: detailFieldsAttr,
     groupEvents: groupEventsAttr,
   }));
 }
@@ -424,7 +451,9 @@ for (const control of [
   fontSizeInput,
   langSelect,
   showPastCheckbox,
-  ...fieldCheckboxes,
+  cardWidthSelect,
+  ...previewFieldCheckboxes,
+  ...detailFieldCheckboxes,
   ...groupEventsCheckboxes,
   ...eventActionCheckboxes,
 ]) {
