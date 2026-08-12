@@ -263,7 +263,7 @@ export const es: Record<string, string> = {
   "action.editDirectlyUnavailable":
     "No se pudo determinar el nombre de archivo de este evento a partir del feed.",
   "action.edit": "Editar",
-  "action.duplicate": "Duplicar",
+  "action.duplicate": "Clonar",
   "action.expandDescription": "Ampliar",
   "action.delete": "Eliminar",
   "action.deleteDirect": "Eliminar en GitHub",

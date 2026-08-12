@@ -1299,10 +1299,13 @@ async function startEditor(repo: string | null): Promise<void> {
   const eventsEmpty = el<HTMLParagraphElement>("events-empty");
   const eventsRefresh = el<HTMLButtonElement>("events-refresh");
 
-  // Session-only, like the profile toggle — resets to "off" on reload
-  // rather than persisting a per-repo choice. Absent/removed attribute is
-  // apps/embed's own no-grouping default, so "off" needs no setAttribute
-  // call at all, just the removal.
+  // Session-only, like the profile toggle — resets to the default ("on",
+  // i.e. Grouped — index.html's checked radio) on reload rather than
+  // persisting a per-repo choice. Absent/removed attribute is apps/embed's
+  // own no-grouping default, so "off" needs no setAttribute call at all,
+  // just the removal; "on" is applied once up front to match the
+  // already-checked radio, since the widget itself defaults to ungrouped.
+  eventsWidget.setAttribute("group-events", "series,multipart");
   for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="events-grouping"]')) {
     radio.addEventListener("input", () => {
       if (radio.value === "on") eventsWidget.setAttribute("group-events", "series,multipart");
@@ -1324,19 +1327,26 @@ async function startEditor(repo: string | null): Promise<void> {
     const entry = context.originalEvent && entryByEvent.get(context.originalEvent as OteEvent);
     if (!entry) return [];
     const index = listed.indexOf(entry);
+    // A grouped (stacked) card represents several occurrences at once, so a
+    // single-occurrence action (Edit/Clone/Delete) doesn't make sense as a
+    // card-level button there — it only appears once the organizer opens
+    // the modal and is looking at one specific occurrence. An ungrouped
+    // card is already exactly one occurrence, so it keeps showing these on
+    // the card itself, same as before grouping existed.
+    const singleEventPlacement = context.group ? "detail" : "preview";
     const actions: CustomEventAction[] = [
       {
         id: "edit",
         label: t("action.edit", "Edit"),
         icon: "edit",
-        placement: "preview",
+        placement: singleEventPlacement,
         onClick: () => pickEvent(index),
       },
       {
         id: "duplicate",
-        label: t("action.duplicate", "Duplicate"),
+        label: t("action.duplicate", "Clone"),
         icon: "copy",
-        placement: "preview",
+        placement: singleEventPlacement,
         onClick: () => duplicateEvent(entry),
       },
     ];
@@ -1346,7 +1356,7 @@ async function startEditor(repo: string | null): Promise<void> {
         label: t("action.delete", "Delete"),
         icon: "trash",
         variant: "danger",
-        placement: "preview",
+        placement: singleEventPlacement,
         onClick: () => openDeleteDialog(entry),
       });
       // Only offered on a grouped card (context.group present — the widget

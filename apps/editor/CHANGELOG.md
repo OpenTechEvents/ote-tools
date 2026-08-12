@@ -6,6 +6,12 @@ tied to semver releases.
 
 ## 2026-08-12
 
+- **Events list polish**: the View toggle now defaults to Grouped instead of
+  Individual; a series' stacked card only shows the series-level "Edit
+  series"/"Delete series" actions (the single-occurrence Edit/Clone/Delete
+  moved into the modal, where you're looking at one specific occurrence);
+  and the per-card "Duplicate" action is now labelled "Clone" ("Clonar" in
+  Spanish) to better describe what it does.
 - **Smaller issue bodies for recurring series and bulk edits**: both flows
   now send a compact diff instead of one full document per event, so they
   stay well under GitHub's 65536-character issue-body limit even for large
