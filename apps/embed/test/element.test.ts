@@ -49,6 +49,7 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     sort: "auto",
     layout,
     fields: new Set(["location"]),
+    groupEvents: new Set(),
     eventClick: "modal",
     eventActions: ["google-calendar", "outlook-calendar", "yahoo-calendar", "ics", "link"],
   };
@@ -698,6 +699,89 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.querySelector(".event-modal-compact")).toBeNull();
   });
 
+  const GROUPED_SERIES = [
+    {
+      id: "e1",
+      name: "Session One",
+      startDate: "2999-01-10",
+      partOf: { id: "https://fixture.example/series/monthly", type: "series" as const },
+    },
+    {
+      id: "e2",
+      name: "Session Two",
+      startDate: "2999-02-10",
+      partOf: { id: "https://fixture.example/series/monthly", type: "series" as const },
+    },
+    {
+      id: "e3",
+      name: "Session Three",
+      startDate: "2999-03-10",
+      partOf: { id: "https://fixture.example/series/monthly", type: "series" as const },
+    },
+  ];
+
+  it("collapses events sharing partOf.id into a stacked card with a badge when group-events is set", async () => {
+    const el = createCardsElement();
+    el.setAttribute("group-events", "series");
+    el.events = GROUPED_SERIES;
+    document.body.append(el);
+    await flush();
+
+    const cards = [...el.shadowRoot!.querySelectorAll(".layout-cards > li.event")];
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.classList.contains("event-stacked")).toBe(true);
+    expect(cards[0]?.querySelector(".event-title")?.textContent).toBe("Session One");
+
+    const badge = cards[0]?.querySelector<HTMLElement>(".event-group-badge");
+    expect(badge?.textContent).toBe("Series");
+    expect(badge?.getAttribute("aria-label")).toContain("3");
+  });
+
+  it("renders every occurrence individually when group-events is absent (default no-op)", async () => {
+    const el = createCardsElement();
+    el.events = GROUPED_SERIES;
+    document.body.append(el);
+    await flush();
+
+    const cards = [...el.shadowRoot!.querySelectorAll(".layout-cards > li.event")];
+    expect(cards).toHaveLength(3);
+    expect(cards.every((card) => !card.classList.contains("event-stacked"))).toBe(true);
+    expect(el.shadowRoot!.querySelector(".event-group-badge")).toBeNull();
+  });
+
+  it("opens the modal on the header occurrence and navigates prev/next through the group", async () => {
+    const el = createCardsElement();
+    el.setAttribute("group-events", "series");
+    el.events = GROUPED_SERIES;
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+
+    let modal = el.shadowRoot!.querySelector<HTMLElement>(".event-modal");
+    expect(modal?.querySelector(".event-modal-title")?.textContent).toBe("Session One");
+    expect(modal?.querySelector(".event-modal-nav-counter")?.textContent).toBe("1 of 3");
+    let navButtons = modal!.querySelectorAll<HTMLButtonElement>(".event-modal-nav-button");
+    expect(navButtons[0]?.disabled).toBe(true);
+    expect(navButtons[1]?.disabled).toBe(false);
+
+    navButtons[1]?.click();
+    modal = el.shadowRoot!.querySelector<HTMLElement>(".event-modal");
+    expect(modal?.querySelector(".event-modal-title")?.textContent).toBe("Session Two");
+    expect(modal?.querySelector(".event-modal-nav-counter")?.textContent).toBe("2 of 3");
+    navButtons = modal!.querySelectorAll<HTMLButtonElement>(".event-modal-nav-button");
+    expect(navButtons[0]?.disabled).toBe(false);
+    expect(navButtons[1]?.disabled).toBe(false);
+
+    navButtons[1]?.click();
+    modal = el.shadowRoot!.querySelector<HTMLElement>(".event-modal");
+    expect(modal?.querySelector(".event-modal-title")?.textContent).toBe("Session Three");
+    expect(modal?.querySelector(".event-modal-nav-counter")?.textContent).toBe("3 of 3");
+    navButtons = modal!.querySelectorAll<HTMLButtonElement>(".event-modal-nav-button");
+    expect(navButtons[0]?.disabled).toBe(false);
+    expect(navButtons[1]?.disabled).toBe(true);
+  });
+
   it('uses event-click="link" to keep the external-link card behavior', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
     const open = vi.fn();
@@ -1000,6 +1084,50 @@ describe("<ote-events>", () => {
         index: 0,
         feed: { url: "https://reader.example/feed-a.json", title: "Feed A" },
         source: { origin: "reader" },
+      }),
+    );
+  });
+
+  it("exposes group info on EventRenderContext and the ote-event-action DOM detail", async () => {
+    const el = createCardsElement();
+    el.setAttribute("group-events", "series");
+    el.setAttribute("event-actions", "none");
+    el.events = [
+      {
+        id: "e1",
+        name: "Session One",
+        startDate: "2999-01-10",
+        partOf: { id: "https://fixture.example/series/monthly", type: "series" as const },
+      },
+      {
+        id: "e2",
+        name: "Session Two",
+        startDate: "2999-02-10",
+        partOf: { id: "https://fixture.example/series/monthly", type: "series" as const },
+      },
+    ];
+    el.eventActions = (context) => [
+      {
+        id: "noop",
+        label: "Noop",
+        placement: "preview",
+        onClick: vi.fn(),
+      },
+    ];
+    const actionEvent = vi.fn();
+    el.addEventListener("ote-event-action", actionEvent);
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLButtonElement>(".event-preview-actions button")?.click();
+
+    expect(actionEvent.mock.calls[0]?.[0].detail).toEqual(
+      expect.objectContaining({
+        group: expect.objectContaining({
+          type: "series",
+          index: 1,
+          total: 2,
+        }),
       }),
     );
   });

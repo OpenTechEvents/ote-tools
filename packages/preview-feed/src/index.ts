@@ -1,4 +1,4 @@
-export type { PreviewEvent, PreviewFeed } from "./types.js";
+export type { PreviewEvent, PreviewEventPartOf, PreviewFeed } from "./types.js";
 export type { OteJsonEvent, OteJsonFeed, OteJsonPreviewInput } from "./json.js";
 export {
   addDays,

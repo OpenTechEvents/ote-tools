@@ -103,6 +103,7 @@ ul.events.layout-cards {
 }
 
 .event {
+  position: relative;
   border: 1px solid var(--ote-border);
   border-radius: var(--ote-radius);
   background: var(--ote-surface);
@@ -117,6 +118,19 @@ ul.events.layout-cards {
 .event-clickable:focus-visible {
   border-color: var(--ote-accent);
   outline: none;
+}
+
+/* group-events="...": layered "stack of cards" effect for a collapsed
+   series/multi-part card. .event has overflow:hidden, which clips
+   pseudo-elements but not the element's own box-shadow — same trick as
+   .event-modal's shadow below. Kept within ul.events.layout-cards's 1rem
+   gap so it doesn't visually collide with the next card. */
+.layout-cards .event-stacked {
+  box-shadow:
+    0.3rem 0.3rem 0 -0.05rem var(--ote-surface),
+    0.3rem 0.3rem 0 0 var(--ote-border),
+    0.6rem 0.6rem 0 -0.05rem var(--ote-surface),
+    0.6rem 0.6rem 0 0 var(--ote-border);
 }
 
 .layout-list .event {
@@ -537,6 +551,18 @@ ul.events.layout-cards {
   color: var(--ote-accent);
 }
 
+/* Positioned after .badge so its background/color win the cascade
+   (equal specificity, later rule wins) — this badge needs contrast against
+   a photo, not the pill's usual accent-soft styling. */
+.event-group-badge {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  z-index: 2;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+}
+
 .badge-icon {
   width: 1em;
   height: 1em;
@@ -634,6 +660,55 @@ ul.events.layout-cards {
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.25;
+}
+
+.event-modal-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Lives inside .event-detail-list's 2-column grid, right after the "When"
+   row — span both columns so it sits on its own full-width row instead of
+   being column-sized alongside the dt/dd label column. */
+.event-detail-list .event-modal-nav {
+  grid-column: 1 / -1;
+}
+
+.event-modal-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--ote-border);
+  border-radius: var(--ote-radius);
+  background: transparent;
+  color: var(--ote-muted);
+  cursor: pointer;
+}
+
+.event-modal-nav-button:hover,
+.event-modal-nav-button:focus-visible {
+  border-color: var(--ote-accent);
+  color: var(--ote-accent);
+  outline: none;
+}
+
+.event-modal-nav-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.event-modal-nav-icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.event-modal-nav-counter {
+  font-size: 0.85rem;
+  color: var(--ote-muted);
 }
 
 .event-modal-content {

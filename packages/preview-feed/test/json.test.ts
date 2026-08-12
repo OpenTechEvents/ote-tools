@@ -105,4 +105,40 @@ describe("jsonToPreviewFeed", () => {
       "feed.json has no events array",
     );
   });
+
+  it("carries id and partOf through, still folding id into details", () => {
+    const feed = oteJsonToPreviewFeed({
+      events: [
+        {
+          id: "https://fixture.example/events/2026-conf",
+          name: "Runtime Event",
+          partOf: { id: "https://fixture.example/series/monthly-meetup", type: "series" },
+        },
+      ],
+    });
+    const [event] = feed.events;
+    expect(event!.id).toBe("https://fixture.example/events/2026-conf");
+    expect(event!.partOf).toEqual({
+      id: "https://fixture.example/series/monthly-meetup",
+      type: "series",
+    });
+    expect(event!.details).toContainEqual({
+      label: "ID",
+      value: "https://fixture.example/events/2026-conf",
+    });
+  });
+
+  it("defaults partOf.type to series when omitted", () => {
+    const feed = oteJsonToPreviewFeed({
+      events: [{ name: "Runtime Event", partOf: { id: "https://fixture.example/series/x" } }],
+    });
+    expect(feed.events[0]!.partOf).toEqual({ id: "https://fixture.example/series/x", type: "series" });
+  });
+
+  it("drops partOf entirely when it has no id", () => {
+    const feed = oteJsonToPreviewFeed({
+      events: [{ name: "Runtime Event", partOf: { type: "series" } }],
+    });
+    expect(feed.events[0]!.partOf).toBeUndefined();
+  });
 });

@@ -9,7 +9,9 @@ import {
 } from "@opentechevents/preview-feed";
 import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
 
-import type { EventClickMode, FieldKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
+import type { EventClickMode, FieldKey, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
+import { computeEventGroups } from "./grouping.js";
+import type { EventGroupInfo, EventGroups } from "./grouping.js";
 
 export type EventActionPlacement = "detail" | "preview" | "both";
 export type EventActionIcon =
@@ -41,6 +43,7 @@ export interface EventRenderContext {
   index: number;
   feed?: EventFeedSource;
   source?: unknown;
+  group?: EventGroupInfo;
 }
 
 export interface EventBadge {
@@ -84,6 +87,7 @@ export interface WidgetState {
   sort: SortMode;
   layout: Layout;
   fields: Set<FieldKey>;
+  groupEvents: Set<GroupKey>;
   placeholderImage?: string;
   emptyMessage?: string;
   eventClick: EventClickMode;
@@ -121,6 +125,12 @@ const STRINGS = {
     downloadIcs: "Download ICS",
     addToCalendar: "Add to calendar",
     openEventPage: "Open event page",
+    groupSeries: "Series",
+    groupMultipart: "Multi-part",
+    groupCount: (total: number) => `${total} occurrences`,
+    groupCounter: (index: number, total: number) => `${index} of ${total}`,
+    previousOccurrence: "Previous occurrence",
+    nextOccurrence: "Next occurrence",
   },
   es: {
     loading: "Cargando eventos…",
@@ -145,6 +155,12 @@ const STRINGS = {
     downloadIcs: "Descargar ICS",
     addToCalendar: "Añadir al calendario",
     openEventPage: "Abrir página del evento",
+    groupSeries: "Serie",
+    groupMultipart: "Multi-part",
+    groupCount: (total: number) => `${total} ocurrencias`,
+    groupCounter: (index: number, total: number) => `${index} de ${total}`,
+    previousOccurrence: "Ocurrencia anterior",
+    nextOccurrence: "Ocurrencia siguiente",
   },
 } as const;
 
@@ -338,6 +354,23 @@ function attendanceBadge(
   return badge;
 }
 
+function groupBadgeLabel(type: GroupKey, strings: Strings): string {
+  return type === "multipart" ? strings.groupMultipart : strings.groupSeries;
+}
+
+/**
+ * The stacked card's mandatory badge. Visible text is the type label only
+ * (no occurrence count, by design — the count lives in the modal's "N of M"
+ * counter) but the count is still exposed via aria-label for screen readers.
+ */
+function renderGroupBadge(info: EventGroupInfo, strings: Strings): HTMLElement {
+  const label = groupBadgeLabel(info.type, strings);
+  const badge = el("span", "badge event-group-badge");
+  badge.textContent = label;
+  badge.setAttribute("aria-label", `${label}, ${strings.groupCount(info.total)}`);
+  return badge;
+}
+
 function locationNode(event: PreviewEvent, strings: Strings): HTMLElement {
   const rawLocation = rawLocationText(event, strings);
   const inferredLink = event.locationLink ?? urlLike(rawLocation);
@@ -382,13 +415,42 @@ function isPastEvent(event: PreviewEvent): boolean {
   return sortDate !== null && sortDate < Date.now();
 }
 
-/** Sort → filter past (unless show-past) → cap at limit. Shared by every layout. */
-export function selectVisibleEvents(state: WidgetState): PreviewEvent[] {
+/** Sort → filter past (unless show-past). Shared by every layout, pre-grouping/pre-limit. */
+function visibleEvents(state: WidgetState): PreviewEvent[] {
   if (!state.feed) return [];
   const events = state.sort === "none" ? [...state.feed.events] : sortedEvents(state.feed.events);
-  return events
-    .filter((event) => state.showPast || !isPastEvent(event))
-    .slice(0, state.limit);
+  return events.filter((event) => state.showPast || !isPastEvent(event));
+}
+
+/**
+ * Groups only apply to `layout="cards"`: `list` and `calendar` keep every
+ * occurrence flat (calendar in particular must show each date on its own
+ * day). Computed on demand from live state rather than cached, so toggling
+ * `group-events`/`layout`/`sort`/`show-past` via attributeChangedCallback
+ * alone (no feed reload) never leaves stale group info behind.
+ */
+export function resolveEventGroups(state: WidgetState): EventGroups {
+  if (state.layout !== "cards" || state.groupEvents.size === 0) {
+    return { headerOf: new Map(), infoOf: new Map() };
+  }
+  return computeEventGroups(visibleEvents(state), state.groupEvents);
+}
+
+/** Sort → filter past (unless show-past) → collapse groups → cap at limit. Shared by every layout. */
+export function selectVisibleEvents(state: WidgetState): PreviewEvent[] {
+  const events = visibleEvents(state);
+  if (state.layout !== "cards" || state.groupEvents.size === 0) return events.slice(0, state.limit);
+
+  const { headerOf } = computeEventGroups(events, state.groupEvents);
+  const seen = new Set<PreviewEvent>();
+  const collapsed: PreviewEvent[] = [];
+  for (const event of events) {
+    const header = headerOf.get(event) ?? event;
+    if (seen.has(header)) continue;
+    seen.add(header);
+    collapsed.push(header);
+  }
+  return collapsed.slice(0, state.limit);
 }
 
 function formatPrice(price: NonNullable<PreviewEvent["price"]>, strings: Strings): string {
@@ -683,10 +745,17 @@ function renderCardEvent(
   event: PreviewEvent,
   state: WidgetState,
   strings: Strings,
+  groups: EventGroups | undefined,
 ): HTMLLIElement {
   const item = el("li", "event");
   applyEventClassNames(item, event, state);
   attachOpenBehavior(item, event, state);
+
+  const groupInfo = groups?.infoOf.get(event);
+  if (groupInfo) {
+    item.classList.add("event-stacked");
+    item.append(renderGroupBadge(groupInfo, strings));
+  }
 
   if (state.fields.has("image")) {
     item.append(renderEventImage(event, state.placeholderImage) ?? renderCardPlaceholder(state.placeholderImage));
@@ -1068,12 +1137,12 @@ function customActionButton(
 }
 
 function eventContextFor(state: WidgetState, event: PreviewEvent): EventRenderContext {
-  return (
-    state.eventContext?.(event) ?? {
-      previewEvent: event,
-      index: state.feed?.events.indexOf(event) ?? -1,
-    }
-  );
+  const base = state.eventContext?.(event) ?? {
+    previewEvent: event,
+    index: state.feed?.events.indexOf(event) ?? -1,
+  };
+  const group = resolveEventGroups(state).infoOf.get(event);
+  return group ? { ...base, group } : base;
 }
 
 function eventActionsForEvent(state: WidgetState, event: PreviewEvent): EventAction[] {
@@ -1112,7 +1181,50 @@ function appendCustomBadges(container: HTMLElement, event: PreviewEvent, state: 
   }
 }
 
-function renderModal(event: PreviewEvent, strings: Strings, state: WidgetState): HTMLElement {
+function chevronIcon(direction: "left" | "right"): SVGSVGElement {
+  const path = direction === "left" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6";
+  return svgIcon([path], "event-modal-nav-icon");
+}
+
+function renderModalNav(info: EventGroupInfo, strings: Strings, state: WidgetState): HTMLElement {
+  const nav = el("div", "event-modal-nav");
+
+  const prev = el("button", "event-modal-nav-button");
+  prev.type = "button";
+  prev.setAttribute("aria-label", strings.previousOccurrence);
+  prev.title = strings.previousOccurrence;
+  prev.append(chevronIcon("left"));
+  const previousMember = info.members[info.index - 2];
+  prev.disabled = !previousMember;
+  prev.addEventListener("click", () => {
+    if (previousMember) state.onEventOpen?.(previousMember);
+  });
+
+  const counter = el("span", "event-modal-nav-counter");
+  counter.setAttribute("aria-live", "polite");
+  counter.textContent = strings.groupCounter(info.index, info.total);
+
+  const next = el("button", "event-modal-nav-button");
+  next.type = "button";
+  next.setAttribute("aria-label", strings.nextOccurrence);
+  next.title = strings.nextOccurrence;
+  next.append(chevronIcon("right"));
+  const nextMember = info.members[info.index];
+  next.disabled = !nextMember;
+  next.addEventListener("click", () => {
+    if (nextMember) state.onEventOpen?.(nextMember);
+  });
+
+  nav.append(prev, counter, next);
+  return nav;
+}
+
+function renderModal(
+  event: PreviewEvent,
+  strings: Strings,
+  state: WidgetState,
+  groups?: EventGroups,
+): HTMLElement {
   const backdrop = el("div", "event-modal-backdrop");
   backdrop.tabIndex = -1;
   backdrop.addEventListener("click", (domEvent) => {
@@ -1144,6 +1256,8 @@ function renderModal(event: PreviewEvent, strings: Strings, state: WidgetState):
   header.append(close);
   modal.append(header);
 
+  const groupInfo = groups?.infoOf.get(event);
+
   const content = el("div", "event-modal-content");
   const main = el("div", "event-modal-main");
   const aside = el("aside", "event-modal-aside");
@@ -1173,6 +1287,11 @@ function renderModal(event: PreviewEvent, strings: Strings, state: WidgetState):
 
   const detailList = el("dl", "event-detail-list");
   appendDetailNode(detailList, strings.when, detailWhenNode(event));
+  // Nav sits right under "When" — the arrows change that specific value, so
+  // keeping them adjacent reads as one unit rather than a disconnected control.
+  if (groupInfo && groupInfo.total > 1) {
+    detailList.append(renderModalNav(groupInfo, strings, state));
+  }
   appendDetailNode(detailList, strings.location, locationNode(event, strings));
   appendDetailRow(detailList, strings.organizer, event.organizerName);
   appendDetailRow(
@@ -1228,6 +1347,7 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     return;
   }
 
+  const groups = resolveEventGroups(state);
   const list = el("ul", `events layout-${state.layout}`);
   if (state.layout === "list") {
     const header = el("li", "event-list-header");
@@ -1242,9 +1362,9 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     list.append(
       state.layout === "list"
         ? renderListEvent(event, strings, state)
-        : renderCardEvent(event, state, strings),
+        : renderCardEvent(event, state, strings, groups),
     );
   }
   container.append(list);
-  if (state.selectedEvent) container.append(renderModal(state.selectedEvent, strings, state));
+  if (state.selectedEvent) container.append(renderModal(state.selectedEvent, strings, state, groups));
 }

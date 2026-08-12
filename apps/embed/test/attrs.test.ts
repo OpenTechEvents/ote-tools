@@ -6,6 +6,7 @@ import {
   parseEventActions,
   parseEventClick,
   parseFields,
+  parseGroupEvents,
   parseLangAttr,
   parseLayout,
   parseLimit,
@@ -128,5 +129,28 @@ describe("parseFields", () => {
 
   it("dedupes repeated tokens", () => {
     expect(parseFields("tags,tags,tags")).toEqual(new Set(["tags"]));
+  });
+});
+
+describe("parseGroupEvents", () => {
+  it("defaults to an empty set (no grouping) when absent, empty, or entirely unrecognized", () => {
+    for (const value of [null, "", "bogus", "bogus,alsoBogus"]) {
+      expect(parseGroupEvents(value)).toEqual(new Set());
+      expect(parseGroupEvents(value).size).toBe(0);
+    }
+  });
+
+  it("accepts series and multipart, individually or combined", () => {
+    expect(parseGroupEvents("series")).toEqual(new Set(["series"]));
+    expect(parseGroupEvents("multipart")).toEqual(new Set(["multipart"]));
+    expect(parseGroupEvents("series,multipart")).toEqual(new Set(["series", "multipart"]));
+  });
+
+  it("trims whitespace and drops unrecognized tokens, keeping the valid ones", () => {
+    expect(parseGroupEvents(" series , bogus, multipart ")).toEqual(new Set(["series", "multipart"]));
+  });
+
+  it("dedupes repeated tokens", () => {
+    expect(parseGroupEvents("series,series,series")).toEqual(new Set(["series"]));
   });
 });

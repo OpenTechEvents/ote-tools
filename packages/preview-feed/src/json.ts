@@ -1,5 +1,5 @@
 import { cheapestPrice, detailRows, eventLocation, firstImage } from "./format.js";
-import type { PreviewFeed } from "./types.js";
+import type { PreviewEventPartOf, PreviewFeed } from "./types.js";
 
 export interface OteJsonEvent {
   id?: string;
@@ -19,6 +19,15 @@ export interface OteJsonEvent {
   image?: Array<string | { url: string; alt?: string }>;
   offers?: Array<{ name?: string; price?: number; currency?: string }>;
   organizers?: Array<{ name: string }>;
+  partOf?: { id?: string; type?: "series" | "multipart"; name?: string; url?: string };
+}
+
+// The OTE schema requires partOf.id and defaults partOf.type to "series", but
+// this input is unvalidated — drop a partOf that's missing its identity
+// rather than propagating a group key that can never actually group anything.
+function normalizePartOf(partOf: OteJsonEvent["partOf"]): PreviewEventPartOf | undefined {
+  if (!partOf?.id) return undefined;
+  return { id: partOf.id, type: partOf.type === "multipart" ? "multipart" : "series", name: partOf.name, url: partOf.url };
 }
 
 export interface OteJsonFeed {
@@ -42,6 +51,7 @@ export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
       const price = cheapestPrice(event.offers);
       const organizerName = event.organizers?.[0]?.name;
       return {
+        id: event.id,
         name: event.name ?? "(untitled event)",
         startDate: event.startDate,
         endDate: event.endDate,
@@ -56,6 +66,7 @@ export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
         tags: event.tags,
         attendanceMode: event.attendanceMode,
         updatedAt: event.updatedAt,
+        partOf: normalizePartOf(event.partOf),
         details: detailRows([
           ["ID", event.id],
           ["Status", event.status],

@@ -3,6 +3,7 @@ import {
   DEFAULT_FIELDS,
   type EventClickMode,
   type FieldKey,
+  type GroupKey,
   type Layout,
   type NativeEventAction,
 } from "./attrs.js";
@@ -45,6 +46,9 @@ const langSelect = document.querySelector<HTMLSelectElement>("#lang-select")!;
 const showPastCheckbox = document.querySelector<HTMLInputElement>("#show-past-checkbox")!;
 const fieldCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".field-key-checkbox"),
+);
+const groupEventsCheckboxes = Array.from(
+  document.querySelectorAll<HTMLInputElement>(".group-key-checkbox"),
 );
 const widget = document.querySelector<OteEventsElement>("#preview-widget")!;
 const widgetFrame = document.querySelector<HTMLElement>(".widget-frame")!;
@@ -92,6 +96,10 @@ function isDefaultFields(fields: FieldKey[]): boolean {
   return fields.length === DEFAULT_FIELDS.length && fields.every((field) => defaults.has(field));
 }
 
+function currentGroupEvents(): GroupKey[] {
+  return groupEventsCheckboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value as GroupKey);
+}
+
 function currentEventActions(): NativeEventAction[] {
   return eventActionCheckboxes
     .filter((checkbox) => checkbox.checked)
@@ -124,6 +132,7 @@ function buildSnippet(config: {
   lang: string;
   showPast: boolean;
   fields: string | undefined;
+  groupEvents: string | undefined;
 }): string {
   const lines: string[] = [
     `<script type="module" src="${EMBED_SCRIPT_URL}"></script>`,
@@ -149,6 +158,7 @@ function buildSnippet(config: {
   if (config.eventActions) elementLines.push(`  event-actions="${attr(config.eventActions)}"`);
   if (!config.showPast) elementLines.push(`  show-past="false"`);
   if (config.fields) elementLines.push(`  fields="${attr(config.fields)}"`);
+  if (config.groupEvents) elementLines.push(`  group-events="${attr(config.groupEvents)}"`);
   elementLines.push("></ote-events>");
   lines.push(...elementLines);
   if (config.sourceMode === "json" && config.runtimeData) {
@@ -326,6 +336,8 @@ function applyAndRender(): void {
   const showPast = showPastCheckbox.checked;
   const fields = currentFields();
   const fieldsAttr = isDefaultFields(fields) ? undefined : fields.join(",");
+  const groupEvents = currentGroupEvents();
+  const groupEventsAttr = groupEvents.length > 0 ? groupEvents.join(",") : undefined;
   const runtimeDataResult = readRuntimeData(mode);
 
   if (mode === "url" && feed && widget.getAttribute("feed") !== feed) widget.setAttribute("feed", feed);
@@ -367,6 +379,8 @@ function applyAndRender(): void {
   else widget.setAttribute("show-past", "false");
   if (fieldsAttr) widget.setAttribute("fields", fieldsAttr);
   else widget.removeAttribute("fields");
+  if (groupEventsAttr) widget.setAttribute("group-events", groupEventsAttr);
+  else widget.removeAttribute("group-events");
   if (mode === "json" && runtimeDataResult.status === "valid") {
     applyRuntimeData(runtimeDataResult.runtimeData);
   } else if (mode === "json" && runtimeDataResult.status === "empty") {
@@ -394,6 +408,7 @@ function applyAndRender(): void {
     lang,
     showPast,
     fields: fieldsAttr,
+    groupEvents: groupEventsAttr,
   }));
 }
 
@@ -410,6 +425,7 @@ for (const control of [
   langSelect,
   showPastCheckbox,
   ...fieldCheckboxes,
+  ...groupEventsCheckboxes,
   ...eventActionCheckboxes,
 ]) {
   control.addEventListener("input", applyAndRender);

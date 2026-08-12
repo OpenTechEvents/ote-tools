@@ -141,6 +141,15 @@
       </div>
 
       <div class="field">
+        <span class="fields-legend">group-events</span>
+        <div class="fields-checkboxes">
+          <label><input type="checkbox" class="group-key-checkbox" value="series" checked /> series</label>
+          <label><input type="checkbox" class="group-key-checkbox" value="multipart" checked /> multipart</label>
+        </div>
+        <p class="hint">Cards layout only. Collapses events that share the same <code>partOf.id</code> into one stacked card with a badge; the detail modal gains prev/next between occurrences. Off by default. To try it, switch to JSON source mode below and paste events whose <code>partOf</code> field shares an <code>id</code>, e.g. <code>"partOf": {"id": "https://example.org/series/monthly", "type": "series"}</code>.</p>
+      </div>
+
+      <div class="field">
         <label for="lang-select">lang</label>
         <select id="lang-select">
           <option value="auto" selected>auto</option>

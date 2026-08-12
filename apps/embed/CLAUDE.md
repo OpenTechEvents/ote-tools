@@ -139,6 +139,19 @@ deliberate choice ("elegir qué campos se muestran y cuales no") over an
 additive/merge scheme, which would need a separate "hide" mechanism to ever
 turn off a default field.
 
+## `group-events` defaults to the opposite of `fields`
+
+`parseGroupEvents()` follows `fields`'s comma-list shape but **not** its
+fallback: absent/empty/all-unrecognized input yields an *empty* `Set` (no
+grouping), not "every type". This is deliberate — unlike `fields`, whose
+default was already the pre-existing look, grouping is new opt-in visual
+behavior (stacked cards + a mandatory badge in `layout="cards"`) shipped in a
+minor release with a live pinned consumer (`ote-reader`), so the attribute
+being absent must be a complete no-op. Only `layout="cards"` groups; `list`
+and `calendar` always render every occurrence individually (calendar in
+particular must show each date on its own day). See `src/grouping.ts` for the
+header-selection rule (soonest future occurrence, else most recent past).
+
 ## Custom event actions are a typed JS API
 
 Consumers that need host-app behavior (for example editor actions like edit,
@@ -188,7 +201,8 @@ minor release.
 
 The `ote-event-action` DOM event includes both the legacy `event` field and
 the richer context fields: `action`, `previewEvent`, `originalEvent`, `index`,
-`feed`, and `source`.
+`feed`, `source`, and (when the event belongs to an active `group-events`
+group) `group`.
 
 Private in-memory metadata is allowed. The widget normalizes OTE input into
 `PreviewEvent` for rendering, but it keeps a parallel mapping to the original

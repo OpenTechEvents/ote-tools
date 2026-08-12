@@ -10,6 +10,7 @@ import {
   parseFields,
   parseEventActions,
   parseEventClick,
+  parseGroupEvents,
   parseLangAttr,
   parseLayout,
   parseLimit,
@@ -19,6 +20,7 @@ import {
 } from "./attrs.js";
 import {
   renderWidget,
+  resolveEventGroups,
   selectVisibleEvents,
   type EventActionsInput,
   type EventBadgesResolver,
@@ -41,7 +43,7 @@ export interface OteEventsFeedObject extends Omit<OteJsonFeed, "events"> {
 export type OteEventsFeedData = OteEventsFeedObject | OriginalOteEvent[];
 
 /**
- * `<ote-events feed="..." limit="..." theme="auto" lang="auto" show-past="true" layout="calendar" fields="...">`
+ * `<ote-events feed="..." limit="..." theme="auto" lang="auto" show-past="true" layout="calendar" fields="..." group-events="...">`
  *
  * Fetches a native OTE JSON feed client-side and renders upcoming events.
  * Deliberately JSON-only (not ICS/RSS): OTE's canonical publish format is
@@ -58,6 +60,7 @@ export class OteEventsElement extends HTMLElement {
     "show-past",
     "layout",
     "fields",
+    "group-events",
     "placeholder-image",
     "event-click",
     "event-actions",
@@ -257,6 +260,7 @@ export class OteEventsElement extends HTMLElement {
       sort: parseSort(this.getAttribute("sort")),
       layout: parseLayout(this.getAttribute("layout")),
       fields: parseFields(this.getAttribute("fields")),
+      groupEvents: parseGroupEvents(this.getAttribute("group-events")),
       placeholderImage: this.getAttribute("placeholder-image")?.trim() || undefined,
       emptyMessage: this.getAttribute("empty-message")?.trim() || undefined,
       eventClick: parseEventClick(this.getAttribute("event-click")),
@@ -266,7 +270,9 @@ export class OteEventsElement extends HTMLElement {
       eventContext: (event) => this.#contexts.get(event) ?? { previewEvent: event, index: -1 },
       selectedEvent: this.#selectedEvent,
       onEventOpen: (event) => {
-        this.dispatchEvent(new CustomEvent("ote-event-open", { detail: this.#domEventDetail(undefined, event) }));
+        this.dispatchEvent(
+          new CustomEvent("ote-event-open", { detail: this.#domEventDetail(undefined, event, state) }),
+        );
         if (parseEventClick(this.getAttribute("event-click")) === "modal") {
           this.#selectedEvent = event;
           this.#renderNow();
@@ -279,7 +285,7 @@ export class OteEventsElement extends HTMLElement {
       onEventAction: (action, event) => {
         const actionId = typeof action === "string" ? action : "type" in action ? action.type : action.id;
         this.dispatchEvent(
-          new CustomEvent("ote-event-action", { detail: this.#domEventDetail(actionId, event) }),
+          new CustomEvent("ote-event-action", { detail: this.#domEventDetail(actionId, event, state) }),
         );
       },
     };
@@ -355,8 +361,12 @@ export class OteEventsElement extends HTMLElement {
     return [...attributeActions, ...customActions];
   }
 
-  #domEventDetail(action: string | undefined, event: PreviewEvent): Record<string, unknown> {
+  #domEventDetail(action: string | undefined, event: PreviewEvent, state?: WidgetState): Record<string, unknown> {
     const context = this.#contexts.get(event) ?? { previewEvent: event, index: -1 };
+    // `state` is only passed from the cards/list render path; the calendar
+    // layout's click handler omits it since grouping never applies there
+    // (resolveEventGroups is gated on layout==="cards" anyway).
+    const group = state ? resolveEventGroups(state).infoOf.get(event) : undefined;
     return {
       ...(action ? { action } : {}),
       event,
@@ -365,6 +375,7 @@ export class OteEventsElement extends HTMLElement {
       index: context.index,
       feed: context.feed,
       source: context.source,
+      ...(group ? { group } : {}),
     };
   }
 

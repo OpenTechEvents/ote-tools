@@ -1,5 +1,25 @@
 # @opentechevents/embed changelog
 
+## Unreleased
+
+### Added
+
+- `group-events="series,multipart"` attribute: in `layout="cards"`, collapses
+  events sharing the same `partOf.id` into a single stacked card with a
+  mandatory "Series"/"Multi-part" badge. The header card is always the
+  group's next upcoming occurrence (or the most recent past one if none are
+  upcoming). Opt-in only — absent by default, so existing embeds are
+  unaffected. `list` and `calendar` layouts are unchanged; every occurrence
+  keeps rendering individually there.
+- The detail modal gains prev/next navigation and an "N of M" counter when
+  opened from a grouped card, letting a viewer step through every occurrence.
+- `PreviewEvent.id` and `PreviewEvent.partOf` (from `@opentechevents/preview-feed`)
+  are now first-class fields, alongside the existing `id` detail row.
+- `EventRenderContext.group` exposes `{ key, type, index, total, members }`
+  for the currently-rendered occurrence, so host apps (e.g. the editor's own
+  `eventActions`) can react to group membership. `ote-event-action`'s DOM
+  event detail carries the same `group` field when applicable.
+
 ## 0.3.1
 
 ### Fixed

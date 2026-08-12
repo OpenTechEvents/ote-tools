@@ -1,4 +1,12 @@
+export interface PreviewEventPartOf {
+  id: string;
+  type: "series" | "multipart";
+  name?: string;
+  url?: string;
+}
+
 export interface PreviewEvent {
+  id?: string;
   name: string;
   startDate?: string;
   endDate?: string;
@@ -15,6 +23,7 @@ export interface PreviewEvent {
   tags?: string[];
   attendanceMode?: "in-person" | "online" | "hybrid";
   updatedAt?: string;
+  partOf?: PreviewEventPartOf;
 }
 
 export interface PreviewFeed {

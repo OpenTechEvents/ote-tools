@@ -9,6 +9,8 @@ export type EventClickMode = "modal" | "link" | "none";
 export type SortMode = "auto" | "none";
 export type NativeEventAction = "google-calendar" | "outlook-calendar" | "yahoo-calendar" | "ics" | "link";
 
+export type GroupKey = "series" | "multipart";
+
 export type FieldKey =
   | "image"
   | "when"
@@ -46,8 +48,14 @@ export const DEFAULT_EVENT_ACTIONS: readonly NativeEventAction[] = [
   "link",
 ];
 
+const ALL_GROUP_KEYS: readonly GroupKey[] = ["series", "multipart"];
+
 function isFieldKey(value: string): value is FieldKey {
   return (ALL_FIELDS as readonly string[]).includes(value);
+}
+
+function isGroupKey(value: string): value is GroupKey {
+  return (ALL_GROUP_KEYS as readonly string[]).includes(value);
 }
 
 export function parseLimit(value: string | null): number {
@@ -118,4 +126,23 @@ export function parseFields(value: string | null): Set<FieldKey> {
     .map((token) => token.trim())
     .filter(isFieldKey);
   return requested.length > 0 ? new Set(requested) : new Set(DEFAULT_FIELDS);
+}
+
+/**
+ * Comma-separated opt-in list of `partOf.type` values to collapse into a
+ * stacked card in `layout="cards"`. Deliberately the *opposite* default of
+ * `parseFields`: absent, empty, or entirely-unrecognized input yields an
+ * EMPTY set (no grouping), not "all types". This is new opt-in visual
+ * behavior shipped in a minor release with a live pinned consumer — the
+ * attribute being absent must be a complete no-op, unlike `fields`, whose
+ * default was already the pre-existing look.
+ */
+export function parseGroupEvents(value: string | null): Set<GroupKey> {
+  if (!value) return new Set();
+  return new Set(
+    value
+      .split(",")
+      .map((token) => token.trim())
+      .filter(isGroupKey),
+  );
 }
