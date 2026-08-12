@@ -52,6 +52,14 @@
 - The detail modal now respects field configuration (`fields`/
   `fields-detail`) instead of always rendering every optional field
   unconditionally, regardless of what the card was configured to show.
+- The location field no longer echoes the attendance badge's "Online" label
+  for an online event with no link (now "No public link", with a `title`
+  tooltip noting the organizer may share it privately), and no longer wrongly
+  claims "Online" for an in-person/hybrid event with no venue (now "Venue not
+  specified"). Both were symptoms of the same upstream fallback in
+  `@opentechevents/preview-feed` defaulting to a generic "online" location
+  whenever a source gave no venue and no URL, regardless of the event's
+  actual `attendanceMode`.
 
 ## 0.3.1
 

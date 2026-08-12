@@ -452,6 +452,50 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.textContent).not.toContain("Online link");
   });
 
+  it("doesn't echo the attendance badge's 'Online' label when an online event has no link", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            { name: "Online, link shared privately", startDate: "2999-01-01", attendanceMode: "online" },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/online-no-link.json");
+    document.body.append(el);
+    await flush();
+
+    const badge = el.shadowRoot!.querySelector(".attendance-online");
+    const location = el.shadowRoot!.querySelector<HTMLElement>(".event-location span");
+    expect(badge?.textContent).toContain("Online");
+    expect(location?.textContent).toBe("No public link");
+    expect(location?.title).toBe("The organizer may share the link privately, e.g. after registration.");
+  });
+
+  it("doesn't claim an in-person event with no venue is online", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            { name: "In person, venue TBA", startDate: "2999-01-01", attendanceMode: "in-person" },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/in-person-no-venue.json");
+    document.body.append(el);
+    await flush();
+
+    const location = el.shadowRoot!.querySelector(".event-location");
+    expect(location?.textContent).toBe("Venue not specified");
+    expect(location?.textContent).not.toContain("Online");
+  });
+
   it("defensively hides raw URL locations in cards", () => {
     const container = document.createElement("div");
     renderWidget(container, rawLocationState("cards"));

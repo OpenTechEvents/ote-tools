@@ -115,6 +115,9 @@ const STRINGS = {
     when: "When",
     lastUpdate: "Last update",
     location: "Location",
+    locationUnknown: "Venue not specified",
+    onlineLinkUnknown: "No public link",
+    onlineLinkUnknownHint: "The organizer may share the link privately, e.g. after registration.",
     organizer: "Organizer",
     notAvailable: "—",
     attendance: { "in-person": "In person", online: "Online", hybrid: "Hybrid" },
@@ -153,6 +156,9 @@ const STRINGS = {
     when: "Cuándo",
     lastUpdate: "Última actualización",
     location: "Lugar",
+    locationUnknown: "Sede no especificada",
+    onlineLinkUnknown: "Sin enlace público",
+    onlineLinkUnknownHint: "El organizador podría compartir el enlace de forma privada, por ejemplo tras inscribirte.",
     organizer: "Organizador",
     notAvailable: "—",
     attendance: { "in-person": "Presencial", online: "En línea", hybrid: "Híbrido" },
@@ -444,7 +450,11 @@ function locationNode(event: PreviewEvent, strings: Strings): HTMLElement {
   const rawLocation = rawLocationText(event, strings);
   const inferredLink = event.locationLink ?? urlLike(rawLocation);
   const location = locationText(event, strings);
-  if (!inferredLink) return withText(el("span"), location);
+  if (!inferredLink) {
+    const span = withText(el("span"), location);
+    if (isOnlineLinkUnpublished(event)) span.title = strings.onlineLinkUnknownHint;
+    return span;
+  }
   const link = el("a");
   link.href = inferredLink;
   link.target = "_blank";
@@ -453,8 +463,31 @@ function locationNode(event: PreviewEvent, strings: Strings): HTMLElement {
   return link;
 }
 
+/**
+ * True for an online event with no link at all — as opposed to one whose
+ * link simply isn't public yet for other reasons the schema can't express.
+ * The short inline label ("No public link") can't say why on its own, so
+ * this gates a `title` tooltip with a longer hint (e.g. "shared with
+ * registered attendees") without bloating the card copy.
+ */
+function isOnlineLinkUnpublished(event: PreviewEvent): boolean {
+  return event.attendanceMode === "online" && !event.locationLink && (!event.location || event.location === "online");
+}
+
+/**
+ * `event.location` is set to the literal "online" sentinel by
+ * `@opentechevents/preview-feed` whenever the source gave no venue and no
+ * online URL — a data-agnostic fallback that doesn't know the event's
+ * `attendanceMode`. Resolving that sentinel here, where `attendanceMode` is
+ * available, avoids two bugs: an in-person event with no venue silently
+ * claiming to be "Online" (wrong, not just noisy), and an online event
+ * repeating the same "Online" text the attendance badge already shows.
+ */
 function rawLocationText(event: PreviewEvent, strings: Strings): string {
-  return event.location && event.location !== "online" ? event.location : strings.online;
+  if (event.location && event.location !== "online") return event.location;
+  if (event.attendanceMode === "online") return strings.onlineLinkUnknown;
+  if (event.attendanceMode === "in-person" || event.attendanceMode === "hybrid") return strings.locationUnknown;
+  return strings.online;
 }
 
 function locationText(event: PreviewEvent, strings: Strings): string {
