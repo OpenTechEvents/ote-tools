@@ -1430,11 +1430,18 @@ async function startEditor(repo: string | null): Promise<void> {
   // deliberately safer default for a destructive action).
   const deleteSeriesDialog = el<HTMLDialogElement>("delete-series-dialog");
   const deleteSeriesStatus = el<HTMLParagraphElement>("delete-series-status");
+  const deleteSeriesSelectAll = el<HTMLDivElement>("delete-series-select-all");
   const deleteSeriesList = el<HTMLUListElement>("delete-series-list");
   const deleteSeriesConfirm = el<HTMLButtonElement>("delete-series-confirm");
   let deleteSeriesChecklist: ReturnType<typeof renderOccurrenceChecklist> | null = null;
 
   el<HTMLButtonElement>("delete-series-cancel").addEventListener("click", () => deleteSeriesDialog.close());
+  el<HTMLButtonElement>("delete-series-check-all").addEventListener("click", () =>
+    deleteSeriesChecklist?.selectAll(true),
+  );
+  el<HTMLButtonElement>("delete-series-check-none").addEventListener("click", () =>
+    deleteSeriesChecklist?.selectAll(false),
+  );
 
   function updateDeleteSeriesConfirm(): void {
     deleteSeriesConfirm.disabled = (deleteSeriesChecklist?.getChecked().length ?? 0) === 0;
@@ -1456,6 +1463,7 @@ async function startEditor(repo: string | null): Promise<void> {
       "{n} occurrence(s) in this series — none preselected.",
     ).replace("{n}", String(members.length));
     deleteSeriesStatus.hidden = false;
+    deleteSeriesSelectAll.hidden = members.length === 0;
     updateDeleteSeriesConfirm();
     deleteSeriesDialog.showModal();
   }

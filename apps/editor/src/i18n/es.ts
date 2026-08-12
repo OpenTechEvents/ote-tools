@@ -271,6 +271,8 @@ export const es: Record<string, string> = {
   "action.refreshEvents": "↻ Actualizar",
   "action.editSeries": "Editar serie",
   "action.deleteSeries": "Eliminar serie",
+  "action.selectAll": "Seleccionar todo",
+  "action.selectNone": "Seleccionar ninguno",
 
   // --- valid badge -----------------------------------------------------------
   "badge.ready": "✓ Listo",

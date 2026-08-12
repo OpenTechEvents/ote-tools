@@ -179,68 +179,103 @@ export function proposeBatchChangeUrl(
   };
 }
 
-/**
- * The wire block for one bulk-edit entry: a `_oteBatchMode: "patch"` block
- * carrying only that entry's own changed top-level keys (`entry.patch`,
- * from `diffEventJson`/`applyBulkEdit` in lib/series.ts — a `null` value
- * means "delete this key"), expanded back onto the existing
- * `events/<slug>.json` server-side by issue-to-pr.mjs's `parsePatchBlock`.
- * An entry with `slug === null` (the feed-fallback listing, with no
- * confirmed filename) falls back to a full document block instead — patch
- * mode needs an authoritative existing filename to target, which only a
- * known slug can give it.
- */
-function patchBlock(entry: BulkEditEntry): string {
-  if (entry.slug === null) return fencedEventJson(entry.event);
+/** A `_oteBatchMode: "patch"` block for one slug's own patch — see
+ * patchIssueBody. */
+function patchBlock(slug: string, patch: Record<string, unknown>): string {
+  return ["```json", JSON.stringify({ _oteBatchMode: "patch", slug, patch }, null, 2), "```"].join(
+    "\n",
+  );
+}
+
+/** A `_oteBatchMode: "shared-patch"` block: one `patch` applied identically
+ * to every slug in `slugs` — see patchIssueBody. */
+function sharedPatchBlock(slugs: string[], patch: Record<string, unknown>): string {
   return [
     "```json",
-    JSON.stringify({ _oteBatchMode: "patch", slug: entry.slug, patch: entry.patch }, null, 2),
+    JSON.stringify({ _oteBatchMode: "shared-patch", slugs, patch }, null, 2),
     "```",
   ].join("\n");
 }
 
-/** One `_oteBatchMode: "patch"` (or full-document fallback) block per
- * entry, in order — see patchBlock. Exposed separately from
- * bulkEditIssueBody so tests can assert each entry's own wire shape without
- * parsing the whole issue body back apart. */
+/**
+ * One wire block per DISTINCT patch, not per entry: entries with
+ * `slug !== null` whose `.patch` (from `diffEventJson`/`applyBulkEdit` in
+ * lib/series.ts — a `null` value means "delete this key") is byte-for-byte
+ * identical (JSON.stringify equal) are combined into a single
+ * `_oteBatchMode: "shared-patch"` block naming every one of their slugs,
+ * instead of repeating the same value once per file — the common case for
+ * a bulk edit that only touches shared template fields, with no
+ * per-occurrence date override. An entry whose patch differs from every
+ * other entry's (e.g. it also carries its own date override, or the
+ * organizer left one occurrence out of the shared change) keeps its own
+ * individual `_oteBatchMode: "patch"` block instead. An entry with
+ * `slug === null` (the feed-fallback listing, no confirmed filename) always
+ * falls back to a full document block — patch mode needs an authoritative
+ * existing filename to target, which only a known slug can give it. Both
+ * block shapes are expanded back onto their target file(s) server-side by
+ * issue-to-pr.mjs's `resolvePatchOps`. Each returned block appears at the
+ * position of its group's first member in `entries`.
+ */
 export function patchIssueBody(entries: BulkEditEntry[]): string[] {
-  return entries.map(patchBlock);
+  const bySignature = new Map<string, BulkEditEntry[]>();
+  for (const entry of entries) {
+    if (entry.slug === null) continue;
+    const signature = JSON.stringify(entry.patch);
+    const group = bySignature.get(signature);
+    if (group) group.push(entry);
+    else bySignature.set(signature, [entry]);
+  }
+  const emitted = new Set<BulkEditEntry>();
+  const blocks: string[] = [];
+  for (const entry of entries) {
+    if (emitted.has(entry)) continue;
+    if (entry.slug === null) {
+      emitted.add(entry);
+      blocks.push(fencedEventJson(entry.event));
+      continue;
+    }
+    const group = bySignature.get(JSON.stringify(entry.patch))!;
+    for (const member of group) emitted.add(member);
+    blocks.push(
+      group.length > 1
+        ? sharedPatchBlock(
+            group.map((member) => member.slug as string),
+            entry.patch,
+          )
+        : patchBlock(entry.slug, entry.patch),
+    );
+  }
+  return blocks;
 }
 
 /**
  * The issue body for a bulk edit of several EXISTING events (the editor's
- * "Edit series" tool): one numbered block per entry, each carrying only its
- * own changed fields as a `_oteBatchMode: "patch"` block (see
- * patchIssueBody) instead of the event's full document — a small,
- * change-scoped payload rather than repeating every untouched field once
- * per entry. Says "Update", not "Add": the workflow itself doesn't care (it
+ * "Edit series" tool): a numbered summary of what changed per file, then
+ * the wire blocks that carry it (see patchIssueBody) — kept as two separate
+ * sections rather than one block per numbered entry, since a single
+ * shared-patch block can now cover several of the numbered entries at
+ * once. Says "Update", not "Add": the workflow itself doesn't care (it
  * derives Add vs Update per file by checking whether events/<slug>.json
  * already exists on the default branch — see issue-to-pr.yml), but a
- * maintainer reading the issue should see the truth. Each block is preceded
- * by a plain-text "Changed: ..." line — outside the fenced block, so
- * extractFencedBlocks ignores it — purely so a maintainer skimming a large
- * bulk edit can see what changed without diffing every JSON block.
+ * maintainer reading the issue should see the truth.
  */
 export function bulkEditIssueBody(entries: BulkEditEntry[]): string {
   const intro = [
     `Bulk edit: ${entries.length} existing event(s) updated together with the OTE`,
-    "editor's \"Edit series\" tool. Each numbered block below patches only the",
-    "fields that actually changed onto the matching events/<slug>.json file —",
-    "a maintainer (or the repo's automation) merges it in, it does not",
-    "replace the file.",
+    "editor's \"Edit series\" tool. Each file is patched with only its own",
+    "changed fields listed below — a maintainer (or the repo's automation)",
+    "merges each patch in, it does not replace the file. Identical changes",
+    "shared by several files are sent once as a single shared-patch block",
+    "instead of being repeated per file.",
     "",
   ];
+  const summary = entries.map((entry, index) => {
+    const name = entry.event.name ?? "(unnamed event)";
+    const file = entry.slug ? ` (\`events/${entry.slug}.json\`)` : "";
+    return `${index + 1}. ${name}${file} — Changed: ${entry.changedFields.join(", ")}`;
+  });
   const blocks = patchIssueBody(entries);
-  const sections = entries.flatMap((entry, index) => [
-    `### ${index + 1}. Update: ${entry.event.name ?? "(unnamed event)"}` +
-      (entry.slug ? ` (\`events/${entry.slug}.json\`)` : ""),
-    "",
-    `Changed: ${entry.changedFields.join(", ")}`,
-    "",
-    blocks[index],
-    "",
-  ]);
-  return [...intro, ...sections].join("\n");
+  return [...intro, ...summary, "", ...blocks.flatMap((block) => [block, ""])].join("\n");
 }
 
 /**

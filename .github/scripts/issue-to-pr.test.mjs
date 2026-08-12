@@ -310,6 +310,100 @@ test("parseIssueBody: patch, full-document, and recurring-template blocks coexis
   });
 });
 
+// --- shared-patch blocks -------------------------------------------------
+
+const sharedPatchBlock = (overrides = {}) => ({
+  _oteBatchMode: "shared-patch",
+  slugs: ["2026-06-async", "2026-07-async"],
+  patch: { license: "CC0-1.0" },
+  ...overrides,
+});
+
+test("parseIssueBody: a shared-patch block applies the same patch to every listed slug", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent({ id: "https://example.org/events/2026-06-async" }));
+    seedEvent(repoRoot, "2026-07-async", validEvent({ id: "https://example.org/events/2026-07-async" }));
+    const results = parseIssueBody(fence(sharedPatchBlock()), { repoRoot });
+    assert.equal(results.length, 2);
+    assert.deepEqual(results.map((r) => r.slug), ["2026-06-async", "2026-07-async"]);
+    for (const result of results) assert.equal(result.event.license, "CC0-1.0");
+  });
+});
+
+test("parseIssueBody: a shared-patch block with a missing or empty slugs array is rejected", () => {
+  withTmpDir((repoRoot) => {
+    assert.throws(
+      () => parseIssueBody(fence(sharedPatchBlock({ slugs: [] })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /non-empty "slugs" array/.test(error.title),
+    );
+    assert.throws(
+      () => parseIssueBody(fence(sharedPatchBlock({ slugs: undefined })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /non-empty "slugs" array/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a shared-patch block with an invalid slug entry is rejected", () => {
+  withTmpDir((repoRoot) => {
+    assert.throws(
+      () => parseIssueBody(fence(sharedPatchBlock({ slugs: ["2026-06-async", "not a valid slug!"] })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /is not a valid slug/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a non-object patch in a shared-patch block is rejected", () => {
+  withTmpDir((repoRoot) => {
+    assert.throws(
+      () => parseIssueBody(fence(sharedPatchBlock({ patch: "not an object" })), { repoRoot }),
+      (error) => error instanceof IssueToPrError && /missing a "patch" object/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a shared-patch block naming a nonexistent file fails the whole run", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent());
+    assert.throws(
+      () => parseIssueBody(fence(sharedPatchBlock({ slugs: ["2026-06-async", "does-not-exist"] })), { repoRoot }),
+      (error) =>
+        error instanceof IssueToPrError && /patches a file that doesn't exist/.test(error.title),
+    );
+  });
+});
+
+test("parseIssueBody: a shared-patch block and a per-slug patch block targeting the same slug are merged, not rejected as a duplicate", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent({ description: "Original" }));
+    seedEvent(repoRoot, "2026-07-async", validEvent({ description: "Original" }));
+    const body = [
+      fence(sharedPatchBlock()), // license -> CC0-1.0 for both
+      fence(patchBlock({ slug: "2026-06-async", patch: { description: "Only for this one" } })),
+    ].join("\n\n");
+    const results = parseIssueBody(body, { repoRoot });
+    assert.equal(results.length, 2); // not 3 — merged onto the shared-patch result, not a separate duplicate
+    const first = results.find((r) => r.slug === "2026-06-async");
+    const second = results.find((r) => r.slug === "2026-07-async");
+    assert.equal(first.event.license, "CC0-1.0");
+    assert.equal(first.event.description, "Only for this one");
+    assert.equal(second.event.license, "CC0-1.0");
+    assert.equal(second.event.description, "Original");
+  });
+});
+
+test("parseIssueBody: two patch blocks targeting the same slug are merged in block order, later wins", () => {
+  withTmpDir((repoRoot) => {
+    seedEvent(repoRoot, "2026-06-async", validEvent({ license: "CC-BY-4.0" }));
+    const body = [
+      fence(patchBlock({ slug: "2026-06-async", patch: { license: "CC0-1.0" } })),
+      fence(patchBlock({ slug: "2026-06-async", patch: { license: "CC-BY-SA-4.0" } })),
+    ].join("\n\n");
+    const results = parseIssueBody(body, { repoRoot });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].event.license, "CC-BY-SA-4.0");
+  });
+});
+
 test("slugFromId: last path segment, .json suffix stripped", () => {
   assert.equal(slugFromId("https://example.org/events/2026-06-async"), "2026-06-async");
   assert.equal(slugFromId("https://example.org/events/2026-06-async.json"), "2026-06-async");

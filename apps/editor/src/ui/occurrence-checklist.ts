@@ -35,6 +35,9 @@ export interface OccurrenceChecklistHandle {
   getDateOverrides(): Map<string, OccurrenceDateOverride>;
   /** Fires on any checkbox/date/time change, to re-gate a confirm button. */
   onChange(callback: () => void): void;
+  /** Sets every row's checkbox to `checked` in one go (e.g. a "select
+   * all"/"select none" control) and fires the onChange listeners once. */
+  selectAll(checked: boolean): void;
 }
 
 interface Row {
@@ -152,6 +155,10 @@ export function renderOccurrenceChecklist(
     },
     onChange(callback: () => void): void {
       listeners.push(callback);
+    },
+    selectAll(checked: boolean): void {
+      for (const row of rows) row.box.checked = checked;
+      notify();
     },
   };
 }

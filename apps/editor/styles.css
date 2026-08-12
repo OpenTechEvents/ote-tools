@@ -1440,6 +1440,22 @@ select {
   text-decoration: underline;
 }
 
+/* "Select all"/"Select none" above an occurrence checklist (Delete series)
+   — its .link-buttons need their own top margin cancelled since they're
+   already spaced by this row's own margin. */
+.occurrence-select-all {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.occurrence-select-all .link-button {
+  margin-top: 0;
+}
+
 .geo-pin {
   width: 18px;
   height: 18px;
@@ -2540,15 +2556,36 @@ footer {
   flex-wrap: wrap;
 }
 
-/* Same treatment as #import-banner — both are "the form below isn't a
-   normal single-event draft" banners. */
-#bulk-edit-banner {
+/* Docked at the bottom, centered on wide viewports — same fixed-position
+   treatment as #action-bar (mutually exclusive with it: bulk-edit mode
+   hides #action-bar), since this banner's Cancel/Review & submit actions
+   are exactly what #action-bar's own buttons would be otherwise, and
+   should stay reachable without scrolling back up past the occurrence
+   checklist. :not([hidden]) needed on BOTH this rule and the media-query
+   one below — see the media query's own comment for why (same
+   left/right-losing-to-higher-specificity bug already hit on #action-bar). */
+#bulk-edit-banner:not([hidden]) {
+  position: fixed;
+  z-index: 9999;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
+  border-top: 1px solid var(--accent);
+  padding: 0.75rem max(1rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
   font-size: 0.9rem;
+}
+
+@media (min-width: 52rem) {
+  #bulk-edit-banner:not([hidden]) {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 48rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
 }
 
 #bulk-edit-banner p {

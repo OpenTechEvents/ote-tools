@@ -21,6 +21,15 @@
 //     key), validates the merged result. Errors if the target file doesn't
 //     exist — patch mode can only update an existing event, never create
 //     one. See apps/editor/src/lib/links.ts's patchIssueBody.
+//   "shared-patch" — {slugs, patch}: the same `patch` applied to every file
+//     named in `slugs` — for when several documents receive the exact same
+//     change (e.g. a bulk edit's shared template field with no per-
+//     occurrence override), so that one value isn't repeated once per file.
+//     A "patch"/"shared-patch" block targeting a slug that another such
+//     block in the same issue also targets is not a duplicate-filename
+//     error (unlike two full-document blocks) — their patches are merged
+//     onto that one file in block order, last write per key wins. See
+//     apps/editor/src/lib/links.ts's patchIssueBody.
 //
 
 // Env in:
@@ -158,61 +167,119 @@ function parseRecurringTemplateBlock(obj, label) {
   });
 }
 
+function assertValidPatchObject(patch, label, blockLabel) {
+  if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {
+    throw new IssueToPrError(`${capitalize(label)} is missing a "patch" object`, [
+      `A ${blockLabel} block needs a \`patch\` object — the fields to change, with \`null\` for any field to remove.`,
+    ]);
+  }
+}
+
 /**
- * Applies a `{_oteBatchMode: "patch", slug, patch}` block: reads
- * events/<slug>.json from the checkout at `repoRoot`, shallow-merges
- * `patch` onto it (a `null` value deletes that key), validates the merged
- * result. `slug` is authoritative here — unlike the other block types, the
- * merged event's own `id` is never used to re-derive the filename, since a
- * patch targets a specific existing file regardless of what its content
- * says. Errors loudly if the file doesn't exist: patch mode only updates an
- * existing event, it can never create one (use a complete event JSON block
- * for that). See apps/editor/src/lib/links.ts's patchIssueBody.
+ * Structural validation only for a `{_oteBatchMode: "patch", slug, patch}`
+ * block — returns `{slug, patch, label}`, an operation to apply later
+ * (see resolvePatchOps). Deferred, rather than reading/merging the file
+ * right here, so a "shared-patch" block targeting the same slug (see below)
+ * can be merged onto the same read instead of racing/duplicating it.
  */
-function parsePatchBlock(obj, label, repoRoot) {
+function parsePatchBlock(obj, label) {
   const { slug, patch } = obj;
   if (typeof slug !== "string" || !SLUG_RE.test(slug)) {
     throw new IssueToPrError(`${capitalize(label)} is missing a valid "slug"`, [
       'A patch block needs a `slug` string matching `[A-Za-z0-9._-]+`, naming the `events/<slug>.json` file to update.',
     ]);
   }
-  if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {
-    throw new IssueToPrError(`${capitalize(label)} is missing a "patch" object`, [
-      'A patch block needs a `patch` object — the fields to change, with `null` for any field to remove.',
-    ]);
-  }
-  const filePath = join(repoRoot, "events", `${slug}.json`);
-  if (!existsSync(filePath)) {
-    throw new IssueToPrError(`${capitalize(label)} patches a file that doesn't exist`, [
-      `\`events/${slug}.json\` was not found.`,
-      "A patch block can only update an existing event — use a complete event JSON block to create a new one.",
-    ]);
-  }
-  let existing;
-  try {
-    existing = JSON.parse(readFileSync(filePath, "utf8"));
-  } catch (error) {
-    throw new IssueToPrError(`${capitalize(label)} targets an unreadable file`, [
-      `\`events/${slug}.json\` could not be parsed: ${error.message}`,
-    ]);
-  }
-  const merged = { ...existing };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) delete merged[key];
-    else merged[key] = value;
-  }
-  assertValidEvent(merged, label);
-  return [{ event: merged, slug }];
+  assertValidPatchObject(patch, label, "patch");
+  return [{ slug, patch, label }];
 }
 
 /**
- * Parses one fenced block into zero or more {event, slug} results. A plain
- * event object (no `_oteBatchMode`) behaves exactly as before — one block,
- * one result — so this stays additive, not a breaking change for legacy or
- * hand-authored issues. `repoRoot` is only used by the "patch" branch, to
- * locate the existing events/<slug>.json to merge onto.
+ * Structural validation for a `{_oteBatchMode: "shared-patch", slugs,
+ * patch}` block — the same `patch` applied to every file in `slugs`.
+ * Returns one `{slug, patch, label}` operation per slug, same shape as
+ * parsePatchBlock's single result, so both feed the same resolvePatchOps
+ * grouping/merging step uniformly.
  */
-function parseOneBlock(text, index, total, repoRoot) {
+function parseSharedPatchBlock(obj, label) {
+  const { slugs, patch } = obj;
+  if (!Array.isArray(slugs) || slugs.length === 0) {
+    throw new IssueToPrError(`${capitalize(label)} is missing a non-empty "slugs" array`, [
+      'A shared-patch block needs a `slugs` array naming every `events/<slug>.json` file the patch applies to.',
+    ]);
+  }
+  assertValidPatchObject(patch, label, "shared-patch");
+  return slugs.map((slug, i) => {
+    const slugLabel = `${label}, slug ${i + 1} of ${slugs.length}`;
+    if (typeof slug !== "string" || !SLUG_RE.test(slug)) {
+      throw new IssueToPrError(`${capitalize(slugLabel)} is not a valid slug`, [
+        `Got \`${JSON.stringify(slug)}\` — expected a string matching \`[A-Za-z0-9._-]+\`.`,
+      ]);
+    }
+    return { slug, patch, label: slugLabel };
+  });
+}
+
+/**
+ * Applies every `{slug, patch, label}` operation from "patch"/"shared-patch"
+ * blocks, grouped by slug: each target file is read exactly once, then
+ * every operation for that slug is merged onto it in order (a `null` value
+ * deletes that key; later operations win over earlier ones for the same
+ * key), and the final result is validated once. This is what lets a
+ * "shared-patch" block (a value common to several files) and a "patch"
+ * block (that one file's own extra change, e.g. a date override) both
+ * target the same slug in one issue without colliding as a "duplicate
+ * filename" — they're contributions to one merge, not two competing files.
+ * Errors loudly if a target file doesn't exist: patch mode only updates an
+ * existing event, it can never create one (use a complete event JSON block
+ * for that).
+ */
+function resolvePatchOps(ops, repoRoot) {
+  const bySlug = new Map();
+  for (const op of ops) {
+    const existing = bySlug.get(op.slug);
+    if (existing) existing.push(op);
+    else bySlug.set(op.slug, [op]);
+  }
+  const results = [];
+  for (const [slug, slugOps] of bySlug) {
+    const groupLabel = slugOps.map((op) => op.label).join(" + ");
+    const filePath = join(repoRoot, "events", `${slug}.json`);
+    if (!existsSync(filePath)) {
+      throw new IssueToPrError(`${capitalize(groupLabel)} patches a file that doesn't exist`, [
+        `\`events/${slug}.json\` was not found.`,
+        "A patch block can only update an existing event — use a complete event JSON block to create a new one.",
+      ]);
+    }
+    let merged;
+    try {
+      merged = JSON.parse(readFileSync(filePath, "utf8"));
+    } catch (error) {
+      throw new IssueToPrError(`${capitalize(groupLabel)} targets an unreadable file`, [
+        `\`events/${slug}.json\` could not be parsed: ${error.message}`,
+      ]);
+    }
+    for (const op of slugOps) {
+      for (const [key, value] of Object.entries(op.patch)) {
+        if (value === null) delete merged[key];
+        else merged[key] = value;
+      }
+    }
+    assertValidEvent(merged, groupLabel);
+    results.push({ event: merged, slug });
+  }
+  return results;
+}
+
+/**
+ * Parses one fenced block into either full `{event, slug}` results (a plain
+ * event object or a "recurring-template" block) or `{slug, patch, label}`
+ * operations (a "patch"/"shared-patch" block, deferred — see
+ * resolvePatchOps) — tagged so parseIssueBody can route each to the right
+ * place. A plain event object (no `_oteBatchMode`) behaves exactly as
+ * before — one block, one result — so this stays additive, not a breaking
+ * change for legacy or hand-authored issues.
+ */
+function parseOneBlock(text, index, total) {
   const label = total > 1 ? `block ${index} of ${total}` : "the event JSON";
   let obj;
   try {
@@ -225,14 +292,19 @@ function parseOneBlock(text, index, total, repoRoot) {
     ]);
   }
   if (obj && typeof obj === "object" && !Array.isArray(obj) && typeof obj._oteBatchMode === "string") {
-    if (obj._oteBatchMode === "recurring-template") return parseRecurringTemplateBlock(obj, label);
-    if (obj._oteBatchMode === "patch") return parsePatchBlock(obj, label, repoRoot);
+    if (obj._oteBatchMode === "recurring-template") {
+      return { kind: "events", items: parseRecurringTemplateBlock(obj, label) };
+    }
+    if (obj._oteBatchMode === "patch") return { kind: "patchOps", items: parsePatchBlock(obj, label) };
+    if (obj._oteBatchMode === "shared-patch") {
+      return { kind: "patchOps", items: parseSharedPatchBlock(obj, label) };
+    }
     throw new IssueToPrError(`${capitalize(label)} has an unrecognized "_oteBatchMode" value`, [
       `Got \`${JSON.stringify(obj._oteBatchMode)}\`.`,
     ]);
   }
   assertValidEvent(obj, label);
-  return [{ event: obj, slug: deriveSlug(obj, label) }];
+  return { kind: "events", items: [{ event: obj, slug: deriveSlug(obj, label) }] };
 }
 
 /**
@@ -250,7 +322,27 @@ export function parseIssueBody(body, { repoRoot = process.cwd() } = {}) {
       "change** button generates the issue in the right shape.",
     ]);
   }
-  const results = blocks.flatMap((text, i) => parseOneBlock(text, i + 1, blocks.length, repoRoot));
+  const parsed = blocks.map((text, i) => parseOneBlock(text, i + 1, blocks.length));
+  const patchOps = parsed.filter((p) => p.kind === "patchOps").flatMap((p) => p.items);
+  const patchResultBySlug = new Map(
+    (patchOps.length > 0 ? resolvePatchOps(patchOps, repoRoot) : []).map((r) => [r.slug, r]),
+  );
+  // Preserve the issue's own block order — a slug patched by several blocks
+  // (a shared-patch block plus that file's own extra "patch" block, say)
+  // takes the position of whichever referenced it first.
+  const results = [];
+  const emittedSlugs = new Set();
+  for (const block of parsed) {
+    if (block.kind === "events") {
+      results.push(...block.items);
+      continue;
+    }
+    for (const op of block.items) {
+      if (emittedSlugs.has(op.slug)) continue;
+      emittedSlugs.add(op.slug);
+      results.push(patchResultBySlug.get(op.slug));
+    }
+  }
   const slugs = results.map((r) => r.slug);
   const duplicate = slugs.find((slug, i) => slugs.indexOf(slug) !== i);
   if (duplicate !== undefined) {

@@ -179,11 +179,13 @@ const secondBulkEntry: BulkEditEntry = {
 };
 
 describe("bulkEditIssueBody", () => {
-  it("numbers every entry with an Update heading, its file path, and its own fenced JSON block", () => {
+  it("numbers every entry with its file path in a summary line, before the JSON blocks", () => {
     const body = bulkEditIssueBody([bulkEntry, secondBulkEntry]);
-    expect(body).toContain("### 1. Update: Async night (`events/2026-06-async.json`)");
-    expect(body).toContain("### 2. Update: Async night #2 (`events/2026-07-async.json`)");
-    expect(body.indexOf("### 1.")).toBeLessThan(body.indexOf("### 2."));
+    expect(body).toContain("1. Async night (`events/2026-06-async.json`) — Changed: license, venue");
+    expect(body).toContain("2. Async night #2 (`events/2026-07-async.json`) — Changed: license");
+    expect(body.indexOf("1. Async night")).toBeLessThan(body.indexOf("2. Async night"));
+    // bulkEntry and secondBulkEntry have different patches, so each still
+    // gets its own block — grouping only kicks in for identical patches.
     expect(body.match(/```json/g)).toHaveLength(2);
   });
 
@@ -199,8 +201,52 @@ describe("bulkEditIssueBody", () => {
 
   it("omits the file path when slug is null", () => {
     const body = bulkEditIssueBody([{ ...bulkEntry, slug: null }]);
-    expect(body).toContain("### 1. Update: Async night\n");
+    expect(body).toContain("1. Async night — Changed: license, venue");
     expect(body).not.toContain("events/2026-06-async.json");
+  });
+
+  it("groups entries with byte-identical patches into one shared-patch block", () => {
+    const thirdEntry: BulkEditEntry = {
+      slug: "2026-08-async",
+      event: { ...secondEvent, name: "Async night #3" },
+      changedFields: ["license"],
+      patch: { license: "CC0-1.0" },
+    };
+    const body = bulkEditIssueBody([secondBulkEntry, thirdEntry]);
+    // Both entries have the identical patch {license: "CC0-1.0"} — one block, not two.
+    expect(body.match(/```json/g)).toHaveLength(1);
+    const match = /```json\n([\s\S]*?)\n```/.exec(body);
+    const parsed = JSON.parse(match![1]!);
+    expect(parsed).toEqual({
+      _oteBatchMode: "shared-patch",
+      slugs: ["2026-07-async", "2026-08-async"],
+      patch: { license: "CC0-1.0" },
+    });
+    // Still lists both files individually in the human-readable summary.
+    expect(body).toContain("1. Async night #2 (`events/2026-07-async.json`) — Changed: license");
+    expect(body).toContain("2. Async night #3 (`events/2026-08-async.json`) — Changed: license");
+  });
+
+  it("does not group an entry with a differing patch, even if some keys match", () => {
+    const withOverride: BulkEditEntry = {
+      slug: "2026-08-async",
+      event: secondEvent,
+      changedFields: ["license", "startDate"],
+      patch: { license: "CC0-1.0", startDate: "2026-08-01T10:00" },
+    };
+    const body = bulkEditIssueBody([secondBulkEntry, withOverride]);
+    expect(body.match(/```json/g)).toHaveLength(2); // two separate blocks
+    expect(body).toContain('"_oteBatchMode": "patch"');
+    expect(body).not.toContain('"_oteBatchMode": "shared-patch"');
+  });
+
+  it("never groups an entry with slug === null, even if its full document matches another's patch shape", () => {
+    const body = bulkEditIssueBody([secondBulkEntry, { ...secondBulkEntry, slug: null }]);
+    // One shared/individual patch block for the real slug, one full-document fallback.
+    expect(body).toContain('"_oteBatchMode": "patch"');
+    expect(body).not.toContain('"_oteBatchMode": "shared-patch"');
+    const blocks = body.match(/```json\n([\s\S]*?)\n```/g);
+    expect(blocks).toHaveLength(2);
   });
 
   it("sends a _oteBatchMode: patch block carrying only slug + patch, not the full event", () => {
@@ -226,11 +272,25 @@ describe("bulkEditIssueBody", () => {
 });
 
 describe("patchIssueBody", () => {
-  it("returns one block per entry, in order", () => {
+  it("returns one block per entry when patches differ, in order", () => {
     const blocks = patchIssueBody([bulkEntry, secondBulkEntry]);
     expect(blocks).toHaveLength(2);
     expect(JSON.parse(/```json\n([\s\S]*?)\n```/.exec(blocks[0]!)![1]!).slug).toBe("2026-06-async");
     expect(JSON.parse(/```json\n([\s\S]*?)\n```/.exec(blocks[1]!)![1]!).slug).toBe("2026-07-async");
+  });
+
+  it("returns one shared-patch block for entries with an identical patch", () => {
+    const thirdEntry: BulkEditEntry = {
+      slug: "2026-08-async",
+      event: secondEvent,
+      changedFields: ["license"],
+      patch: { license: "CC0-1.0" },
+    };
+    const blocks = patchIssueBody([secondBulkEntry, thirdEntry]);
+    expect(blocks).toHaveLength(1);
+    const parsed = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(blocks[0]!)![1]!);
+    expect(parsed._oteBatchMode).toBe("shared-patch");
+    expect(parsed.slugs).toEqual(["2026-07-async", "2026-08-async"]);
   });
 });
 
@@ -421,18 +481,20 @@ describe("exceedsIssueBodyLimit", () => {
   });
 
   it("a real bulkEditIssueBody for a large-ish series can exceed it, even in patch mode", () => {
-    // ~30 entries each changing one large field is a realistic "select
-    // most of a long-running series and edit the description" scenario —
-    // confirms patch mode's smaller payload still isn't a theoretical
-    // limit for the bulk flows this guards (no member-count cap of its
-    // own; a long enough series or big enough field still gets there).
-    const bigEntry: BulkEditEntry = {
-      slug: "s",
-      event: { id: "https://x.example/e", name: "x".repeat(2000), description: "y".repeat(3000) } as OteEvent,
+    // ~30 entries each with their own large, distinct field value (a
+    // per-occurrence edit, not a shared one — a fully shared value would
+    // collapse into one small shared-patch block, see patchIssueBody's
+    // grouping) is a realistic "select most of a long-running series and
+    // edit each description individually" scenario — confirms patch mode's
+    // smaller payload still isn't a theoretical limit for the bulk flows
+    // this guards (no member-count cap of its own; a long enough series or
+    // big enough field still gets there).
+    const entries: BulkEditEntry[] = Array.from({ length: 30 }, (_, i) => ({
+      slug: `s${i}`,
+      event: { id: `https://x.example/e${i}`, name: "x".repeat(2000), description: `${i}${"y".repeat(3000)}` } as OteEvent,
       changedFields: ["description"],
-      patch: { description: "y".repeat(3000) },
-    };
-    const entries = Array.from({ length: 30 }, () => bigEntry);
+      patch: { description: `${i}${"y".repeat(3000)}` },
+    }));
     expect(exceedsIssueBodyLimit(bulkEditIssueBody(entries))).toBe(true);
   });
 });

@@ -6,6 +6,24 @@ tied to semver releases.
 
 ## 2026-08-12
 
+- **Bulk-edit issue bodies dedupe identical changes across files**: when
+  several occurrences in a bulk edit end up with the exact same patch (e.g.
+  editing a shared template field like `description` with no per-occurrence
+  date override), that value is now sent once in a single
+  `_oteBatchMode: "shared-patch"` block naming every affected
+  `events/<slug>.json` file, instead of being repeated once per file.
+  Occurrences whose patch differs (e.g. one also has a date override) keep
+  their own individual patch block. issue-to-pr.mjs expands a shared-patch
+  block back onto every named file, and now also merges multiple
+  patch/shared-patch blocks that target the same file within one issue
+  (previously rejected as a "duplicate filename").
+- **"Delete series" gets a "Select all"/"Select none" shortcut**, instead
+  of having to tick every occurrence's checkbox individually.
+- **Fixed: the "Edit series" banner wasn't reachable without scrolling
+  back up**. It's now docked at the bottom, centered, the same fixed-
+  position treatment as the single-event action bar it stands in for
+  (they're mutually exclusive) — so its Cancel/Review & submit buttons stay
+  in view while working through a long occurrence checklist.
 - **Fixed: the sticky action bar was shoved off-screen on wide viewports**.
   Above the 52rem breakpoint the responsive `#action-bar` rule lost its
   `left`/`right` to the base rule's higher-specificity `:not([hidden])`
