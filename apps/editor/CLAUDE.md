@@ -172,13 +172,26 @@ already self-hosted via `dist/embed` — see `build.mjs`) as the events list
 view, but driven from the in-memory draft rather than a fetched feed:
 `main.ts`'s `refresh()` computes `toEventJson(state)` and calls
 `schedulePreviewUpdate()`, which debounces ~200ms then sets
-`previewWidget.events = [event]`. This works because
+`previewWidget.events = events`. This works because
 `oteJsonToPreviewFeed` (`packages/preview-feed`) treats every event field as
 optional and only ever throws if its input isn't shaped like `{ events:
 [...] }` — never true here — so the preview renders fine even for a blank
 new-event draft or mid-edit bulk-edit template. There is deliberately no
 "wait until the draft is schema-valid" gate; if you're tempted to add one,
 it isn't needed and would just make the preview lag behind typing.
+
+`events` is `[toEventJson(state)]` (one card) only when `getRecurrenceSeries()`
+is empty. Once one or more "+ Add recurrence" rows exist, `refresh()` expands
+them the same way `proposeOrGenerate()` does at Review & submit time
+(`buildRecurringEvents(s, expandRecurrenceDates(s.rule))` per row, flattened)
+and previews every occurrence instead — otherwise the preview would keep
+showing just the shared template while the organizer builds a series, which
+is exactly the state that's about to disappear once Review & submit expands
+it for real. `getRecurrenceSeries` reads `renderForm`'s live recurrence-row
+state (via its own `getSeries` closure) and only exists in the normal
+single-event render path — `renderForm` never wires it up in bulk-edit mode
+(`bulkEditChecklist` set), so it stays `() => []` there and bulk edit keeps
+previewing the shared template alone, same as before.
 
 ## OTE has no recurrence-rule concept
 

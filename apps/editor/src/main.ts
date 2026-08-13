@@ -889,22 +889,35 @@ async function startEditor(repo: string | null): Promise<void> {
   let draftValid = false;
 
   // Debounced so a fast typist doesn't force a full shadow-DOM re-render on
-  // every keystroke; the preview always reflects `state` as of the most
-  // recent refresh() call, including mid-edit while bulk-editing a series
-  // template — toEventJson() never throws on a partial/blank event (see
-  // packages/preview-feed's tolerant field handling), so no separate
-  // "wait until valid" gate is needed here.
+  // every keystroke; the preview always reflects `state` (and, once one or
+  // more recurrence rows exist, every occurrence they'd generate) as of the
+  // most recent refresh() call — toEventJson() never throws on a
+  // partial/blank event (see packages/preview-feed's tolerant field
+  // handling), so no separate "wait until valid" gate is needed here.
   let previewTimer: ReturnType<typeof setTimeout> | undefined;
-  function schedulePreviewUpdate(event: OteEvent): void {
+  function schedulePreviewUpdate(events: OteEvent[]): void {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
-      previewWidget.events = [event] as unknown as OriginalOteEvent[];
+      previewWidget.events = events as unknown as OriginalOteEvent[];
     }, 200);
   }
 
   function refresh(): boolean {
     const event = toEventJson(state);
-    schedulePreviewUpdate(event);
+    // "+ Add recurrence" rows (getRecurrenceSeries, wired from renderForm)
+    // aren't reflected in `state` itself — they only get expanded into real
+    // occurrences at Review & submit time (proposeOrGenerate, below). The
+    // preview reuses that same expansion (buildRecurringEvents/
+    // expandRecurrenceDates) so it shows the whole series being built
+    // instead of just the shared template with one date. Empty in bulk-edit
+    // mode too (renderForm never wires recurrence rows there), so this
+    // falls through to the single-event preview as before.
+    const series = getRecurrenceSeries();
+    schedulePreviewUpdate(
+      series.length > 0
+        ? series.flatMap((s) => buildRecurringEvents(s, expandRecurrenceDates(s.rule)) as unknown as OteEvent[])
+        : [event],
+    );
 
     // Bulk-edit template: id/slug/startDate are deliberately blank (see
     // buildBulkEditTemplate) — the normal required-field validation would

@@ -6,6 +6,13 @@ tied to semver releases.
 
 ## 2026-08-13
 
+- **Live preview now shows the whole series, not just the template**: once
+  one or more "+ Add recurrence" rows exist, the preview expands them the
+  same way Review & submit would (`buildRecurringEvents`/
+  `expandRecurrenceDates`) and shows every generated occurrence, instead of
+  a single card for the shared template. Previously the preview always
+  showed exactly one event regardless of any recurrence rows, since they
+  were only ever expanded at Review & submit time.
 - **Live preview**: the form now renders the event being edited with the
   same `<ote-events>` widget (`apps/embed`) used elsewhere in the app, fed
   purely in-memory from the current draft (`layout="cards"`, debounced ~200ms
