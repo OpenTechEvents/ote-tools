@@ -89,6 +89,32 @@ Release checklist for this component:
 - Push `main`, create an annotated tag named `embed-v<version>`, push the tag,
   and create the GitHub release from that tag.
 
+## A version bump in `package.json` is not a release — this has already broken a consumer once
+
+`package.json`'s `version` was bumped to `0.4.0` in a feature commit, but the
+rest of the checklist above (changelog heading, `versions/v0.4.0/` snapshot,
+tag, push, GitHub release) was never run. Four more commits landed on `main`
+before anyone noticed, and a downstream app trying to pin `embed-v0.4.0` got
+told no such tag existed on GitHub.
+
+Before telling anyone (in a commit, a chat, or docs) that a version is
+available to pin, verify the tag is actually pushed — don't trust
+`package.json` alone:
+
+```sh
+git ls-remote --tags origin | grep "embed-v$(node -p "require('./apps/embed/package.json').version")"
+```
+
+If that prints nothing, the bump is unreleased: check `apps/embed/CHANGELOG.md`
+for an `## Unreleased` section above the version heading — that's the
+unfinished work. Finish the full release checklist (through pushing the tag
+and creating the GitHub release) before pinning that version anywhere, and
+avoid bumping `version` again in a later commit until the current bump is
+tagged and pushed — a second bump on top of an untagged one hides the gap
+even further. Prefer doing the version bump and the entire checklist in one
+sitting rather than leaving `package.json` ahead of the last pushed tag
+across multiple commits.
+
 ## The widget only fetches native JSON OTE feeds — on purpose
 
 `icsToPreviewFeed`/`rssToPreview` (from `@opentechevents/preview-feed`) exist
