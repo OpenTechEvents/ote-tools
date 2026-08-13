@@ -302,27 +302,31 @@ function setSourceControls(mode: SourceMode): void {
   feedDataInput.disabled = mode === "url";
 }
 
+function clearDataError(): void {
+  dataError.hidden = true;
+  dataError.textContent = "";
+  feedDataInput.removeAttribute("aria-invalid");
+}
+
 function readRuntimeData(mode: SourceMode): RuntimeDataResult {
   if (mode === "url") {
-    dataError.hidden = true;
-    dataError.textContent = "";
+    clearDataError();
     return { status: "empty" };
   }
 
   if (!feedDataInput.value.trim()) {
-    dataError.hidden = true;
-    dataError.textContent = "";
+    clearDataError();
     return { status: "empty" };
   }
 
   try {
     const runtimeData = parseRuntimeData(feedDataInput.value);
-    dataError.hidden = true;
-    dataError.textContent = "";
+    clearDataError();
     return runtimeData ? { status: "valid", runtimeData } : { status: "empty" };
   } catch (error) {
     dataError.hidden = false;
     dataError.textContent = error instanceof Error ? error.message : String(error);
+    feedDataInput.setAttribute("aria-invalid", "true");
     return { status: "invalid" };
   }
 }
@@ -410,7 +414,7 @@ function applyAndRender(): void {
     applyRuntimeData(runtimeDataResult.runtimeData);
   } else if (mode === "json" && runtimeDataResult.status === "empty") {
     widget.feedData = { events: [] };
-  } else if (widget.feedData !== undefined) {
+  } else if (mode === "url" && widget.feedData !== undefined) {
     applyRuntimeData(undefined);
   }
 

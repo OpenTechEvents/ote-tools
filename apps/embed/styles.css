@@ -235,6 +235,11 @@ a {
   color: #c4302f;
 }
 
+.field textarea[aria-invalid="true"] {
+  border-color: #c4302f;
+  outline-color: #c4302f;
+}
+
 .field-checkbox label {
   display: flex;
   align-items: center;

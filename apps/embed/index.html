@@ -52,6 +52,7 @@
       <div class="field" id="json-source-field" hidden>
         <label for="feed-data-input">feedData / event JSON</label>
         <textarea id="feed-data-input" rows="9" spellcheck="false" disabled placeholder='{"events":[{"name":"Runtime event","startDate":"2999-01-01"}]}'></textarea>
+        <p class="hint error" id="data-error" hidden></p>
         <p class="hint">Paste an OTE feed object, an event array, or one OTE event object.</p>
       </div>
 
@@ -244,7 +245,6 @@
         <code>/embed/latest/</code> only when you explicitly want automatic
         updates.
       </p>
-      <p class="hint error" id="data-error" hidden></p>
       <div class="snippet-box">
         <pre><code id="snippet-code" class="language-html"></code></pre>
         <button type="button" id="copy-button">Copy</button>
