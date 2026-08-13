@@ -404,10 +404,21 @@
            breakpoint this is shown/hidden by #preview-toggle instead of
            sitting beside the form; see the #form-view grid rule in
            styles.css. Same widget attributes as the events-list-view's own
-           #events-widget instance, for a consistent look. -->
+           #events-widget instance, for a consistent look — including
+           group-events, so a recurring series with "Part of (series)" set
+           previews as one stacked card instead of N individual ones, same
+           as it would once published. Static here (always on) rather than
+           the list view's own Individual/Grouped toggle — nothing to
+           un-group in a single-form preview. -->
       <aside id="preview-column">
         <h2 data-i18n="nav.previewToggle.heading">Preview</h2>
-        <ote-events id="event-preview" layout="cards" sort="none" theme="light"></ote-events>
+        <ote-events
+          id="event-preview"
+          layout="cards"
+          sort="none"
+          theme="light"
+          group-events="series,multipart"
+        ></ote-events>
       </aside>
 
       <div id="action-bar">

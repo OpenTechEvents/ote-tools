@@ -6,6 +6,11 @@ tied to semver releases.
 
 ## 2026-08-13
 
+- **Live preview groups a recurring series into one card**: the preview
+  widget now sets `group-events="series,multipart"`, matching the events
+  list view's own default — a series with "Part of (series)" filled in
+  renders as a single stacked card with a "Series" badge, same as it would
+  once published, instead of N separate cards.
 - **Live preview now shows the whole series, not just the template**: once
   one or more "+ Add recurrence" rows exist, the preview expands them the
   same way Review & submit would (`buildRecurringEvents`/
