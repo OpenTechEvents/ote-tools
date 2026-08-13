@@ -399,15 +399,18 @@ function isOnlineLinkUnpublished(event: PreviewEvent): boolean {
  * `@opentechevents/preview-feed` whenever the source gave no venue and no
  * online URL — a data-agnostic fallback that doesn't know the event's
  * `attendanceMode`. Resolving that sentinel here, where `attendanceMode` is
- * available, avoids two bugs: an in-person event with no venue silently
- * claiming to be "Online" (wrong, not just noisy), and an online event
- * repeating the same "Online" text the attendance badge already shows.
+ * available, avoids three bugs: an in-person event with no venue silently
+ * claiming to be "Online" (wrong, not just noisy); an online event repeating
+ * the same "Online" text the attendance badge already shows; and an event
+ * with no `attendanceMode` at all (nothing declared either way) asserting
+ * "Online" as if that were known — same wrongness as the in-person case,
+ * just with attendance unspecified instead of specified-but-no-venue, so it
+ * shares that case's fallback rather than defaulting to "Online".
  */
 function rawLocationText(event: PreviewEvent, strings: Strings): string {
   if (event.location && event.location !== "online") return event.location;
   if (event.attendanceMode === "online") return strings.onlineLinkUnknown;
-  if (event.attendanceMode === "in-person" || event.attendanceMode === "hybrid") return strings.locationUnknown;
-  return strings.online;
+  return strings.locationUnknown;
 }
 
 function locationText(event: PreviewEvent, strings: Strings): string {

@@ -1,6 +1,17 @@
 # @opentechevents/embed changelog
 
-## Unreleased
+## 0.6.0
+
+### Fixed
+
+- An event with no `attendanceMode` declared at all (neither `"online"`,
+  `"in-person"`, nor `"hybrid"`) and no `location` no longer shows an
+  "Online" location label — it now shows "Venue not specified", the same
+  fallback an in-person event with no venue already used. `rawLocationText()`
+  (`apps/embed/src/render.ts`) previously fell through to the "Online"
+  default whenever `attendanceMode` wasn't one of the two handled cases,
+  wrongly asserting online attendance for an event that never declared any
+  attendance mode.
 
 ### Changed
 

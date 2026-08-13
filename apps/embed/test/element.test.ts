@@ -612,6 +612,25 @@ describe("<ote-events>", () => {
     expect(location?.textContent).not.toContain("Online");
   });
 
+  it("doesn't claim an event with no attendanceMode declared is online", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [{ name: "Attendance unspecified", startDate: "2999-01-01" }],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/no-attendance-mode.json");
+    document.body.append(el);
+    await flush();
+
+    const location = el.shadowRoot!.querySelector(".event-location");
+    expect(location?.textContent).toBe("Venue not specified");
+    expect(location?.textContent).not.toContain("Online");
+  });
+
   it("defensively hides raw URL locations in cards", () => {
     const container = document.createElement("div");
     renderWidget(container, rawLocationState("cards"));
