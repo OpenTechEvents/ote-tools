@@ -115,6 +115,24 @@ toolbar/expand button.
 user-facing change (new field, changed flow, fixed bug) as part of the
 same session/commit that makes it — don't leave it for a later pass.
 
+## The slug/filename is minted once and never tracks later date edits
+
+`suggestSlug`/`suggestSeriesSlug` (`lib/event-json.ts`) derive the filename
+slug from `<year-month or date>-<kebab(name)>` at creation time only —
+`main.ts`'s `refresh()` only re-suggests `state.slug`/`state.id` while
+`isNew` is true. Editing an existing event's `startDate` does not
+regenerate the slug, rename the file, or touch `id`; `issue-to-pr.yml`
+writes back to the same `events/<slug>.json` regardless of what the date
+now says. This is deliberate, not a bug: `id` (`<feed url>/events/<slug>`,
+see the field note in `ui/form.ts`) is a stable identifier "never changed
+after publishing" — consumers use it to update rather than duplicate an
+event — and the filename is derived from it, so renaming on date-edit
+would break that contract. Net effect: a published event's filename can
+end up date-mismatched with its own `startDate` field after an edit; this
+is expected and the filename should never be treated as authoritative —
+only `startDate` inside the JSON is. See DESIGN.md's "Flujo de escritura"
+section for the cross-repo rationale.
+
 ## OTE has no recurrence-rule concept
 
 The spec is explicit: one document per occurrence, always ("un documento
