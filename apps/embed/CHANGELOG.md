@@ -4,6 +4,18 @@
 
 ### Changed
 
+- Restructured the playground (`/embed/`, [#53](https://github.com/OpenTechEvents/ote-tools/issues/53)):
+  the Events widget, Subscribe widget, and reference docs (versioning,
+  host-app integration, agent guide) each moved to their own tab instead of
+  one long scrolling page. Controls are now grouped into collapsible
+  Basics/Appearance/Behavior/Actions sections instead of a flat ~20-field
+  list; the duplicated `fields-preview`/`fields-detail` checkbox blocks
+  merged into a single preview/detail matrix; `card-width`, `group-events`,
+  and the fields matrix now visibly dim/disable when the active layout
+  ignores them instead of silently no-op'ing. Visual style refreshed to
+  align with opentechevents.org (accent color, pill controls, dark
+  "browser window" code blocks). No `<ote-events>`/`<ote-subscribe>`
+  attribute or behavior changes — playground page only.
 - `<ote-subscribe layout="badges">` triggers now match the colored-pill
   icon+text badge design this element was ported from (a distinct
   currentColor icon and solid background per group — calendar icon on

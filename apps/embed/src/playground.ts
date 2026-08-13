@@ -79,6 +79,18 @@ const subscribeWidget = document.querySelector<OteSubscribeElement>("#subscribe-
 const subscribeSnippetCode = document.querySelector<HTMLElement>("#subscribe-snippet-code")!;
 const subscribeCopyButton = document.querySelector<HTMLButtonElement>("#subscribe-copy-button")!;
 
+const siteTabsContainer = document.querySelector<HTMLElement>(".site-tabs")!;
+const siteTabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".site-tab"));
+const tabPanels: Record<string, HTMLElement> = {
+  events: document.querySelector<HTMLElement>("#tab-panel-events")!,
+  subscribe: document.querySelector<HTMLElement>("#tab-panel-subscribe")!,
+  reference: document.querySelector<HTMLElement>("#tab-panel-reference")!,
+};
+
+const cardWidthField = document.querySelector<HTMLElement>("#card-width-field")!;
+const groupEventsField = document.querySelector<HTMLElement>("#group-events-field")!;
+const fieldsMatrixField = document.querySelector<HTMLElement>("#fields-matrix-field")!;
+
 type RuntimeDataKind = "feedData" | "events" | "event";
 
 interface RuntimeData {
@@ -372,6 +384,36 @@ function setTheme(theme: Theme): void {
   }
 }
 
+function setActiveTab(tab: string): void {
+  for (const button of siteTabButtons) {
+    const isActive = button.dataset.tab === tab;
+    button.setAttribute("aria-selected", String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
+  }
+  for (const [key, panel] of Object.entries(tabPanels)) {
+    panel.hidden = key !== tab;
+  }
+}
+
+function setControlDisabled(
+  field: HTMLElement,
+  controls: Array<HTMLInputElement | HTMLSelectElement>,
+  disabled: boolean,
+): void {
+  field.classList.toggle("is-disabled", disabled);
+  for (const control of controls) control.disabled = disabled;
+}
+
+function updateControlAvailability(layout: Layout): void {
+  setControlDisabled(cardWidthField, [cardWidthSelect], layout !== "cards");
+  setControlDisabled(groupEventsField, groupEventsCheckboxes, layout !== "cards");
+  setControlDisabled(
+    fieldsMatrixField,
+    [...previewFieldCheckboxes, ...detailFieldCheckboxes],
+    layout === "calendar",
+  );
+}
+
 function applyRuntimeData(runtimeData: RuntimeData | undefined): void {
   if (!runtimeData) {
     widget.feedData = undefined;
@@ -430,6 +472,7 @@ function applyAndRender(): void {
   const feedUrls = parseFeedsAttr(feed);
   const limit = limitInput.value.trim();
   const layout = currentLayout();
+  updateControlAvailability(layout);
   const placeholderImage = placeholderImageInput.value.trim();
   const eventClick = eventClickSelect.value as EventClickMode;
   const eventActions = currentEventActions();
@@ -631,6 +674,22 @@ subscribeCopyButton.addEventListener("click", () => {
       subscribeCopyButton.textContent = original;
     }, 1500);
   });
+});
+
+for (const button of siteTabButtons) {
+  button.addEventListener("click", () => {
+    if (button.dataset.tab) setActiveTab(button.dataset.tab);
+  });
+}
+
+siteTabsContainer.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+  event.preventDefault();
+  const currentIndex = siteTabButtons.findIndex((button) => button.getAttribute("aria-selected") === "true");
+  const delta = event.key === "ArrowRight" ? 1 : -1;
+  const nextButton = siteTabButtons[(currentIndex + delta + siteTabButtons.length) % siteTabButtons.length]!;
+  if (nextButton.dataset.tab) setActiveTab(nextButton.dataset.tab);
+  nextButton.focus();
 });
 
 applyAndRender();

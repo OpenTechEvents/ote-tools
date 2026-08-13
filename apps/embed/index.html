@@ -3,14 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ote-events — embeddable OTE events widget</title>
+  <title>OTE embeddable widgets — &lt;ote-events&gt; &amp; &lt;ote-subscribe&gt;</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github-dark.min.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header>
-    <div class="header-title-row">
-      <h1>&lt;ote-events&gt;</h1>
+    <div class="header-top-row">
+      <div class="brand">
+        <span class="ote-badge" aria-hidden="true">OTE</span>
+        <div class="brand-text">
+          <h1>Embeddable OTE widgets</h1>
+          <a class="brand-home" href="https://opentechevents.org" target="_blank" rel="noopener">opentechevents.org</a>
+        </div>
+      </div>
       <div class="version-badges" aria-label="Version information">
         <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v__EMBED_VERSION__" target="_blank" rel="noopener">
           Component v__EMBED_VERSION__
@@ -21,457 +27,581 @@
       </div>
     </div>
     <p>
-      A single Web Component that renders upcoming events from any
+      Two Web Components that render or link to events from any
       <a href="https://github.com/OpenTechEvents/opentechevents-spec" target="_blank" rel="noopener">OTE</a>
       JSON feed. No framework, no build step, no package to install — one
-      <code>&lt;script&gt;</code> tag and one element. This page doubles as
-      its documentation: every control below maps to one HTML attribute, and
-      the snippet at the bottom always reflects exactly what you're seeing.
+      <code>&lt;script&gt;</code> tag and one element. Try each widget below;
+      the snippet panel always reflects exactly what you're seeing. Switch to
+      <strong>Reference</strong> for versioning and host-app integration docs.
     </p>
+
+    <ul class="agent-index" aria-label="Page contents">
+      <li>
+        <strong>Events widget</strong> (<code>&lt;ote-events&gt;</code>) — renders
+        upcoming events as calendar, list, or cards. Key attributes:
+        <code>feed</code>/<code>feeds</code>, <code>layout</code>,
+        <code>theme</code>, <code>fields-preview</code>/<code>fields-detail</code>,
+        <code>event-actions</code>, <code>group-events</code>; JS API:
+        <code>el.events</code>, <code>el.eventActions(context)</code>.
+      </li>
+      <li>
+        <strong>Subscribe widget</strong> (<code>&lt;ote-subscribe&gt;</code>) —
+        a "subscribe to this feed" trigger for Calendar (Google Calendar,
+        <code>webcal://</code>, ICS), RSS (Feedly, <code>feed://</code>), and
+        OTE feed links. Key attributes: <code>feed-ics</code>,
+        <code>feed-rss</code>, <code>feed-json</code>, <code>show</code>,
+        <code>layout</code>.
+      </li>
+      <li>
+        <strong>Reference</strong> — versioned script URLs, SemVer policy, the
+        host-app integration API, and the
+        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">agent-facing guide</a>.
+      </li>
+    </ul>
+
+    <div class="site-tabs" role="tablist" aria-label="Playground sections">
+      <button type="button" class="site-tab" data-tab="events" role="tab" id="tab-btn-events" aria-controls="tab-panel-events" aria-selected="true">
+        Events widget
+      </button>
+      <button type="button" class="site-tab" data-tab="subscribe" role="tab" id="tab-btn-subscribe" aria-controls="tab-panel-subscribe" aria-selected="false" tabindex="-1">
+        Subscribe widget
+      </button>
+      <button type="button" class="site-tab" data-tab="reference" role="tab" id="tab-btn-reference" aria-controls="tab-panel-reference" aria-selected="false" tabindex="-1">
+        Reference
+      </button>
+    </div>
   </header>
 
-  <main class="playground-layout">
-    <div class="controls-column">
-    <section class="panel controls" aria-labelledby="controls-heading">
-      <h2 id="controls-heading">Try it</h2>
+  <main>
+    <section id="tab-panel-events" class="playground-layout" role="tabpanel" aria-labelledby="tab-btn-events" tabindex="0">
+      <div class="controls-column" aria-label="Events widget controls">
+        <details class="control-group" open>
+          <summary>Basics</summary>
+          <div class="group-body">
+            <div class="field">
+              <span class="fields-legend">data source</span>
+              <div class="source-options">
+                <label><input type="radio" name="source-mode" value="url" checked /> feed URL</label>
+                <label><input type="radio" name="source-mode" value="json" /> manual JSON</label>
+              </div>
+            </div>
 
-      <div class="field">
-        <span class="fields-legend">data source</span>
-        <div class="source-options">
-          <label><input type="radio" name="source-mode" value="url" checked /> feed URL</label>
-          <label><input type="radio" name="source-mode" value="json" /> manual JSON</label>
-        </div>
+            <div class="field" id="feed-source-field">
+              <label for="feed-input">feed / feeds</label>
+              <input type="text" id="feed-input" value="https://communitybuilders.dev/events/feed.json" />
+              <p class="hint">
+                The URL of an OTE <code>feed.json</code> document. Enter several,
+                comma-separated, to combine them (uses the <code>feeds</code>
+                attribute instead of <code>feed</code>).
+              </p>
+            </div>
+
+            <div class="field" id="json-source-field" hidden>
+              <label for="feed-data-input">feedData / event JSON</label>
+              <textarea id="feed-data-input" rows="9" spellcheck="false" disabled placeholder='{"events":[{"name":"Runtime event","startDate":"2999-01-01"}]}'></textarea>
+              <p class="hint error" id="data-error" hidden></p>
+              <p class="hint">Paste an OTE feed object, an event array, or one OTE event object.</p>
+            </div>
+
+            <div class="field">
+              <label for="limit-input">limit</label>
+              <input type="number" id="limit-input" min="1" step="1" placeholder="No limit" />
+              <p class="hint">Optional maximum number of events to show. Default: no limit.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="control-group">
+          <summary>Appearance</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="placeholder-image-input">placeholder-image override</label>
+              <input type="url" id="placeholder-image-input" placeholder="Optional image URL for cards without images" />
+              <p class="hint">Optional. Cards use a built-in placeholder when an event has no image.</p>
+            </div>
+
+            <div class="field">
+              <label for="font-family-input">font-family</label>
+              <input type="text" id="font-family-input" placeholder='system default, Inter, "Segoe UI", sans-serif' />
+              <p class="hint">Optional CSS font-family for the widget.</p>
+            </div>
+
+            <div class="field">
+              <label for="font-size-input">font-size</label>
+              <input type="text" id="font-size-input" placeholder="1rem, 16px, 0.95em..." />
+              <p class="hint">Optional base font-size for the widget.</p>
+            </div>
+
+            <div class="field" id="card-width-field">
+              <label for="card-width-select">card-width</label>
+              <select id="card-width-select">
+                <option value="small">small (160px)</option>
+                <option value="medium" selected>medium (220px, default)</option>
+                <option value="large">large (320px)</option>
+              </select>
+              <p class="hint" id="card-width-hint">Cards layout only. Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="control-group">
+          <summary>Behavior</summary>
+          <div class="group-body">
+            <div class="field" id="fields-matrix-field">
+              <span class="fields-legend">fields — preview / detail</span>
+              <p class="hint">
+                Which optional pieces of each event show on the card
+                (<strong>Preview</strong>) versus the detail modal / list
+                layout's expanded row (<strong>Detail</strong>). Ignored
+                entirely by the calendar layout.
+              </p>
+              <div class="fields-matrix-wrap">
+                <table class="fields-matrix">
+                  <thead>
+                    <tr>
+                      <th scope="col">Field</th>
+                      <th scope="col">Preview</th>
+                      <th scope="col">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">image</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="image" checked aria-label="Show image in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="image" checked aria-label="Show image in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">when</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="when" checked aria-label="Show when in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="when" checked aria-label="Show when in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">location</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="location" checked aria-label="Show location in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="location" checked aria-label="Show location in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">attendance</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="attendance" checked aria-label="Show attendance in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="attendance" checked aria-label="Show attendance in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">description</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="description" checked aria-label="Show description in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="description" checked aria-label="Show description in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">price</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="price" aria-label="Show price in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="price" checked aria-label="Show price in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">tags</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="tags" aria-label="Show tags in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="tags" checked aria-label="Show tags in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">organizer</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="organizer" aria-label="Show organizer in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="organizer" checked aria-label="Show organizer in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">eligibility</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="eligibility" aria-label="Show eligibility in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="eligibility" checked aria-label="Show eligibility in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">cfp</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="cfp" aria-label="Show cfp in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="cfp" checked aria-label="Show cfp in detail" /></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="field" id="group-events-field">
+              <span class="fields-legend">group-events</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="group-key-checkbox" value="series" checked /> series</label>
+                <label><input type="checkbox" class="group-key-checkbox" value="multipart" checked /> multipart</label>
+              </div>
+              <p class="hint" id="group-events-hint">Cards layout only. Collapses events that share the same <code>partOf.id</code> into one stacked card with a badge; the detail modal gains prev/next between occurrences. Off by default. To try it, switch to JSON source mode above and paste events whose <code>partOf</code> field shares an <code>id</code>, e.g. <code>"partOf": {"id": "https://example.org/series/monthly", "type": "series"}</code>.</p>
+            </div>
+
+            <div class="field">
+              <label for="lang-select">lang</label>
+              <select id="lang-select">
+                <option value="auto" selected>auto</option>
+                <option value="en">en</option>
+                <option value="es">es</option>
+              </select>
+              <p class="hint">Language of the widget's own UI text (loading/empty/error messages). "auto" follows the visitor's browser language.</p>
+            </div>
+
+            <div class="field field-checkbox">
+              <label for="show-past-checkbox">
+                <input type="checkbox" id="show-past-checkbox" checked />
+                show-past
+              </label>
+              <p class="hint">Include events whose start date has already passed. Default: on.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="control-group">
+          <summary>Actions</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="event-click-select">event-click</label>
+              <select id="event-click-select">
+                <option value="modal" selected>modal</option>
+                <option value="link">link</option>
+                <option value="none">none</option>
+              </select>
+              <p class="hint">What happens when a visitor selects an event. Default: modal.</p>
+            </div>
+
+            <div class="field">
+              <span class="fields-legend">event-actions</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="event-action-checkbox" value="google-calendar" checked /> Google Calendar</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="outlook-calendar" checked /> Outlook</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="yahoo-calendar" checked /> Yahoo</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="ics" checked /> ICS</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="link" checked /> event page</label>
+              </div>
+              <div class="action-placement-options">
+                <label for="native-action-placement-select">placement</label>
+                <select id="native-action-placement-select">
+                  <option value="detail" selected>detail</option>
+                  <option value="preview">preview</option>
+                  <option value="both">both</option>
+                </select>
+              </div>
+              <p class="hint">Native actions. The default placement is the event detail view.</p>
+            </div>
+
+            <div class="field custom-action-demo">
+              <label for="custom-action-checkbox">
+                <input type="checkbox" id="custom-action-checkbox" />
+                custom button example
+              </label>
+              <div class="custom-action-options">
+                <label for="custom-action-placement-select">placement</label>
+                <select id="custom-action-placement-select">
+                  <option value="preview">preview</option>
+                  <option value="detail">detail</option>
+                  <option value="both" selected>both</option>
+                </select>
+              </div>
+              <p class="hint">Adds a custom action with an icon that shows an alert for the selected event.</p>
+            </div>
+          </div>
+        </details>
       </div>
 
-      <div class="field" id="feed-source-field">
-        <label for="feed-input">feed / feeds</label>
-        <input type="text" id="feed-input" value="https://communitybuilders.dev/events/feed.json" />
-        <p class="hint">
-          The URL of an OTE <code>feed.json</code> document. Enter several,
-          comma-separated, to combine them (uses the <code>feeds</code>
-          attribute instead of <code>feed</code>).
+      <div class="output-column">
+        <section class="panel" aria-labelledby="preview-heading">
+          <h2 id="preview-heading">Live preview</h2>
+          <div class="preview-toolbar">
+            <div class="segmented-toolbar" role="group" aria-label="Preview layout">
+              <button type="button" class="preview-button" data-layout="calendar" aria-pressed="true" title="Calendar layout">
+                <span class="preview-icon icon-calendar" aria-hidden="true"></span>
+                <span>Calendar</span>
+              </button>
+              <button type="button" class="preview-button" data-layout="list" aria-pressed="false" title="List layout">
+                <span class="preview-icon icon-list" aria-hidden="true"></span>
+                <span>List</span>
+              </button>
+              <button type="button" class="preview-button" data-layout="cards" aria-pressed="false" title="Cards layout">
+                <span class="preview-icon icon-cards" aria-hidden="true"></span>
+                <span>Cards</span>
+              </button>
+            </div>
+            <div class="segmented-toolbar" role="group" aria-label="Preview theme">
+              <button type="button" class="preview-button" data-theme="auto" aria-pressed="true" title="Auto theme">
+                <span class="preview-icon icon-auto" aria-hidden="true"></span>
+                <span>Auto</span>
+              </button>
+              <button type="button" class="preview-button" data-theme="light" aria-pressed="false" title="Light theme">
+                <span class="preview-icon icon-light" aria-hidden="true"></span>
+                <span>Light</span>
+              </button>
+              <button type="button" class="preview-button" data-theme="dark" aria-pressed="false" title="Dark theme">
+                <span class="preview-icon icon-dark" aria-hidden="true"></span>
+                <span>Dark</span>
+              </button>
+            </div>
+          </div>
+          <div class="widget-frame">
+            <ote-events id="preview-widget" feed="https://communitybuilders.dev/events/feed.json"></ote-events>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="snippet-heading">
+          <h2 id="snippet-heading">Copy-paste snippet</h2>
+          <p class="hint">This is the exact markup for the configuration above.</p>
+          <p class="hint">
+            The snippet uses a fixed widget version. Use
+            <code>/embed/latest/</code> only when you explicitly want automatic
+            updates.
+          </p>
+          <div class="snippet-box">
+            <div class="snippet-chrome">
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-filename" aria-hidden="true">index.html</span>
+              <button type="button" id="copy-button">Copy</button>
+            </div>
+            <pre><code id="snippet-code" class="language-html"></code></pre>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="tab-panel-subscribe" class="playground-layout" role="tabpanel" aria-labelledby="tab-btn-subscribe" tabindex="0" hidden>
+      <div class="controls-column" aria-label="Subscribe widget controls">
+        <details class="control-group" open>
+          <summary>Basics</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="subscribe-ics-input">feed-ics</label>
+              <input type="text" id="subscribe-ics-input" value="https://communitybuilders.dev/events/feed.ics" />
+              <p class="hint">Enables the Calendar group (Google Calendar, webcal://, ICS download). Leave blank to omit it.</p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-rss-input">feed-rss</label>
+              <input type="text" id="subscribe-rss-input" value="https://communitybuilders.dev/events/feed.xml" />
+              <p class="hint">Enables the RSS group (Feedly, feed://, RSS download). Leave blank to omit it.</p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-json-input">feed-json</label>
+              <input type="text" id="subscribe-json-input" value="https://communitybuilders.dev/events/feed.json" />
+              <p class="hint">Enables the OTE feed group (OTE Reader, OTE Tools preview, JSON download). Leave blank to omit it.</p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-name-input">name</label>
+              <input type="text" id="subscribe-name-input" placeholder="Optional calendar name" />
+              <p class="hint">Used only for the trigger's accessible label ("Subscribe to &lt;name&gt;").</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="control-group">
+          <summary>Appearance</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="subscribe-layout-select">layout</label>
+              <select id="subscribe-layout-select">
+                <option value="menu" selected>menu</option>
+                <option value="badges">badges</option>
+              </select>
+              <p class="hint"><code>menu</code>: one trigger, one popover listing every group. <code>badges</code>: one small trigger per group (Calendar / RSS / OTE feed), each with its own popover.</p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-theme-select">theme</label>
+              <select id="subscribe-theme-select">
+                <option value="auto" selected>auto</option>
+                <option value="light">light</option>
+                <option value="dark">dark</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <details class="control-group">
+          <summary>Behavior</summary>
+          <div class="group-body">
+            <div class="field">
+              <span class="fields-legend">show</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="google" checked /> google</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="webcal" checked /> webcal</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="ics-download" checked /> ics-download</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="feedly" checked /> feedly</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="feed-protocol" checked /> feed-protocol</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="rss-download" checked /> rss-download</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-reader" checked /> ote-reader</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-preview" checked /> ote-preview</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="json-download" checked /> json-download</label>
+              </div>
+              <p class="hint">Which subscribe links to render. Defaults to everything valid for the feed URLs above.</p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-lang-select">lang</label>
+              <select id="subscribe-lang-select">
+                <option value="auto" selected>auto</option>
+                <option value="en">en</option>
+                <option value="es">es</option>
+              </select>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="output-column">
+        <section class="panel" aria-labelledby="subscribe-preview-heading">
+          <h2 id="subscribe-preview-heading">Live preview</h2>
+          <div class="widget-frame">
+            <ote-subscribe
+              id="subscribe-preview-widget"
+              feed-ics="https://communitybuilders.dev/events/feed.ics"
+              feed-rss="https://communitybuilders.dev/events/feed.xml"
+            ></ote-subscribe>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="subscribe-snippet-heading">
+          <h2 id="subscribe-snippet-heading">Copy-paste snippet</h2>
+          <p class="hint">This is the exact markup for the &lt;ote-subscribe&gt; configuration above.</p>
+          <div class="snippet-box">
+            <div class="snippet-chrome">
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-filename" aria-hidden="true">index.html</span>
+              <button type="button" id="subscribe-copy-button">Copy</button>
+            </div>
+            <pre><code id="subscribe-snippet-code" class="language-html"></code></pre>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="tab-panel-reference" role="tabpanel" aria-labelledby="tab-btn-reference" tabindex="0" hidden>
+      <section class="panel versioning-guide" aria-labelledby="versioning-heading">
+        <h2 id="versioning-heading">Versioning</h2>
+        <p>
+          Production embeds should use a fixed version URL so future widget
+          changes do not alter existing sites without an explicit upgrade.
         </p>
-      </div>
-
-      <div class="field" id="json-source-field" hidden>
-        <label for="feed-data-input">feedData / event JSON</label>
-        <textarea id="feed-data-input" rows="9" spellcheck="false" disabled placeholder='{"events":[{"name":"Runtime event","startDate":"2999-01-01"}]}'></textarea>
-        <p class="hint error" id="data-error" hidden></p>
-        <p class="hint">Paste an OTE feed object, an event array, or one OTE event object.</p>
-      </div>
-
-      <div class="field">
-        <label for="limit-input">limit</label>
-        <input type="number" id="limit-input" min="1" step="1" placeholder="No limit" />
-        <p class="hint">Optional maximum number of events to show. Default: no limit.</p>
-      </div>
-
-      <div class="field">
-        <label for="placeholder-image-input">placeholder-image override</label>
-        <input type="url" id="placeholder-image-input" placeholder="Optional image URL for cards without images" />
-        <p class="hint">Optional. Cards use a built-in placeholder when an event has no image.</p>
-      </div>
-
-      <div class="field">
-        <label for="event-click-select">event-click</label>
-        <select id="event-click-select">
-          <option value="modal" selected>modal</option>
-          <option value="link">link</option>
-          <option value="none">none</option>
-        </select>
-        <p class="hint">What happens when a visitor selects an event. Default: modal.</p>
-      </div>
-
-      <div class="field">
-        <span class="fields-legend">event-actions</span>
-        <div class="fields-checkboxes">
-          <label><input type="checkbox" class="event-action-checkbox" value="google-calendar" checked /> Google Calendar</label>
-          <label><input type="checkbox" class="event-action-checkbox" value="outlook-calendar" checked /> Outlook</label>
-          <label><input type="checkbox" class="event-action-checkbox" value="yahoo-calendar" checked /> Yahoo</label>
-          <label><input type="checkbox" class="event-action-checkbox" value="ics" checked /> ICS</label>
-          <label><input type="checkbox" class="event-action-checkbox" value="link" checked /> event page</label>
+        <dl class="version-url-list">
+          <div>
+            <dt>Recommended</dt>
+            <dd><code>https://tools.opentechevents.org/embed/v__EMBED_VERSION__/ote-events.js</code></dd>
+          </div>
+          <div>
+            <dt>Automatic updates</dt>
+            <dd><code>https://tools.opentechevents.org/embed/latest/ote-events.js</code></dd>
+          </div>
+          <div>
+            <dt>Legacy alias</dt>
+            <dd><code>https://tools.opentechevents.org/embed/ote-events.js</code></dd>
+          </div>
+        </dl>
+        <p>
+          The widget follows semantic versioning: patch releases are compatible
+          fixes, minor releases add compatible features, and major releases may
+          require migration. Check the changelog before changing the version used
+          by a production page.
+        </p>
+        <p>
+          Component versions and OTE Spec versions are independent. The component
+          version tells you which widget bundle you are loading; the OTE Spec
+          version tells you which event/feed shape that bundle is designed to
+          consume.
+        </p>
+        <div class="version-table-wrap">
+          <table class="version-table">
+            <thead>
+              <tr>
+                <th scope="col">Component</th>
+                <th scope="col">OTE Spec</th>
+                <th scope="col">Links</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>v__EMBED_VERSION__</code></td>
+                <td><a href="https://opentechevents.org/schema/v__OTE_SPEC_SCHEMA_VERSION__/event.schema.json" target="_blank" rel="noopener">v__OTE_SPEC_VERSION__</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v__EMBED_VERSION__" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v__EMBED_VERSION__/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.4.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.4.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.4.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.3.1</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.3.1" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.3.1/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.3.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.3.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.3.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.2.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.2.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.2.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.1.1</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.1.1" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.1.1/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.1.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.1.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.1.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="action-placement-options">
-          <label for="native-action-placement-select">placement</label>
-          <select id="native-action-placement-select">
-            <option value="detail" selected>detail</option>
-            <option value="preview">preview</option>
-            <option value="both">both</option>
-          </select>
+        <div class="resource-links">
+          <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+            View the changelog
+          </a>
+          <a href="https://github.com/OpenTechEvents/ote-tools/releases?q=embed-v&expanded=true" target="_blank" rel="noopener">
+            View embed releases
+          </a>
         </div>
-        <p class="hint">Native actions. The default placement is the event detail view.</p>
-      </div>
+      </section>
 
-      <div class="field custom-action-demo">
-        <label for="custom-action-checkbox">
-          <input type="checkbox" id="custom-action-checkbox" />
-          custom button example
-        </label>
-        <div class="custom-action-options">
-          <label for="custom-action-placement-select">placement</label>
-          <select id="custom-action-placement-select">
-            <option value="preview">preview</option>
-            <option value="detail">detail</option>
-            <option value="both" selected>both</option>
-          </select>
-        </div>
-        <p class="hint">Adds a custom action with an icon that shows an alert for the selected event.</p>
-      </div>
-
-      <div class="field">
-        <label for="font-family-input">font-family</label>
-        <input type="text" id="font-family-input" placeholder='system default, Inter, "Segoe UI", sans-serif' />
-        <p class="hint">Optional CSS font-family for the widget.</p>
-      </div>
-
-      <div class="field">
-        <label for="font-size-input">font-size</label>
-        <input type="text" id="font-size-input" placeholder="1rem, 16px, 0.95em..." />
-        <p class="hint">Optional base font-size for the widget.</p>
-      </div>
-
-      <div class="field">
-        <label for="card-width-select">card-width</label>
-        <select id="card-width-select">
-          <option value="small">small (160px)</option>
-          <option value="medium" selected>medium (220px, default)</option>
-          <option value="large">large (320px)</option>
-        </select>
-        <p class="hint">Cards layout only. Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
-      </div>
-
-      <div class="field">
-        <span class="fields-legend">fields-preview</span>
-        <div class="fields-checkboxes">
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="image" checked /> image</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="when" checked /> when</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="location" checked /> location</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="attendance" checked /> attendance</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="description" checked /> description</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="price" /> price</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="tags" /> tags</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="organizer" /> organizer</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="eligibility" /> eligibility</label>
-          <label><input type="checkbox" class="field-key-preview-checkbox" value="cfp" /> cfp</label>
-        </div>
-        <p class="hint">Which optional pieces of each event to show on the card (the preview surface). Ignored by the calendar layout. Defaults to image/when/location/attendance/description.</p>
-      </div>
-
-      <div class="field">
-        <span class="fields-legend">fields-detail</span>
-        <div class="fields-checkboxes">
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="image" checked /> image</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="when" checked /> when</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="location" checked /> location</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="attendance" checked /> attendance</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="description" checked /> description</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="price" checked /> price</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="tags" checked /> tags</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="organizer" checked /> organizer</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="eligibility" checked /> eligibility</label>
-          <label><input type="checkbox" class="field-key-detail-checkbox" value="cfp" checked /> cfp</label>
-        </div>
-        <p class="hint">Which optional pieces of each event to show in the detail modal and the list layout's expanded row. Defaults to everything.</p>
-      </div>
-
-      <div class="field">
-        <span class="fields-legend">group-events</span>
-        <div class="fields-checkboxes">
-          <label><input type="checkbox" class="group-key-checkbox" value="series" checked /> series</label>
-          <label><input type="checkbox" class="group-key-checkbox" value="multipart" checked /> multipart</label>
-        </div>
-        <p class="hint">Cards layout only. Collapses events that share the same <code>partOf.id</code> into one stacked card with a badge; the detail modal gains prev/next between occurrences. Off by default. To try it, switch to JSON source mode below and paste events whose <code>partOf</code> field shares an <code>id</code>, e.g. <code>"partOf": {"id": "https://example.org/series/monthly", "type": "series"}</code>.</p>
-      </div>
-
-      <div class="field">
-        <label for="lang-select">lang</label>
-        <select id="lang-select">
-          <option value="auto" selected>auto</option>
-          <option value="en">en</option>
-          <option value="es">es</option>
-        </select>
-        <p class="hint">Language of the widget's own UI text (loading/empty/error messages). "auto" follows the visitor's browser language.</p>
-      </div>
-
-      <div class="field field-checkbox">
-        <label for="show-past-checkbox">
-          <input type="checkbox" id="show-past-checkbox" checked />
-          show-past
-        </label>
-        <p class="hint">Include events whose start date has already passed. Default: on.</p>
-      </div>
-    </section>
-
-    <section class="panel controls" aria-labelledby="subscribe-controls-heading">
-      <h2 id="subscribe-controls-heading">&lt;ote-subscribe&gt; — Try it</h2>
-
-      <div class="field">
-        <label for="subscribe-ics-input">feed-ics</label>
-        <input type="text" id="subscribe-ics-input" value="https://communitybuilders.dev/events/feed.ics" />
-        <p class="hint">Enables the Calendar group (Google Calendar, webcal://, ICS download). Leave blank to omit it.</p>
-      </div>
-
-      <div class="field">
-        <label for="subscribe-rss-input">feed-rss</label>
-        <input type="text" id="subscribe-rss-input" value="https://communitybuilders.dev/events/feed.xml" />
-        <p class="hint">Enables the RSS group (Feedly, feed://, RSS download). Leave blank to omit it.</p>
-      </div>
-
-      <div class="field">
-        <label for="subscribe-json-input">feed-json</label>
-        <input type="text" id="subscribe-json-input" value="https://communitybuilders.dev/events/feed.json" />
-        <p class="hint">Enables the OTE feed group (OTE Reader, OTE Tools preview, JSON download). Leave blank to omit it.</p>
-      </div>
-
-      <div class="field">
-        <label for="subscribe-name-input">name</label>
-        <input type="text" id="subscribe-name-input" placeholder="Optional calendar name" />
-        <p class="hint">Used only for the trigger's accessible label ("Subscribe to &lt;name&gt;").</p>
-      </div>
-
-      <div class="field">
-        <span class="fields-legend">show</span>
-        <div class="fields-checkboxes">
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="google" checked /> google</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="webcal" checked /> webcal</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="ics-download" checked /> ics-download</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="feedly" checked /> feedly</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="feed-protocol" checked /> feed-protocol</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="rss-download" checked /> rss-download</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-reader" checked /> ote-reader</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-preview" checked /> ote-preview</label>
-          <label><input type="checkbox" class="subscribe-show-checkbox" value="json-download" checked /> json-download</label>
-        </div>
-        <p class="hint">Which subscribe links to render. Defaults to everything valid for the feed URLs above.</p>
-      </div>
-
-      <div class="field">
-        <label for="subscribe-layout-select">layout</label>
-        <select id="subscribe-layout-select">
-          <option value="menu" selected>menu</option>
-          <option value="badges">badges</option>
-        </select>
-        <p class="hint"><code>menu</code>: one trigger, one popover listing every group. <code>badges</code>: one small trigger per group (Calendar / RSS / OTE feed), each with its own popover.</p>
-      </div>
-
-      <div class="field">
-        <label for="subscribe-theme-select">theme</label>
-        <select id="subscribe-theme-select">
-          <option value="auto" selected>auto</option>
-          <option value="light">light</option>
-          <option value="dark">dark</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="subscribe-lang-select">lang</label>
-        <select id="subscribe-lang-select">
-          <option value="auto" selected>auto</option>
-          <option value="en">en</option>
-          <option value="es">es</option>
-        </select>
-      </div>
-    </section>
-    </div>
-
-    <div class="output-column">
-    <section class="panel" aria-labelledby="preview-heading">
-      <h2 id="preview-heading">Live preview</h2>
-      <div class="preview-toolbar">
-        <div class="segmented-toolbar" role="group" aria-label="Preview layout">
-          <button type="button" class="preview-button" data-layout="calendar" aria-pressed="true" title="Calendar layout">
-            <span class="preview-icon icon-calendar" aria-hidden="true"></span>
-            <span>Calendar</span>
-          </button>
-          <button type="button" class="preview-button" data-layout="list" aria-pressed="false" title="List layout">
-            <span class="preview-icon icon-list" aria-hidden="true"></span>
-            <span>List</span>
-          </button>
-          <button type="button" class="preview-button" data-layout="cards" aria-pressed="false" title="Cards layout">
-            <span class="preview-icon icon-cards" aria-hidden="true"></span>
-            <span>Cards</span>
-          </button>
-        </div>
-        <div class="segmented-toolbar" role="group" aria-label="Preview theme">
-          <button type="button" class="preview-button" data-theme="auto" aria-pressed="true" title="Auto theme">
-            <span class="preview-icon icon-auto" aria-hidden="true"></span>
-            <span>Auto</span>
-          </button>
-          <button type="button" class="preview-button" data-theme="light" aria-pressed="false" title="Light theme">
-            <span class="preview-icon icon-light" aria-hidden="true"></span>
-            <span>Light</span>
-          </button>
-          <button type="button" class="preview-button" data-theme="dark" aria-pressed="false" title="Dark theme">
-            <span class="preview-icon icon-dark" aria-hidden="true"></span>
-            <span>Dark</span>
-          </button>
-        </div>
-      </div>
-      <div class="widget-frame">
-        <ote-events id="preview-widget" feed="https://communitybuilders.dev/events/feed.json"></ote-events>
-      </div>
-    </section>
-
-    <section class="panel" aria-labelledby="snippet-heading">
-      <h2 id="snippet-heading">Copy-paste snippet</h2>
-      <p class="hint">This is the exact markup for the configuration above.</p>
-      <p class="hint">
-        The snippet uses a fixed widget version. Use
-        <code>/embed/latest/</code> only when you explicitly want automatic
-        updates.
-      </p>
-      <div class="snippet-box">
-        <pre><code id="snippet-code" class="language-html"></code></pre>
-        <button type="button" id="copy-button">Copy</button>
-      </div>
-    </section>
-
-    <section class="panel" aria-labelledby="subscribe-preview-heading">
-      <h2 id="subscribe-preview-heading">&lt;ote-subscribe&gt; — Live preview</h2>
-      <div class="widget-frame">
-        <ote-subscribe
-          id="subscribe-preview-widget"
-          feed-ics="https://communitybuilders.dev/events/feed.ics"
-          feed-rss="https://communitybuilders.dev/events/feed.xml"
-        ></ote-subscribe>
-      </div>
-    </section>
-
-    <section class="panel" aria-labelledby="subscribe-snippet-heading">
-      <h2 id="subscribe-snippet-heading">&lt;ote-subscribe&gt; — Copy-paste snippet</h2>
-      <p class="hint">This is the exact markup for the &lt;ote-subscribe&gt; configuration above.</p>
-      <div class="snippet-box">
-        <pre><code id="subscribe-snippet-code" class="language-html"></code></pre>
-        <button type="button" id="subscribe-copy-button">Copy</button>
-      </div>
-    </section>
-
-    <section class="panel versioning-guide" aria-labelledby="versioning-heading">
-      <h2 id="versioning-heading">Versioning</h2>
-      <p>
-        Production embeds should use a fixed version URL so future widget
-        changes do not alter existing sites without an explicit upgrade.
-      </p>
-      <dl class="version-url-list">
-        <div>
-          <dt>Recommended</dt>
-          <dd><code>https://tools.opentechevents.org/embed/v__EMBED_VERSION__/ote-events.js</code></dd>
-        </div>
-        <div>
-          <dt>Automatic updates</dt>
-          <dd><code>https://tools.opentechevents.org/embed/latest/ote-events.js</code></dd>
-        </div>
-        <div>
-          <dt>Legacy alias</dt>
-          <dd><code>https://tools.opentechevents.org/embed/ote-events.js</code></dd>
-        </div>
-      </dl>
-      <p>
-        The widget follows semantic versioning: patch releases are compatible
-        fixes, minor releases add compatible features, and major releases may
-        require migration. Check the changelog before changing the version used
-        by a production page.
-      </p>
-      <p>
-        Component versions and OTE Spec versions are independent. The component
-        version tells you which widget bundle you are loading; the OTE Spec
-        version tells you which event/feed shape that bundle is designed to
-        consume.
-      </p>
-      <div class="version-table-wrap">
-        <table class="version-table">
-          <thead>
-            <tr>
-              <th scope="col">Component</th>
-              <th scope="col">OTE Spec</th>
-              <th scope="col">Links</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>v__EMBED_VERSION__</code></td>
-              <td><a href="https://opentechevents.org/schema/v__OTE_SPEC_SCHEMA_VERSION__/event.schema.json" target="_blank" rel="noopener">v__OTE_SPEC_VERSION__</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v__EMBED_VERSION__" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v__EMBED_VERSION__/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-            <tr>
-              <td><code>v0.4.0</code></td>
-              <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.4.0" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v0.4.0/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-            <tr>
-              <td><code>v0.3.1</code></td>
-              <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.3.1" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v0.3.1/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-            <tr>
-              <td><code>v0.3.0</code></td>
-              <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.3.0" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v0.3.0/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-            <tr>
-              <td><code>v0.2.0</code></td>
-              <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.2.0" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v0.2.0/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-            <tr>
-              <td><code>v0.1.1</code></td>
-              <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.1.1" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v0.1.1/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-            <tr>
-              <td><code>v0.1.0</code></td>
-              <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
-              <td>
-                <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.1.0" target="_blank" rel="noopener">release</a>
-                <span aria-hidden="true"> · </span>
-                <a href="https://tools.opentechevents.org/embed/v0.1.0/ote-events.js" target="_blank" rel="noopener">script</a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="resource-links">
-        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
-          View the changelog
-        </a>
-        <a href="https://github.com/OpenTechEvents/ote-tools/releases?q=embed-v&expanded=true" target="_blank" rel="noopener">
-          View embed releases
-        </a>
-      </div>
-    </section>
-
-    <section class="panel" aria-labelledby="host-app-heading">
-      <h2 id="host-app-heading">Host app integration</h2>
-      <p>
-        Apps such as OTE Reader can pass already-filtered events in memory and
-        keep subscriptions, folders, read state, and persistence outside the
-        widget. Use <code>sort="none"</code> when the host app owns ordering.
-      </p>
-      <pre><code class="language-javascript">await customElements.whenDefined("ote-events");
+      <section class="panel" aria-labelledby="host-app-heading">
+        <h2 id="host-app-heading">Host app integration</h2>
+        <p>
+          Apps such as OTE Reader can pass already-filtered events in memory and
+          keep subscriptions, folders, read state, and persistence outside the
+          widget. Use <code>sort="none"</code> when the host app owns ordering.
+        </p>
+        <pre><code class="language-javascript">await customElements.whenDefined("ote-events");
 
 const widget = document.querySelector("ote-events");
 widget.setAttribute("sort", "none");
@@ -497,68 +627,88 @@ widget.eventClassName = (context) =>
   read.has(context.originalEvent.id) ? "is-read" : "is-unread";
 widget.eventBadges = (context) =>
   context.originalEvent.cfpOpen ? [{ label: "CFP", icon: "plus" }] : [];</code></pre>
-      <div class="version-table-wrap">
-        <table class="version-table">
-          <thead>
-            <tr>
-              <th scope="col">API</th>
-              <th scope="col">Use</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>el.events</code></td>
-              <td>Render an in-memory array of OTE events without fetching.</td>
-            </tr>
-            <tr>
-              <td><code>sort="none"</code></td>
-              <td>Keep the host application's ordering instead of widget date sorting.</td>
-            </tr>
-            <tr>
-              <td><code>empty-message</code></td>
-              <td>Customize the empty state shown after host-side filters.</td>
-            </tr>
-            <tr>
-              <td><code>eventActions(context)</code></td>
-              <td>Return per-event actions with dynamic label, icon, placement, and pressed state.</td>
-            </tr>
-            <tr>
-              <td><code>eventClassName(context)</code></td>
-              <td>Add host-owned state classes such as read, unread, saved, or canceled.</td>
-            </tr>
-            <tr>
-              <td><code>eventBadges(context)</code></td>
-              <td>Add host-owned badges such as folder, collection, CFP, or saved state.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p>
-        The <code>ote-event-action</code> event includes <code>action</code>,
-        <code>previewEvent</code>, <code>originalEvent</code>, <code>index</code>,
-        <code>feed</code>, and <code>source</code>. The widget renders only; it
-        does not store favorites, folders, read state, or filters.
-      </p>
-    </section>
+        <div class="version-table-wrap">
+          <table class="version-table">
+            <thead>
+              <tr>
+                <th scope="col">API</th>
+                <th scope="col">Use</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>el.events</code></td>
+                <td>Render an in-memory array of OTE events without fetching.</td>
+              </tr>
+              <tr>
+                <td><code>sort="none"</code></td>
+                <td>Keep the host application's ordering instead of widget date sorting.</td>
+              </tr>
+              <tr>
+                <td><code>empty-message</code></td>
+                <td>Customize the empty state shown after host-side filters.</td>
+              </tr>
+              <tr>
+                <td><code>eventActions(context)</code></td>
+                <td>Return per-event actions with dynamic label, icon, placement, and pressed state.</td>
+              </tr>
+              <tr>
+                <td><code>eventClassName(context)</code></td>
+                <td>Add host-owned state classes such as read, unread, saved, or canceled.</td>
+              </tr>
+              <tr>
+                <td><code>eventBadges(context)</code></td>
+                <td>Add host-owned badges such as folder, collection, CFP, or saved state.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The <code>ote-event-action</code> event includes <code>action</code>,
+          <code>previewEvent</code>, <code>originalEvent</code>, <code>index</code>,
+          <code>feed</code>, and <code>source</code>. The widget renders only; it
+          does not store favorites, folders, read state, or filters.
+        </p>
+      </section>
 
-    <section class="panel agent-resource" aria-labelledby="agent-resource-heading">
-      <h2 id="agent-resource-heading">Using AI agents?</h2>
-      <p>
-        The embed package includes an agent-facing guide with the typed
-        <code>eventActions</code> contract, placement rules, and the tests that
-        act as living documentation.
-      </p>
-      <div class="resource-links">
-        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">
-          Read the agent guide
-        </a>
-        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
-          View the changelog
-        </a>
-      </div>
+      <section class="panel agent-resource" aria-labelledby="agent-resource-heading">
+        <h2 id="agent-resource-heading">Using AI agents?</h2>
+        <p>
+          The embed package includes an agent-facing guide with the typed
+          <code>eventActions</code> contract, placement rules, and the tests that
+          act as living documentation.
+        </p>
+        <div class="resource-links">
+          <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">
+            Read the agent guide
+          </a>
+          <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+            View the changelog
+          </a>
+        </div>
+      </section>
     </section>
-    </div>
   </main>
+
+  <footer class="page-footer">
+    <p class="hint">
+      This page's full markup (all three tabs) is always present in the HTML
+      source — switch to <strong>Reference</strong> above for the complete
+      versioning table and host-app integration guide, or fetch these docs
+      directly:
+    </p>
+    <div class="resource-links">
+      <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">
+        Agent guide (CLAUDE.md)
+      </a>
+      <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+        Changelog
+      </a>
+      <a href="https://github.com/OpenTechEvents/ote-tools/releases?q=embed-v&expanded=true" target="_blank" rel="noopener">
+        Releases
+      </a>
+    </div>
+  </footer>
 
   <script type="module" src="./ote-events.js"></script>
   <script type="module" src="./ote-subscribe.js"></script>
