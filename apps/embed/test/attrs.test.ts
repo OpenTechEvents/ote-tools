@@ -8,6 +8,7 @@ import {
   parseDetailFields,
   parseEventActions,
   parseEventClick,
+  parseFeedsAttr,
   parseFields,
   parseGroupEvents,
   parseLangAttr,
@@ -196,5 +197,31 @@ describe("parseGroupEvents", () => {
 
   it("dedupes repeated tokens", () => {
     expect(parseGroupEvents("series,series,series")).toEqual(new Set(["series"]));
+  });
+});
+
+describe("parseFeedsAttr", () => {
+  it("returns an empty array when absent, empty, or only commas/whitespace", () => {
+    for (const value of [null, "", ",", " , , "]) {
+      expect(parseFeedsAttr(value)).toEqual([]);
+    }
+  });
+
+  it("splits and trims a comma-separated list of URLs", () => {
+    expect(parseFeedsAttr("https://a.org/feed.json, https://b.org/feed.json")).toEqual([
+      "https://a.org/feed.json",
+      "https://b.org/feed.json",
+    ]);
+  });
+
+  it("drops empty tokens from stray/trailing commas but keeps the rest", () => {
+    expect(parseFeedsAttr("https://a.org/feed.json,,https://b.org/feed.json,")).toEqual([
+      "https://a.org/feed.json",
+      "https://b.org/feed.json",
+    ]);
+  });
+
+  it("returns a single-element array for one URL, same as a bare feed attribute would", () => {
+    expect(parseFeedsAttr("https://a.org/feed.json")).toEqual(["https://a.org/feed.json"]);
   });
 });

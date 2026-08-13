@@ -236,6 +236,122 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.textContent).not.toContain("Runtime Event");
   });
 
+  it("feeds attribute fetches multiple feed URLs in parallel and renders their events combined", async () => {
+    fetchMock.mockImplementation(async (url: string) => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [{ name: url.includes("/a.json") ? "Event A" : "Event B", startDate: "2999-01-01" }],
+        }),
+    }));
+    const el = createListElement();
+    el.setAttribute("feeds", "https://a.org/a.json, https://b.org/b.json");
+    document.body.append(el);
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(2);
+    expect(el.shadowRoot!.textContent).toContain("Event A");
+    expect(el.shadowRoot!.textContent).toContain("Event B");
+  });
+
+  it("the feeds attribute takes full precedence over feed when both are set", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://ignored.org/feed.json");
+    el.setAttribute("feeds", "https://a.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("https://a.org/feed.json");
+  });
+
+  it("falls back to the feed attribute when feeds is absent, empty, or only commas", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("feeds", " , ");
+    document.body.append(el);
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("https://example.org/feed.json");
+  });
+
+  it("drops a feed that fails to fetch and still renders the events from the ones that succeed", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === "https://down.org/feed.json") return { ok: false, status: 500, text: async () => "" };
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ events: [{ name: "Event OK", startDate: "2999-01-01" }] }),
+      };
+    });
+    const el = createListElement();
+    el.setAttribute("feeds", "https://down.org/feed.json,https://up.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".message.error")).toBeFalsy();
+    expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(1);
+    expect(el.shadowRoot!.textContent).toContain("Event OK");
+  });
+
+  it("shows the error state only when every feed in feeds fails", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503, text: async () => "" });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feeds", "https://a.org/feed.json,https://b.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".message.error")).toBeTruthy();
+    expect(el.shadowRoot!.textContent).toContain("503");
+  });
+
+  it("re-fetches all of them when the feeds attribute itself changes", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feeds", "https://example.org/a.json");
+    document.body.append(el);
+    await flush();
+    el.setAttribute("feeds", "https://example.org/b.json,https://example.org/c.json");
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("tags each merged event with its originating feed, visible via originalEvent._feedUrl and the feed render context", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const isA = url === "https://a.org/feed.json";
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            title: isA ? "Feed A" : "Feed B",
+            events: [{ name: isA ? "Event A" : "Event B", startDate: "2999-01-01" }],
+          }),
+      };
+    });
+    const el = createCardsElement();
+    el.setAttribute("feeds", "https://a.org/feed.json,https://b.org/feed.json");
+    const opened = vi.fn();
+    el.addEventListener("ote-event-open", opened);
+    document.body.append(el);
+    await flush();
+
+    const cardA = [...el.shadowRoot!.querySelectorAll<HTMLElement>("li.event")].find((card) =>
+      card.textContent?.includes("Event A"),
+    );
+    cardA?.click();
+
+    expect(opened).toHaveBeenCalledTimes(1);
+    const detail = (opened.mock.calls[0]?.[0] as CustomEvent).detail as Record<string, unknown>;
+    expect((detail.originalEvent as Record<string, unknown>)?._feedUrl).toBe("https://a.org/feed.json");
+    expect(detail.feed).toEqual({ url: "https://a.org/feed.json", title: "Feed A" });
+  });
+
   const RICH_FEED = JSON.stringify({
     events: [
       {

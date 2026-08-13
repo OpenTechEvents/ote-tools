@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Added
+
+- `feeds="url1,url2,..."` attribute: fetches multiple OTE feeds in parallel
+  and renders their events combined into a single sorted/filtered/limited
+  list, instead of just one `feed`. Takes full precedence over `feed` when
+  present and non-empty (same "full replacement" precedent as `fields`); a
+  bare `feed="..."` is unaffected. A feed that fails to fetch is dropped and
+  the rest still render — the error state only appears if every feed fails.
+  Each merged event is tagged with `_feedUrl`/`_feedTitle` (unless the source
+  already set its own), so `EventRenderContext.feed` and the
+  `ote-event-open`/`ote-event-action` DOM events still attribute each event
+  to the feed it came from.
+- The playground's "feed" control now doubles as "feed / feeds": enter one
+  URL for `feed`, or several comma-separated to combine them via `feeds`, and
+  the copy-paste snippet reflects whichever attribute applies.
+
 ## 0.4.0
 
 ### Added

@@ -2,6 +2,7 @@ import {
   ALL_FIELDS,
   DEFAULT_EVENT_ACTIONS,
   DEFAULT_FIELDS,
+  parseFeedsAttr,
   type EventClickMode,
   type FieldKey,
   type GroupKey,
@@ -126,8 +127,14 @@ function isDefaultEventActions(actions: NativeEventAction[]): boolean {
   );
 }
 
+function feedAttrLine(feedUrls: string[]): string {
+  if (feedUrls.length > 1) return ` feeds="${attr(feedUrls.join(","))}"`;
+  if (feedUrls.length === 1) return ` feed="${attr(feedUrls[0]!)}"`;
+  return "";
+}
+
 function buildSnippet(config: {
-  feed: string;
+  feedUrls: string[];
   sourceMode: SourceMode;
   runtimeData: RuntimeData | undefined;
   limit: string;
@@ -160,7 +167,7 @@ function buildSnippet(config: {
     lines.push("  }", "</style>", "");
   }
   const elementLines = [
-    `<ote-events id="events-widget"${config.sourceMode === "url" ? ` feed="${attr(config.feed)}"` : ""}`,
+    `<ote-events id="events-widget"${config.sourceMode === "url" ? feedAttrLine(config.feedUrls) : ""}`,
     `  layout="${attr(config.layout)}"`,
     `  theme="${attr(config.theme)}"`,
     `  lang="${attr(config.lang)}"`,
@@ -336,6 +343,7 @@ function applyAndRender(): void {
   setSourceControls(mode);
 
   const feed = feedInput.value.trim();
+  const feedUrls = parseFeedsAttr(feed);
   const limit = limitInput.value.trim();
   const layout = currentLayout();
   const placeholderImage = placeholderImageInput.value.trim();
@@ -365,8 +373,18 @@ function applyAndRender(): void {
   const groupEventsAttr = groupEvents.length > 0 ? groupEvents.join(",") : undefined;
   const runtimeDataResult = readRuntimeData(mode);
 
-  if (mode === "url" && feed && widget.getAttribute("feed") !== feed) widget.setAttribute("feed", feed);
-  if (mode === "json" && widget.hasAttribute("feed")) widget.removeAttribute("feed");
+  if (mode === "url" && feedUrls.length > 1) {
+    const feedsAttr = feedUrls.join(",");
+    if (widget.getAttribute("feeds") !== feedsAttr) widget.setAttribute("feeds", feedsAttr);
+    widget.removeAttribute("feed");
+  } else if (mode === "url") {
+    widget.removeAttribute("feeds");
+    if (feed && widget.getAttribute("feed") !== feed) widget.setAttribute("feed", feed);
+  }
+  if (mode === "json") {
+    if (widget.hasAttribute("feed")) widget.removeAttribute("feed");
+    if (widget.hasAttribute("feeds")) widget.removeAttribute("feeds");
+  }
   if (limit) widget.setAttribute("limit", limit);
   else widget.removeAttribute("limit");
   widget.setAttribute("layout", layout);
@@ -419,7 +437,7 @@ function applyAndRender(): void {
   }
 
   setSnippet(buildSnippet({
-    feed,
+    feedUrls,
     sourceMode: mode,
     runtimeData: runtimeDataResult.status === "valid" ? runtimeDataResult.runtimeData : undefined,
     limit,

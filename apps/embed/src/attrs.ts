@@ -170,6 +170,22 @@ export function parseGroupEvents(value: string | null): Set<GroupKey> {
   );
 }
 
+/**
+ * Comma-separated list of feed URLs for the `feeds` attribute (plural).
+ * Unlike `parseFields`, there is no recognized-token allow-list — every
+ * non-empty, trimmed token is a URL candidate; a bad one simply fails to
+ * fetch like a bad `feed` URL would. Returns an empty array when absent,
+ * blank, or only commas, so `element.ts` can fall back to the single `feed`
+ * attribute.
+ */
+export function parseFeedsAttr(value: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
 const CARD_WIDTH_PRESETS: Record<string, string> = {
   small: "160px",
   medium: "220px",

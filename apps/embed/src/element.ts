@@ -10,6 +10,7 @@ import {
   parseCardWidth,
   parseDetailFields,
   parseFields,
+  parseFeedsAttr,
   parseEventActions,
   parseEventClick,
   parseGroupEvents,
@@ -52,10 +53,22 @@ export type OteEventsFeedData = OteEventsFeedObject | OriginalOteEvent[];
  * JSON, and pulling in the ICS/RSS converters here would drag their heavier
  * deps (ical.js, DOMParser-based XML parsing) into this bundle for a case
  * the acceptance criteria doesn't call for. See apps/embed/CLAUDE.md.
+ *
+ * `feeds="url1,url2,..."` fetches multiple OTE feeds in parallel and renders
+ * their events combined, sorted/filtered/limited together as one list. It
+ * takes full precedence over `feed` when present and non-empty (not merged
+ * with it — same "full replacement" precedent as `fields`); `feed` remains
+ * the single-URL case, unchanged. A feed that fails to fetch is dropped and
+ * the rest still render; the error state only appears if every feed fails.
+ * Each merged event is tagged with `_feedUrl`/`_feedTitle` (unless the
+ * source already set its own), so `EventRenderContext.feed` and the
+ * `ote-event-open`/`ote-event-action` DOM events still attribute each event
+ * to the feed it came from.
  */
 export class OteEventsElement extends HTMLElement {
   static observedAttributes = [
     "feed",
+    "feeds",
     "limit",
     "theme",
     "lang",
@@ -114,7 +127,7 @@ export class OteEventsElement extends HTMLElement {
 
   attributeChangedCallback(name: string): void {
     if (!this.isConnected) return;
-    if (name === "feed") {
+    if (name === "feed" || name === "feeds") {
       void this.#load();
     } else {
       this.#renderNow();
@@ -173,13 +186,20 @@ export class OteEventsElement extends HTMLElement {
     if (this.isConnected) this.#renderNow();
   }
 
+  #resolveFeedUrls(): string[] {
+    const feedUrls = parseFeedsAttr(this.getAttribute("feeds"));
+    if (feedUrls.length > 0) return feedUrls;
+    const feedUrl = this.getAttribute("feed");
+    return feedUrl ? [feedUrl] : [];
+  }
+
   async #load(): Promise<void> {
     if (this.#runtimeDataOverride) return;
 
-    const feedUrl = this.getAttribute("feed");
-    if (!feedUrl) {
+    const feedUrls = this.#resolveFeedUrls();
+    if (feedUrls.length === 0) {
       this.#status = "error";
-      this.#errorMessage = 'Missing required "feed" attribute.';
+      this.#errorMessage = 'Missing required "feed" or "feeds" attribute.';
       this.#selectedEvent = undefined;
       this.#renderNow();
       return;
@@ -189,25 +209,41 @@ export class OteEventsElement extends HTMLElement {
     this.#renderNow();
 
     // Guards against a slow earlier request overwriting a newer one when the
-    // `feed` attribute changes twice in quick succession.
+    // `feed`/`feeds` attribute changes twice in quick succession.
     const requestId = ++this.#requestId;
+    const settled = await Promise.allSettled(feedUrls.map(fetchFeedData));
+    if (requestId !== this.#requestId) return;
+
+    const fulfilled = settled.filter(
+      (result): result is PromiseFulfilledResult<FeedFetchResult> => result.status === "fulfilled",
+    );
+    // Best-effort: a feed that fails to fetch is dropped rather than failing
+    // the whole widget, as long as at least one of the requested feeds loads.
+    if (fulfilled.length === 0) {
+      this.#status = "error";
+      this.#errorMessage =
+        feedUrls.length === 1
+          ? rejectionMessage((settled[0] as PromiseRejectedResult).reason)
+          : settled
+              .map((result, i) => `${feedUrls[i]}: ${rejectionMessage((result as PromiseRejectedResult).reason)}`)
+              .join("; ");
+      this.#selectedEvent = undefined;
+      this.#renderNow();
+      return;
+    }
+
     try {
-      const response = await fetch(feedUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const text = await response.text();
-      const runtimeData = JSON.parse(text) as OteEventsFeedData;
+      const runtimeData = mergeFeedResults(fulfilled.map((result) => result.value));
       const feed = oteJsonToPreviewFeed(runtimeData as OteJsonPreviewInput);
-      if (requestId !== this.#requestId) return;
       this.#feed = feed;
       this.#runtimeData = runtimeData;
       this.#runtimeDataOverride = false;
       this.#originalEvents = originalEvents(runtimeData);
-      this.#feedSource = feedSource(runtimeData, feedUrl);
+      this.#feedSource = fulfilled.length === 1 ? feedSource(runtimeData, fulfilled[0]!.value.url) : undefined;
       this.#contexts = buildContexts(feed, this.#originalEvents, this.#feedSource);
       this.#status = "loaded";
       this.#selectedEvent = undefined;
     } catch (error) {
-      if (requestId !== this.#requestId) return;
       this.#status = "error";
       this.#errorMessage = error instanceof Error ? error.message : String(error);
       this.#selectedEvent = undefined;
@@ -399,6 +435,45 @@ export class OteEventsElement extends HTMLElement {
 
 function originalEvents(input: OteEventsFeedData): OriginalOteEvent[] {
   return Array.isArray(input) ? input : Array.isArray(input.events) ? input.events : [];
+}
+
+interface FeedFetchResult {
+  url: string;
+  data: OteEventsFeedData;
+}
+
+async function fetchFeedData(url: string): Promise<FeedFetchResult> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const text = await response.text();
+  return { url, data: JSON.parse(text) as OteEventsFeedData };
+}
+
+function rejectionMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
+}
+
+/**
+ * A single successfully-fetched feed passes through untouched, so `feed="..."`
+ * (and a `feeds="..."` with just one URL, or where all but one failed) keeps
+ * its exact pre-existing shape and behavior. Combining 2+ feeds tags each
+ * event with `_feedUrl`/`_feedTitle` (unless the source already set its own —
+ * see apps/embed/CLAUDE.md's "custom event actions" section on that private
+ * metadata contract), so `buildContexts()` below can still attribute every
+ * merged event to the feed it came from.
+ */
+function mergeFeedResults(results: FeedFetchResult[]): OteEventsFeedData {
+  if (results.length === 1) return results[0]!.data;
+  return {
+    events: results.flatMap(({ url, data }) => {
+      const feedTitle = !Array.isArray(data) ? stringMeta(data.title) : undefined;
+      return originalEvents(data).map((event) => ({
+        ...event,
+        _feedUrl: stringMeta(event["_feedUrl"]) ?? url,
+        ...(!stringMeta(event["_feedTitle"]) && feedTitle ? { _feedTitle: feedTitle } : {}),
+      }));
+    }),
+  };
 }
 
 function stringMeta(value: unknown): string | undefined {
