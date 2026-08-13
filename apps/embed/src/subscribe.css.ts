@@ -9,7 +9,7 @@ export const SUBSCRIBE_CSS = `
   display: inline-flex;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.6rem;
   --ote-surface: #f6f7f9;
   --ote-border: #e3e6ea;
   --ote-text: #1c2128;
