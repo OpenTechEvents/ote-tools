@@ -350,6 +350,21 @@ async function startEditor(repo: string | null): Promise<void> {
   const feedSettingsOpen = el<HTMLButtonElement>("feed-settings-open");
   const actionBar = el<HTMLDivElement>("action-bar");
   const bulkEditBanner = el<HTMLDivElement>("bulk-edit-banner");
+  const previewWidget = el<OteEventsElement>("event-preview");
+  const previewToggle = el<HTMLDivElement>("preview-toggle");
+
+  // Narrow viewports: which of #form-column/#preview-column is shown (see
+  // styles.css's "#form-view: two-column layout" — both always show at the
+  // wide-desktop tier regardless of this attribute).
+  formView.dataset.mobileTab = "form";
+  previewToggle.addEventListener("input", () => {
+    const mode =
+      previewToggle.querySelector<HTMLInputElement>('input[name="preview-toggle"]:checked')
+        ?.value === "preview"
+        ? "preview"
+        : "form";
+    formView.dataset.mobileTab = mode;
+  });
 
   /** Toggles the three top-level views. Elements *inside* form-view keep their own content-driven `hidden` logic (section-nav, document-errors…) untouched — this only gates the wrapper. */
   function showView(): void {
@@ -873,7 +888,24 @@ async function startEditor(repo: string | null): Promise<void> {
   /** Result of the last refresh, consulted by the button handlers. */
   let draftValid = false;
 
+  // Debounced so a fast typist doesn't force a full shadow-DOM re-render on
+  // every keystroke; the preview always reflects `state` as of the most
+  // recent refresh() call, including mid-edit while bulk-editing a series
+  // template — toEventJson() never throws on a partial/blank event (see
+  // packages/preview-feed's tolerant field handling), so no separate
+  // "wait until valid" gate is needed here.
+  let previewTimer: ReturnType<typeof setTimeout> | undefined;
+  function schedulePreviewUpdate(event: OteEvent): void {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      previewWidget.events = [event] as unknown as OriginalOteEvent[];
+    }, 200);
+  }
+
   function refresh(): boolean {
+    const event = toEventJson(state);
+    schedulePreviewUpdate(event);
+
     // Bulk-edit template: id/slug/startDate are deliberately blank (see
     // buildBulkEditTemplate) — the normal required-field validation would
     // be pure noise here, and slug/id auto-suggest/collision-checking
@@ -902,7 +934,6 @@ async function startEditor(repo: string | null): Promise<void> {
         setControlValue("id", state.id);
       }
     }
-    const event = toEventJson(state);
     const result = validateDraft(config, event, new Date().toISOString());
 
     // Collisions against the repo's existing events (best-effort: the

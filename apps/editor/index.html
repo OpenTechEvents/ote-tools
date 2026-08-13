@@ -279,6 +279,35 @@
            untouched; this wrapper is a second, independent layer on top of
            that, not a replacement for it. -->
       <div id="form-view">
+      <!-- Narrow viewports only (hidden once the two-column layout kicks in
+           at the wide breakpoint, where the form and preview render side
+           by side) — lets the organizer switch between editing and seeing
+           the live preview without leaving the form view. Same
+           .mode-toggle radiogroup component as #description-editor-mode's
+           Edit/Preview toggle; driven by main.ts setting
+           #form-view[data-mobile-tab] rather than the hidden attribute.
+           Deliberately a sibling of #form-column, not nested inside it —
+           nesting it there would hide the toggle itself along with the
+           rest of the form as soon as the Preview tab is selected,
+           trapping the organizer on the preview with no way back. -->
+      <div
+        class="mode-toggle"
+        id="preview-toggle"
+        role="radiogroup"
+        aria-label="View"
+        data-i18n-aria-label="nav.previewToggle.label"
+      >
+        <label>
+          <input type="radio" name="preview-toggle" value="form" checked />
+          <span data-i18n="nav.previewToggle.form">Form</span>
+        </label>
+        <label>
+          <input type="radio" name="preview-toggle" value="preview" />
+          <span data-i18n="nav.previewToggle.preview">Preview</span>
+        </label>
+      </div>
+
+      <div id="form-column">
       <button id="back-to-list" type="button" class="secondary" hidden data-i18n="nav.backToEvents">
         ← Back to events
       </button>
@@ -367,6 +396,19 @@
       <form id="event-form" autocomplete="off"></form>
 
       <ul id="document-errors" hidden></ul>
+      </div>
+
+      <!-- Live preview: <ote-events> (apps/embed), fed purely in-memory from
+           the current form state (main.ts's schedulePreviewUpdate, called
+           from refresh()) — no feed=/network fetch. Below the wide
+           breakpoint this is shown/hidden by #preview-toggle instead of
+           sitting beside the form; see the #form-view grid rule in
+           styles.css. Same widget attributes as the events-list-view's own
+           #events-widget instance, for a consistent look. -->
+      <aside id="preview-column">
+        <h2 data-i18n="nav.previewToggle.heading">Preview</h2>
+        <ote-events id="event-preview" layout="cards" sort="none" theme="light"></ote-events>
+      </aside>
 
       <div id="action-bar">
         <button id="valid-badge" type="button" hidden></button>

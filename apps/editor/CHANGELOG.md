@@ -6,6 +6,18 @@ tied to semver releases.
 
 ## 2026-08-13
 
+- **Live preview**: the form now renders the event being edited with the
+  same `<ote-events>` widget (`apps/embed`) used elsewhere in the app, fed
+  purely in-memory from the current draft (`layout="cards"`, debounced ~200ms
+  as you type) — no need to save/export to see how title length, description
+  formatting, tags, or venue will actually look. Works on a blank or
+  mid-edit draft; missing fields just render as absent, nothing blocks the
+  preview on validity. On narrow viewports it's a Form/Preview toggle above
+  the form (same pattern as the description field's own Edit/Preview
+  toggle); from the new wide-desktop breakpoint up, the form and preview
+  render side by side as two columns instead — the editor's layout is no
+  longer single-column at every width (see the updated note at the top of
+  `styles.css`).
 - **"Edit series" warns per field when occurrences already disagree**: any
   field in the shared bulk-edit template that isn't uniform across the
   series — e.g. one occurrence's `description` was hand-tweaked — now shows

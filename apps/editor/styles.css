@@ -1,5 +1,9 @@
-/* Mobile-first. Single column; the layout never splits — wider screens just
-   get more breathing room. */
+/* Mobile-first. Single column below the wide-desktop breakpoint — wider
+   screens up to that point just get more breathing room, same as before.
+   At the wide-desktop tier (see "#form-view: two-column layout" further
+   down), the form view splits into a form column and a live preview
+   column side by side; every other view stays single-column at every
+   width. */
 
 :root {
   --bg: #f6f7f9;
@@ -34,6 +38,16 @@ body {
   line-height: 1.5;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Matches the two-column form/preview layout's own total width (see
+   "#form-view: two-column layout" further down) — every view (header,
+   footer, the events list) gets the same wider column at this tier, not
+   just the form. */
+@media (min-width: 72rem) {
+  body {
+    max-width: 72rem;
+  }
 }
 
 /* --- header ------------------------------------------------------------- */
@@ -221,6 +235,12 @@ header h1 {
 .mode-toggle input:focus-visible + span {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Form/Preview switch — narrow viewports only, see "#form-view: two-column
+   layout" for the wide-breakpoint override that hides this entirely. */
+#preview-toggle {
+  margin: 0 0 0.75rem;
 }
 
 .description-toolbar {
@@ -1537,6 +1557,66 @@ select {
   padding: 0.6rem 0.85rem 0.6rem 2rem;
 }
 
+/* --- form/preview layout ---------------------------------------------------- */
+
+/* Mobile-first default: the live preview column is off-screen entirely,
+   and #preview-toggle (in #form-column) switches which one of
+   #form-column/#preview-column is shown. Below the wide-desktop tier this
+   stays a single column throughout, same as every other view in the app. */
+#preview-column {
+  display: none;
+}
+
+#form-view[data-mobile-tab="preview"] #form-column {
+  display: none;
+}
+
+#form-view[data-mobile-tab="preview"] #preview-column {
+  display: block;
+}
+
+@media (min-width: 72rem) {
+  /* Two-column layout: form on the left, live preview on the right, both
+     always visible — #preview-toggle is hidden below (nothing to switch
+     between anymore). 44rem + 2rem gap + 26rem = 72rem, matching this
+     tier's own min-width and this file's widened `body` max-width, so the
+     grid never renders cramped right at the breakpoint edge. */
+  #form-view:not([hidden]) {
+    display: grid;
+    grid-template-columns: 44rem 26rem;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  #preview-toggle {
+    display: none;
+  }
+
+  /* Matches the specificity of the mobile-tab rules above
+     (#form-view[data-mobile-tab="…"] #form-column/#preview-column) so this
+     override actually wins by source order — a plain `#form-column,
+     #preview-column { display: block }` here would lose to those rules
+     whenever data-mobile-tab happens to still be "preview" from a narrower
+     viewport (main.ts doesn't reset it on resize). */
+  #form-view[data-mobile-tab="form"] #form-column,
+  #form-view[data-mobile-tab="preview"] #form-column,
+  #form-view[data-mobile-tab="form"] #preview-column,
+  #form-view[data-mobile-tab="preview"] #preview-column {
+    display: block;
+  }
+
+  #preview-column {
+    position: sticky;
+    top: 1rem;
+  }
+
+  #preview-column h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1rem;
+    color: var(--muted);
+  }
+}
+
 /* --- action bar ------------------------------------------------------------- */
 
 /* :not([hidden]) — bulk-edit mode toggles this off in favor of
@@ -1605,6 +1685,16 @@ select {
     width: 48rem;
     border: 1px solid var(--border);
     border-radius: var(--radius) var(--radius) 0 0;
+  }
+}
+
+@media (min-width: 72rem) {
+  /* Same centering mechanism as the 52rem tier above, just spanning the
+     wider two-column content width (form + gap + preview, see "#form-view:
+     two-column layout") instead of the single form column — the action bar
+     reads as applying to the whole page, not just the form side. */
+  #action-bar:not([hidden]) {
+    width: 72rem;
   }
 }
 

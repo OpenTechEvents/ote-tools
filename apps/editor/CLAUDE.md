@@ -133,6 +133,53 @@ is expected and the filename should never be treated as authoritative —
 only `startDate` inside the JSON is. See DESIGN.md's "Flujo de escritura"
 section for the cross-repo rationale.
 
+## The layout is no longer single-column at every width
+
+`styles.css`'s top-of-file comment used to say the layout "never splits."
+That was a deliberate choice at the time, but it's been overridden: from a
+new wide-desktop breakpoint (`min-width: 72rem`) up, `#form-view` becomes a
+two-column CSS grid — the form on the left, the live preview
+(`#preview-column`, see below) on the right — so a wide screen shows both
+instead of just getting more padding. Below that breakpoint (including the
+existing "wider desktop" ~52rem tier), the app is still genuinely
+single-column, unchanged. Don't assume single-column-always when reading
+older comments or issues that predate this — check the `72rem` tier's rules
+in `styles.css` first.
+
+`body`'s `max-width` and `#action-bar`'s fixed width both grow to match at
+the same `72rem` tier (44rem form column + 2rem gap + 26rem preview column),
+reusing the exact centering mechanism `#action-bar` already used at the
+52rem tier (`left: 50%; transform: translateX(-50%); width: …`) rather than
+inventing new positioning math — that existing mechanism has its own
+hard-won comment nearby about a centering bug already hit once; don't
+recompute the action bar's position independently of `body`'s max-width, or
+you'll likely reintroduce it.
+
+`#form-view` toggling `data-mobile-tab="form"/"preview"` (below the wide
+tier, to pick which of `#form-column`/`#preview-column` shows) uses
+attribute-selector rules like `#form-view[data-mobile-tab="preview"]
+#form-column`. The wide-tier override that forces both columns visible has
+to repeat those same compound selectors (see the comment in `styles.css`
+right above it) rather than a plain `#form-column, #preview-column { display:
+block }` — a lower-specificity override there would silently lose to the
+mobile-tab rule if `data-mobile-tab` still happens to be `"preview"` from a
+narrower viewport (main.ts doesn't reset it on resize).
+
+## Live preview: `<ote-events>` fed purely in-memory
+
+`#preview-column` embeds the same `<ote-events>` widget (`apps/embed`,
+already self-hosted via `dist/embed` — see `build.mjs`) as the events list
+view, but driven from the in-memory draft rather than a fetched feed:
+`main.ts`'s `refresh()` computes `toEventJson(state)` and calls
+`schedulePreviewUpdate()`, which debounces ~200ms then sets
+`previewWidget.events = [event]`. This works because
+`oteJsonToPreviewFeed` (`packages/preview-feed`) treats every event field as
+optional and only ever throws if its input isn't shaped like `{ events:
+[...] }` — never true here — so the preview renders fine even for a blank
+new-event draft or mid-edit bulk-edit template. There is deliberately no
+"wait until the draft is schema-valid" gate; if you're tempted to add one,
+it isn't needed and would just make the preview lag behind typing.
+
 ## OTE has no recurrence-rule concept
 
 The spec is explicit: one document per occurrence, always ("un documento
