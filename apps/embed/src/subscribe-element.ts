@@ -44,6 +44,7 @@ export class OteSubscribeElement extends HTMLElement {
     const styleEl = document.createElement("style");
     styleEl.textContent = SUBSCRIBE_CSS;
     this.#container = document.createElement("div");
+    this.#container.className = "subscribe";
     root.append(styleEl, this.#container);
   }
 

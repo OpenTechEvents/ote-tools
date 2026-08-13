@@ -6,10 +6,7 @@
 // works standalone if <ote-events> isn't present.
 export const SUBSCRIBE_CSS = `
 :host {
-  display: inline-flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  display: inline-block;
   --ote-surface: #f6f7f9;
   --ote-border: #e3e6ea;
   --ote-text: #1c2128;
@@ -51,6 +48,18 @@ export const SUBSCRIBE_CSS = `
 
 * {
   box-sizing: border-box;
+}
+
+/* The actual flex layout lives here, not on :host — :host's own children
+   are just this one container div, so a gap declared on :host itself has
+   nothing to space (a bug an earlier version of this file had: the gap
+   rule was set but never visibly applied, since the .item badges are
+   grandchildren of :host, not direct children). */
+.subscribe {
+  display: inline-flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 
 .item {
