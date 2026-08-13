@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0
+
 ### Added
 
 - `group-events="series,multipart"` attribute: in `layout="cards"`, collapses
