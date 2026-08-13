@@ -17,6 +17,9 @@ const STRINGS = {
     calendarGroup: "Calendar",
     rssGroup: "RSS",
     oteGroup: "OTE feed",
+    icsBadge: "ICS",
+    rssBadge: "RSS feed",
+    oteBadge: "OTE feed",
     google: "Subscribe with Google Calendar",
     webcal: "Subscribe with app (Apple Calendar, Outlook desktop…)",
     icsDownload: "Open/download ICS",
@@ -33,6 +36,9 @@ const STRINGS = {
     calendarGroup: "Calendario",
     rssGroup: "RSS",
     oteGroup: "Feed OTE",
+    icsBadge: "ICS",
+    rssBadge: "Feed RSS",
+    oteBadge: "Feed OTE",
     google: "Suscribirse con Google Calendar",
     webcal: "Suscribirse con app (Apple Calendar, Outlook de escritorio…)",
     icsDownload: "Abrir/descargar ICS",
@@ -58,6 +64,13 @@ interface RenderGroup {
   label: string;
   items: RenderItem[];
 }
+
+// Simple currentColor outline icons, small enough to inline directly — no icon font/sprite dependency for a widget that has to work standalone in a Shadow DOM.
+const ICONS: Record<GroupKey, string> = {
+  ics: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M8 2.5v4M16 2.5v4M3 9.5h18"/></svg>`,
+  rss: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1" fill="currentColor" stroke="none"/></svg>`,
+  ote: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1" fill="currentColor" stroke="none"/></svg>`,
+};
 
 const ICS_TOKENS: readonly ShowToken[] = ["google", "webcal", "ics-download"];
 const RSS_TOKENS: readonly ShowToken[] = ["feedly", "feed-protocol", "rss-download"];
@@ -139,6 +152,7 @@ function renderTrigger(
     disabled: boolean;
     open: boolean;
     menuId: string;
+    iconSvg?: string;
     buildMenuContent: () => HTMLElement;
     onClick: () => void;
   },
@@ -151,6 +165,12 @@ function renderTrigger(
   trigger.setAttribute("aria-haspopup", "menu");
   trigger.setAttribute("aria-expanded", String(options.open));
   trigger.setAttribute("aria-label", options.ariaLabel);
+
+  if (options.iconSvg) {
+    const icon = el("span", "icon");
+    icon.innerHTML = options.iconSvg;
+    trigger.append(icon);
+  }
 
   const slot = document.createElement("slot");
   slot.name = options.slotName;
@@ -192,15 +212,21 @@ export function renderSubscribe(container: HTMLElement, state: SubscribeState): 
   }
 
   if (state.layout === "badges") {
+    const badgeLabel: Record<GroupKey, string> = {
+      ics: strings.icsBadge,
+      rss: strings.rssBadge,
+      ote: strings.oteBadge,
+    };
     for (const group of groups) {
       renderTrigger(container, {
         groupKey: group.key,
         slotName: `${group.key}-trigger`,
-        fallbackLabel: group.label,
+        fallbackLabel: badgeLabel[group.key],
         ariaLabel: group.label,
         disabled: false,
         open: state.openGroup === group.key,
         menuId: `menu-${state.instanceId}-${group.key}`,
+        iconSvg: ICONS[group.key],
         buildMenuContent: () => buildMenu(`menu-${state.instanceId}-${group.key}`, group.items),
         onClick: () => state.onToggle(group.key),
       });

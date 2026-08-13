@@ -18,6 +18,9 @@ export const SUBSCRIBE_CSS = `
   --ote-accent-hover: #2a46a8;
   --ote-accent-soft: #eef1fb;
   --ote-radius: 8px;
+  --ote-subscribe-ics-color: var(--ote-accent);
+  --ote-subscribe-rss-color: #ee7203;
+  --ote-subscribe-ote-color: var(--ote-accent);
   font-family: var(--ote-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   font-size: var(--ote-font-size, 1rem);
   color: var(--ote-text);
@@ -58,6 +61,7 @@ export const SUBSCRIBE_CSS = `
 .trigger {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   min-height: 2rem;
   padding: 0.35rem 0.65rem;
@@ -69,6 +73,7 @@ export const SUBSCRIBE_CSS = `
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.2;
+  text-align: center;
   cursor: pointer;
 }
 
@@ -83,6 +88,59 @@ export const SUBSCRIBE_CSS = `
 .trigger:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+.icon {
+  display: inline-flex;
+  width: 1.1em;
+  height: 1.1em;
+  flex: 0 0 auto;
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The colored-pill "badge" look (layout="badges"), matching the icon+text
+   badge design this element was ported from. The plain layout="menu"
+   trigger keeps the neutral soft-accent style above — it's a generic
+   action button, not a feed-type-branded badge. */
+.trigger[data-group="ics"],
+.trigger[data-group="rss"],
+.trigger[data-group="ote"] {
+  border-radius: 999px;
+  border-color: transparent;
+  padding: 0.4rem 0.9rem;
+  color: #fff;
+}
+
+.trigger[data-group="ics"] {
+  background: var(--ote-subscribe-ics-color);
+}
+
+.trigger[data-group="rss"] {
+  background: var(--ote-subscribe-rss-color);
+}
+
+.trigger[data-group="ote"] {
+  background: var(--ote-subscribe-ote-color);
+}
+
+.trigger[data-group="ics"]:hover,
+.trigger[data-group="ics"]:focus-visible,
+.trigger[data-group="ics"][aria-expanded="true"],
+.trigger[data-group="rss"]:hover,
+.trigger[data-group="rss"]:focus-visible,
+.trigger[data-group="rss"][aria-expanded="true"],
+.trigger[data-group="ote"]:hover,
+.trigger[data-group="ote"]:focus-visible,
+.trigger[data-group="ote"][aria-expanded="true"] {
+  border-color: transparent;
+  color: #fff;
+  filter: brightness(0.92);
+  outline: none;
 }
 
 .menu {

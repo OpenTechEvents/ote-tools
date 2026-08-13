@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed
+
+- `<ote-subscribe layout="badges">` triggers now match the colored-pill
+  icon+text badge design this element was ported from (a distinct
+  currentColor icon and solid background per group — calendar icon on
+  `--ote-subscribe-ics-color`/`--ote-subscribe-ote-color`, feed icon on
+  `--ote-subscribe-rss-color`), instead of the plain neutral soft-accent
+  button. `layout="menu"`'s single trigger is unchanged — it's a generic
+  action button, not a feed-type-branded badge. All three colors are
+  overridable via those CSS custom properties.
+
 ## 0.5.0
 
 ### Added
