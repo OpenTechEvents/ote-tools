@@ -61,6 +61,18 @@ const calendarLayout = {
   loader: { ".css": "text" },
 };
 
+// A second, independent deliverable: what a consumer's second
+// <script src="..."> loads for the <ote-subscribe> "subscribe to this feed"
+// widget. Kept on its own entry point for the same reason as `widget` above
+// — it must never pull in playground.js or calendar-layout.js, and vice
+// versa <ote-events> consumers who don't want <ote-subscribe> pay nothing
+// for it.
+const subscribe = {
+  ...common,
+  entryPoints: ["src/subscribe-main.ts"],
+  outfile: "dist/ote-subscribe.js",
+};
+
 mkdirSync("dist", { recursive: true });
 for (const file of ["index.html", "styles.css"]) copyStaticFile(file);
 
@@ -68,9 +80,11 @@ if (serve) {
   const widgetCtx = await esbuild.context(widget);
   const playgroundCtx = await esbuild.context(playground);
   const calendarCtx = await esbuild.context(calendarLayout);
+  const subscribeCtx = await esbuild.context(subscribe);
   await widgetCtx.watch();
   await playgroundCtx.watch();
   await calendarCtx.watch();
+  await subscribeCtx.watch();
   const port = Number(process.env.PORT) || undefined;
   const server = await widgetCtx.serve({
     servedir: "dist",
@@ -81,6 +95,7 @@ if (serve) {
   await esbuild.build(widget);
   await esbuild.build(playground);
   await esbuild.build(calendarLayout);
+  await esbuild.build(subscribe);
   if (snapshotVersion) {
     const target = `versions/v${version}`;
     rmSync(target, { force: true, recursive: true });

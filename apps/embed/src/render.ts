@@ -13,6 +13,7 @@ import {
 import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
 
 import type { EventClickMode, FieldKey, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
+import { el, withText } from "./dom.js";
 import { computeEventGroups } from "./grouping.js";
 import type { EventGroupInfo, EventGroups } from "./grouping.js";
 
@@ -192,19 +193,6 @@ const STRINGS = {
 
 type Strings = (typeof STRINGS)[Lang];
 
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  return node;
-}
-
-function withText<T extends HTMLElement>(node: T, text: string): T {
-  node.textContent = text;
-  return node;
-}
 
 /**
  * `marked` gives full CommonMark+GFM support (headings, nested lists, code

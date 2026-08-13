@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0
+
 ### Added
 
 - `feeds="url1,url2,..."` attribute: fetches multiple OTE feeds in parallel
@@ -17,6 +19,34 @@
 - The playground's "feed" control now doubles as "feed / feeds": enter one
   URL for `feed`, or several comma-separated to combine them via `feeds`, and
   the copy-paste snippet reflects whichever attribute applies.
+- New `<ote-subscribe>` custom element (`dist/ote-subscribe.js`, its own
+  esbuild entry point — consumers who don't use it pay nothing for it): a
+  "subscribe to this feed" trigger + popover, for any site publishing an OTE
+  feed, not just one running `<ote-events>`. Ported from a real-world fix in
+  a `<ote-events>` consumer's hand-rolled version of these same links, where
+  the Google Calendar and Feedly URLs were both silently broken and the
+  Outlook web deep-link turned out to be unreliable after login (a
+  Microsoft-side issue, not fixable from the caller's side — dropped in
+  favor of a universal `webcal://` link, which already covers Outlook
+  desktop).
+  - `feed-ics`/`feed-rss`/`feed-json` attributes each enable an independent
+    group of links: Calendar (Google Calendar, `webcal://`, ICS download),
+    RSS (Feedly, `feed://`, RSS download), and OTE feed (OTE Reader, OTE
+    Tools preview, JSON download) respectively. Any combination may be
+    present.
+  - `show="..."` (comma list, full-replacement semantics like `fields`)
+    filters which individual links render.
+  - `layout="menu"` (default) is a single trigger whose popover lists every
+    available group. `layout="badges"` renders one small trigger per
+    available group instead, each with its own popover and independent
+    (mutually exclusive) open state.
+  - `theme`/`lang` follow the same `auto`/`light`/`dark` and `auto`/`en`/`es`
+    conventions as `<ote-events>`, and it reuses the same `--ote-*` CSS
+    custom properties for consistent theming when both elements are on a
+    page.
+  - `<slot name="trigger">` (or `ics-trigger`/`rss-trigger`/`ote-trigger` in
+    `layout="badges"`) lets a host swap in its own badge/icon markup instead
+    of the default text button.
 
 ## 0.4.0
 

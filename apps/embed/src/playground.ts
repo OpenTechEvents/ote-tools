@@ -11,10 +11,13 @@ import {
 } from "./attrs.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
+import { ALL_SHOW_TOKENS, type ShowToken } from "./subscribe-attrs.js";
+import type { OteSubscribeElement } from "./subscribe-element.js";
 
 declare const __EMBED_VERSION__: string;
 
 const EMBED_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_VERSION__}/ote-events.js`;
+const SUBSCRIBE_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_VERSION__}/ote-subscribe.js`;
 
 const feedInput = document.querySelector<HTMLInputElement>("#feed-input")!;
 const feedDataInput = document.querySelector<HTMLTextAreaElement>("#feed-data-input")!;
@@ -61,6 +64,20 @@ const widgetFrame = document.querySelector<HTMLElement>(".widget-frame")!;
 const snippetCode = document.querySelector<HTMLElement>("#snippet-code")!;
 const copyButton = document.querySelector<HTMLButtonElement>("#copy-button")!;
 const dataError = document.querySelector<HTMLElement>("#data-error")!;
+
+const subscribeIcsInput = document.querySelector<HTMLInputElement>("#subscribe-ics-input")!;
+const subscribeRssInput = document.querySelector<HTMLInputElement>("#subscribe-rss-input")!;
+const subscribeJsonInput = document.querySelector<HTMLInputElement>("#subscribe-json-input")!;
+const subscribeNameInput = document.querySelector<HTMLInputElement>("#subscribe-name-input")!;
+const subscribeShowCheckboxes = Array.from(
+  document.querySelectorAll<HTMLInputElement>(".subscribe-show-checkbox"),
+);
+const subscribeLayoutSelect = document.querySelector<HTMLSelectElement>("#subscribe-layout-select")!;
+const subscribeThemeSelect = document.querySelector<HTMLSelectElement>("#subscribe-theme-select")!;
+const subscribeLangSelect = document.querySelector<HTMLSelectElement>("#subscribe-lang-select")!;
+const subscribeWidget = document.querySelector<OteSubscribeElement>("#subscribe-preview-widget")!;
+const subscribeSnippetCode = document.querySelector<HTMLElement>("#subscribe-snippet-code")!;
+const subscribeCopyButton = document.querySelector<HTMLButtonElement>("#subscribe-copy-button")!;
 
 type RuntimeDataKind = "feedData" | "events" | "event";
 
@@ -226,6 +243,73 @@ function buildSnippet(config: {
     );
   }
   return lines.join("\n");
+}
+
+function currentShow(): ShowToken[] {
+  return subscribeShowCheckboxes
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => checkbox.value as ShowToken);
+}
+
+function isAllShowTokens(tokens: ShowToken[]): boolean {
+  return tokens.length === ALL_SHOW_TOKENS.length && ALL_SHOW_TOKENS.every((token) => tokens.includes(token));
+}
+
+function buildSubscribeSnippet(config: {
+  icsUrl: string;
+  rssUrl: string;
+  jsonUrl: string;
+  name: string;
+  show: string | undefined;
+  layout: string;
+  theme: string;
+  lang: string;
+}): string {
+  const lines: string[] = [`<script type="module" src="${SUBSCRIBE_SCRIPT_URL}"></script>`, ""];
+  const elementLines = [`<ote-subscribe`];
+  if (config.icsUrl) elementLines.push(`  feed-ics="${attr(config.icsUrl)}"`);
+  if (config.rssUrl) elementLines.push(`  feed-rss="${attr(config.rssUrl)}"`);
+  if (config.jsonUrl) elementLines.push(`  feed-json="${attr(config.jsonUrl)}"`);
+  if (config.name) elementLines.push(`  name="${attr(config.name)}"`);
+  if (config.show !== undefined) elementLines.push(`  show="${attr(config.show)}"`);
+  if (config.layout !== "menu") elementLines.push(`  layout="${attr(config.layout)}"`);
+  elementLines.push(`  theme="${attr(config.theme)}"`, `  lang="${attr(config.lang)}"`, `></ote-subscribe>`);
+  lines.push(...elementLines);
+  return lines.join("\n");
+}
+
+function setSubscribeSnippet(text: string): void {
+  subscribeSnippetCode.textContent = text;
+  subscribeSnippetCode.removeAttribute("data-highlighted");
+  highlightCodeBlock(subscribeSnippetCode);
+}
+
+function applySubscribeAndRender(): void {
+  const icsUrl = subscribeIcsInput.value.trim();
+  const rssUrl = subscribeRssInput.value.trim();
+  const jsonUrl = subscribeJsonInput.value.trim();
+  const name = subscribeNameInput.value.trim();
+  const show = currentShow();
+  const showAttr = show.length === 0 ? "none" : isAllShowTokens(show) ? undefined : show.join(",");
+  const layout = subscribeLayoutSelect.value;
+  const theme = subscribeThemeSelect.value;
+  const lang = subscribeLangSelect.value;
+
+  if (icsUrl) subscribeWidget.setAttribute("feed-ics", icsUrl);
+  else subscribeWidget.removeAttribute("feed-ics");
+  if (rssUrl) subscribeWidget.setAttribute("feed-rss", rssUrl);
+  else subscribeWidget.removeAttribute("feed-rss");
+  if (jsonUrl) subscribeWidget.setAttribute("feed-json", jsonUrl);
+  else subscribeWidget.removeAttribute("feed-json");
+  if (name) subscribeWidget.setAttribute("name", name);
+  else subscribeWidget.removeAttribute("name");
+  if (showAttr) subscribeWidget.setAttribute("show", showAttr);
+  else subscribeWidget.removeAttribute("show");
+  subscribeWidget.setAttribute("layout", layout);
+  subscribeWidget.setAttribute("theme", theme);
+  subscribeWidget.setAttribute("lang", lang);
+
+  setSubscribeSnippet(buildSubscribeSnippet({ icsUrl, rssUrl, jsonUrl, name, show: showAttr, layout, theme, lang }));
 }
 
 function setSnippet(text: string): void {
@@ -525,6 +609,31 @@ copyButton.addEventListener("click", () => {
   });
 });
 
+for (const control of [
+  subscribeIcsInput,
+  subscribeRssInput,
+  subscribeJsonInput,
+  subscribeNameInput,
+  subscribeLayoutSelect,
+  subscribeThemeSelect,
+  subscribeLangSelect,
+  ...subscribeShowCheckboxes,
+]) {
+  control.addEventListener("input", applySubscribeAndRender);
+  control.addEventListener("change", applySubscribeAndRender);
+}
+
+subscribeCopyButton.addEventListener("click", () => {
+  void navigator.clipboard.writeText(subscribeSnippetCode.textContent ?? "").then(() => {
+    const original = subscribeCopyButton.textContent;
+    subscribeCopyButton.textContent = "Copied!";
+    setTimeout(() => {
+      subscribeCopyButton.textContent = original;
+    }, 1500);
+  });
+});
+
 applyAndRender();
+applySubscribeAndRender();
 highlightStaticCodeBlocks();
 window.addEventListener("load", highlightStaticCodeBlocks);
