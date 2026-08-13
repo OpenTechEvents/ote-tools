@@ -49,6 +49,14 @@
   renders as an actual link instead of literal `[text](url)`.
 - Numbered lists (`1. `, `2. `) in Markdown descriptions now render as `<ol>`
   instead of showing the literal `1. ` prefix as plain text.
+- Markdown descriptions are now rendered with `marked` (the same
+  CommonMark+GFM parser the editor's own preview uses) instead of a hand-rolled
+  line-based parser, with DOMPurify sanitizing the result since feed
+  descriptions come from a remote, untrusted source. Headings (`### ...`) were
+  previously stripped down to plain paragraph text; they now render as real
+  `<h1>`-`<h6>` elements. A sub-list nested inside a list item (e.g. a bullet
+  list under one step of a numbered list) previously got flattened into a
+  separate sibling list; it now stays correctly nested.
 - The detail modal now respects field configuration (`fields`/
   `fields-detail`) instead of always rendering every optional field
   unconditionally, regardless of what the card was configured to show.

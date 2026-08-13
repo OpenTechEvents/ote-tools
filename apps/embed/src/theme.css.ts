@@ -836,6 +836,35 @@ a.price:focus-visible {
   padding-left: 1.25rem;
 }
 
+.event-description h1,
+.event-description h2,
+.event-description h3,
+.event-description h4,
+.event-description h5,
+.event-description h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ote-text);
+}
+
+.event-description h1 {
+  font-size: 1.3em;
+}
+
+.event-description h2 {
+  font-size: 1.2em;
+}
+
+.event-description h3 {
+  font-size: 1.1em;
+}
+
+.event-description h4,
+.event-description h5,
+.event-description h6 {
+  font-size: 1em;
+}
+
 .event-description code {
   padding: 0.05rem 0.25rem;
   border-radius: 4px;

@@ -1,3 +1,6 @@
+import DOMPurify from "dompurify";
+import { marked } from "marked";
+
 import {
   addDays,
   eventWhen,
@@ -204,95 +207,24 @@ function withText<T extends HTMLElement>(node: T, text: string): T {
 }
 
 /**
- * Recursive on purpose: the outer regex isolates a `**bold**`/`*em*` span as
- * one opaque capture group, so without recursing into that captured text a
- * link nested inside bold (`**[text](url)**`) would render as literal
- * bracket/paren text instead of an anchor. `code` spans are the one
- * exception — they stay literal, matching how code spans work everywhere
- * else in Markdown. Recursion always terminates: the inner text passed back
- * in is strictly shorter than the outer match it came from.
+ * `marked` gives full CommonMark+GFM support (headings, nested lists, code
+ * spans, etc.) instead of the ad hoc line-based parser this replaced — same
+ * library the editor uses for its own preview, so authors see the same
+ * rendering both places. `event.description` comes from a remote feed the
+ * widget doesn't control, so the resulting HTML is untrusted and must be
+ * sanitized before insertion; DOMPurify's defaults strip script/event-handler
+ * payloads and non-http(s) URL schemes. `target`/`rel` are then applied
+ * uniformly to every link, matching every other outbound link this widget
+ * renders (see e.g. `locationNode`, `cfpBadge`).
  */
-function appendInlineMarkdown(parent: HTMLElement, text: string): void {
-  const pattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_|`([^`]+)`)/g;
-  let cursor = 0;
-  for (const match of text.matchAll(pattern)) {
-    if (match.index === undefined) continue;
-    if (match.index > cursor) parent.append(document.createTextNode(text.slice(cursor, match.index)));
-
-    if (match[2] && match[3]) {
-      const link = el("a");
-      link.href = match[3];
-      link.target = "_blank";
-      link.rel = "noopener";
-      appendInlineMarkdown(link, match[2]);
-      parent.append(link);
-    } else if (match[4] || match[5]) {
-      const strong = el("strong");
-      appendInlineMarkdown(strong, match[4] ?? match[5] ?? "");
-      parent.append(strong);
-    } else if (match[6] || match[7]) {
-      const em = el("em");
-      appendInlineMarkdown(em, match[6] ?? match[7] ?? "");
-      parent.append(em);
-    } else if (match[8]) {
-      parent.append(withText(el("code"), match[8]));
-    }
-
-    cursor = match.index + match[0].length;
-  }
-  if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
-}
-
-function markdownParagraph(text: string): HTMLParagraphElement {
-  const paragraph = el("p");
-  appendInlineMarkdown(paragraph, text);
-  return paragraph;
-}
-
 function renderMarkdownDescription(markdown: string, className = "event-description"): HTMLElement {
   const wrapper = el("div", className);
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
-  let paragraph: string[] = [];
-  let list: HTMLUListElement | HTMLOListElement | undefined;
-
-  const flushParagraph = () => {
-    const text = paragraph.join(" ").trim();
-    if (text) wrapper.append(markdownParagraph(text));
-    paragraph = [];
-  };
-
-  const flushList = () => {
-    if (list && list.children.length > 0) wrapper.append(list);
-    list = undefined;
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-
-    const bulletMatch = /^[-*]\s+(.+)$/.exec(line);
-    const orderedMatch = bulletMatch ? null : /^\d+[.)]\s+(.+)$/.exec(line);
-    if (bulletMatch || orderedMatch) {
-      flushParagraph();
-      const ordered = Boolean(orderedMatch);
-      if (list && list.tagName.toLowerCase() !== (ordered ? "ol" : "ul")) flushList();
-      list ??= el(ordered ? "ol" : "ul");
-      const item = el("li");
-      appendInlineMarkdown(item, (bulletMatch ?? orderedMatch)?.[1] ?? "");
-      list.append(item);
-      continue;
-    }
-
-    flushList();
-    paragraph.push(line.replace(/^#{1,6}\s+/, ""));
+  const html = marked.parse(markdown, { async: false });
+  wrapper.innerHTML = DOMPurify.sanitize(html);
+  for (const link of wrapper.querySelectorAll("a[href]")) {
+    link.setAttribute("target", "_blank");
+    link.setAttribute("rel", "noopener");
   }
-
-  flushParagraph();
-  flushList();
   return wrapper;
 }
 

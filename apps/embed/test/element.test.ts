@@ -1144,6 +1144,99 @@ describe("<ote-events>", () => {
     expect(description?.textContent).not.toContain("[nuestro calendario]");
   });
 
+  it("renders a Markdown heading as a real heading element, not a stripped paragraph", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Heading Event",
+              startDate: "2999-01-01",
+              description: "### ¿Cómo puedo estar al tanto?\n\nTexto tras el encabezado.",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/heading-markdown.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    const description = el.shadowRoot!.querySelector(".event-modal .event-description");
+
+    const heading = description?.querySelector("h3");
+    expect(heading?.textContent).toBe("¿Cómo puedo estar al tanto?");
+    expect(description?.textContent).not.toContain("###");
+  });
+
+  it("keeps a sub-list nested inside its parent <li> instead of flattening it to a sibling list", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Nested List Event",
+              startDate: "2999-01-01",
+              description:
+                "1. Primer paso con opciones:\n\n   * Opción A\n   * Opción B\n2. Segundo paso",
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/nested-list-markdown.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    const description = el.shadowRoot!.querySelector(".event-modal .event-description");
+
+    const topList = description?.querySelector("ol");
+    expect(topList?.children).toHaveLength(2);
+    const nestedList = topList?.querySelector("li ul");
+    expect(nestedList).toBeTruthy();
+    expect(nestedList?.parentElement?.tagName).toBe("LI");
+    expect(nestedList?.parentElement?.parentElement).toBe(topList);
+    expect(nestedList?.querySelectorAll("li")).toHaveLength(2);
+  });
+
+  it("sanitizes script/event-handler payloads out of Markdown descriptions and forces safe link attributes", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          events: [
+            {
+              name: "Malicious Markdown Event",
+              startDate: "2999-01-01",
+              description:
+                '<script>window.__pwned = true;</script>\n\n<img src="x" onerror="window.__pwned = true">\n\n[Safe link](https://example.org)',
+            },
+          ],
+        }),
+    });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/malicious-markdown.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")?.click();
+    const description = el.shadowRoot!.querySelector(".event-modal .event-description");
+
+    expect(description?.querySelector("script")).toBeNull();
+    expect(description?.innerHTML).not.toContain("onerror");
+    expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
+    const link = description?.querySelector<HTMLAnchorElement>("a");
+    expect(link?.target).toBe("_blank");
+    expect(link?.rel).toBe("noopener");
+  });
+
   it('"card-width" resolves to --ote-card-min-width on the host element, defaulting to 220px', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
     const el = createCardsElement();
