@@ -297,7 +297,16 @@ Default action behavior is deliberately conservative:
 
 - `placement` defaults to `"detail"` (modal for cards/calendar, accordion body
   for list). Use `"preview"` for card preview buttons, or `"both"` for both
-  preview and detail. Preview actions currently render in card previews.
+  preview and detail. In `layout="list"`, `"preview"` actions render as a
+  trailing action cluster on the compact row itself (`.event-row-actions` in
+  `theme.css.ts`) — hidden until hover/focus on fine-pointer devices, always
+  visible on touch (`(hover: none), (pointer: coarse)`) — separate from the
+  `"detail"` actions that live in the row's expanded accordion body. They are
+  intentionally mounted as a sibling of `.event-accordion` rather than inside
+  `<summary>`: Chromium silently drops a nested `<a>`'s own navigation once
+  it's inside a `<summary>` (confirmed with a real click/keydown, not just
+  reasoned about), which would otherwise break the native calendar/link
+  actions specifically in this placement.
 - `layouts` defaults to every layout. Pass `["cards"]`, `["list"]`, or
   `["calendar"]` to restrict where the action appears.
 - `variant: "danger"` is available for destructive actions.

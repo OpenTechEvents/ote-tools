@@ -1201,6 +1201,84 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.querySelector(".event-preview-actions")).toBeNull();
   });
 
+  it("renders custom preview actions as a trailing cluster on list rows, separate from detail actions", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const save = vi.fn();
+    const remove = vi.fn();
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.eventActions = [
+      { id: "save", label: "Save", icon: "bookmark", placement: "preview", onClick: save },
+      {
+        id: "delete",
+        label: "Delete",
+        icon: "trash",
+        variant: "danger",
+        placement: "detail",
+        onClick: remove,
+      },
+    ];
+    document.body.append(el);
+    await flush();
+
+    const row = el.shadowRoot!.querySelector("li.event-row")!;
+    const rowActions = row.querySelector(".event-row-actions");
+    expect(rowActions?.textContent).toContain("Save");
+    expect(rowActions?.textContent).not.toContain("Delete");
+
+    // Mounted as a sibling of the accordion, not nested inside <summary> —
+    // a real click/keydown on a nested <a> inside <summary> is silently
+    // swallowed by the browser (no navigation, no toggle), which would
+    // break native link/calendar preview actions in this placement.
+    expect(row.querySelector("summary")?.contains(rowActions)).toBe(false);
+    expect(row.querySelector(".event-accordion")?.contains(rowActions)).toBe(false);
+
+    const details = row.querySelector<HTMLDetailsElement>("details.event-accordion")!;
+    rowActions?.querySelector<HTMLButtonElement>("button")?.click();
+
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Rich Event" }),
+      expect.objectContaining({ previewEvent: expect.objectContaining({ name: "Rich Event" }) }),
+    );
+    expect(details.open).toBe(false);
+  });
+
+  it("renders native link/calendar preview actions on list rows", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const actionEvent = vi.fn();
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.setAttribute("event-actions", "none");
+    el.eventActions = [
+      { type: "link", placement: "preview" },
+      { type: "google-calendar", placement: "preview" },
+    ];
+    el.addEventListener("ote-event-action", actionEvent);
+    document.body.append(el);
+    await flush();
+
+    const rowActions = el.shadowRoot!.querySelector(".event-row-actions");
+    expect(rowActions?.textContent).toContain("Open event page");
+    expect(rowActions?.textContent).toContain("Add to calendar");
+
+    rowActions?.querySelector<HTMLAnchorElement>('a[href="https://example.org/rich"]')?.click();
+    expect(actionEvent.mock.calls.at(-1)?.[0].detail.action).toBe("link");
+  });
+
+  it("honors custom action layout filters on list rows", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const edit = vi.fn();
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    el.eventActions = [
+      { id: "edit", label: "Edit", placement: "preview", layouts: ["cards"], onClick: edit },
+    ];
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector(".event-row-actions")).toBeNull();
+  });
+
   it("places list detail actions after the event details", async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
     const el = createListElement();

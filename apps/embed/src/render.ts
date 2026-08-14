@@ -1001,6 +1001,7 @@ function renderListEvent(
   }
 
   appendEventActions(body, event, strings, state);
+  appendListPreviewActions(item, event, strings, state);
 
   return item;
 }
@@ -1135,15 +1136,21 @@ function appendEventActions(
   if (actions.children.length > 0) container.append(actions);
 }
 
-function appendPreviewActions(
-  container: HTMLElement,
+/**
+ * Shared by both `renderCardEvent` (appended inside the card body) and
+ * `renderListEvent` (appended as a row-level overlay, see
+ * `.event-row-actions` in theme.css.ts) — same action set, different mount
+ * point. Returns `undefined` when there's nothing to show so callers can
+ * skip mounting an empty wrapper.
+ */
+function buildPreviewActions(
   event: PreviewEvent,
   strings: Strings,
   state: WidgetState,
-): void {
+): HTMLElement | undefined {
   const nativeActions = nativeActionsForPlacement(state, event, "preview");
   const customActions = customActionsForPlacement(state, event, "preview");
-  if (nativeActions.length === 0 && customActions.length === 0) return;
+  if (nativeActions.length === 0 && customActions.length === 0) return undefined;
   const actions = el("div", "event-actions event-preview-actions");
   const calendarActions = nativeActions.filter((action) => CALENDAR_ACTIONS.has(nativeActionType(action)));
   if (calendarActions.length > 0) {
@@ -1165,7 +1172,41 @@ function appendPreviewActions(
     }
   }
   for (const action of customActions) actions.append(customActionButton(action, event, state));
-  container.append(actions);
+  return actions;
+}
+
+function appendPreviewActions(
+  container: HTMLElement,
+  event: PreviewEvent,
+  strings: Strings,
+  state: WidgetState,
+): void {
+  const actions = buildPreviewActions(event, strings, state);
+  if (actions) container.append(actions);
+}
+
+/**
+ * Mounted as a sibling of `.event-accordion`, not a descendant of
+ * `<summary>`: Chromium never fires a nested `<a>`'s own navigation once
+ * it's inside a `<summary>` (verified empirically — a real click or Enter
+ * keypress on the link is swallowed with no toggle *and* no navigation),
+ * which would silently break native calendar/link preview actions. Living
+ * outside `<summary>` keeps every existing action (native anchors, the
+ * calendar `<details>` menu, custom buttons) working exactly as it does in
+ * `.event-preview-actions` for cards, with no special-cased click handling
+ * needed, while `.event-row-actions` in theme.css.ts absolutely-positions
+ * it back on top of the collapsed row so it still reads as part of it.
+ */
+function appendListPreviewActions(
+  row: HTMLElement,
+  event: PreviewEvent,
+  strings: Strings,
+  state: WidgetState,
+): void {
+  const actions = buildPreviewActions(event, strings, state);
+  if (!actions) return;
+  actions.classList.add("event-row-actions");
+  row.append(actions);
 }
 
 function customActionButton(

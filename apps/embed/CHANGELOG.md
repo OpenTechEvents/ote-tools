@@ -2,6 +2,18 @@
 
 ## 0.6.0
 
+### Added
+
+- `layout="list"` now renders `placement: "preview"` event actions as a
+  trailing action cluster on the compact row itself
+  ([#46](https://github.com/OpenTechEvents/ote-tools/issues/46)), matching
+  what `"preview"` already did for cards. Hidden until the row is
+  hovered/focused on a fine-pointer device, always visible on touch — same
+  action config (native calendar/link actions or custom `CustomEventAction`
+  buttons), same `EventRenderContext`, no new API surface. `"detail"`
+  actions are unaffected and still render inside the row's expanded
+  accordion body.
+
 ### Fixed
 
 - An event with no `attendanceMode` declared at all (neither `"online"`,

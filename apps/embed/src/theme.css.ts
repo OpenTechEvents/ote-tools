@@ -197,6 +197,17 @@ ul.events.layout-cards {
   background: var(--ote-surface);
 }
 
+/* .event's overflow:hidden (for cards' flush-edge image corners) would
+   otherwise clip .event-row-actions and, more importantly, its calendar
+   .event-action-menu-items dropdown — that menu opens upward from a
+   trigger pinned to the row's very top edge, so it has no room to render
+   inside a clipped box. List rows have no flush-edge image relying on that
+   clipping (.layout-list .event-details .event-image sets its own
+   border-radius directly), so it's safe to opt back out here. */
+.event-row {
+  overflow: visible;
+}
+
 .event-summary {
   display: grid;
   grid-template-columns: minmax(14rem, 1fr) minmax(10rem, max-content) max-content;
@@ -363,6 +374,44 @@ ul.events.layout-cards {
 .event-preview-actions {
   padding-top: 0.65rem;
   border-top: 1px solid var(--ote-border);
+}
+
+/* Compact-row preview actions (layout="list"): a small trailing cluster
+   overlaid on top of the collapsed row instead of stacked in the card body,
+   so .event-preview-actions's padding-top/border-top (meant for that
+   stacked layout) are reset here. .event already sets position:relative on
+   the row <li>, so this only needs its own absolute position. Hidden until
+   the row is hovered/focused on a fine-pointer device; always shown under
+   (hover: none), (pointer: coarse) so touch users don't need a hover state
+   that doesn't exist for them. */
+.event-row-actions {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0.5rem;
+  z-index: 3;
+  align-items: center;
+  height: 3.25rem;
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+  border-radius: var(--ote-radius) 0 0 var(--ote-radius);
+  background: var(--ote-accent-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.event-row:hover .event-row-actions,
+.event-row:focus-within .event-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .event-row-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .event-actions .event-action-danger {
@@ -920,6 +969,19 @@ a.price:focus-visible {
   .event-summary-when,
   .event-summary-updated {
     grid-column: 1;
+  }
+
+  /* The summary stacks into multiple lines at this width, so pinning the
+     actions to the top-right (the desktop overlay position) would sit on
+     top of the title text. Drop into normal flow, right after the row,
+     instead — still always visible per the touch media query above. */
+  .event-row-actions {
+    position: static;
+    height: auto;
+    justify-content: flex-end;
+    padding: 0 1rem 0.6rem;
+    border-radius: 0;
+    background: none;
   }
 
   .event-detail-list {
