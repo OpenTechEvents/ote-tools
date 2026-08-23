@@ -1,0 +1,24 @@
+{
+  "name": "@opentechevents/publish",
+  "version": "0.1.0",
+  "description": "Static publish tool: turn an OTE feed into a pasteable schema.org JSON-LD snippet",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --serve",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/export-jsonld": "workspace:*",
+    "@opentechevents/validate": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

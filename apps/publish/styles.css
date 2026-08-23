@@ -1,0 +1,566 @@
+/* Same tokens as apps/preview and apps/editor so the central tools read as
+   one site. The layout is this tool's own: a channel rail plus a stage, the
+   shape a broadcasting console wants and a tabbed previewer does not. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-sunken: #f2f4f7;
+  --border: #e3e6ea;
+  --border-strong: #c9cdd3;
+  --text: #1c2128;
+  --muted: #626c77;
+  --error: #c4302f;
+  --error-bg: #fcf1f1;
+  --warning-bg: #fdf6e7;
+  --warning-border: #e8d9a8;
+  --accent: #3556c8;
+  --accent-hover: #2a46a8;
+  --accent-soft: #eef1fb;
+  --ready: #1f7a4d;
+  --ready-soft: #e8f5ee;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(28, 33, 40, 0.06), 0 4px 12px rgba(28, 33, 40, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 1rem 1rem 4rem;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  margin: 0.5rem 0 1.25rem;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+h3.sub {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 1rem 0 0.4rem;
+}
+
+.tagline {
+  max-width: 46rem;
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+}
+
+#source-banner {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+/* --- pills ---------------------------------------------------------------- */
+
+.pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pill-ready {
+  background: var(--ready-soft);
+  color: var(--ready);
+}
+
+.pill-planned {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pill-idea,
+.pill-beta {
+  background: var(--warning-bg);
+  color: #8a6d1f;
+}
+
+/* --- panels & context ------------------------------------------------------ */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.panel.error {
+  background: var(--error-bg);
+  border-color: var(--error);
+}
+
+.panel p:last-child {
+  margin-bottom: 0;
+}
+
+.context {
+  display: flex;
+  gap: 1rem 1.5rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.context-field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.context-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.context-reason {
+  flex: 1 1 16rem;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+select {
+  max-width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+/* --- console layout -------------------------------------------------------- */
+
+.console {
+  display: grid;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 46rem) {
+  .console {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Deliberately not a sticky, scrolling column: the rail IS the pitch. An
+   organizer has to be able to see every channel and both calls to action at
+   once, and a 100vh box with its own scrollbar hid half of them. */
+.rail {
+  display: grid;
+  gap: 1rem;
+}
+
+.rail-group,
+.rail-cta {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.85rem;
+}
+
+.rail-group p,
+.rail-cta p {
+  margin: 0.25rem 0 0.6rem;
+  font-size: 0.82rem;
+}
+
+.rail ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.channel {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.channel:hover {
+  background: var(--surface-sunken);
+}
+
+.channel[aria-current="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.channel-unfit .channel-name {
+  color: var(--muted);
+}
+
+.channel-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.channel-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-fit {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.rail-cta a {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* --- stage ----------------------------------------------------------------- */
+
+.stage-panel {
+  margin-bottom: 0;
+}
+
+.stage-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.stage-header p {
+  margin: 0.35rem 0 0;
+  max-width: 46rem;
+}
+
+.scope {
+  display: grid;
+  gap: 0.5rem;
+  border: 0;
+  margin: 0 0 0.9rem;
+  padding: 0;
+}
+
+.scope legend {
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.scope label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.scope span {
+  display: grid;
+}
+
+.scope em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.produces {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.produces li {
+  padding-left: 1.5rem;
+  position: relative;
+  font-size: 0.95rem;
+}
+
+.produces li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.link-list {
+  margin: 0.6rem 0;
+  padding-left: 1.1rem;
+  font-size: 0.92rem;
+}
+
+.break {
+  overflow-wrap: anywhere;
+}
+
+.readiness {
+  list-style: none;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.readiness li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.92rem;
+}
+
+.readiness-mark {
+  width: 1rem;
+  flex: 0 0 auto;
+  text-align: center;
+  font-weight: 700;
+}
+
+.readiness .has .readiness-mark {
+  color: var(--ready);
+}
+
+.readiness .missing .readiness-mark,
+.readiness .missing strong {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.readiness-detail {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  padding: 0.75rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0.75rem 0;
+}
+
+.control {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.control-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.control-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.control input[type="number"] {
+  width: 6rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 0.75rem 0;
+}
+
+.preview-label {
+  padding: 0.4rem 0.65rem;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.preview-body {
+  padding: 0.85rem;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+/* The subscribe widget's popover has to escape the pane it is previewed in;
+   a clipped menu is exactly the confusion the preview exists to prevent. */
+.preview-open {
+  overflow: visible;
+}
+
+.preview-body-open {
+  max-height: none;
+  overflow: visible;
+  min-height: 16rem;
+}
+
+/* --- generated output ------------------------------------------------------ */
+
+.snippet {
+  margin: 0.75rem 0;
+}
+
+.snippet-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+button {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.button-link {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.button-link:hover {
+  background: var(--accent-hover);
+}
+
+.button-link.secondary {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.button-link.secondary:hover {
+  background: var(--accent-soft);
+}
+
+.cta-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.75rem;
+}
+
+.source-block {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin: 0;
+  max-height: 26rem;
+  overflow: auto;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* The note that corrects an expectation this page just set (Google rich
+   results, a directory that won't take this event). Never decorative. */
+.note {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+footer {
+  margin-top: 1.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+a {
+  color: var(--accent);
+}

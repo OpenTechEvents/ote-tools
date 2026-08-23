@@ -19,6 +19,7 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 | [`@opentechevents/validate`](packages/validate/) | Validates OTE Event/Feed documents against the vendored v0.3 JSON Schema. |
 | [`@opentechevents/export-ics`](packages/export-ics/) | Valid OTE Feed → iCalendar (RFC 5545). |
 | [`@opentechevents/export-rss`](packages/export-rss/) | Valid OTE Feed → RSS 2.0. |
+| [`@opentechevents/export-jsonld`](packages/export-jsonld/) | Valid OTE Feed/Event → schema.org `Event` JSON-LD (SEO structured data). |
 | [`@opentechevents/import-ics`](packages/import-ics/) | iCalendar (`.ics`) → partial OTE event documents (review-and-complete). |
 | [`@opentechevents/import-jsonld`](packages/import-jsonld/) | schema.org Event JSON-LD in an HTML page → partial OTE event documents. |
 | [`@opentechevents/build-feed`](packages/build-feed/) | `events/*.json` + `ote.config.json` → validated `feed.json` + `feed.ics` + `feed.xml`. |
@@ -36,10 +37,11 @@ improvements can be traced package by package.
 | --- | --- |
 | [`editor`](apps/editor/) | Static web editor for OTE events: form → event JSON → prefilled issue or direct edit. |
 | [`preview`](apps/preview/) | Static feed previewer for OTE organizer forks. |
+| [`publish`](apps/publish/) | "Broadcast" console: one event → every channel it can be published to. schema.org snippet, widget and subscribe links work today; directories, newsletters and social posts are declared and unbuilt. |
 | [`embed`](apps/embed/) | Embeddable `<ote-events>` web component: drop an OTE feed into any website. |
 | [`dashboard-checks`](apps/dashboard-checks/) | Client-side setup checks + template-update banner for OTE organizer dashboards. |
 
-`editor`, `preview` and `embed` are built and deployed together by
+`editor`, `preview`, `publish` and `embed` are built and deployed together by
 `deploy-tools.yml`; `dashboard-checks.js` is served as a standalone file.
 Once the `tools.opentechevents.org` custom domain is configured (see
 `.github/workflows/deploy-tools.yml`), they're reachable at

@@ -27,9 +27,10 @@ that depends on another. Build first and it goes away — nothing is broken.
 | --- | --- | --- |
 | `packages/validate` | Event/Feed validation against the OTE JSON Schema | vitest + fixtures |
 | `packages/build-feed` | Assembles `events/*.json` + `ote.config.json` → `feed.json` | vitest + fixtures |
-| `packages/export-ics` / `export-rss` | `feed.json` → ICS / RSS | vitest + fixtures |
+| `packages/export-ics` / `export-rss` / `export-jsonld` | `feed.json` → ICS / RSS / schema.org JSON-LD | vitest + fixtures |
 | `apps/editor` | Static web editor (form → event JSON → issue/PR links) | vitest for `src/lib/`; UI by hand |
 | `apps/preview` | Static feed previewer (`feed.json`, `feed.ics`, `feed.xml` → readable tabs) | typecheck + UI by hand |
+| `apps/publish` | "Broadcast" console (feed → per-channel output; schema.org, widget and subscribe links so far) | vitest for `src/lib/`; UI by hand |
 | `.github/workflows` | CI, reusable workflows for forks, deploys, npm publish | see below |
 
 ## Everyday commands (repo root)
@@ -59,6 +60,7 @@ node packages/validate/dist/bin.js packages/build-feed/fixtures/valid
 node packages/build-feed/dist/bin.js packages/build-feed/fixtures/valid --out /tmp/ote-out
 node packages/export-ics/dist/bin.js /tmp/ote-out/feed.json
 node packages/export-rss/dist/bin.js /tmp/ote-out/feed.json
+node packages/export-jsonld/dist/bin.js /tmp/ote-out/feed.json
 ```
 
 ### Regenerating the embedded schemas (`packages/validate`)

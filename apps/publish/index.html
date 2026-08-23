@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OTE publish — broadcast your events</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="title-row">
+        <h1>Broadcast</h1>
+        <span class="pill pill-beta">Work in progress</span>
+      </div>
+      <p class="tagline">
+        Your events are already written once, as open data. This turns them
+        into everything every other platform wants — snippets, listings,
+        posts, submissions — without retyping any of it.
+      </p>
+      <p id="source-banner"></p>
+    </header>
+
+    <section id="message" class="panel" hidden></section>
+
+    <main id="tool" hidden>
+      <section class="context panel">
+        <div class="context-field">
+          <label for="event-select">Publishing</label>
+          <select id="event-select"></select>
+        </div>
+        <div class="context-field">
+          <label for="profile-select">Treat as</label>
+          <select id="profile-select">
+            <option value="auto">Detect automatically</option>
+            <option value="meetup">Meetup</option>
+            <option value="conference">Conference</option>
+          </select>
+        </div>
+        <p id="profile-reason" class="context-reason"></p>
+      </section>
+
+      <div class="console">
+        <nav id="rail" class="rail" aria-label="Channels"></nav>
+        <section id="stage" class="stage" aria-live="polite"></section>
+      </div>
+    </main>
+
+    <footer>
+      <a
+        href="https://github.com/OpenTechEvents/ote-tools/issues/new"
+        target="_blank"
+        rel="noopener"
+      >
+        Report a problem
+      </a>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

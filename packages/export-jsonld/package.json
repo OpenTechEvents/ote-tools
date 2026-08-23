@@ -1,0 +1,43 @@
+{
+  "name": "@opentechevents/export-jsonld",
+  "version": "0.3.0",
+  "description": "Converts OTE events into schema.org/Event JSON-LD for SEO and interoperability",
+  "license": "MIT",
+  "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/export-jsonld",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenTechEvents/ote-tools.git",
+    "directory": "packages/export-jsonld"
+  },
+  "bugs": "https://github.com/OpenTechEvents/ote-tools/issues",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "ote-export-jsonld": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/validate": "workspace:*",
+    "marked": "^18.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
