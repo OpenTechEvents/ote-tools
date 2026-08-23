@@ -87,6 +87,8 @@ export interface WidgetState {
   feed: PreviewFeed | undefined;
   lang: Lang;
   limit: number;
+  /** From `event-id`: render only this event, by its OTE id. */
+  eventId?: string;
   showPast: boolean;
   sort: SortMode;
   layout: Layout;
@@ -110,6 +112,7 @@ const STRINGS = {
   en: {
     loading: "Loading events…",
     empty: "No upcoming events.",
+    notFound: "Event not found in this feed.",
     errorPrefix: "Could not load events: ",
     online: "Online",
     onlineEvent: "Online event",
@@ -151,6 +154,7 @@ const STRINGS = {
   es: {
     loading: "Cargando eventos…",
     empty: "No hay próximos eventos.",
+    notFound: "Evento no encontrado en este feed.",
     errorPrefix: "No se pudieron cargar los eventos: ",
     online: "En línea",
     onlineEvent: "Evento en línea",
@@ -444,6 +448,12 @@ function isPastEvent(event: PreviewEvent): boolean {
 function visibleEvents(state: WidgetState): PreviewEvent[] {
   if (!state.feed) return [];
   const events = state.sort === "none" ? [...state.feed.events] : sortedEvents(state.feed.events);
+  // `event-id` is an explicit request for one event, so it deliberately
+  // ignores `show-past`: someone who put an id on a page means that event,
+  // and having it vanish the morning after it happened would be a
+  // surprise, not a feature. `limit` and grouping become moot with one
+  // event, and stay applied rather than special-cased.
+  if (state.eventId !== undefined) return events.filter((event) => event.id === state.eventId);
   return events.filter((event) => state.showPast || !isPastEvent(event));
 }
 
@@ -1436,7 +1446,12 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
 
   const events = selectVisibleEvents(state);
   if (events.length === 0) {
-    container.append(withText(el("p", "message"), state.emptyMessage ?? strings.empty));
+    // With `event-id` set, "empty" means the id matched nothing — a
+    // different problem from a feed with no upcoming events, and one the
+    // organizer can only fix if we say which it is.
+    const emptyText =
+      state.emptyMessage ?? (state.eventId !== undefined ? strings.notFound : strings.empty);
+    container.append(withText(el("p", "message"), emptyText));
     return;
   }
 

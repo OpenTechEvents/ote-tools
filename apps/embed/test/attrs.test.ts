@@ -8,6 +8,7 @@ import {
   parseDetailFields,
   parseEventActions,
   parseEventClick,
+  parseEventId,
   parseFeedsAttr,
   parseFields,
   parseGroupEvents,
@@ -18,6 +19,15 @@ import {
   parseSort,
   resolveLang,
 } from "../src/attrs.js";
+
+describe("parseEventId", () => {
+  it("trims the id and treats blank as absent", () => {
+    expect(parseEventId(" https://example.org/events/x ")).toBe("https://example.org/events/x");
+    expect(parseEventId("")).toBeUndefined();
+    expect(parseEventId("   ")).toBeUndefined();
+    expect(parseEventId(null)).toBeUndefined();
+  });
+});
 
 describe("parseLimit", () => {
   it("defaults to no limit when absent, blank, non-numeric, zero, or negative", () => {

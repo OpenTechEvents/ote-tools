@@ -16,6 +16,7 @@ import {
   parseGroupEvents,
   parseLangAttr,
   parseLayout,
+  parseEventId,
   parseLimit,
   parseShowPast,
   parseSort,
@@ -69,6 +70,7 @@ export class OteEventsElement extends HTMLElement {
   static observedAttributes = [
     "feed",
     "feeds",
+    "event-id",
     "limit",
     "theme",
     "lang",
@@ -302,6 +304,7 @@ export class OteEventsElement extends HTMLElement {
       feed: this.#feed,
       lang,
       limit: parseLimit(this.getAttribute("limit")),
+      eventId: parseEventId(this.getAttribute("event-id")),
       showPast: parseShowPast(this.getAttribute("show-past")),
       sort: parseSort(this.getAttribute("sort")),
       layout: parseLayout(this.getAttribute("layout")),

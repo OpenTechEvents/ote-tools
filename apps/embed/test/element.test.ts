@@ -30,6 +30,15 @@ const SAMPLE_FEED = JSON.stringify({
   ],
 });
 
+const ID_FEED = JSON.stringify({
+  title: "Sample",
+  events: [
+    { id: "https://example.org/events/first", name: "First", startDate: "2999-01-01" },
+    { id: "https://example.org/events/second", name: "Second", startDate: "2999-02-01" },
+    { id: "https://example.org/events/past", name: "Long gone", startDate: "2000-01-01" },
+  ],
+});
+
 function rawLocationState(layout: WidgetState["layout"]): WidgetState {
   return {
     status: "loaded",
@@ -81,6 +90,59 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(2);
     expect(el.shadowRoot!.textContent).toContain("Future Event");
     expect(el.shadowRoot!.textContent).toContain("Past Event");
+  });
+
+  it("event-id renders only the event with that OTE id", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => ID_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("event-id", "https://example.org/events/second");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(1);
+    expect(el.shadowRoot!.textContent).toContain("Second");
+    expect(el.shadowRoot!.textContent).not.toContain("First");
+  });
+
+  it("event-id ignores show-past: an id is an explicit request for that event", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => ID_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("event-id", "https://example.org/events/past");
+    el.setAttribute("show-past", "false");
+    document.body.append(el);
+    await flush();
+
+    // Without this, a page pinned to one event would empty itself the
+    // morning after the event happened.
+    expect(el.shadowRoot!.textContent).toContain("Long gone");
+  });
+
+  it("event-id with no match says the id was not found, not that the feed is empty", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => ID_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("event-id", "https://example.org/events/typo");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.textContent).toContain("Event not found");
+    expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(0);
+  });
+
+  it("event-id can be changed at runtime without refetching the feed", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => ID_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("event-id", "https://example.org/events/first");
+    document.body.append(el);
+    await flush();
+    expect(el.shadowRoot!.textContent).toContain("First");
+
+    el.setAttribute("event-id", "https://example.org/events/second");
+    expect(el.shadowRoot!.textContent).toContain("Second");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('hides past events when show-past="false"', async () => {

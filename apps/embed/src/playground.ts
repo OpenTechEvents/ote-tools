@@ -26,6 +26,7 @@ const jsonSourceField = document.querySelector<HTMLElement>("#json-source-field"
 const sourceModeInputs = Array.from(
   document.querySelectorAll<HTMLInputElement>('input[name="source-mode"]'),
 );
+const eventIdInput = document.querySelector<HTMLInputElement>("#event-id-input")!;
 const limitInput = document.querySelector<HTMLInputElement>("#limit-input")!;
 const layoutButtons = Array.from(
   document.querySelectorAll<HTMLButtonElement>("[data-layout]"),
@@ -166,6 +167,7 @@ function buildSnippet(config: {
   feedUrls: string[];
   sourceMode: SourceMode;
   runtimeData: RuntimeData | undefined;
+  eventId: string;
   limit: string;
   layout: string;
   placeholderImage: string;
@@ -201,6 +203,7 @@ function buildSnippet(config: {
     `  theme="${attr(config.theme)}"`,
     `  lang="${attr(config.lang)}"`,
   ];
+  if (config.eventId) elementLines.push(`  event-id="${attr(config.eventId)}"`);
   if (config.limit) elementLines.push(`  limit="${attr(config.limit)}"`);
   if (config.placeholderImage) {
     elementLines.push(`  placeholder-image="${attr(config.placeholderImage)}"`);
@@ -470,6 +473,7 @@ function applyAndRender(): void {
 
   const feed = feedInput.value.trim();
   const feedUrls = parseFeedsAttr(feed);
+  const eventId = eventIdInput.value.trim();
   const limit = limitInput.value.trim();
   const layout = currentLayout();
   updateControlAvailability(layout);
@@ -512,6 +516,8 @@ function applyAndRender(): void {
     if (widget.hasAttribute("feed")) widget.removeAttribute("feed");
     if (widget.hasAttribute("feeds")) widget.removeAttribute("feeds");
   }
+  if (eventId) widget.setAttribute("event-id", eventId);
+  else widget.removeAttribute("event-id");
   if (limit) widget.setAttribute("limit", limit);
   else widget.removeAttribute("limit");
   widget.setAttribute("layout", layout);
@@ -567,6 +573,7 @@ function applyAndRender(): void {
     feedUrls,
     sourceMode: mode,
     runtimeData: runtimeDataResult.status === "valid" ? runtimeDataResult.runtimeData : undefined,
+    eventId,
     limit,
     layout,
     placeholderImage,
@@ -590,6 +597,7 @@ function applyAndRender(): void {
 
 for (const control of [
   feedInput,
+  eventIdInput,
   limitInput,
   placeholderImageInput,
   eventClickSelect,

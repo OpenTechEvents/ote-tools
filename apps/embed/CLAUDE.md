@@ -167,6 +167,30 @@ shadow tree). Deliberately no separate fixed "columns" attribute — turning a
 min-width into a responsive column count via `auto-fill` already adapts
 better across container sizes than a rigid count would.
 
+## `event-id` is the single-event escape hatch — and it ignores `show-past`
+
+`event-id="<OTE id>"` filters the feed to one event
+(`visibleEvents()` in `render.ts`). Two decisions worth keeping:
+
+- **It matches the OTE `id`, not the name or the date.** The `id` is a stable
+  URI the spec documents as never changing after publication; a name or a
+  date can be edited, and filtering on either would silently empty a page the
+  organizer had already published and forgotten about.
+- **It bypasses the past filter on purpose.** Someone who pins an id to a page
+  means *that* event; having it disappear the morning after it happened is a
+  surprise, not a feature. `limit` and grouping stay applied rather than
+  special-cased — with one event they are moot anyway.
+
+A non-matching id renders "Event not found in this feed.", not the ordinary
+empty state: an id typo and a feed with nothing upcoming are different
+problems, and only one of them is the organizer's to fix. `empty-message`
+still overrides both.
+
+The property route (`widget.event = …` / `widget.events = […]`) still exists
+and still bypasses fetching entirely — that is for host apps like OTE Reader
+that already hold the data. `event-id` is for a plain copy-paste page that
+has nothing but a feed URL.
+
 ## The `fields` attribute is a full replacement, not a merge
 
 `attrs.ts`'s `parseFields()` returns `DEFAULT_FIELDS` when the attribute is

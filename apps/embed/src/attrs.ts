@@ -78,6 +78,17 @@ export function resolveLang(attr: LangAttr, navigatorLanguage: string): Lang {
   return navigatorLanguage.toLowerCase().startsWith("es") ? "es" : "en";
 }
 
+/**
+ * `event-id="<OTE id>"` — the single event to render, matched against the
+ * event's own `id`. The OTE `id` is a stable URI documented as never
+ * changing after publication, which is what makes it the right key here:
+ * a name or a date can be edited, so filtering on either would silently
+ * empty a page the organizer had already published.
+ */
+export function parseEventId(value: string | null): string | undefined {
+  return value?.trim() || undefined;
+}
+
 export function parseShowPast(value: string | null): boolean {
   return value !== "false";
 }

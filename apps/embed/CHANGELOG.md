@@ -1,5 +1,25 @@
 # @opentechevents/embed changelog
 
+## 0.7.0
+
+### Added
+
+- `event-id="<OTE id>"` renders a single event from the feed — the widget's
+  answer to "put this one event on its own page", which previously needed
+  the host page to fetch the feed itself and assign `widget.event` from
+  JavaScript. Matched against the event's `id`, the stable URI the OTE spec
+  documents as never changing after publication: a name or a date can be
+  edited, so filtering on either would silently empty a page that was
+  already published.
+- `event-id` deliberately ignores `show-past`. Someone who pins an id to a
+  page means *that* event, and having it vanish the morning after would be a
+  surprise rather than a feature.
+- When the id matches nothing, the empty state says "Event not found in this
+  feed." instead of "No upcoming events." — a different problem, and one the
+  organizer can only fix if the widget says which it is. `empty-message`
+  still overrides both.
+- The playground gained an `event-id` control, under Source.
+
 ## 0.6.0
 
 ### Added
