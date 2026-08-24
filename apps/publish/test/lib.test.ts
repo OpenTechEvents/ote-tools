@@ -40,9 +40,16 @@ describe("parseFeedSource", () => {
     });
   });
 
-  it("prefers repo when both are given", () => {
+  it("prefers repo when both are given, but keeps the feed URL", () => {
     const source = parseFeedSource("?repo=a/b&feed=https://example.org/feed.json");
-    expect(source).toEqual({ kind: "repo", repo: "a/b" });
+    expect(source).toEqual({ kind: "repo", repo: "a/b", url: "https://example.org/feed.json" });
+  });
+
+  it("ignores a junk ?feed= next to a valid ?repo=", () => {
+    expect(parseFeedSource("?repo=a/b&feed=javascript:alert(1)")).toEqual({
+      kind: "repo",
+      repo: "a/b",
+    });
   });
 
   it("rejects a malformed repo, a non-http URL and an empty query", () => {
@@ -65,6 +72,45 @@ describe("feedUrls", () => {
     expect(feedUrls({ kind: "url", url: "https://example.org/feed.json" })).toEqual([
       "https://example.org/feed.json",
     ]);
+  });
+
+  it("tries an explicit ?feed= before anything derived from the repo", () => {
+    const urls = feedUrls({
+      kind: "repo",
+      repo: "owner/name",
+      url: "https://events.example/feed.json",
+    });
+    expect(urls[0]).toBe("https://events.example/feed.json");
+  });
+
+  // A Pages site on a custom domain answers the github.io URL with a redirect
+  // that carries no CORS header, so that candidate can never succeed. The
+  // referrer is the only hint the browser gives us about the real domain.
+  it("tries the linking dashboard's origin, which may be a custom domain", () => {
+    const urls = feedUrls(
+      { kind: "repo", repo: "ComBuildersES/events" },
+      { referrer: "https://communitybuilders.dev/events/", origin: "https://tools.example" },
+    );
+    expect(urls.slice(0, 2)).toEqual([
+      "https://communitybuilders.dev/events/feed.json",
+      "https://communitybuilders.dev/feed.json",
+    ]);
+  });
+
+  it("ignores a referrer from this tool itself and never repeats a candidate", () => {
+    const urls = feedUrls(
+      { kind: "repo", repo: "owner/name" },
+      { referrer: "https://tools.example/publish/", origin: "https://tools.example" },
+    );
+    expect(urls).toEqual([
+      "https://owner.github.io/name/feed.json",
+      "https://raw.githubusercontent.com/owner/name/HEAD/feed.json",
+    ]);
+    const pages = feedUrls(
+      { kind: "repo", repo: "owner/name" },
+      { referrer: "https://owner.github.io/name/", origin: "https://tools.example" },
+    );
+    expect(pages.filter((url) => url === "https://owner.github.io/name/feed.json")).toHaveLength(1);
   });
 });
 

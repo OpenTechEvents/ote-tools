@@ -48,7 +48,10 @@ function showView(context: AppContext): void {
 async function fetchFeed(
   source: FeedSource,
 ): Promise<{ url: string; text: string } | { error: string }> {
-  const urls = feedUrls(source);
+  const urls = feedUrls(source, {
+    referrer: document.referrer,
+    origin: window.location.origin,
+  });
   for (const url of urls) {
     const cacheBusted = new URL(url);
     cacheBusted.searchParams.set("_", String(Date.now()));
@@ -58,7 +61,12 @@ async function fetchFeed(
   return {
     error:
       urls.length > 1
-        ? "Could not fetch feed.json from GitHub Pages or the default branch."
+        ? // The likeliest cause by far, and the one an organizer cannot guess:
+          // a Pages site on a custom domain answers the github.io URL with a
+          // redirect that carries no CORS header, so the browser blocks it.
+          "Could not fetch feed.json from GitHub Pages or the default branch. " +
+          "If your site uses a custom domain, open this tool with the full " +
+          "address of the file instead: ?feed=https://your-domain/…/feed.json."
         : `Could not fetch ${urls[0]!}.`,
   };
 }
