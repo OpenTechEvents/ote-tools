@@ -1,6 +1,14 @@
-/* Same tokens as apps/preview and apps/editor so the central tools read as
-   one site. The layout is this tool's own: a channel rail plus a stage, the
-   shape a broadcasting console wants and a tabbed previewer does not. */
+/* Broadcast — a console, not a page.
+ *
+ * The token names are the ones apps/editor and apps/preview use, so this can
+ * be back-ported to them; the values gain a dark half, which no central tool
+ * had before. The dark palette is the one apps/embed already ships in
+ * src/theme.css.ts, so a widget previewed in here matches the console around
+ * it instead of fighting it.
+ *
+ * Denser than the editor on purpose. The editor is a form you fill in slowly;
+ * this is a board you scan for the next place to publish. */
+
 :root {
   --bg: #f6f7f9;
   --surface: #ffffff;
@@ -20,6 +28,86 @@
   --ready-soft: #e8f5ee;
   --radius: 8px;
   --shadow: 0 1px 2px rgba(28, 33, 40, 0.06), 0 4px 12px rgba(28, 33, 40, 0.04);
+  --bar: rgba(255, 255, 255, 0.86);
+  --mark-mix: var(--surface);
+  --mark-tint: 12%;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --surface: #1f2228;
+    --surface-sunken: #24272e;
+    --border: #33373f;
+    --border-strong: #464b55;
+    --text: #e6e8eb;
+    --muted: #9aa2ad;
+    --error: #f28b82;
+    --error-bg: #3a2323;
+    --warning-bg: #362f1e;
+    --warning-border: #5c5030;
+    --accent: #7d93e8;
+    --accent-hover: #97a8ee;
+    --accent-soft: #262c42;
+    --ready: #6cc79a;
+    --ready-soft: #1e3229;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+    --bar: rgba(31, 34, 40, 0.86);
+    --mark-mix: #000000;
+    --mark-tint: 24%;
+    color-scheme: dark;
+  }
+}
+
+/* The explicit choice comes last so it beats the media query in both
+   directions — a dark-by-system organizer can still pin this to light. */
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-sunken: #f2f4f7;
+  --border: #e3e6ea;
+  --border-strong: #c9cdd3;
+  --text: #1c2128;
+  --muted: #626c77;
+  --error: #c4302f;
+  --error-bg: #fcf1f1;
+  --warning-bg: #fdf6e7;
+  --warning-border: #e8d9a8;
+  --accent: #3556c8;
+  --accent-hover: #2a46a8;
+  --accent-soft: #eef1fb;
+  --ready: #1f7a4d;
+  --ready-soft: #e8f5ee;
+  --shadow: 0 1px 2px rgba(28, 33, 40, 0.06), 0 4px 12px rgba(28, 33, 40, 0.04);
+  --bar: rgba(255, 255, 255, 0.86);
+  --mark-mix: var(--surface);
+  --mark-tint: 12%;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #16181d;
+  --surface: #1f2228;
+  --surface-sunken: #24272e;
+  --border: #33373f;
+  --border-strong: #464b55;
+  --text: #e6e8eb;
+  --muted: #9aa2ad;
+  --error: #f28b82;
+  --error-bg: #3a2323;
+  --warning-bg: #362f1e;
+  --warning-border: #5c5030;
+  --accent: #7d93e8;
+  --accent-hover: #97a8ee;
+  --accent-soft: #262c42;
+  --ready: #6cc79a;
+  --ready-soft: #1e3229;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --bar: rgba(31, 34, 40, 0.86);
+  --mark-mix: #000000;
+  --mark-tint: 24%;
+  color-scheme: dark;
 }
 
 * {
@@ -32,92 +120,711 @@ html {
 
 body {
   margin: 0 auto;
-  max-width: 72rem;
-  padding: 1rem 1rem 4rem;
+  max-width: 78rem;
+  padding: 0 1rem 4rem;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.94rem;
   line-height: 1.5;
   color: var(--text);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
-header {
-  margin: 0.5rem 0 1.25rem;
-}
-
-.title-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-h1 {
-  font-size: 1.6rem;
+h1,
+h2,
+h3 {
   margin: 0;
-  letter-spacing: -0.01em;
 }
 
 h2 {
-  font-size: 1.05rem;
-  margin: 0;
+  font-size: 1.02rem;
 }
 
 h3.sub {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
   margin: 1rem 0 0.4rem;
 }
 
-.tagline {
-  max-width: 46rem;
-  margin: 0.4rem 0 0;
-  color: var(--muted);
-}
-
-#source-banner {
-  margin: 0.5rem 0 0;
-  font-size: 0.88rem;
-  color: var(--muted);
-  overflow-wrap: anywhere;
+a {
+  color: var(--accent);
 }
 
 .muted {
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
-/* --- pills ---------------------------------------------------------------- */
+.break {
+  overflow-wrap: anywhere;
+}
 
-.pill {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 0.5rem;
+  z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.75rem;
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  vertical-align: -0.125em;
+}
+
+/* --- app bar --------------------------------------------------------------- */
+
+/* One line, always the same height, holding only the context the whole tool
+   works against. Everything that read as a marketing page — the oversized
+   title, the tagline, the feed sentence — is gone: this is chrome. */
+#app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  margin: 0 -1rem 1rem;
+  padding: 0.4rem 1rem;
+  background: var(--bar);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+#brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.brand-mark {
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+
+#app-bar-spacer {
+  flex: 1 1 auto;
+}
+
+/* The pinned event: the whole navigation model in one control. Pick once,
+   then browse destinations without answering "which event?" again. */
+#event-chip:not([hidden]) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-height: 2rem;
+  max-width: min(32rem, 60vw);
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+#event-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.chip-label {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#event-chip-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-date {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.chip-quiet {
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 20rem;
+}
+
+/* --- buttons --------------------------------------------------------------- */
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.primary,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+button.primary:hover,
+.button-link:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.button-link.secondary {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.button-link.secondary:hover {
+  background: var(--accent-soft);
+}
+
+/* The dark accent is a light blue: white on it is barely legible, so a filled
+   control flips to dark text rather than keeping a fixed white. */
+@media (prefers-color-scheme: dark) {
+  button.primary,
+  .button-link:not(.secondary),
+  .segment input:checked + span {
+    color: #16181d;
+  }
+}
+
+:root[data-theme="dark"] button.primary,
+:root[data-theme="dark"] .button-link:not(.secondary),
+:root[data-theme="dark"] .segment input:checked + span {
+  color: #16181d;
+}
+
+:root[data-theme="light"] button.primary,
+:root[data-theme="light"] .button-link:not(.secondary),
+:root[data-theme="light"] .segment input:checked + span {
+  color: #ffffff;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.icon-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.88rem;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cta-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0;
+}
+
+/* --- marks ----------------------------------------------------------------- */
+
+/* The brand colour tints the tile; it never fills the mark. A grid of two
+   dozen logos at full saturation is a ransom note, and the one destination
+   with the loudest brand would win attention it has not earned. */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--mark-brand) var(--mark-tint), var(--mark-mix));
+  color: var(--mark-brand);
+  font-size: 0.95rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mark {
+    color: color-mix(in srgb, var(--mark-brand) 62%, #ffffff);
+  }
+}
+
+:root[data-theme="dark"] .mark {
+  color: color-mix(in srgb, var(--mark-brand) 62%, #ffffff);
+}
+
+:root[data-theme="light"] .mark {
+  color: var(--mark-brand);
+}
+
+.mark .icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* Destinations simple-icons has no mark for get a letter, not a lookalike
+   logo from somewhere else. A wrong logo is a small lie. */
+.mark-monogram {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* --- automation badges ----------------------------------------------------- */
+
+/* A dot and a word, never a button. The ladder has to stay readable at a
+   glance without any level looking clickable — the moment a "planned" card
+   reads as live, the page has lied to an organizer. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  color: var(--muted);
   white-space: nowrap;
 }
 
-.pill-ready {
-  background: var(--ready-soft);
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+.badge-generated {
   color: var(--ready);
 }
 
-.pill-planned {
-  background: var(--accent-soft);
+.badge-generated .dot,
+.dot-generated {
+  background: var(--ready);
+  border-color: var(--ready);
+}
+
+.badge-assisted {
   color: var(--accent);
 }
 
-.pill-idea,
-.pill-beta {
-  background: var(--warning-bg);
-  color: #8a6d1f;
+.badge-assisted .dot,
+.dot-assisted {
+  border-color: var(--accent);
+  background: transparent;
 }
 
-/* --- panels & context ------------------------------------------------------ */
+.dot-planned {
+  border-color: var(--border-strong);
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* --- home: the dashboard --------------------------------------------------- */
+
+.group {
+  margin-bottom: 1.6rem;
+}
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.group-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.group-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--muted);
+}
+
+.group-icon.starred {
+  color: #d99b16;
+  fill: #d99b16;
+}
+
+.count {
+  min-width: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.group > .muted {
+  margin: 0.2rem 0 0.7rem;
+  max-width: 46rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.7rem;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+
+.tile:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.tile:focus-within {
+  border-color: var(--accent);
+}
+
+/* The whole card opens the destination; the star sits on top of it, so
+   starring never navigates by accident. */
+.tile-open {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  z-index: 1;
+}
+
+.tile-body {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem 0.75rem;
+  width: 100%;
+  align-content: start;
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 1.6rem;
+}
+
+.tile-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tile-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tile-fit {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Never hidden, never disabled: an organizer learning that confs.tech will
+   not take their meetup is useful. Learning nothing is not. */
+.tile-unfit .mark,
+.tile-unfit .tile-name {
+  opacity: 0.75;
+}
+
+.star {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  display: inline-flex;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--border-strong);
+  font-size: 0.95rem;
+}
+
+.star:hover {
+  color: #d99b16;
+  background: var(--surface-sunken);
+}
+
+.star.starred {
+  color: #d99b16;
+}
+
+.star.starred .icon {
+  fill: currentColor;
+}
+
+.cta-panel {
+  margin-top: 0.5rem;
+}
+
+.legend {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.75rem 0;
+}
+
+.legend-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.legend-row .badge {
+  min-width: 7rem;
+}
+
+.legend-row .muted {
+  font-size: 0.85rem;
+}
+
+/* --- destination view: sidebar + stage ------------------------------------- */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+#destination-view[data-sidebar="collapsed"] .workspace {
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+}
+
+#sidebar {
+  position: sticky;
+  top: 3.6rem;
+  max-height: calc(100vh - 4.5rem);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.sidebar-group {
+  margin-bottom: 0.6rem;
+}
+
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.25rem;
+  padding: 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font-size: 0.86rem;
+  text-align: left;
+}
+
+.sidebar-item:hover {
+  background: var(--surface-sunken);
+}
+
+.sidebar-item[aria-current="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.sidebar-item .mark {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+}
+
+.sidebar-item .mark .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.sidebar-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-unfit .sidebar-name {
+  color: var(--muted);
+}
+
+/* Collapsed, the marks are the navigation. Names, headings and the back
+   label would all wrap into an unreadable column at this width. */
+#destination-view[data-sidebar="collapsed"] .sidebar-name,
+#destination-view[data-sidebar="collapsed"] .sidebar-heading,
+#destination-view[data-sidebar="collapsed"] .sidebar-item .dot,
+#destination-view[data-sidebar="collapsed"] #back-home span {
+  display: none;
+}
+
+/* Stacked, not squeezed: side by side in a 3.4rem column the two buttons
+   overflow and the toggle — the only way back out of this state — is the one
+   that gets pushed off. */
+#destination-view[data-sidebar="collapsed"] .sidebar-head {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+#destination-view[data-sidebar="collapsed"] #back-home {
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+#destination-view[data-sidebar="collapsed"] #back-home:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#destination-view[data-sidebar="collapsed"] .sidebar-group {
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
+}
+
+#destination-view[data-sidebar="collapsed"] .sidebar-group:first-child {
+  border-top: 0;
+}
+
+/* --- panels ---------------------------------------------------------------- */
 
 .panel {
   background: var(--surface);
@@ -137,144 +844,6 @@ h3.sub {
   margin-bottom: 0;
 }
 
-.context {
-  display: flex;
-  gap: 1rem 1.5rem;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.context-field {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.context-field label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.context-reason {
-  flex: 1 1 16rem;
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-select {
-  max-width: 100%;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.95rem;
-}
-
-/* --- console layout -------------------------------------------------------- */
-
-.console {
-  display: grid;
-  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-@media (max-width: 46rem) {
-  .console {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Deliberately not a sticky, scrolling column: the rail IS the pitch. An
-   organizer has to be able to see every channel and both calls to action at
-   once, and a 100vh box with its own scrollbar hid half of them. */
-.rail {
-  display: grid;
-  gap: 1rem;
-}
-
-.rail-group,
-.rail-cta {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 0.85rem;
-}
-
-.rail-group p,
-.rail-cta p {
-  margin: 0.25rem 0 0.6rem;
-  font-size: 0.82rem;
-}
-
-.rail ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.25rem;
-}
-
-.channel {
-  width: 100%;
-  text-align: left;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 0.92rem;
-  cursor: pointer;
-}
-
-.channel:hover {
-  background: var(--surface-sunken);
-}
-
-.channel[aria-current="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.channel-unfit .channel-name {
-  color: var(--muted);
-}
-
-.channel-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  justify-content: space-between;
-}
-
-.channel-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.channel-fit {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--muted);
-  margin-top: 0.1rem;
-}
-
-.rail-cta a {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-/* --- stage ----------------------------------------------------------------- */
-
 .stage-panel {
   margin-bottom: 0;
 }
@@ -285,118 +854,160 @@ select {
   margin-bottom: 0.9rem;
 }
 
-.stage-header p {
-  margin: 0.35rem 0 0;
-  max-width: 46rem;
-}
-
-.scope {
-  display: grid;
-  gap: 0.5rem;
-  border: 0;
-  margin: 0 0 0.9rem;
-  padding: 0;
-}
-
-.scope legend {
-  padding: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.scope label {
+.stage-title {
   display: flex;
-  gap: 0.6rem;
-  align-items: flex-start;
-  cursor: pointer;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
-.scope span {
-  display: grid;
+.stage-title h2 {
+  font-size: 1.15rem;
 }
 
-.scope em {
-  font-style: normal;
-  color: var(--muted);
-  font-size: 0.88rem;
+.stage-title .star {
+  position: static;
+  margin-left: auto;
 }
 
-.produces {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
+.stage-header .muted {
+  margin: 0.4rem 0 0;
+  max-width: 48rem;
+}
+
+.stage-meta {
+  display: flex;
+  align-items: center;
   gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
 }
 
-.produces li {
-  padding-left: 1.5rem;
-  position: relative;
-  font-size: 0.95rem;
+.quiet-link {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
-.produces li::before {
-  content: "→";
-  position: absolute;
-  left: 0;
-  color: var(--accent);
-}
-
-.link-list {
-  margin: 0.6rem 0;
-  padding-left: 1.1rem;
-  font-size: 0.92rem;
-}
-
-.break {
-  overflow-wrap: anywhere;
-}
-
-.readiness {
-  list-style: none;
-  margin: 0.5rem 0 0.75rem;
-  padding: 0;
-  display: grid;
-  gap: 0.35rem;
-}
-
-.readiness li {
+.profile-control {
   display: flex;
-  gap: 0.6rem;
-  align-items: baseline;
-  font-size: 0.92rem;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.readiness-mark {
-  width: 1rem;
-  flex: 0 0 auto;
-  text-align: center;
-  font-weight: 700;
+.profile-control p {
+  margin: 0;
+  font-size: 0.82rem;
 }
 
-.readiness .has .readiness-mark {
-  color: var(--ready);
+/* --- the submission sheet -------------------------------------------------- */
+
+/* The "guided" level, made of nothing but the organizer's own values. Two
+   columns so a label and its answer read as one row, and every answer is one
+   click from the clipboard — that gap is most of the work of publishing. */
+.sheet {
+  display: grid;
+  grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr);
+  gap: 0.1rem 0.9rem;
+  margin: 0.75rem 0;
+  border-top: 1px solid var(--border);
 }
 
-.readiness .missing .readiness-mark,
-.readiness .missing strong {
+.sheet dt {
+  padding: 0.45rem 0 0.45rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--muted);
-  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.readiness-detail {
-  display: block;
-  color: var(--muted);
-  font-size: 0.85rem;
+.sheet dd {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.sheet-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.88rem;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+.sheet-copy {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.sheet dd:hover .sheet-copy,
+.sheet-copy:focus-visible {
+  opacity: 1;
+}
+
+.sheet dt.missing,
+.sheet dd.missing {
+  color: var(--muted);
+}
+
+.sheet-missing {
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.sheet-wanted {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Touch has no hover, so the copy buttons would be unreachable. */
+@media (hover: none) {
+  .sheet-copy {
+    opacity: 1;
+  }
+}
+
+/* --- controls -------------------------------------------------------------- */
+
+select,
+input[type="search"],
+input[type="number"] {
+  max-width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+select:focus,
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1rem;
+  gap: 0.6rem 1rem;
   align-items: flex-end;
-  padding: 0.75rem;
+  padding: 0.65rem 0.75rem;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -415,7 +1026,7 @@ select {
 }
 
 .control-label {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
@@ -424,11 +1035,112 @@ select {
 
 .control input[type="number"] {
   width: 6rem;
-  padding: 0.4rem 0.5rem;
+}
+
+/* This event or the whole feed — offered only where a feed means anything,
+   and deliberately not a second event selector in the app bar. */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  margin: 0.25rem 0 0.5rem;
   border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.segment input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segment span {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segment input:checked + span {
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.segment input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scope {
+  display: grid;
+  gap: 0.5rem;
+  border: 0;
+  margin: 0 0 0.9rem;
+  padding: 0;
+}
+
+.scope legend {
+  padding: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.scope label {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.scope span {
+  display: grid;
+}
+
+.scope em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* --- generated output ------------------------------------------------------ */
+
+.snippet {
+  margin: 0.75rem 0;
+}
+
+.snippet-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.source-block {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  font: inherit;
-  font-size: 0.95rem;
+  padding: 0.75rem;
+  margin: 0;
+  max-height: 26rem;
+  overflow: auto;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .preview {
@@ -439,10 +1151,10 @@ select {
 }
 
 .preview-label {
-  padding: 0.4rem 0.65rem;
+  padding: 0.35rem 0.65rem;
   background: var(--surface-sunken);
   border-bottom: 1px solid var(--border);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -466,82 +1178,70 @@ select {
   min-height: 16rem;
 }
 
-/* --- generated output ------------------------------------------------------ */
-
-.snippet {
-  margin: 0.75rem 0;
+.produces {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
 }
 
-.snippet-actions {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  flex-wrap: wrap;
+.produces li {
+  padding-left: 1.4rem;
+  position: relative;
+  font-size: 0.9rem;
 }
 
-button {
-  min-height: 2.35rem;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: #ffffff;
-  font: inherit;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
-button:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-}
-
-.button-link {
-  display: inline-block;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 0.92rem;
-  text-decoration: none;
-}
-
-.button-link:hover {
-  background: var(--accent-hover);
-}
-
-.button-link.secondary {
-  background: var(--surface);
+.produces li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
   color: var(--accent);
 }
 
-.button-link.secondary:hover {
-  background: var(--accent-soft);
+.link-list {
+  margin: 0.6rem 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
 }
 
-.cta-row {
+.readiness {
+  list-style: none;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.readiness li {
   display: flex;
   gap: 0.6rem;
-  flex-wrap: wrap;
-  margin: 1rem 0 0.75rem;
+  align-items: baseline;
+  font-size: 0.88rem;
 }
 
-.source-block {
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.75rem;
-  margin: 0;
-  max-height: 26rem;
-  overflow: auto;
-  font-size: 0.85rem;
-  line-height: 1.45;
+.readiness-mark {
+  width: 1rem;
+  flex: 0 0 auto;
+  text-align: center;
+  font-weight: 700;
 }
 
-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.readiness .has .readiness-mark {
+  color: var(--ready);
+}
+
+.readiness .missing .readiness-mark,
+.readiness .missing strong {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.readiness-detail {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 /* The note that corrects an expectation this page just set (Google rich
@@ -550,17 +1250,171 @@ code {
   background: var(--warning-bg);
   border: 1px solid var(--warning-border);
   border-radius: var(--radius);
-  padding: 0.6rem 0.75rem;
+  padding: 0.55rem 0.7rem;
   margin: 0.75rem 0 0;
-  font-size: 0.9rem;
+  font-size: 0.87rem;
+}
+
+/* --- the event picker ------------------------------------------------------ */
+
+#event-picker {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  padding: 1rem;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(80vh, 40rem);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Scoped to [open]: an unconditional display would defeat the UA rule that
+   keeps a closed dialog closed. */
+#event-picker[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+#event-picker::backdrop {
+  background: rgba(10, 12, 16, 0.5);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+#event-filter {
+  width: 100%;
+}
+
+.picker-list {
+  overflow-y: auto;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.picker-heading {
+  margin: 0.6rem 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+}
+
+.picker-row:hover {
+  background: var(--surface-sunken);
+}
+
+.picker-row[aria-current="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.picker-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.picker-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-date {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 footer {
   margin-top: 1.5rem;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-a {
-  color: var(--accent);
+/* --- responsive ------------------------------------------------------------ */
+
+@media (max-width: 64rem) {
+  .workspace {
+    grid-template-columns: 3.4rem minmax(0, 1fr);
+  }
+
+  /* Below this the names cannot share the row with a working panel, so the
+     sidebar starts collapsed and the toggle expands it over the content. */
+  .workspace .sidebar-name,
+  .workspace .sidebar-heading {
+    display: none;
+  }
+
+  #destination-view[data-sidebar="open"] .workspace {
+    grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  }
+
+  #destination-view[data-sidebar="open"] .sidebar-name,
+  #destination-view[data-sidebar="open"] .sidebar-heading {
+    display: flex;
+  }
+
+  #destination-view[data-sidebar="open"] .sidebar-name {
+    display: block;
+  }
+}
+
+@media (max-width: 46rem) {
+  body {
+    font-size: 0.92rem;
+  }
+
+  .workspace,
+  #destination-view[data-sidebar="collapsed"] .workspace,
+  #destination-view[data-sidebar="open"] .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, a sticky sidebar would eat the screen before the panel starts. */
+  #sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  #destination-view[data-sidebar="collapsed"] #sidebar-list {
+    display: none;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  }
+
+  .sheet {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .sheet dt {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .chip-quiet {
+    max-width: 100%;
+  }
 }

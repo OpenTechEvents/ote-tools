@@ -4,12 +4,13 @@ import type { OteEvent } from "@opentechevents/export-jsonld";
 
 import {
   acceptsProfile,
-  buildChannelUrl,
-  channelsForGroup,
-  CHANNELS,
+  buildDestinationUrl,
+  destinationById,
+  destinationsForGroup,
+  DESTINATIONS,
   GROUPS,
-  requestChannelUrl,
-} from "../src/lib/channels.js";
+  requestDestinationUrl,
+} from "../src/lib/destinations.js";
 import { guessProfile } from "../src/lib/event-profile.js";
 import { readiness } from "../src/lib/event-readiness.js";
 import { previewScriptUrls } from "../src/lib/preview.js";
@@ -39,37 +40,73 @@ const conference: OteEvent = {
   offers: [{ price: 45, currency: "EUR" }],
 };
 
-describe("channel registry", () => {
-  it("every channel belongs to a declared group", () => {
+describe("destination registry", () => {
+  it("every destination belongs to a declared group", () => {
     const groups = new Set(GROUPS.map((group) => group.id));
-    for (const channel of CHANNELS) expect(groups.has(channel.group)).toBe(true);
+    for (const destination of DESTINATIONS) expect(groups.has(destination.group)).toBe(true);
   });
 
-  it("ids are unique — the rail and the stage look channels up by id", () => {
-    expect(new Set(CHANNELS.map((c) => c.id)).size).toBe(CHANNELS.length);
+  it("ids are unique — the sidebar and the stage look destinations up by id", () => {
+    expect(new Set(DESTINATIONS.map((d) => d.id)).size).toBe(DESTINATIONS.length);
   });
 
-  it("every non-ready channel says what it will produce", () => {
-    for (const channel of CHANNELS.filter((c) => c.status !== "ready")) {
-      expect(channel.produces.length).toBeGreaterThan(0);
+  it("every destination that is not generated says what it will produce", () => {
+    for (const destination of DESTINATIONS.filter((d) => d.automation !== "generated")) {
+      expect(destination.produces.length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * Half of what "guided" delivers is the link to the form. A sheet of the
+   * organizer's own values with nowhere to put them is not a feature, so a
+   * guided destination without a submission URL is a bug — except for the
+   * `paste` ones, whose artefact is the message itself.
+   */
+  it("every guided destination that has a form links to it", () => {
+    for (const destination of DESTINATIONS.filter(
+      (d) => d.automation === "assisted" && d.submitVia !== "paste",
+    )) {
+      expect(destination.submitUrl, destination.id).toBeDefined();
+    }
+  });
+
+  it("every URL in the catalogue is https", () => {
+    for (const destination of DESTINATIONS) {
+      for (const url of [destination.homeUrl, destination.submitUrl]) {
+        if (url !== undefined) expect(url, destination.id).toMatch(/^https:\/\//);
+      }
+    }
+  });
+
+  /**
+   * The catalogue's own argument: chat and social are one card per platform.
+   * Collapsing them into "social posts" and "chat groups" hid most of the
+   * destinations this tool exists to reach.
+   */
+  it("keeps social networks and chat platforms one card each", () => {
+    for (const id of ["mastodon", "bluesky", "linkedin", "x"]) {
+      expect(destinationById(id)?.group, id).toBe("social");
+    }
+    for (const id of ["whatsapp", "telegram", "discord", "slack"]) {
+      expect(destinationById(id)?.group, id).toBe("chat");
     }
   });
 });
 
 describe("acceptsProfile", () => {
   it("conference-only destinations reject meetups but nothing is hidden", () => {
-    const confsTech = CHANNELS.find((c) => c.id === "confs-tech")!;
+    const confsTech = destinationById("confs-tech")!;
     expect(acceptsProfile(confsTech, "meetup")).toBe(false);
     expect(acceptsProfile(confsTech, "conference")).toBe(true);
     // Still listed in its group — the organizer learns why, not nothing.
-    expect(channelsForGroup("directories", "meetup")).toContain(confsTech);
+    expect(destinationsForGroup("directories", "meetup")).toContain(confsTech);
   });
 
-  it("sorts the channels that fit this event first", () => {
-    const forMeetup = channelsForGroup("directories", "meetup");
-    const firstUnfitIndex = forMeetup.findIndex((c) => !acceptsProfile(c, "meetup"));
+  it("sorts the destinations that fit this event first", () => {
+    const forMeetup = destinationsForGroup("directories", "meetup");
+    const firstUnfitIndex = forMeetup.findIndex((d) => !acceptsProfile(d, "meetup"));
     const lastFitIndex = forMeetup.reduce(
-      (last, channel, index) => (acceptsProfile(channel, "meetup") ? index : last),
+      (last, destination, index) => (acceptsProfile(destination, "meetup") ? index : last),
       -1,
     );
     expect(firstUnfitIndex).toBeGreaterThan(lastFitIndex);
@@ -78,16 +115,15 @@ describe("acceptsProfile", () => {
 
 describe("call-to-action links", () => {
   it("requesting a platform opens a prefilled issue, not an empty one", () => {
-    const url = new URL(requestChannelUrl());
+    const url = new URL(requestDestinationUrl());
     expect(url.origin + url.pathname).toBe("https://github.com/OpenTechEvents/ote-tools/issues/new");
-    expect(url.searchParams.get("title")).toContain("[Channel request]");
+    expect(url.searchParams.get("title")).toContain("[Destination request]");
     expect(url.searchParams.get("body")).toContain("submission URL");
   });
 
-  it("offering to build one names the channel", () => {
-    const channel = CHANNELS.find((c) => c.id === "newsletter")!;
-    const url = new URL(buildChannelUrl(channel));
-    expect(url.searchParams.get("title")).toBe("[Channel] Implement Newsletter");
+  it("offering to build one names the destination", () => {
+    const url = new URL(buildDestinationUrl(destinationById("joindin")!));
+    expect(url.searchParams.get("title")).toBe("[Destination] Implement joind.in");
     expect(url.searchParams.get("labels")).toContain("help wanted");
   });
 });

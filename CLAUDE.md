@@ -31,3 +31,7 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
 - `apps/editor` has its own `CLAUDE.md` — dev-workflow gotchas (static
   files aren't watched), a recurring CSS `:not([hidden])` pitfall, and
   browser-testing notes specific to that app. Read it before editor work.
+- `apps/publish` (Broadcast) has its own `CLAUDE.md` too — the pinned-event
+  rule, the generated/guided/planned ladder that lets its destination
+  catalogue be wide without becoming a wall of promises, and the
+  generated-not-fetched icon set. Read it before publish work.
