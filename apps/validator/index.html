@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Strict CSP, no unsafe-inline. This page renders documents fetched from
+      URLs a stranger chose, so nothing inline may execute and nothing may be
+      loaded from anywhere but this origin. connect-src names the fetcher
+      Worker: build.mjs substitutes __FETCH_ENDPOINT__ in both this header and
+      the bundle, so the two can never drift apart.
+
+      'unsafe-eval' is here under protest, and it is load-bearing: ajv turns
+      each JSON Schema into a validator with `new Function`, so
+      @opentechevents/validate cannot even initialize without it — the module
+      throws at import time and the page silently has no event listeners at
+      all. What it costs is narrow: no script may still be loaded from another
+      origin, no inline handler may run, and every string that came from a
+      fetched document reaches the DOM through textContent, so there is no
+      injection point that 'unsafe-eval' would turn into execution.
+
+      The real fix is to stop compiling at runtime: ajv can emit standalone
+      validator modules at build time, which this repo is already shaped for
+      (packages/validate vendors its schemas through `pnpm gen`). Doing that
+      lets this line become plain `script-src 'self'` again.
+
+      frame-ancestors is deliberately absent: browsers ignore it in a <meta>
+      element and log a warning. It belongs in a response header, which
+      GitHub Pages does not let us set.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self'; img-src 'self'; connect-src 'self' __FETCH_ENDPOINT__; form-action 'none'; base-uri 'none'"
+    />
+    <title>OTE validator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="https://opentechevents.org/">
+          <span class="brand-mark">OTE</span>
+          <span class="brand-name">OpenTechEvents</span>
+        </a>
+        <nav class="nav" aria-label="Site">
+          <a href="https://opentechevents.org/#spec">How it works</a>
+          <a href="https://opentechevents.org/spec/">Reference</a>
+          <a href="https://opentechevents.org/#tools">Tools</a>
+          <a class="nav-repo" href="https://github.com/OpenTechEvents/ote-tools">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="wrap">
+          <p class="eyebrow">Tools</p>
+          <h1>OTE validator</h1>
+          <p class="lead">
+            Is this document a valid OpenTechEvents feed or event? Paste a URL, drop a file, or
+            paste the JSON. Nothing to install.
+          </p>
+        </div>
+      </section>
+
+      <div class="wrap">
+        <nav class="tabs" aria-label="Input mode">
+          <button type="button" class="tab" data-mode="url" aria-selected="true">From a URL</button>
+          <button type="button" class="tab" data-mode="file" aria-selected="false">Upload a file</button>
+          <button type="button" class="tab" data-mode="paste" aria-selected="false">Paste JSON</button>
+        </nav>
+
+        <section id="panel-url" class="panel">
+          <form id="url-form">
+            <label for="url-input">Feed URL — or the community's home page</label>
+            <div class="row">
+              <input
+                id="url-input"
+                name="url"
+                type="url"
+                inputmode="url"
+                placeholder="https://comunidad.example/"
+                required
+              />
+              <button type="submit" class="btn btn-primary">Validate</button>
+            </div>
+            <p class="hint">
+              A home page works: the feed is discovered from
+              <code>&lt;link rel="alternate" type="application/ote+json"&gt;</code> in its head.
+              This mode is the only one that uses a server — a browser cannot fetch a third-party
+              feed without CORS.
+            </p>
+          </form>
+        </section>
+
+        <section id="panel-file" class="panel" hidden>
+          <label for="file-input">OTE document (.json)</label>
+          <input id="file-input" type="file" accept=".json,application/json,application/ote+json" />
+          <p class="hint">Validated in this tab. The file is never uploaded anywhere.</p>
+        </section>
+
+        <section id="panel-paste" class="panel" hidden>
+          <label for="paste-input">Paste an OTE document</label>
+          <textarea id="paste-input" rows="12" spellcheck="false" placeholder='{ "specVersion": "0.3.0", … }'></textarea>
+          <div class="row row-end">
+            <button type="button" id="paste-validate" class="btn btn-primary">Validate</button>
+          </div>
+          <p class="hint">Validated in this tab. Nothing is sent anywhere.</p>
+        </section>
+
+        <p id="status" class="status" hidden></p>
+
+        <section id="discovery" class="panel result" hidden></section>
+        <section id="candidates" class="panel result" hidden></section>
+
+        <!-- Findings on the left, the document on the right once the viewport
+             can hold both: an error that points at line 42 is only useful next
+             to line 42. Below the breakpoint it stacks, findings first. -->
+        <div id="results" class="results" hidden>
+          <div class="results-main">
+            <section id="verdict" class="panel result" hidden></section>
+            <div id="kind-row" class="kind-row" hidden>
+              <label for="kind-select">Validate as</label>
+              <select id="kind-select">
+                <option value="">Auto-detect</option>
+                <option value="feed">Feed</option>
+                <option value="event">Event</option>
+              </select>
+              <span class="hint">Detection follows the document's shape; override it here.</span>
+            </div>
+            <section id="errors" class="panel result" hidden></section>
+            <section id="recommendations" class="panel result" hidden></section>
+          </div>
+          <div class="results-side">
+            <section id="source" class="source-panel" hidden></section>
+          </div>
+        </div>
+
+        <section id="permalink" class="panel" hidden>
+          <label for="permalink-input">Link to this result</label>
+          <div class="row">
+            <input id="permalink-input" type="text" readonly />
+            <button type="button" id="permalink-copy" class="btn btn-ghost">Copy</button>
+          </div>
+          <p class="hint">Paste this into an issue: it re-runs the same check for whoever opens it.</p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <div>
+          <p class="footer-brand">OpenTechEvents · OTE tools</p>
+          <p class="footer-note">
+            Validates against the OTE specification with the same code the CLI and CI use.
+          </p>
+        </div>
+        <nav class="footer-links">
+          <a href="https://opentechevents.org/">Site</a>
+          <a href="https://opentechevents.org/spec/">Specification</a>
+          <a href="https://github.com/OpenTechEvents/ote-tools/issues/new">Report a problem</a>
+        </nav>
+      </div>
+    </footer>
+
+    <!-- Classic script, first: installs error handlers before the module
+         below evaluates, so a failure there becomes a visible message
+         instead of a page whose buttons silently do nothing. -->
+    <script src="./boot-errors.js"></script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "@opentechevents/validator-service",
+  "version": "0.1.0",
+  "description": "Cloudflare Worker serving the OTE validator: the static page and the SSRF-guarded fetch endpoint, on one origin",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "deploy": "pnpm --filter @opentechevents/validator run build && wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.0.0"
+  }
+}

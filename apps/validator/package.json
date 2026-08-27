@@ -1,28 +1,23 @@
 {
-  "name": "@opentechevents/publish",
+  "name": "@opentechevents/validator",
   "version": "0.1.0",
-  "description": "Broadcast: the console that turns one OTE event into what every other platform wants",
+  "description": "Static web validator for OTE documents: validate by URL, file upload or paste",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --serve",
-    "gen:icons": "node tools/gen-icons.mjs",
-    "check:links": "node --experimental-strip-types --no-warnings tools/check-links.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@opentechevents/export-jsonld": "workspace:*",
-    "@opentechevents/feed-urls": "workspace:*",
+    "@opentechevents/discover-feed": "workspace:*",
     "@opentechevents/validate": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.1",
-    "lucide-static": "^1.33.0",
-    "simple-icons": "^16.28.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }

@@ -1,0 +1,64 @@
+# Deploys workers/validator to Cloudflare: the validator page AND its
+# SSRF-guarded fetch endpoint, on one origin
+# (validator.opentechevents.org).
+#
+# Separate from deploy-tools.yml on purpose. That workflow publishes static
+# bundles to this repo's GitHub Pages; a Worker is neither static nor served
+# from Pages, and this one carries the page with it as its `assets` binding.
+# GitHub Pages keeps serving /validator/ as a redirect to the canonical URL.
+#
+# One-time prerequisite: a CLOUDFLARE_API_TOKEN repository secret with the
+# "Edit Cloudflare Workers" template plus read access to the
+# opentechevents.org zone (the custom domains are declared in wrangler.jsonc,
+# so a deploy re-asserts them).
+name: Deploy validator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/validator/**"
+      - "workers/validator/**"
+      - "packages/discover-feed/**"
+      - "packages/validate/**"
+      - ".github/workflows/deploy-validator.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: validator
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The Worker's `assets` directory is apps/validator/dist, so the page has
+      # to exist before wrangler runs. `pnpm build` builds every workspace
+      # package the bundle imports as well.
+      - run: pnpm build
+
+      - name: Deploy
+        run: pnpm --filter @opentechevents/validator-service exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Smoke check
+        run: |
+          set -euo pipefail
+          base=https://validator.opentechevents.org
+          curl -fsS "$base/health" > /dev/null
+          # The endpoint's whole purpose is refusing these; a deploy that
+          # stopped refusing them is worse than a deploy that failed.
+          for probe in "file:///etc/passwd" "http://169.254.169.254/"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base/fetch?url=$(printf %s "$probe" | jq -sRr @uri)")
+            test "$code" = "400" || { echo "SSRF probe $probe answered $code, expected 400"; exit 1; }
+          done

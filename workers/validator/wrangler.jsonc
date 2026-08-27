@@ -1,0 +1,55 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ote-validator",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+
+  // The page and its fetch endpoint on ONE origin. Static assets are served
+  // directly by the runtime; anything that is not an asset (i.e. /fetch and
+  // /health) falls through to the Worker. That is not a packaging
+  // convenience: same-origin means the page needs no CORS at all and its CSP
+  // can say `connect-src 'self'`, so the whole allowlist stops being a thing
+  // that can be misconfigured.
+  //
+  // The directory is built by `pnpm --filter @opentechevents/validator build`,
+  // which this package's `deploy` script runs first.
+  "assets": {
+    "directory": "../../apps/validator/dist",
+    "not_found_handling": "404-page"
+  },
+
+  // One hostname, deliberately. A second custom domain (fetch.opentechevents.org
+  // was tried) does not give the fetcher an "API name": assets are served
+  // before this script runs, so that hostname served the whole page too — two
+  // canonical URLs for one tool, which is what the /validator/ redirect exists
+  // to avoid. If an API name is ever genuinely wanted, it needs its own Worker
+  // without an assets binding, not another route onto this one.
+  "routes": [{ "pattern": "validator.opentechevents.org", "custom_domain": true }],
+  // Declaring `routes` makes wrangler disable the workers.dev URL by default.
+  // Keep it: it is what local development and CI smoke checks point at before
+  // DNS exists, and the fallback if a custom domain ever misbehaves.
+  "workers_dev": true,
+
+  "vars": {
+    // Only origins that are NOT this Worker need to appear here — the page it
+    // serves is same-origin and never triggers CORS. These cover the local
+    // dev server (esbuild on :8000) and the legacy Pages path while its
+    // redirect propagates.
+    "ALLOWED_ORIGINS": "https://tools.opentechevents.org,http://localhost:8000,http://127.0.0.1:8000"
+  },
+
+  // Per-IP ceiling. The endpoint works without this binding (it is optional in
+  // Env), but production should never run without it: it is a public endpoint
+  // that makes outbound requests, so an unbounded caller is an amplifier.
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
+  }
+}

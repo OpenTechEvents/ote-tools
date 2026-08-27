@@ -1,0 +1,702 @@
+/*
+ * The design language of opentechevents.org, applied to a tool.
+ *
+ * Tokens, type scale, header, buttons, cards and footer are lifted from that
+ * site's stylesheet so a visitor arriving from it does not feel handed off to
+ * a different product. Only what a validator needs is added: a verdict badge
+ * that reads at a glance, a findings list whose entries point at the source,
+ * and a document viewer styled like the site's dark code blocks.
+ *
+ * When the main site's palette moves, move it here too — see CLAUDE.md.
+ */
+
+:root {
+  --ink: #10131a;
+  --ink-soft: #4a5265;
+  --ink-faint: #6f7787;
+  --bg: #ffffff;
+  --bg-alt: #f6f7f9;
+  --bg-dark: #10131a;
+  --line: #e3e6ea;
+  --accent: #2b5bd7;
+  --accent-soft: #eaf0fe;
+  --accent-ink: #1e46ab;
+  --ok: #0f8a5f;
+  --ok-soft: #e2f5ec;
+  --warn: #b06d00;
+  --warn-soft: #fdf0dc;
+  --bad: #c4302f;
+  --bad-soft: #fcf1f1;
+  --radius: 10px;
+  --wrap: 1120px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: clamp(2rem, 4.4vw, 3.1rem);
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.wrap {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 16px;
+  z-index: 100;
+}
+
+.skip:focus {
+  left: 12px;
+  top: 12px;
+}
+
+/* ---------- header ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 64px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand-mark {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: var(--ink);
+  color: #fff;
+  padding: 4px 7px;
+  border-radius: 6px;
+}
+
+.brand-name {
+  font-size: 0.98rem;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 0.92rem;
+}
+
+.nav a {
+  color: var(--ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 7px 9px;
+  border-radius: 7px;
+}
+
+.nav a:hover {
+  color: var(--ink);
+  background: var(--bg-alt);
+  text-decoration: none;
+}
+
+.nav-repo {
+  color: var(--ink);
+  font-weight: 600;
+  margin-left: 8px;
+  border-left: 1px solid var(--line);
+  border-radius: 0 7px 7px 0;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding: 52px 0 28px;
+}
+
+.eyebrow {
+  font: 700 0.7rem/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 14px;
+}
+
+.lead {
+  font-size: 1.13rem;
+  color: var(--ink-soft);
+  max-width: 40em;
+  margin: 0;
+}
+
+/* ---------- input modes ---------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 14px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  font: 600 0.85rem/1 var(--sans);
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.tab:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+/* :not([hidden]) is load-bearing: an author `display` rule beats the UA
+   stylesheet's [hidden] { display: none }, so a plain `.panel { display:
+   block }` would silently defeat every `panel.hidden = true` in main.ts.
+   Same trap documented in apps/editor/CLAUDE.md. */
+.panel:not([hidden]) {
+  display: block;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px;
+  margin: 0 0 14px;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.hint {
+  margin: 12px 0 0;
+  font-size: 0.87rem;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
+.hint code,
+p > code {
+  font-family: var(--mono);
+  font-size: 0.84em;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  padding: 2px 6px;
+  border-radius: 5px;
+  overflow-wrap: anywhere;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.row-end {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+input[type="url"],
+input[type="text"],
+textarea {
+  flex: 1 1 18rem;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+input[type="url"]:focus,
+input[type="text"]:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+textarea {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+input[type="file"] {
+  font-size: 0.9rem;
+}
+
+select {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.btn {
+  display: inline-block;
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.93rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(43, 91, 215, 0.28);
+}
+
+.btn-primary:hover {
+  background: var(--accent-ink);
+}
+
+.btn-ghost {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.btn-ghost:hover {
+  border-color: var(--ink-faint);
+}
+
+/* ---------- status ---------- */
+
+.status:not([hidden]) {
+  display: block;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 0.92rem;
+}
+
+.status[data-tone="error"] {
+  border-left-color: var(--bad);
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+/* ---------- verdict ---------- */
+
+.badge {
+  display: inline-block;
+  margin: 0 0 10px;
+  font: 700 0.72rem/1 var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  border-radius: 999px;
+}
+
+.badge.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badge.bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+p.ok {
+  color: var(--ok);
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+p.warn {
+  color: var(--warn);
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 0.89rem;
+  margin: 0 0 0.5em;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, max-content) 1fr;
+  gap: 6px 18px;
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+}
+
+.facts dt {
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- candidates ---------- */
+
+.candidates {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.candidate {
+  width: 100%;
+  text-align: left;
+  display: block;
+  font: 600 0.95rem/1.4 var(--sans);
+  color: var(--ink);
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+}
+
+.candidate:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.candidate-url {
+  display: block;
+  margin-top: 3px;
+  font: 400 0.8rem/1.5 var(--mono);
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- results layout ---------- */
+
+.results:not([hidden]) {
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (min-width: 1000px) {
+  .results:not([hidden]) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  /* The document tracks the findings list as it scrolls: pointing at line 42
+     is worth little if line 42 has scrolled away. */
+  .results-side {
+    position: sticky;
+    top: 84px;
+  }
+}
+
+.results-main,
+.results-side {
+  min-width: 0;
+}
+
+.kind-row:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  padding: 0 2px;
+}
+
+.kind-row label {
+  margin: 0;
+}
+
+.kind-row .hint {
+  margin: 0;
+}
+
+/* ---------- findings ---------- */
+
+.findings {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.findings li {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-alt);
+  border-left: 3px solid var(--line);
+}
+
+.findings.error li {
+  border-left-color: var(--bad);
+}
+
+.findings.warn li {
+  border-left-color: var(--warn);
+}
+
+.finding-where {
+  justify-self: start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font: 600 0.78rem/1.4 var(--mono);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.finding-where:hover:not([disabled]) {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.finding-where[disabled] {
+  cursor: default;
+  color: var(--ink-faint);
+}
+
+.line-ref {
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.finding-message {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- document viewer ---------- */
+
+/* The site's code blocks: dark card, mono, caption bar on top. Reused here so
+   the document being validated reads as a code sample, not as page text. */
+.source-panel:not([hidden]) {
+  display: block;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-dark);
+  border: 1px solid #262c3a;
+  box-shadow: 0 18px 44px -22px rgba(16, 19, 26, 0.55);
+}
+
+.source-panel h3 {
+  margin: 0;
+  padding: 12px 16px;
+  background: #171b25;
+  border-bottom: 1px solid #262c3a;
+  font: 500 0.76rem/1 var(--mono);
+  letter-spacing: 0.04em;
+  color: #8892a6;
+  text-transform: uppercase;
+}
+
+.source {
+  margin: 0;
+  max-height: 32rem;
+  overflow: auto;
+  padding: 14px 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: #d5dae4;
+}
+
+.source-line {
+  display: flex;
+  gap: 14px;
+  padding: 0 16px;
+  white-space: pre;
+}
+
+.source-line.marked {
+  background: rgba(127, 179, 255, 0.15);
+  box-shadow: inset 3px 0 0 #7fb3ff;
+}
+
+.gutter {
+  flex: 0 0 2.5rem;
+  text-align: right;
+  color: #4a5265;
+  user-select: none;
+}
+
+.code {
+  white-space: pre;
+}
+
+/* ---------- footer ---------- */
+
+.site-footer {
+  margin-top: 56px;
+  background: var(--bg-dark);
+  color: #8892a6;
+  padding: 40px 0;
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.footer-brand {
+  color: #fff;
+  font-weight: 650;
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.footer-note {
+  margin: 0;
+  font-size: 0.85rem;
+  max-width: 46em;
+}
+
+.footer-links {
+  display: flex;
+  gap: 20px;
+  font-size: 0.9rem;
+}
+
+.footer-links a {
+  color: #b6bfd0;
+}
+
+@media (max-width: 620px) {
+  body {
+    font-size: 16px;
+  }
+
+  .hero {
+    padding: 36px 0 20px;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:hover {
+    transform: none;
+  }
+}

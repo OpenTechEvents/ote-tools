@@ -1,0 +1,18 @@
+// Workers runtime types instead of Node's: this package is the one thing here
+// that is not a Node program. @cloudflare/workers-types and @types/node both
+// declare fetch/Request/Response, so `types` names exactly one of them — see
+// the note in tsconfig.base.json about TypeScript 6 no longer auto-including
+// every @types package.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["src", "test"]
+}

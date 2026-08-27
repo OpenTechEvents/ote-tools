@@ -1,8 +1,19 @@
 packages:
   - packages/*
   - apps/*
+  # Deployed to Cloudflare, not to the tools site: apps/* are static bundles
+  # published to GitHub Pages, and a Worker is neither static nor published
+  # there. See workers/fetch-url/README.md.
+  - workers/*
 allowBuilds:
   esbuild: true
+  # wrangler's local runtime (workers/fetch-url). Its install script downloads
+  # a platform binary that nothing in CI needs: the Worker's tests are plain
+  # vitest over pure functions and a fake fetch, and `wrangler deploy` bundles
+  # with esbuild. Left off so a routine `pnpm install` runs one less install
+  # script. Turn it on locally if you want `pnpm --filter @opentechevents/fetch-url dev`
+  # (wrangler dev), which does need workerd.
+  workerd: false
 # TEMPORARY supply-chain exemption. @opentechevents/schema 0.3.0 was published
 # on 2026-08-05 (by us, from OpenTechEvents/opentechevents-spec) and packages/
 # validate needed it the same day, younger than pnpm's minimum release age.

@@ -16,6 +16,7 @@ export default tseslint.config(
         process: "readonly",
         URL: "readonly",
         AbortController: "readonly",
+        AbortSignal: "readonly",
         Buffer: "readonly",
         clearTimeout: "readonly",
         fetch: "readonly",
@@ -24,8 +25,8 @@ export default tseslint.config(
     },
   },
   {
-    // Served browser script: self-contained classic script, no modules.
-    files: ["apps/dashboard-checks/dashboard-checks.js"],
+    // Served browser scripts: self-contained classic scripts, no modules.
+    files: ["apps/dashboard-checks/dashboard-checks.js", "apps/validator/boot-errors.js"],
     languageOptions: {
       globals: {
         window: "readonly",
