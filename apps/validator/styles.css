@@ -1,139 +1,280 @@
 /*
- * Same visual language as apps/preview and apps/editor (system font, one
- * column, soft cards), with two additions this tool needs: a verdict badge
- * that reads at a glance, and a source view whose lines can be pointed at.
+ * The design language of opentechevents.org, applied to a tool.
+ *
+ * Tokens, type scale, header, buttons, cards and footer are lifted from that
+ * site's stylesheet so a visitor arriving from it does not feel handed off to
+ * a different product. Only what a validator needs is added: a verdict badge
+ * that reads at a glance, a findings list whose entries point at the source,
+ * and a document viewer styled like the site's dark code blocks.
+ *
+ * When the main site's palette moves, move it here too — see CLAUDE.md.
  */
 
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --border: #e3e6ea;
-  --border-strong: #c9cdd3;
-  --text: #1c2128;
-  --muted: #626c77;
-  --error: #c4302f;
-  --error-bg: #fcf1f1;
-  --warn: #8a6100;
-  --warn-bg: #fdf6e7;
-  --ok: #1f7a4d;
-  --ok-bg: #edf7f1;
-  --accent: #3556c8;
-  --accent-hover: #2a46a8;
-  --accent-soft: #eef1fb;
-  --radius: 8px;
-  --shadow: 0 1px 2px rgba(28, 33, 40, 0.06), 0 4px 12px rgba(28, 33, 40, 0.04);
+  --ink: #10131a;
+  --ink-soft: #4a5265;
+  --ink-faint: #6f7787;
+  --bg: #ffffff;
+  --bg-alt: #f6f7f9;
+  --bg-dark: #10131a;
+  --line: #e3e6ea;
+  --accent: #2b5bd7;
+  --accent-soft: #eaf0fe;
+  --accent-ink: #1e46ab;
+  --ok: #0f8a5f;
+  --ok-soft: #e2f5ec;
+  --warn: #b06d00;
+  --warn-soft: #fdf0dc;
+  --bad: #c4302f;
+  --bad-soft: #fcf1f1;
+  --radius: 10px;
+  --wrap: 1120px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html {
-  background: var(--bg);
-}
-
 body {
-  margin: 0 auto;
-  max-width: 56rem;
-  padding: 1rem 1rem 4rem;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  line-height: 1.5;
-  color: var(--text);
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
-header {
-  margin: 0.5rem 0 1rem;
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.5em;
 }
 
 h1 {
-  font-size: 1.35rem;
-  margin: 0 0 0.25rem;
+  font-size: clamp(2rem, 4.4vw, 3.1rem);
 }
 
 h2 {
-  font-size: 1.05rem;
-  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
 }
 
 h3 {
-  font-size: 0.95rem;
-  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
 }
 
-.lede {
+p {
+  margin: 0 0 1em;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.wrap {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 16px;
+  z-index: 100;
+}
+
+.skip:focus {
+  left: 12px;
+  top: 12px;
+}
+
+/* ---------- header ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 64px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand-mark {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: var(--ink);
+  color: #fff;
+  padding: 4px 7px;
+  border-radius: 6px;
+}
+
+.brand-name {
+  font-size: 0.98rem;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 0.92rem;
+}
+
+.nav a {
+  color: var(--ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 7px 9px;
+  border-radius: 7px;
+}
+
+.nav a:hover {
+  color: var(--ink);
+  background: var(--bg-alt);
+  text-decoration: none;
+}
+
+.nav-repo {
+  color: var(--ink);
+  font-weight: 600;
+  margin-left: 8px;
+  border-left: 1px solid var(--line);
+  border-radius: 0 7px 7px 0;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding: 52px 0 28px;
+}
+
+.eyebrow {
+  font: 700 0.7rem/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 14px;
+}
+
+.lead {
+  font-size: 1.13rem;
+  color: var(--ink-soft);
+  max-width: 40em;
   margin: 0;
-  color: var(--muted);
 }
 
-.muted {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85em;
-}
-
-/* Tabs ------------------------------------------------------------- */
+/* ---------- input modes ---------- */
 
 .tabs {
   display: flex;
-  gap: 0.25rem;
-  margin: 1rem 0 0;
+  gap: 6px;
+  margin: 0 0 14px;
   flex-wrap: wrap;
 }
 
 .tab {
-  border: 1px solid var(--border);
-  border-bottom: none;
-  background: var(--bg);
-  color: var(--muted);
-  padding: 0.45rem 0.8rem;
-  border-radius: var(--radius) var(--radius) 0 0;
+  font: 600 0.85rem/1 var(--sans);
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink-soft);
   cursor: pointer;
-  font: inherit;
+}
+
+.tab:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
 }
 
 .tab[aria-selected="true"] {
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 600;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
 }
-
-/* Panels ----------------------------------------------------------- */
 
 /* :not([hidden]) is load-bearing: an author `display` rule beats the UA
    stylesheet's [hidden] { display: none }, so a plain `.panel { display:
-   grid }` would silently defeat every `panel.hidden = true` in main.ts.
+   block }` would silently defeat every `panel.hidden = true` in main.ts.
    Same trap documented in apps/editor/CLAUDE.md. */
 .panel:not([hidden]) {
   display: block;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1rem;
-  margin: 0 0 0.75rem;
-}
-
-.result:not([hidden]) {
-  margin-top: 0.75rem;
+  padding: 22px;
+  margin: 0 0 14px;
 }
 
 label {
   display: block;
   font-weight: 600;
   font-size: 0.9rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 8px;
+}
+
+.hint {
+  margin: 12px 0 0;
+  font-size: 0.87rem;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
+.hint code,
+p > code {
+  font-family: var(--mono);
+  font-size: 0.84em;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  padding: 2px 6px;
+  border-radius: 5px;
+  overflow-wrap: anywhere;
 }
 
 .row {
   display: flex;
-  gap: 0.5rem;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.row-end {
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 input[type="url"],
@@ -142,216 +283,352 @@ textarea {
   flex: 1 1 18rem;
   min-width: 0;
   font: inherit;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
+  font-size: 0.95rem;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+input[type="url"]:focus,
+input[type="text"]:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
 }
 
 textarea {
   width: 100%;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
 }
 
-button {
+input[type="file"] {
+  font-size: 0.9rem;
+}
+
+select {
   font: inherit;
-  padding: 0.45rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
 }
 
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+.btn {
+  display: inline-block;
+  padding: 11px 20px;
+  border-radius: 8px;
   font-weight: 600;
+  font-size: 0.93rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-button.primary:hover {
-  background: var(--accent-hover);
+.btn:hover {
+  transform: translateY(-1px);
 }
 
-.kind-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0.75rem 0 0;
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(43, 91, 215, 0.28);
 }
 
-.kind-row label {
-  margin: 0;
+.btn-primary:hover {
+  background: var(--accent-ink);
 }
 
-/* Status and verdicts ---------------------------------------------- */
+.btn-ghost {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.btn-ghost:hover {
+  border-color: var(--ink-faint);
+}
+
+/* ---------- status ---------- */
 
 .status:not([hidden]) {
   display: block;
-  margin: 0.75rem 0 0;
-  padding: 0.6rem 0.8rem;
+  margin: 0 0 14px;
+  padding: 12px 16px;
   border-radius: var(--radius);
+  border-left: 3px solid var(--accent);
   background: var(--accent-soft);
-  color: var(--text);
+  color: var(--accent-ink);
+  font-size: 0.92rem;
 }
 
 .status[data-tone="error"] {
-  background: var(--error-bg);
-  color: var(--error);
+  border-left-color: var(--bad);
+  background: var(--bad-soft);
+  color: var(--bad);
 }
+
+/* ---------- verdict ---------- */
 
 .badge {
   display: inline-block;
-  margin: 0 0 0.5rem;
-  padding: 0.3rem 0.7rem;
+  margin: 0 0 10px;
+  font: 700 0.72rem/1 var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 7px 12px;
   border-radius: 999px;
-  font-weight: 700;
 }
 
 .badge.ok {
-  background: var(--ok-bg);
+  background: var(--ok-soft);
   color: var(--ok);
 }
 
 .badge.bad {
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--bad-soft);
+  color: var(--bad);
 }
 
 p.ok {
   color: var(--ok);
-  margin: 0 0 0.5rem;
   font-weight: 600;
+  margin: 0 0 10px;
 }
 
 p.warn {
   color: var(--warn);
-  margin: 0 0 0.5rem;
   font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 0.89rem;
+  margin: 0 0 0.5em;
 }
 
 .facts {
   display: grid;
-  grid-template-columns: minmax(6rem, max-content) 1fr;
-  gap: 0.2rem 0.75rem;
-  margin: 0;
-  font-size: 0.9rem;
+  grid-template-columns: minmax(5.5rem, max-content) 1fr;
+  gap: 6px 18px;
+  margin: 12px 0 0;
+  font-size: 0.88rem;
 }
 
 .facts dt {
-  color: var(--muted);
+  color: var(--ink-faint);
+  font-weight: 600;
 }
 
 .facts dd {
   margin: 0;
+  color: var(--ink-soft);
   overflow-wrap: anywhere;
 }
 
-/* Candidates ------------------------------------------------------- */
+/* ---------- candidates ---------- */
 
 .candidates {
   list-style: none;
-  margin: 0;
+  margin: 12px 0 0;
   padding: 0;
   display: grid;
-  gap: 0.4rem;
+  gap: 8px;
 }
 
 .candidate {
   width: 100%;
   text-align: left;
   display: block;
-  font-weight: 600;
+  font: 600 0.95rem/1.4 var(--sans);
+  color: var(--ink);
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+}
+
+.candidate:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .candidate-url {
   display: block;
-  font-weight: 400;
-  font-size: 0.85rem;
-  color: var(--muted);
+  margin-top: 3px;
+  font: 400 0.8rem/1.5 var(--mono);
+  color: var(--ink-faint);
   overflow-wrap: anywhere;
 }
 
-/* Findings --------------------------------------------------------- */
+/* ---------- results layout ---------- */
+
+.results:not([hidden]) {
+  display: grid;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (min-width: 1000px) {
+  .results:not([hidden]) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  /* The document tracks the findings list as it scrolls: pointing at line 42
+     is worth little if line 42 has scrolled away. */
+  .results-side {
+    position: sticky;
+    top: 84px;
+  }
+}
+
+.results-main,
+.results-side {
+  min-width: 0;
+}
+
+.kind-row:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  padding: 0 2px;
+}
+
+.kind-row label {
+  margin: 0;
+}
+
+.kind-row .hint {
+  margin: 0;
+}
+
+/* ---------- findings ---------- */
 
 .findings {
-  margin: 0;
-  padding-left: 1.2rem;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
   display: grid;
-  gap: 0.4rem;
+  gap: 10px;
 }
 
 .findings li {
-  padding-left: 0.2rem;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-alt);
+  border-left: 3px solid var(--line);
+}
+
+.findings.error li {
+  border-left-color: var(--bad);
+}
+
+.findings.warn li {
+  border-left-color: var(--warn);
 }
 
 .finding-where {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8rem;
-  padding: 0.1rem 0.4rem;
-  margin-right: 0.4rem;
-  border-radius: 4px;
-  background: var(--bg);
+  justify-self: start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font: 600 0.78rem/1.4 var(--mono);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
   overflow-wrap: anywhere;
+  text-align: left;
 }
 
-.findings.error .finding-where {
-  border-color: var(--error);
-  color: var(--error);
-}
-
-.findings.warn .finding-where {
-  border-color: var(--warn);
-  color: var(--warn);
+.finding-where:hover:not([disabled]) {
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .finding-where[disabled] {
   cursor: default;
-  opacity: 0.75;
+  color: var(--ink-faint);
 }
 
 .line-ref {
-  margin-left: 0.4rem;
-  color: var(--muted);
+  color: var(--ink-faint);
+  font-weight: 500;
 }
 
 .finding-message {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
   overflow-wrap: anywhere;
 }
 
-/* Source view ------------------------------------------------------ */
+/* ---------- document viewer ---------- */
+
+/* The site's code blocks: dark card, mono, caption bar on top. Reused here so
+   the document being validated reads as a code sample, not as page text. */
+.source-panel:not([hidden]) {
+  display: block;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-dark);
+  border: 1px solid #262c3a;
+  box-shadow: 0 18px 44px -22px rgba(16, 19, 26, 0.55);
+}
+
+.source-panel h3 {
+  margin: 0;
+  padding: 12px 16px;
+  background: #171b25;
+  border-bottom: 1px solid #262c3a;
+  font: 500 0.76rem/1 var(--mono);
+  letter-spacing: 0.04em;
+  color: #8892a6;
+  text-transform: uppercase;
+}
 
 .source {
   margin: 0;
-  max-height: 28rem;
+  max-height: 32rem;
   overflow: auto;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8rem;
-  line-height: 1.45;
+  padding: 14px 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: #d5dae4;
 }
 
 .source-line {
   display: flex;
-  gap: 0.75rem;
-  padding: 0 0.5rem;
+  gap: 14px;
+  padding: 0 16px;
   white-space: pre;
 }
 
 .source-line.marked {
-  background: var(--warn-bg);
-  outline: 1px solid var(--warn);
+  background: rgba(127, 179, 255, 0.15);
+  box-shadow: inset 3px 0 0 #7fb3ff;
 }
 
 .gutter {
-  flex: 0 0 3rem;
+  flex: 0 0 2.5rem;
   text-align: right;
-  color: var(--muted);
+  color: #4a5265;
   user-select: none;
 }
 
@@ -359,11 +636,67 @@ p.warn {
   white-space: pre;
 }
 
-footer {
-  margin-top: 2rem;
-  font-size: 0.85rem;
+/* ---------- footer ---------- */
+
+.site-footer {
+  margin-top: 56px;
+  background: var(--bg-dark);
+  color: #8892a6;
+  padding: 40px 0;
 }
 
-footer a {
-  color: var(--accent);
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.footer-brand {
+  color: #fff;
+  font-weight: 650;
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.footer-note {
+  margin: 0;
+  font-size: 0.85rem;
+  max-width: 46em;
+}
+
+.footer-links {
+  display: flex;
+  gap: 20px;
+  font-size: 0.9rem;
+}
+
+.footer-links a {
+  color: #b6bfd0;
+}
+
+@media (max-width: 620px) {
+  body {
+    font-size: 16px;
+  }
+
+  .hero {
+    padding: 36px 0 20px;
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:hover {
+    transform: none;
+  }
 }

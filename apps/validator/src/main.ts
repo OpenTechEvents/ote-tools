@@ -55,6 +55,8 @@ const statusBox = $("status");
 const discoveryBox = $("discovery");
 const candidatesBox = $("candidates");
 const verdictBox = $("verdict");
+const resultsBox = $("results");
+const kindRow = $("kind-row");
 const kindSelect = $<HTMLSelectElement>("kind-select");
 const errorsBox = $("errors");
 const recommendationsBox = $("recommendations");
@@ -78,6 +80,11 @@ function clearResults(): void {
     box.replaceChildren();
     box.hidden = true;
   }
+  // The results grid and the kind override only exist once there is a
+  // verdict: an empty two-column layout and a control for correcting a
+  // detection that has not happened yet are just furniture.
+  resultsBox.hidden = true;
+  kindRow.hidden = true;
   permalinkBox.hidden = true;
 }
 
@@ -273,6 +280,7 @@ function renderReport(report: Report, label: string): void {
       setStatus(report.message, "error");
       return;
     case "parse-error":
+      resultsBox.hidden = false;
       verdictBox.replaceChildren();
       verdictBox.hidden = false;
       verdictBox.append(
@@ -290,6 +298,8 @@ function renderReport(report: Report, label: string): void {
       highlightLine(report.position.line);
       return;
     case "validated":
+      resultsBox.hidden = false;
+      kindRow.hidden = false;
       renderVerdict(report, label);
       renderFindings(
         errorsBox,
