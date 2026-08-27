@@ -49,9 +49,23 @@ describe("editorContextFromSearch / repoFetchPlan", () => {
         "https://raw.githubusercontent.com/octocat/my-events/HEAD/ote.config.json",
       contentsUrl:
         "https://api.github.com/repos/octocat/my-events/contents/events",
-      pagesFeedUrl: "https://octocat.github.io/my-events/feed.json",
+      pagesFeedUrls: ["https://octocat.github.io/my-events/feed.json"],
       repoApiUrl: "https://api.github.com/repos/octocat/my-events",
     });
+  });
+
+  // A fork on a custom domain answers the github.io URL with a redirect that
+  // carries no CORS header, so the referrer's origin has to be tried too.
+  it("plans the linking dashboard's origin as a possible custom domain", () => {
+    const plan = repoFetchPlan(
+      { mode: "repo", repo: "ComBuildersES/events" },
+      { referrer: "https://communitybuilders.dev/events/", origin: "https://tools.example" },
+    );
+    expect(plan?.pagesFeedUrls).toEqual([
+      "https://communitybuilders.dev/events/feed.json",
+      "https://communitybuilders.dev/feed.json",
+      "https://ComBuildersES.github.io/events/feed.json",
+    ]);
   });
 });
 

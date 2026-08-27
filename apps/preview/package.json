@@ -15,6 +15,7 @@
     "@fullcalendar/daygrid": "^6.1.21",
     "@fullcalendar/list": "^6.1.21",
     "@fullcalendar/timegrid": "^6.1.21",
+    "@opentechevents/feed-urls": "workspace:*",
     "@opentechevents/preview-feed": "workspace:*"
   },
   "devDependencies": {

@@ -3,6 +3,8 @@
  * Pure functions; the actual fetching lives in main.ts.
  */
 
+import { pagesUrls, type PagesOrigin } from "@opentechevents/feed-urls";
+
 import type { ListedEvent, OteEvent } from "./types.js";
 
 // owner: GitHub user/org (alnum + inner hyphens); name: repo name charset.
@@ -27,16 +29,20 @@ export function editorContextFromSearch(search: string): EditorContext {
 export interface RepoFetchPlan {
   configUrl: string;
   contentsUrl: string;
-  pagesFeedUrl: string;
+  /** Every place the published feed might be; try them in order. */
+  pagesFeedUrls: string[];
   repoApiUrl: string;
 }
 
-export function repoFetchPlan(context: EditorContext): RepoFetchPlan | null {
+export function repoFetchPlan(
+  context: EditorContext,
+  from: PagesOrigin = {},
+): RepoFetchPlan | null {
   if (context.mode === "generator") return null;
   return {
     configUrl: rawConfigUrl(context.repo),
     contentsUrl: contentsApiUrl(context.repo),
-    pagesFeedUrl: pagesFeedUrl(context.repo),
+    pagesFeedUrls: pagesFeedUrls(context.repo, from),
     repoApiUrl: repoApiUrl(context.repo),
   };
 }
@@ -57,13 +63,25 @@ export function repoApiUrl(repo: string): string {
 }
 
 /**
- * feed.json on the fork's GitHub Pages site. Fallback listing source when the
- * contents API is unavailable (rate limit); breaks on custom domains, which
- * is accepted — the API path is the primary one.
+ * The canonical `owner.github.io/name/feed.json`. Kept as its own function
+ * because `repoFromPagesFeedUrl` below is its exact inverse; fetching code
+ * wants `pagesFeedUrls`, which also covers custom domains.
  */
 export function pagesFeedUrl(repo: string): string {
   const [owner, name] = repo.split("/");
   return `https://${owner}.github.io/${name}/feed.json`;
+}
+
+/**
+ * feed.json on the fork's GitHub Pages site — every candidate, best first.
+ * Fallback listing source when the contents API is unavailable (rate limit).
+ *
+ * A fork on a custom domain answers the `github.io` URL with a redirect that
+ * carries no CORS header, so that candidate alone would strand exactly those
+ * organizers; `@opentechevents/feed-urls` explains how the domain is guessed.
+ */
+export function pagesFeedUrls(repo: string, from: PagesOrigin = {}): string[] {
+  return pagesUrls(repo, "feed.json", from);
 }
 
 /**

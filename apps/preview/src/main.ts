@@ -1,5 +1,6 @@
 import { Calendar, type EventInput } from "@fullcalendar/core";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import { forkFileUrls } from "@opentechevents/feed-urls";
 import listPlugin from "@fullcalendar/list";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import {
@@ -75,13 +76,16 @@ function parseFeedParam(search: string): { url: URL; tab: FileKey } | null {
   }
 }
 
-function pagesUrl(repo: string, filename: string): string {
-  const [owner, name] = repo.split("/");
-  return `https://${owner}.github.io/${name}/${filename}`;
-}
-
-function rawUrl(repo: string, filename: string): string {
-  return `https://raw.githubusercontent.com/${repo}/HEAD/${filename}`;
+/**
+ * Every place this file might be, in order. More than the obvious Pages URL
+ * because a fork on a custom domain answers that one with a CORS-less
+ * redirect — see `@opentechevents/feed-urls`.
+ */
+function fileUrls(repo: string, filename: string): string[] {
+  return forkFileUrls(repo, filename, {
+    referrer: document.referrer,
+    origin: window.location.origin,
+  });
 }
 
 function siblingFeedUrl(feedUrl: URL, filename: string): string {
@@ -120,13 +124,10 @@ async function loadFile(
   if (state.directUrl) {
     result = await fetchText(state.directUrl).catch(() => null);
   } else if (repo) {
-    const pages = pagesUrl(repo, state.filename);
-    const pagesResult = await fetchText(pages).catch(() => null);
-    finalUrl = pages;
-    result = pagesResult;
-    if (result === null || !result.ok) {
-      finalUrl = rawUrl(repo, state.filename);
-      result = await fetchText(finalUrl).catch(() => null);
+    for (const url of fileUrls(repo, state.filename)) {
+      finalUrl = url;
+      result = await fetchText(url).catch(() => null);
+      if (result?.ok) break;
     }
   }
 

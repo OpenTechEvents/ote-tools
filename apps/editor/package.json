@@ -14,6 +14,7 @@
   "dependencies": {
     "@opentechevents/build-feed": "workspace:*",
     "@opentechevents/embed": "workspace:*",
+    "@opentechevents/feed-urls": "workspace:*",
     "@opentechevents/import-ics": "workspace:*",
     "@opentechevents/import-jsonld": "workspace:*",
     "@opentechevents/preview-feed": "workspace:*",

@@ -150,6 +150,15 @@ async function fetchJson(url: string): Promise<unknown | null> {
   }
 }
 
+/** The first URL that answers with JSON, or null when none of them does. */
+async function fetchFirstJson(urls: string[]): Promise<unknown | null> {
+  for (const url of urls) {
+    const json = await fetchJson(url);
+    if (json !== null) return json;
+  }
+  return null;
+}
+
 /** Form state key → the field id its errors and "touched" state hang from. */
 function fieldIdForKey(key: keyof FormState): string {
   switch (key) {
@@ -245,6 +254,9 @@ async function startEditor(repo: string | null): Promise<void> {
   const repoKey = repo ?? "__standalone__";
   const fetchPlan = repoFetchPlan(
     repo === null ? { mode: "generator" } : { mode: "repo", repo },
+    // The dashboard that linked here is the only hint a browser gets about a
+    // fork's custom Pages domain — see @opentechevents/feed-urls.
+    { referrer: document.referrer, origin: window.location.origin },
   );
   el("editor").hidden = false;
   updateRepoBanner();
@@ -1783,7 +1795,7 @@ async function startEditor(repo: string | null): Promise<void> {
       );
     } else {
       // Rate-limited, private or empty: try the published feed.
-      listed = parseFeedListing(await fetchJson(fetchPlan.pagesFeedUrl));
+      listed = parseFeedListing(await fetchFirstJson(fetchPlan.pagesFeedUrls));
       if (listed.length > 0) {
         addWarning(
           t(
@@ -2914,7 +2926,9 @@ async function startEditor(repo: string | null): Promise<void> {
     importCheckResult.textContent = t("importBanner.checking", "Checking…");
     // Cache-busting query: Pages serves feed.json with long-lived caches.
     if (fetchPlan === null) return;
-    void fetchJson(`${fetchPlan.pagesFeedUrl}?t=${Date.now()}`).then((feed) => {
+    void fetchFirstJson(
+      fetchPlan.pagesFeedUrls.map((url) => `${url}?t=${Date.now()}`),
+    ).then((feed) => {
       if (feed === null) {
         importCheckResult.textContent = t(
           "importBanner.checkFailed",

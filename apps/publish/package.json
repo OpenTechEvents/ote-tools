@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@opentechevents/export-jsonld": "workspace:*",
+    "@opentechevents/feed-urls": "workspace:*",
     "@opentechevents/validate": "workspace:*"
   },
   "devDependencies": {

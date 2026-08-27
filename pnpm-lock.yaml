@@ -41,6 +41,9 @@ importers:
       '@opentechevents/embed':
         specifier: workspace:*
         version: link:../embed
+      '@opentechevents/feed-urls':
+        specifier: workspace:*
+        version: link:../../packages/feed-urls
       '@opentechevents/import-ics':
         specifier: workspace:*
         version: link:../../packages/import-ics
@@ -121,6 +124,9 @@ importers:
       '@fullcalendar/timegrid':
         specifier: ^6.1.21
         version: 6.1.21(@fullcalendar/core@6.1.21)
+      '@opentechevents/feed-urls':
+        specifier: workspace:*
+        version: link:../../packages/feed-urls
       '@opentechevents/preview-feed':
         specifier: workspace:*
         version: link:../../packages/preview-feed
@@ -140,6 +146,9 @@ importers:
       '@opentechevents/export-jsonld':
         specifier: workspace:*
         version: link:../../packages/export-jsonld
+      '@opentechevents/feed-urls':
+        specifier: workspace:*
+        version: link:../../packages/feed-urls
       '@opentechevents/validate':
         specifier: workspace:*
         version: link:../../packages/validate
@@ -231,6 +240,18 @@ importers:
       marked:
         specifier: ^18.0.9
         version: 18.0.9
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@22.20.1)(jsdom@30.0.1)(vite@7.3.6(@types/node@22.20.1))
+
+  packages/feed-urls:
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
