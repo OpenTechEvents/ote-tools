@@ -45,6 +45,40 @@ const PATTERN_MESSAGES: Array<[RegExp, string]> = [
   [/\/(url|onlineUrl|licenseUrl|waitlistUrl)$/, "must be an http(s) URL"],
 ];
 
+/**
+ * Messages keyed by the *pattern itself*, which beats keying by field name: the
+ * same `url` property is `^https?://` in some places and `^https://` in others
+ * (images must be fetchable over TLS by whoever renders the feed), and a field
+ * that says "must be an http(s) URL" about an `http://` value it just rejected
+ * sends the publisher looking for a typo that is not there.
+ */
+const PATTERN_BY_REGEX: Array<[string, string]> = [
+  ["^https://", "must be an https:// URL — http:// is not accepted here"],
+  ["^https?://", "must be an http(s) URL"],
+];
+
+/** The credential form every URL in the spec refuses: `https://user:pass@host`. */
+const USERINFO_PATTERN = "^https?://[^/?#]*@";
+
+const USERINFO_MESSAGE =
+  "must not carry credentials in the URL (the user:pass@host form)";
+
+/** Fields whose `not` forbids the credential form rather than the field itself. */
+const URL_FIELD = /\/(id|url|onlineUrl|licenseUrl|waitlistUrl)$|\/image\/\d+$/;
+
+/**
+ * `not` says two different things in these schemas, and ajv's own words for
+ * both ("must NOT be valid") say neither: `not: {pattern: …}` forbids
+ * credentials inside a URL, while `not: {}` forbids the *field* in that
+ * position. The error object carries no subschema, so the field decides.
+ */
+const NOT_MESSAGES: Array<[RegExp, string]> = [
+  [
+    /\/textLanguage$/,
+    "should only be set when the feed also names its own organizers — without them it hands every event a single language none of them may actually share",
+  ],
+];
+
 const DATE_PATTERN_PATHS = ["#/$defs/date/pattern", "#/$defs/dateTime/pattern"];
 
 /**
@@ -141,11 +175,24 @@ function humanize(
       return { path, message: `must be of type ${type}` };
     }
     case "pattern": {
+      const pattern = (params as { pattern: string }).pattern;
+      if (pattern === USERINFO_PATTERN) return { path, message: USERINFO_MESSAGE };
+      for (const [source, message] of PATTERN_BY_REGEX) {
+        if (pattern === source) return { path, message };
+      }
       for (const [re, message] of PATTERN_MESSAGES) {
         if (re.test(instancePath)) return { path, message };
       }
-      const pattern = (params as { pattern: string }).pattern;
       return { path, message: `must match pattern ${pattern}` };
+    }
+    case "not": {
+      for (const [re, message] of NOT_MESSAGES) {
+        if (re.test(instancePath)) return { path, message };
+      }
+      return {
+        path,
+        message: URL_FIELD.test(instancePath) ? USERINFO_MESSAGE : "must not be set here",
+      };
     }
     case "format": {
       const format = (params as { format: string }).format;
@@ -189,15 +236,69 @@ function humanize(
   }
 }
 
+/** Keywords that describe the value itself rather than a failed alternative. */
+const INFORMATIVE = (keyword: string): boolean =>
+  !["type", "not", "oneOf", "anyOf", "allOf", "if"].includes(keyword);
+
+/**
+ * Drops the wreckage of the branch that was never the right one.
+ *
+ * When a value must match one of several shapes, ajv reports every branch's
+ * failure. An image entry given as `{ "url": "http://…" }` fails the
+ * *bare-string* branch twice — "must be string", and "must NOT be valid" from
+ * the credentials check, which passes vacuously on a non-string and so trips
+ * its own `not` — while the branch that actually applies reports the real
+ * problem one level deeper, on `url`. Three messages, two of them about a
+ * shape the publisher never used, and the useless one first.
+ *
+ * So a branch's `type`/`not` error is dropped when something more specific was
+ * said at that path or below it. With no such error, they are kept: a value
+ * that fits no branch at all still has to say so.
+ */
+function branchNoise(all: ErrorObject[]): Set<ErrorObject> {
+  const noise = new Set<ErrorObject>();
+
+  // A `not` that only forbids a *string* shape reports itself against values
+  // that are not strings at all: the subschema it negates passes vacuously on
+  // them, so the negation fails. The sibling "must be string" is the proof,
+  // and telling a publisher their number carries credentials would be a lie.
+  for (const err of all) {
+    if (err.keyword !== "not") continue;
+    const notAString = all.some(
+      (other) =>
+        other.instancePath === err.instancePath &&
+        other.keyword === "type" &&
+        (other.params as { type?: string }).type === "string",
+    );
+    if (notAString) noise.add(err);
+  }
+
+  const explains = (err: ErrorObject, path: string): boolean =>
+    !noise.has(err) &&
+    (INFORMATIVE(err.keyword) || err.keyword === "not") &&
+    (err.instancePath === path || err.instancePath.startsWith(`${path}/`));
+
+  for (const err of all) {
+    if (err.keyword !== "type" && err.keyword !== "not") continue;
+    if (all.some((other) => other !== err && explains(other, err.instancePath))) {
+      noise.add(err);
+    }
+  }
+
+  return noise;
+}
+
 /** Converts raw ajv errors into a deduplicated list of readable errors. */
 export function formatAjvErrors(
   errors: ErrorObject[] | null | undefined,
 ): ValidationError[] {
   const all = errors ?? [];
   const wallClockFailures = collectWallClockFailures(all);
+  const noise = branchNoise(all);
   const seen = new Set<string>();
   const out: ValidationError[] = [];
   for (const err of all) {
+    if (noise.has(err)) continue;
     const humanized = humanize(err, wallClockFailures);
     if (!humanized) continue;
     const key = `${humanized.path}|${humanized.message}`;

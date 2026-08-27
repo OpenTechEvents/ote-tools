@@ -250,3 +250,71 @@ describe("validateFeed — invalid cases", () => {
     expect(validateFeed(feed).valid).toBe(true);
   });
 });
+
+describe("error messages a publisher can act on", () => {
+  const event = (image: unknown) => ({
+    specVersion: "0.3.0",
+    license: "CC0-1.0",
+    id: "https://comunidad.example/e/1",
+    name: "Meetup",
+    startDate: "2026-06-11T18:30",
+    timezone: "Europe/Madrid",
+    image,
+  });
+
+  const messagesFor = (image: unknown): string[] =>
+    validateEvent(event(image)).errors.map((e) => `${e.path}: ${e.message}`);
+
+  it("names the rule an http image URL broke, and only that", () => {
+    // The schema takes either a bare string or an object, so ajv reports the
+    // branch that was never meant plus its vacuous `not`. Only the real
+    // problem should survive: three messages, two of them about a shape the
+    // publisher did not use, is how "must NOT be valid" ended up on screen.
+    expect(messagesFor([{ url: "http://x.example/a.png", alt: "Cartel" }])).toEqual([
+      "image[0].url: must be an https:// URL — http:// is not accepted here",
+    ]);
+    expect(messagesFor(["http://x.example/a.png"])).toEqual([
+      "image[0]: must be an https:// URL — http:// is not accepted here",
+    ]);
+  });
+
+  it("says what a credential-carrying URL is, in words", () => {
+    expect(messagesFor(["https://user:pass@x.example/a.png"])).toEqual([
+      "image[0]: must not carry credentials in the URL (the user:pass@host form)",
+    ]);
+  });
+
+  it("never claims a non-string carries credentials", () => {
+    // `not: {pattern: …}` passes vacuously on a number, so the negation fails
+    // and ajv blames the number for something only a string can do.
+    const messages = messagesFor([42]);
+    expect(messages.join(" ")).not.toMatch(/credentials/);
+    expect(messages).toContain("image[0]: must be of type string");
+  });
+
+  it("keeps http(s) wording where http really is allowed", () => {
+    const errors = validateEvent({
+      ...event(["https://x.example/a.png"]),
+      url: "not a url at all",
+    }).errors;
+    expect(errors.map((e) => e.message)).toContain("must be an http(s) URL");
+  });
+
+  it("explains the other `not` in these schemas rather than reusing the URL one", () => {
+    // feed.textLanguage without organizers is a SHOULD about attribution, not
+    // about credentials; both are spelled `not` in JSON Schema.
+    const { errors } = checkFeedRecommended({
+      specVersion: "0.3.0",
+      title: "Agregador",
+      description: "Eventos de muchas comunidades.",
+      url: "https://agregador.example",
+      license: "CC0-1.0",
+      textLanguage: "es",
+      updatedAt: "2026-07-06T10:00:00Z",
+      events: [],
+    });
+    const message = errors.find((e) => e.path === "textLanguage")?.message ?? "";
+    expect(message).toMatch(/organizers/);
+    expect(message).not.toMatch(/credentials/);
+  });
+});
