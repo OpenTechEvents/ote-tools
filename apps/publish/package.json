@@ -20,10 +20,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "esbuild": "^0.28.1",
-    "lucide-static": "^1.33.0",
+    "esbuild": "^0.28.2",
+    "lucide-static": "^1.34.0",
     "simple-icons": "^16.28.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
