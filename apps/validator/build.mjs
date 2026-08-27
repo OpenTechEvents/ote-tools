@@ -11,15 +11,13 @@ import * as esbuild from "esbuild";
 
 const serve = process.argv.includes("--serve");
 
-// The endpoint that actually exists today. `fetch.opentechevents.org` is the
-// intended name, but it needs opentechevents.org's zone moved to Cloudflare
-// DNS first (a Workers custom domain cannot be a CNAME from another
-// provider), and defaulting to a hostname that does not resolve makes every
-// local `pnpm dev` fail in URL mode for no reason. Switch this the day that
-// domain is live; CI overrides it through the OTE_FETCH_ENDPOINT variable
-// either way.
-const FETCH_ENDPOINT =
-  process.env.OTE_FETCH_ENDPOINT ?? "https://ote-fetch-url.hhkaos.workers.dev";
+// Empty means same origin, which is the production shape: workers/validator
+// serves this page AND its /fetch endpoint, so the page calls a relative path
+// and no cross-origin request happens at all. Set OTE_FETCH_ENDPOINT to an
+// absolute origin only when the two are genuinely apart — notably `pnpm dev`,
+// where esbuild serves the page on localhost while the fetcher lives on
+// Cloudflare.
+const FETCH_ENDPOINT = process.env.OTE_FETCH_ENDPOINT ?? "";
 
 const options = {
   entryPoints: ["src/main.ts"],
@@ -38,9 +36,14 @@ const options = {
 
 mkdirSync("dist", { recursive: true });
 for (const file of ["styles.css", "boot-errors.js"]) copyFileSync(file, `dist/${file}`);
+// The placeholder carries its own leading space so that removing it (the
+// same-origin case) leaves `connect-src 'self'` rather than a stray token.
 writeFileSync(
   "dist/index.html",
-  readFileSync("index.html", "utf8").replaceAll("__FETCH_ENDPOINT__", FETCH_ENDPOINT),
+  readFileSync("index.html", "utf8").replaceAll(
+    " __FETCH_ENDPOINT__",
+    FETCH_ENDPOINT ? ` ${FETCH_ENDPOINT}` : "",
+  ),
 );
 
 if (serve) {

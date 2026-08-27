@@ -1,17 +1,35 @@
-# @opentechevents/fetch-url
+# @opentechevents/validator-service
 
-Cloudflare Worker. **The only component in this monorepo with network
-access.** One job: given a URL, return the bytes.
+Cloudflare Worker serving **validator.opentechevents.org**: the validator page
+and its fetch endpoint, on one origin. Also **the only component in this
+monorepo with network access**.
+
+The page comes from the `assets` binding (`apps/validator/dist`, built first by
+this package's `deploy` script); the runtime serves it directly and only
+non-file paths reach the script:
 
 ```
-GET https://<worker>/fetch?url=https%3A%2F%2Fcomunidad.example%2Ffeed.json
+GET https://validator.opentechevents.org/                      → the page
+GET https://validator.opentechevents.org/fetch?url=…           → the fetcher
+GET https://validator.opentechevents.org/health                → limits
+
+GET /fetch?url=https%3A%2F%2Fcomunidad.example%2Ffeed.json
 
 200 {"ok":true,"finalUrl":"…","status":200,"contentType":"application/ote+json",
      "bytes":812,"redirects":[],"body":"{…}"}
 400 {"ok":false,"code":"blocked-address","message":"…"}
 ```
 
-## Why it exists
+## One origin, so CORS stops existing
+
+Page and endpoint could have been separate deployments. Sharing an origin
+removes a whole class of configuration: the page issues a *relative* request,
+no cross-origin check happens, and its CSP says `connect-src 'self'` instead
+of naming a host that must be kept in sync with an allowlist. `ALLOWED_ORIGINS`
+now only covers callers that genuinely are elsewhere — the local dev server and
+the legacy Pages path.
+
+## Why the fetch endpoint exists
 
 The validator's *upload a file* and *paste JSON* modes run entirely in the
 browser against `@opentechevents/validate` — they need no backend and keep
@@ -80,18 +98,20 @@ this endpoint's fetch budget.
 ## Development
 
 ```sh
-pnpm --filter @opentechevents/fetch-url test        # vitest, no network
-pnpm --filter @opentechevents/fetch-url typecheck
-pnpm --filter @opentechevents/fetch-url run deploy  # wrangler deploy
+pnpm --filter @opentechevents/validator-service test       # vitest, no network
+pnpm --filter @opentechevents/validator-service typecheck
+pnpm --filter @opentechevents/validator-service run deploy # builds the page, then wrangler deploy
 ```
 
 `run deploy`, not `deploy`: pnpm has a built-in `deploy` command of its own,
 and `pnpm --filter … deploy` hits that instead of this package's script.
 
-Currently deployed at `https://ote-fetch-url.hhkaos.workers.dev`; the
-`OTE_FETCH_ENDPOINT` repository variable points `apps/validator` at it until
-`fetch.opentechevents.org` exists (which needs the zone moved to Cloudflare
-DNS — a Workers custom domain cannot be a CNAME from another provider).
+Deployed by `.github/workflows/deploy-validator.yml` on push to main, which
+needs a `CLOUDFLARE_API_TOKEN` repository secret. Hostnames:
+`validator.opentechevents.org` (canonical), `fetch.opentechevents.org` (the
+endpoint addressed as an API) and the `workers.dev` URL as a fallback. Custom
+domains are declared in `wrangler.jsonc`, so a deploy re-asserts them; they
+require opentechevents.org's zone to live in Cloudflare DNS.
 
 `handleRequest(request, env, { fetchImpl, resolve })` takes its network as
 parameters, which is why the SSRF tests — the ones that matter here — run
@@ -101,9 +121,14 @@ against a fake fetch and a fake resolver instead of touching anything real.
 in `pnpm-workspace.yaml`'s `allowBuilds` (nothing in CI needs it). Flip it to
 `true` locally if you want the local runtime.
 
-## Not in `apps/`
+## Why the page is not on GitHub Pages
 
-`apps/*` are static bundles deployed to this repo's GitHub Pages under
-`tools.opentechevents.org/<tool>/`. A Worker is neither static nor deployed
-there, so it lives in `workers/` — a separate workspace root in
-`pnpm-workspace.yaml`. `deploy-tools.yml` does not touch it.
+The other tools are: `apps/*` are static bundles published by
+`deploy-tools.yml` under `tools.opentechevents.org/<tool>/`, and they take a
+`?repo=` context from the organizer's fork. The validator does not — it serves
+anyone with a JSON document, which is why it earns its own hostname — and it
+needs a server for URL mode anyway. Shipping the page with the Worker that
+already had to exist costs one deploy and buys the same-origin property above.
+
+`tools.opentechevents.org/validator/` stays as a redirect so shared links keep
+working and permalinks have one canonical form.

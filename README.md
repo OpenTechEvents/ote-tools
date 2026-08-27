@@ -40,26 +40,32 @@ improvements can be traced package by package.
 | [`preview`](apps/preview/) | Static feed previewer for OTE organizer forks. |
 | [`publish`](apps/publish/) | "Broadcast" console: one event → every channel it can be published to. schema.org snippet, widget and subscribe links work today; directories, newsletters and social posts are declared and unbuilt. |
 | [`embed`](apps/embed/) | Embeddable `<ote-events>` web component: drop an OTE feed into any website. |
-| [`validator`](apps/validator/) | Is this document a valid OTE feed or event? Three input modes (URL, file, paste), linkable results, errors pointed at the exact line. |
+| [`validator`](apps/validator/) | Is this document a valid OTE feed or event? Three input modes (URL, file, paste), linkable results, errors pointed at the exact line. Served at `validator.opentechevents.org` by `workers/validator`, not from Pages. |
 | [`dashboard-checks`](apps/dashboard-checks/) | Client-side setup checks + template-update banner for OTE organizer dashboards. |
 
-`editor`, `preview`, `publish`, `validator` and `embed` are built and deployed
-together by `deploy-tools.yml`; `dashboard-checks.js` is served as a
-standalone file. Once the `tools.opentechevents.org` custom domain is
-configured (see `.github/workflows/deploy-tools.yml`), they're reachable at
-`tools.opentechevents.org/editor`, `/preview`, `/validator` and `/embed`.
+`editor`, `preview`, `publish` and `embed` are built and deployed together by
+`deploy-tools.yml` to `tools.opentechevents.org/<tool>/`;
+`dashboard-checks.js` is served as a standalone file. Those four take a
+`?repo=owner/name` context from an organizer's fork, which is what the shared
+host expresses.
+
+The `validator` does not: it serves anyone with a JSON document, so it gets
+its own hostname, `validator.opentechevents.org`, deployed with the Worker
+that its URL mode needs anyway (`deploy-validator.yml`). The Pages path
+`/validator/` remains as a redirect.
 
 ## Workers
 
 | Worker | What it does |
 | --- | --- |
-| [`fetch-url`](workers/fetch-url/) | Cloudflare Worker, the **only** component with network access: given a URL, return the bytes, under SSRF and size limits. Deployed to Cloudflare, not to the tools site. |
+| [`validator`](workers/validator/) | Serves `validator.opentechevents.org`: the validator page **and** its fetch endpoint on one origin. The **only** component with network access. |
 
-It exists for one mode of one tool: the validator cannot fetch a third-party
-feed from the browser, because community feeds send no CORS headers. This is
-not the "CORS proxy for reading platforms" that DESIGN.md rules out — it
-fetches a document the user already has the URL of, in order to validate it,
-and stores nothing.
+The endpoint exists for one mode of one tool: the validator cannot fetch a
+third-party feed from the browser, because community feeds send no CORS
+headers. This is not the "CORS proxy for reading platforms" that DESIGN.md
+rules out — it fetches a document the user already has the URL of, in order to
+validate it, and stores nothing. Serving the page from the same Worker means
+the page never makes a cross-origin request at all.
 
 ## Reusable workflows
 

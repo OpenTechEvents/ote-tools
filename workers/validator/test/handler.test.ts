@@ -19,7 +19,7 @@ function call(
     origin?: string | null;
   } = {},
 ) {
-  const url = `https://fetch.example/fetch?url=${encodeURIComponent(target)}`;
+  const url = `https://validator.example/fetch?url=${encodeURIComponent(target)}`;
   const origin = overrides.origin === undefined ? ORIGIN : overrides.origin;
   const request = new Request(url, { headers: origin ? { origin } : {} });
   return handleRequest(request, overrides.env ?? {}, {
@@ -105,7 +105,7 @@ describe("handleRequest", () => {
 
   it("rate-limits per IP when the binding is present", async () => {
     const limit = vi.fn(async () => ({ success: false }));
-    const request = new Request("https://fetch.example/fetch?url=https%3A%2F%2Fa.example%2F", {
+    const request = new Request("https://validator.example/fetch?url=https%3A%2F%2Fa.example%2F", {
       headers: { origin: ORIGIN, "cf-connecting-ip": "203.0.113.9" },
     });
     const response = await handleRequest(request, { RATE_LIMITER: { limit } }, {
@@ -117,22 +117,33 @@ describe("handleRequest", () => {
   });
 
   it("requires ?url and only answers GET", async () => {
-    const missing = await handleRequest(new Request("https://fetch.example/fetch"), {}, {
+    const missing = await handleRequest(new Request("https://validator.example/fetch"), {}, {
       fetchImpl: okFetch,
       resolve: async () => ["93.184.216.34"],
     });
     expect(missing.status).toBe(400);
 
     const posted = await handleRequest(
-      new Request("https://fetch.example/fetch?url=https://a.example/", { method: "POST" }),
+      new Request("https://validator.example/fetch?url=https://a.example/", { method: "POST" }),
       {},
       { fetchImpl: okFetch, resolve: async () => ["93.184.216.34"] },
     );
     expect(posted.status).toBe(405);
   });
 
+  it("leaves / to the assets binding rather than treating it as the API", async () => {
+    const response = await handleRequest(new Request("https://validator.example/"), {}, {
+      fetchImpl: okFetch,
+      resolve: async () => ["93.184.216.34"],
+    });
+    // In production this path never reaches the script: the runtime serves
+    // index.html from `assets` first. If it does reach here, it is not an API
+    // call and must not be answered as one.
+    expect(response.status).toBe(404);
+  });
+
   it("has a health endpoint that publishes its limits", async () => {
-    const response = await handleRequest(new Request("https://fetch.example/health"), {}, {
+    const response = await handleRequest(new Request("https://validator.example/health"), {}, {
       fetchImpl: okFetch,
       resolve: async () => ["93.184.216.34"],
     });

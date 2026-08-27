@@ -1,13 +1,13 @@
 {
-  "name": "@opentechevents/fetch-url",
+  "name": "@opentechevents/validator-service",
   "version": "0.1.0",
-  "description": "Cloudflare Worker that fetches a URL for the OTE validator: the only component with network access",
+  "description": "Cloudflare Worker serving the OTE validator: the static page and the SSRF-guarded fetch endpoint, on one origin",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
-    "deploy": "wrangler deploy",
+    "deploy": "pnpm --filter @opentechevents/validator run build && wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

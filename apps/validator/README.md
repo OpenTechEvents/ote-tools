@@ -18,7 +18,7 @@ pnpm --filter @opentechevents/validator test
 | --- | --- |
 | Upload a file | Entirely in the tab. The file is never uploaded. |
 | Paste JSON | Entirely in the tab. Nothing is sent anywhere. |
-| From a URL | Through `workers/fetch-url`, the only component with network access. |
+| From a URL | Through `/fetch` on the same origin, served by `workers/validator` — the only component with network access. |
 
 Upload and paste keep working with the Worker down — there is a test that
 deletes `globalThis.fetch` and validates a fixture anyway. That is not a
@@ -65,14 +65,26 @@ so the endpoint cannot be used to serve someone's feed as a page.
 
 The document is displayed and validated. It is never executed.
 
-## The fetcher origin is baked in at build time
+## The fetch endpoint is same-origin in production
 
-`build.mjs` substitutes `OTE_FETCH_ENDPOINT` (default
-`https://fetch.opentechevents.org`) into **both** the bundle and the CSP's
-`connect-src` in `index.html`. Change it in one place only and the page will
-call an endpoint its own CSP blocks — which fails at runtime, in the one mode
-that needs a network. `deploy-tools.yml` sets it from the
-`OTE_FETCH_ENDPOINT` repository variable.
+`build.mjs` leaves `OTE_FETCH_ENDPOINT` empty by default, which makes the page
+call a relative `/fetch` — no cross-origin request, and a CSP that says
+`connect-src 'self'`. Set the variable to an absolute origin only when page
+and endpoint genuinely live apart, which in practice means `pnpm dev`:
+
+```sh
+OTE_FETCH_ENDPOINT=https://ote-validator.hhkaos.workers.dev PORT=8000 \
+  pnpm --filter @opentechevents/validator dev
+```
+
+`build.mjs` substitutes the value into **both** the bundle and the CSP's
+`connect-src`, so the two cannot drift — set only one and the page calls an
+endpoint its own CSP blocks, which fails at runtime in the one mode that needs
+a network.
+
+Local URL mode also requires that origin to be in the Worker's
+`ALLOWED_ORIGINS` (`localhost:8000` already is). Uploading and pasting need
+none of this.
 
 ## Permalinks
 

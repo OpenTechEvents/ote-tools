@@ -1,10 +1,17 @@
 /**
- * `fetch-url` — the only component of ote-tools with network access.
+ * The validator's service: the static page and its fetch endpoint, on one
+ * origin — and the only component of ote-tools with network access.
  *
- * It exists for exactly one reason: a browser cannot fetch a third-party feed
- * without CORS headers, and community feeds do not send them. So the URL mode
- * of the validator needs *something* server-side. This is the smallest
- * something that works: **given a URL, return the bytes**.
+ * The page itself is served by the runtime from the `assets` binding
+ * (`wrangler.jsonc`); this script only sees what is not a file: `/fetch` and
+ * `/health`. Sharing an origin is a design decision, not packaging
+ * convenience: the page needs no CORS at all, and its CSP can say
+ * `connect-src 'self'`.
+ *
+ * The fetch endpoint exists for exactly one reason: a browser cannot fetch a
+ * third-party feed without CORS headers, and community feeds do not send
+ * them. So the URL mode of the validator needs *something* server-side. This
+ * is the smallest something that works: **given a URL, return the bytes**.
  *
  * No database, no accounts, no authentication, no persistence. That is a
  * design decision, not a shortcut — it deletes half of the OWASP Top 10 by
@@ -33,6 +40,10 @@ export interface Env {
   RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
+/**
+ * Only origins that are NOT this Worker belong here: the page it serves is
+ * same-origin, so it never triggers a CORS check in the first place.
+ */
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://tools.opentechevents.org",
   "https://opentechevents.github.io",
@@ -117,7 +128,9 @@ export async function handleRequest(
     return json({ ok: true, limits: DEFAULT_LIMITS }, 200, cors);
   }
 
-  if (url.pathname !== "/" && url.pathname !== "/fetch") {
+  // "/" is the page, served from the assets binding before this script runs;
+  // only the API paths reach here.
+  if (url.pathname !== "/fetch") {
     return json({ ok: false, code: "not-found", message: "Unknown endpoint." }, 404, cors);
   }
 

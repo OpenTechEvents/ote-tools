@@ -1,6 +1,6 @@
 # Deploys the central tools site to THIS repo's GitHub Pages: the editor,
-# feed previewer, validator, embeddable widget and publish tool are served
-# under /editor, /preview, /validator, /embed and /publish (matching the
+# feed previewer, embeddable widget and publish tool are served under
+# /editor, /preview, /embed and /publish (matching the
 # tools.opentechevents.org/<tool>?repo=… URLs from DESIGN.md; /import will
 # join them in a later phase).
 #
@@ -12,7 +12,8 @@
 # ote-template forks call to publish THEIR feed sites.
 #
 # workers/* are NOT deployed here: a Cloudflare Worker is neither static nor
-# served from Pages. `workers/fetch-url` ships with `wrangler deploy`.
+# served from Pages. `workers/validator` ships through deploy-validator.yml,
+# and it carries the validator's own page with it.
 name: Deploy tools site
 
 on:
@@ -38,12 +39,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-        env:
-          # Origin of workers/fetch-url, baked into apps/validator's bundle AND
-          # into its CSP connect-src (build.mjs substitutes both). Set the
-          # repository variable to point the deployed page at a different
-          # Worker; the default is the production one.
-          OTE_FETCH_ENDPOINT: ${{ vars.OTE_FETCH_ENDPOINT || 'https://fetch.opentechevents.org' }}
 
       - name: Assemble site
         run: |
@@ -51,7 +46,22 @@ jobs:
           cp -R apps/editor/dist/. _site/editor/
           cp -R apps/preview/dist/. _site/preview/
           cp -R apps/publish/dist/. _site/publish/
-          cp -R apps/validator/dist/. _site/validator/
+          # The validator itself is NOT served from Pages: workers/validator
+          # serves it at validator.opentechevents.org, page and fetch endpoint
+          # on one origin (which is what lets it need no CORS). This path stays
+          # as a redirect so links already shared keep working and there is one
+          # canonical URL for permalinks.
+          cat > _site/validator/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <meta charset="utf-8">
+          <title>OTE validator has moved</title>
+          <link rel="canonical" href="https://validator.opentechevents.org/">
+          <meta http-equiv="refresh" content="0; url=https://validator.opentechevents.org/">
+          <p>The OTE validator now lives at
+          <a href="https://validator.opentechevents.org/">validator.opentechevents.org</a>.</p>
+          </html>
+          EOF
           if [ -d apps/embed/versions ]; then
             cp -R apps/embed/versions/. _site/embed/
           fi
@@ -71,7 +81,7 @@ jobs:
           <ul>
             <li><a href="./editor/">Event editor</a> — create and edit OTE events without writing JSON</li>
             <li><a href="./preview/">Feed previewer</a> — inspect generated JSON, ICS and RSS exports</li>
-            <li><a href="./validator/">Validator</a> &mdash; check any OTE feed or event by URL, file or paste</li>
+            <li><a href="https://validator.opentechevents.org/">Validator</a> &mdash; check any OTE feed or event by URL, file or paste</li>
             <li><a href="./publish/">Broadcast</a> — publish your events everywhere: structured data, widget, directories, posts</li>
             <li><a href="./embed/">Embeddable widget</a> — &lt;ote-events&gt;: drop an OTE feed into any website</li>
           </ul>

@@ -36,7 +36,11 @@ export type FetchEnvelope =
   | { ok: false; code: string; message: string };
 
 export interface ResolveDeps {
-  /** Base URL of the fetcher Worker, e.g. `https://fetch.opentechevents.org`. */
+  /**
+   * Base URL of the fetch endpoint. Empty string — the production case —
+   * means same origin: `workers/validator` serves both this page and
+   * `/fetch`, so the request is relative and never crosses an origin.
+   */
   endpoint: string;
   fetchImpl: typeof fetch;
   options?: DiscoverOptions;
@@ -78,7 +82,7 @@ export async function fetchViaWorker(url: string, deps: ResolveDeps): Promise<Fe
       ok: false,
       code: "fetcher-unreachable",
       message:
-        `The fetch service (${deps.endpoint}) could not be reached — ${reason}. ` +
+        `The fetch service (${deps.endpoint || "this page's own origin"}) could not be reached — ${reason}. ` +
         "Uploading a file or pasting JSON still works; those never leave your browser.",
     };
   }
