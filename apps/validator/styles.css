@@ -1,0 +1,369 @@
+/*
+ * Same visual language as apps/preview and apps/editor (system font, one
+ * column, soft cards), with two additions this tool needs: a verdict badge
+ * that reads at a glance, and a source view whose lines can be pointed at.
+ */
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e3e6ea;
+  --border-strong: #c9cdd3;
+  --text: #1c2128;
+  --muted: #626c77;
+  --error: #c4302f;
+  --error-bg: #fcf1f1;
+  --warn: #8a6100;
+  --warn-bg: #fdf6e7;
+  --ok: #1f7a4d;
+  --ok-bg: #edf7f1;
+  --accent: #3556c8;
+  --accent-hover: #2a46a8;
+  --accent-soft: #eef1fb;
+  --radius: 8px;
+  --shadow: 0 1px 2px rgba(28, 33, 40, 0.06), 0 4px 12px rgba(28, 33, 40, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0 auto;
+  max-width: 56rem;
+  padding: 1rem 1rem 4rem;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  margin: 0.5rem 0 1rem;
+}
+
+h1 {
+  font-size: 1.35rem;
+  margin: 0 0 0.25rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.35rem;
+}
+
+.lede {
+  margin: 0;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+
+/* Tabs ------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 1rem 0 0;
+  flex-wrap: wrap;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  border-bottom: none;
+  background: var(--bg);
+  color: var(--muted);
+  padding: 0.45rem 0.8rem;
+  border-radius: var(--radius) var(--radius) 0 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tab[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Panels ----------------------------------------------------------- */
+
+/* :not([hidden]) is load-bearing: an author `display` rule beats the UA
+   stylesheet's [hidden] { display: none }, so a plain `.panel { display:
+   grid }` would silently defeat every `panel.hidden = true` in main.ts.
+   Same trap documented in apps/editor/CLAUDE.md. */
+.panel:not([hidden]) {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.result:not([hidden]) {
+  margin-top: 0.75rem;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+input[type="url"],
+input[type="text"],
+textarea {
+  flex: 1 1 18rem;
+  min-width: 0;
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+}
+
+.kind-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+}
+
+.kind-row label {
+  margin: 0;
+}
+
+/* Status and verdicts ---------------------------------------------- */
+
+.status:not([hidden]) {
+  display: block;
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.status[data-tone="error"] {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.badge {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.badge.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.badge.bad {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+p.ok {
+  color: var(--ok);
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+p.warn {
+  color: var(--warn);
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Candidates ------------------------------------------------------- */
+
+.candidates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.candidate {
+  width: 100%;
+  text-align: left;
+  display: block;
+  font-weight: 600;
+}
+
+.candidate-url {
+  display: block;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Findings --------------------------------------------------------- */
+
+.findings {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.findings li {
+  padding-left: 0.2rem;
+}
+
+.finding-where {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.4rem;
+  margin-right: 0.4rem;
+  border-radius: 4px;
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+
+.findings.error .finding-where {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.findings.warn .finding-where {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.finding-where[disabled] {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.line-ref {
+  margin-left: 0.4rem;
+  color: var(--muted);
+}
+
+.finding-message {
+  overflow-wrap: anywhere;
+}
+
+/* Source view ------------------------------------------------------ */
+
+.source {
+  margin: 0;
+  max-height: 28rem;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.source-line {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0 0.5rem;
+  white-space: pre;
+}
+
+.source-line.marked {
+  background: var(--warn-bg);
+  outline: 1px solid var(--warn);
+}
+
+.gutter {
+  flex: 0 0 3rem;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+}
+
+.code {
+  white-space: pre;
+}
+
+footer {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+}
+
+footer a {
+  color: var(--accent);
+}

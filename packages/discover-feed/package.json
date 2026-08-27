@@ -1,0 +1,28 @@
+{
+  "name": "@opentechevents/discover-feed",
+  "version": "0.1.0",
+  "description": "Reference implementation of OTE feed discovery: bytes + content-type + base URL in, candidate feed URLs out",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

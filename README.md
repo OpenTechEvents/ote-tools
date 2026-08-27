@@ -23,6 +23,7 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 | [`@opentechevents/import-ics`](packages/import-ics/) | iCalendar (`.ics`) → partial OTE event documents (review-and-complete). |
 | [`@opentechevents/import-jsonld`](packages/import-jsonld/) | schema.org Event JSON-LD in an HTML page → partial OTE event documents. |
 | [`@opentechevents/build-feed`](packages/build-feed/) | `events/*.json` + `ote.config.json` → validated `feed.json` + `feed.ics` + `feed.xml`. |
+| [`@opentechevents/discover-feed`](packages/discover-feed/) | Reference implementation of feed discovery: response bytes + content-type + URL → candidate feed URLs. No network. |
 
 All connectors are pure functions with a thin CLI on top. They never invent
 data: a field absent in the input stays absent in the output.
@@ -39,13 +40,26 @@ improvements can be traced package by package.
 | [`preview`](apps/preview/) | Static feed previewer for OTE organizer forks. |
 | [`publish`](apps/publish/) | "Broadcast" console: one event → every channel it can be published to. schema.org snippet, widget and subscribe links work today; directories, newsletters and social posts are declared and unbuilt. |
 | [`embed`](apps/embed/) | Embeddable `<ote-events>` web component: drop an OTE feed into any website. |
+| [`validator`](apps/validator/) | Is this document a valid OTE feed or event? Three input modes (URL, file, paste), linkable results, errors pointed at the exact line. |
 | [`dashboard-checks`](apps/dashboard-checks/) | Client-side setup checks + template-update banner for OTE organizer dashboards. |
 
-`editor`, `preview`, `publish` and `embed` are built and deployed together by
-`deploy-tools.yml`; `dashboard-checks.js` is served as a standalone file.
-Once the `tools.opentechevents.org` custom domain is configured (see
-`.github/workflows/deploy-tools.yml`), they're reachable at
-`tools.opentechevents.org/editor`, `/preview` and `/embed`.
+`editor`, `preview`, `publish`, `validator` and `embed` are built and deployed
+together by `deploy-tools.yml`; `dashboard-checks.js` is served as a
+standalone file. Once the `tools.opentechevents.org` custom domain is
+configured (see `.github/workflows/deploy-tools.yml`), they're reachable at
+`tools.opentechevents.org/editor`, `/preview`, `/validator` and `/embed`.
+
+## Workers
+
+| Worker | What it does |
+| --- | --- |
+| [`fetch-url`](workers/fetch-url/) | Cloudflare Worker, the **only** component with network access: given a URL, return the bytes, under SSRF and size limits. Deployed to Cloudflare, not to the tools site. |
+
+It exists for one mode of one tool: the validator cannot fetch a third-party
+feed from the browser, because community feeds send no CORS headers. This is
+not the "CORS proxy for reading platforms" that DESIGN.md rules out — it
+fetches a document the user already has the URL of, in order to validate it,
+and stores nothing.
 
 ## Reusable workflows
 

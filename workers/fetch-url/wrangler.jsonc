@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ote-fetch-url",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+  // The endpoint's public name, declared here rather than clicked into the
+  // dashboard: `wrangler deploy` creates the DNS record and the certificate,
+  // and any redeploy re-asserts them. Requires opentechevents.org's zone to
+  // live in Cloudflare DNS — a Workers custom domain cannot be a CNAME from
+  // another provider.
+  "routes": [{ "pattern": "fetch.opentechevents.org", "custom_domain": true }],
+  // Declaring `routes` makes wrangler disable the workers.dev URL by default.
+  // Keep it: it is the endpoint local development points at, and the fallback
+  // if anything ever goes wrong with the custom domain's DNS.
+  "workers_dev": true,
+  "vars": {
+    // Browsers that may call this endpoint. Not a security boundary — curl
+    // ignores CORS — but it keeps unrelated pages off our fetch budget. The
+    // localhost entries let `pnpm --filter @opentechevents/validator dev`
+    // (PORT=8000) exercise URL mode against the deployed fetcher instead of
+    // needing a second Worker; they grant nothing a terminal did not already
+    // have.
+    "ALLOWED_ORIGINS": "https://tools.opentechevents.org,https://opentechevents.github.io,http://localhost:8000,http://127.0.0.1:8000"
+  },
+  // Per-IP ceiling. The endpoint works without this binding (it is optional in
+  // Env), but production should never run without it: it is a public endpoint
+  // that makes outbound requests, so an unbounded caller is an amplifier.
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": { "limit": 30, "period": 60 }
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@opentechevents/validator",
+  "version": "0.1.0",
+  "description": "Static web validator for OTE documents: validate by URL, file upload or paste",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --serve",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/discover-feed": "workspace:*",
+    "@opentechevents/validate": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}
