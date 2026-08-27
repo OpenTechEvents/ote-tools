@@ -38,6 +38,16 @@ closes — that issue also settles `application/ote+json` vs.
 `application/feed+json`, at which point the lax media-type matching can become
 a definite answer plus a warning for the loser.
 
+Two more spec questions came out of validating a real 475-event feed, both
+filed and both changing what this validator reports the day they land:
+[spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)
+(image URLs are https-only as a MUST, so one old poster invalidates a whole
+feed — proposed as a SHOULD) and
+[spec#32](https://github.com/OpenTechEvents/opentechevents-spec/issues/32)
+(`format: uri` is ASCII-only, so `…/pycamp-españa` is "invalid" — proposed
+`format: iri`). Nothing to do here until the schema moves; `pnpm gen` picks
+it up.
+
 ### 2. Housekeeping in Cloudflare
 
 - **Dangling DNS record `fetch.opentechevents.org`** — still in the zone,
