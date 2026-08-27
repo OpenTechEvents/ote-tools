@@ -617,7 +617,12 @@ p.warn {
   display: flex;
   gap: 14px;
   padding: 0 16px;
-  white-space: pre;
+  /* Wrapped, not scrolled. A feed carries URLs and descriptions that beat any
+     column width, and a horizontal scrollbar inside a panel hides exactly the
+     end of the line a finding points at — on a phone, most of the document.
+     The gutter stays a fixed column, so a wrapped line still reads as one. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .source-line.marked {
@@ -633,7 +638,68 @@ p.warn {
 }
 
 .code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Without this the code column refuses to shrink below its longest word,
+     which puts the horizontal scrollbar straight back. */
+  min-width: 0;
+}
+
+/* Syntax colours for the source panel. Tuned against the dark background of
+   opentechevents.org's code blocks: keys carry the accent, values stay
+   quieter, so the eye lands on the field names a finding names. */
+.tok-key {
+  color: #7fb3ff;
+}
+
+.tok-string {
+  color: #9ed8b6;
+}
+
+.tok-number {
+  color: #f0c987;
+}
+
+.tok-literal {
+  color: #c9a6ff;
+}
+
+.tok-punct {
+  color: #7b8598;
+}
+
+/* The caption on the panel header when what is shown is an indented copy of
+   a minified document, not the bytes that arrived. */
+.source-note {
+  margin-left: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #6f7787;
+}
+
+/* A window cut out of a minified document around a syntax error: the one
+   case that cannot be indented, since the broken bytes are the evidence. */
+.excerpt {
+  display: block;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-dark);
+  color: #d5dae4;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.excerpt-text,
+.excerpt-caret {
+  display: block;
   white-space: pre;
+}
+
+.excerpt-caret {
+  color: #ff8f8f;
 }
 
 /* ---------- footer ---------- */

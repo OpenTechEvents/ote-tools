@@ -93,6 +93,44 @@ to parse that as the envelope, and reports a fetch-service error. The message
 now names the status, the media type and the variable — but if it ever comes
 back as "unusably", this is the reason.
 
+## Minified documents
+
+A published feed is a build artefact, so the URL mode meets minified JSON as
+the *normal* case — and every finding here is addressed to a line. Against one
+40 kB line, "line 1, column 8452" is true and useless, and the source panel is
+a single unreadable row.
+
+So a document whose longest line passes `READABLE_LINE_LENGTH` (400 chars) is
+indented for display, and — this is the part that matters — **the report is
+built from the indented copy**, not from the original with the findings
+remapped afterwards. The verdict cannot change: `JSON.stringify` of the parsed
+value is the same JSON value the schema already judged. Only the coordinates
+change, which is the whole point. The panel says so in its header, because an
+organizer comparing the panel against their own file must not conclude the
+tool rewrote it.
+
+Two documents keep their own bytes: one whose indented form would cross the
+5 MB ceiling (reformatting must not turn a valid document into "too large"),
+and one that does not parse — there the exact bytes are the evidence. That
+second case is also the one where line and column help least, so a syntax
+error in a minified document additionally gets a one-line window cut around
+the offending character, with a caret under it (`excerptAt` in `lib/locate.ts`).
+
+## The source panel
+
+Lines **wrap**, they do not scroll sideways. A feed carries URLs and
+descriptions longer than any column, and a horizontal scrollbar inside the
+panel hides precisely the end of the line a finding points at — on a phone,
+most of the document.
+
+Highlighting is `lib/highlight.ts`, a ~100-line JSON tokenizer with no
+dependency. It returns *data* — text plus a kind — and `renderSource` turns
+each token into a span with `textContent`, so a document whose event name is
+`</span><script>` colours badly at worst. It tokenizes one line at a time,
+which JSON permits (no string may contain a literal newline), and it never
+throws on invalid input: the panel's whole job is showing documents that do
+not parse.
+
 ## Permalinks and the badge
 
 `?doc=<url>` re-runs the whole thing: fetch, discover, validate. That is the

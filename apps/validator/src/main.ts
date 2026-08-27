@@ -14,8 +14,16 @@
 
 import type { FeedCandidate } from "@opentechevents/discover-feed";
 
-import { formatPointer } from "./lib/locate.js";
-import { buildReport, type DocumentKind, type Finding, type Report } from "./lib/report.js";
+import { looksMinified, reformatJson } from "./lib/format.js";
+import { tokenizeJsonLine } from "./lib/highlight.js";
+import { excerptAt, formatPointer } from "./lib/locate.js";
+import {
+  buildReport,
+  MAX_SOURCE_BYTES,
+  type DocumentKind,
+  type Finding,
+  type Report,
+} from "./lib/report.js";
 import { followCandidate, resolveUrl, type Provenance, type Resolution } from "./lib/resolve.js";
 
 /** Injected at build time (see build.mjs); the CSP in index.html must match. */
@@ -66,7 +74,14 @@ const permalinkInput = $<HTMLInputElement>("permalink-input");
 const badgeInput = $<HTMLInputElement>("badge-input");
 
 /** Everything currently on screen, so a kind override can re-render it. */
-let current: { source: string; label: string; provenance?: Provenance } | null = null;
+let current: {
+  /** The text on screen, which the findings are addressed to. */
+  source: string;
+  label: string;
+  provenance?: Provenance;
+  /** True when `source` is an indented copy of what actually arrived. */
+  reformatted: boolean;
+} | null = null;
 
 function setMode(mode: "url" | "file" | "paste"): void {
   for (const tab of modeTabs) {
@@ -290,10 +305,27 @@ function renderReport(report: Report, label: string): void {
         element(
           "p",
           undefined,
-          `${report.message} (line ${report.position.line}, column ${report.position.column})`,
+          // V8's own SyntaxError usually ends with "(line 1 column 3191)".
+          // Appending our own copy of the same numbers reads like a bug.
+          /line \d+ column \d+/.test(report.message)
+            ? report.message
+            : `${report.message} (line ${report.position.line}, column ${report.position.column})`,
         ),
         element("p", "muted", label),
       );
+      // A document that does not parse is the one kind that cannot be
+      // indented for reading, so a minified one leaves the user with a column
+      // number in a line thousands of characters wide. Cut the window out for
+      // them instead.
+      if (current && looksMinified(current.source)) {
+        const { text, caret } = excerptAt(current.source, report.position.offset);
+        const window = element("pre", "excerpt");
+        window.append(
+          element("span", "excerpt-text", text),
+          element("span", "excerpt-caret", `${" ".repeat(caret)}^`),
+        );
+        verdictBox.append(window);
+      }
       errorsBox.hidden = true;
       recommendationsBox.hidden = true;
       highlightLine(report.position.line);
@@ -323,16 +355,29 @@ function renderReport(report: Report, label: string): void {
  * Source view
  * ------------------------------------------------------------------ */
 
-function renderSource(source: string): void {
+function renderSource(source: string, reformatted: boolean): void {
   sourceBox.replaceChildren();
   sourceBox.hidden = false;
-  sourceBox.append(element("h3", undefined, "Document"));
+  const heading = element("h3", undefined, "Document");
+  if (reformatted) {
+    // Said plainly, because the panel no longer shows the bytes that arrived:
+    // an organizer comparing this against their own file must not conclude
+    // the tool rewrote it.
+    heading.append(element("span", "source-note", "indented for reading — your file is unchanged"));
+  }
+  sourceBox.append(heading);
 
   const pre = element("pre", "source");
   source.split("\n").forEach((text, index) => {
     const line = element("span", "source-line");
     line.dataset.line = String(index + 1);
-    line.append(element("span", "gutter", String(index + 1)), element("span", "code", text));
+    const code = element("span", "code");
+    // Every piece goes in through `element`, which writes with textContent.
+    // The tokenizer returns text and a class name, never markup.
+    for (const token of tokenizeJsonLine(text)) {
+      code.append(element("span", `tok-${token.kind}`, token.text));
+    }
+    line.append(element("span", "gutter", String(index + 1)), code);
     pre.append(line);
   });
   sourceBox.append(pre);
@@ -352,15 +397,40 @@ function highlightLine(line: number): void {
  * Running a validation
  * ------------------------------------------------------------------ */
 
+/**
+ * The text the page shows and validates: the document itself, or an indented
+ * copy when it arrived minified.
+ *
+ * Published feeds are built artefacts, so the URL mode meets minified JSON as
+ * the normal case — and against one 40 kB line every finding reads "line 1,
+ * column 8452" and the source panel is unreadable. Reformatting cannot change
+ * the verdict (same JSON value, same schema), only where the findings point,
+ * which is why the report is built from this text rather than the original.
+ *
+ * Two documents keep their own bytes: one that does not parse (the characters
+ * around a syntax error are the evidence) and one whose indented form would
+ * cross the size ceiling, which would turn a valid document into "too large".
+ */
+function displayText(source: string): string {
+  if (!looksMinified(source)) return source;
+  const formatted = reformatJson(source);
+  if (formatted === null || formatted.length > MAX_SOURCE_BYTES) return source;
+  return formatted;
+}
+
 /** The kind chosen by hand, or undefined while the select is on "auto". */
 function selectedKind(): DocumentKind | undefined {
   return kindSelect.value === "" ? undefined : (kindSelect.value as DocumentKind);
 }
 
 function validateSource(source: string, label: string, provenance?: Provenance): void {
-  current = { source, label, provenance };
-  const report = buildReport(source, { kind: selectedKind() });
-  renderSource(source);
+  const shown = displayText(source);
+  // `current` holds the text the findings are addressed to, not the bytes that
+  // arrived: changing the kind re-renders against the same source the user is
+  // looking at.
+  current = { source: shown, label, provenance, reformatted: shown !== source };
+  const report = buildReport(shown, { kind: selectedKind() });
+  renderSource(shown, shown !== source);
   renderReport(report, label);
   setStatus("");
 }

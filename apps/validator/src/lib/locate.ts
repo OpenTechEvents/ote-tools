@@ -222,6 +222,34 @@ export function locatePointer(
 }
 
 /** Line and column of a raw character offset — for JSON syntax errors. */
+/** A window into the source, with the offending character marked. */
+export interface Excerpt {
+  /** The characters around the offset, with `…` where text was cut. */
+  text: string;
+  /** 0-based index of the offset within `text`, for a caret line under it. */
+  caret: number;
+}
+
+/**
+ * The characters either side of an offset, on one line.
+ *
+ * For the one failure that cannot be reformatted: a syntax error in a
+ * minified document. There is no line to highlight — the line is the whole
+ * file — so the only way to show the user where they are is to cut a window
+ * out of it. Newlines and tabs become spaces so the caret below lines up.
+ */
+export function excerptAt(source: string, offset: number, radius = 48): Excerpt {
+  const clamped = Math.max(0, Math.min(offset, source.length));
+  const start = Math.max(0, clamped - radius);
+  // `radius` characters on each side *of the marked one*, which is why the
+  // end is inclusive of it.
+  const end = Math.min(source.length, clamped + radius + 1);
+  const lead = start > 0 ? "…" : "";
+  const tail = end < source.length ? "…" : "";
+  const slice = source.slice(start, end).replace(/[\n\r\t]/g, " ");
+  return { text: `${lead}${slice}${tail}`, caret: lead.length + (clamped - start) };
+}
+
 export function positionOfOffset(source: string, offset: number): SourcePosition {
   const clamped = Math.max(0, Math.min(offset, source.length));
   const before = source.slice(0, clamped);

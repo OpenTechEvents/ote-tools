@@ -107,3 +107,45 @@ describe("buildReport", () => {
     }
   });
 });
+
+describe("MUST and SHOULD stay apart", () => {
+  it("never repeats an error as a recommendation", () => {
+    // The recommended schemas re-declare the base formats, so a malformed
+    // date fails both. The reader must be told once.
+    const feed = JSON.parse(
+      JSON.stringify({
+        specVersion: "0.3.0",
+        title: "Comunidad",
+        url: "https://comunidad.example",
+        license: "CC0-1.0",
+        organizers: [{ name: "Comunidad", url: "https://comunidad.example" }],
+        updatedAt: "2026-07-06T10:00:00Z",
+        events: [
+          {
+            id: "https://comunidad.example/e/1",
+            url: "https://comunidad.example/e/1",
+            name: "Meetup",
+            startDate: "ayer por la tarde",
+            timezone: "Europe/Madrid",
+            attendanceMode: "in-person",
+            location: { venue: "El Cable" },
+            updatedAt: "2026-05-28T11:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    const report = buildReport(JSON.stringify(feed, null, 2));
+    expect(report.status).toBe("validated");
+    const { errors, recommendations } = report as {
+      errors: { pointer: string; message: string }[];
+      recommendations: { pointer: string; message: string }[];
+    };
+
+    expect(errors.length).toBeGreaterThan(0);
+    const asErrors = new Set(errors.map((f) => `${f.pointer} ${f.message}`));
+    for (const finding of recommendations) {
+      expect(asErrors.has(`${finding.pointer} ${finding.message}`)).toBe(false);
+    }
+  });
+});
