@@ -1,6 +1,5 @@
-// Regenerates src/schemas.generated.ts and src/validators.generated.ts from
-// @opentechevents/schema — the npm package the spec repo publishes. Run
-// with: pnpm gen
+// Regenerates the three generated modules from @opentechevents/schema — the
+// npm package the spec repo publishes. Run with: pnpm gen
 //
 // schemas.generated.ts: the two validity schemas and the two recommended
 // (quality) schemas are pure JSON data, embedded as TypeScript constants so
@@ -22,6 +21,10 @@
 // one remaining require() call (its language-subtags.json data) inlined as
 // an embedded object literal exactly like the schemas above.
 //
+// validators.compiled.generated.ts: the schemas above, compiled by Ajv into
+// standalone validator code so nothing has to be compiled — that is, `eval`ed
+// — at runtime. Written by scripts/compile-validators.mjs; see its header.
+//
 // Because of this, @opentechevents/schema stays a devDependency (only this
 // script imports it, and only at codegen time in Node) — never a runtime
 // dependency, and never fetched at runtime either way.
@@ -39,6 +42,7 @@
 // test/validators-generated.test.ts) fail until the re-embed happens, so a
 // bump can never land stale.
 import { readFileSync, writeFileSync } from "node:fs";
+import { compiledValidatorsSource } from "./compile-validators.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -130,3 +134,12 @@ const validatorsBanner = `// GENERATED FILE — DO NOT EDIT.
 
 writeFileSync(validatorsOutFile, validatorsBanner + vendoredValidators);
 console.log("Wrote src/validators.generated.ts");
+
+// --- Compile the schemas into standalone validator code -------------------
+// Last, and from the same @opentechevents/schema version: the two files above
+// are what the browser ships as data, this is what it runs.
+writeFileSync(
+  new URL("../src/validators.compiled.generated.ts", import.meta.url),
+  compiledValidatorsSource(),
+);
+console.log("Wrote src/validators.compiled.generated.ts");

@@ -15,6 +15,17 @@ Node's `createRequire` to load its JSON files, which breaks under
 `platform: "browser"` — vendoring its logic at codegen time avoids dragging
 that into every consumer's bundle.
 
+The schemas are also **compiled** at build time, not just embedded: `pnpm gen`
+runs Ajv in standalone mode and writes the resulting validator code to
+`src/validators.compiled.generated.ts`, which is what `validateEvent` and its
+siblings call. Ajv's normal path builds those functions with `new Function`,
+which is `eval` — a page running it needs `script-src 'unsafe-eval'`, and pays
+for compiling four schemas on every load. Neither is true here: the runtime
+carries no Ajv, only the generated code and the formats and keywords it closes
+over (`src/compiled-scope.ts`). `test/compiled-validators.test.ts` fails if the
+compiled output drifts from the schemas or that scope stops matching what Ajv
+registered.
+
 > `@opentechevents/schema@0.3.0` isn't published to npm yet — v0.3 is still a
 > draft in the sibling `opentechevents-spec` repo. `package.json` currently
 > points at it via a local `link:` dependency; swap that for a real pinned

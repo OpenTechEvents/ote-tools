@@ -92,9 +92,9 @@ none of this.
 form that gets pasted into an issue when a feed is broken, and the reason the
 Worker exists at all. A result badge for READMEs is a later step.
 
-## Two traps no unit test here can catch
+## A trap no unit test here can catch
 
-Both cost a live debugging round trip; both are invisible to vitest.
+It cost a live debugging round trip, and it is invisible to vitest.
 
 **Never pass the global `fetch` by reference.** `fetchImpl: fetch` throws
 `TypeError: Illegal invocation` when called — the browser requires `window` as
@@ -103,15 +103,20 @@ care, so every test passed against code that could not make a single request.
 Both sides now wrap it (`browserFetch` in `src/main.ts`, `boundFetch` in
 `workers/fetch-url/src/index.ts`). Do not "simplify" either back.
 
-**ajv compiles schemas with `new Function`.** A CSP without `'unsafe-eval'`
-makes `@opentechevents/validate` throw at import time, which means `main.ts`
-never finishes evaluating and the page registers no listeners at all: every
-button silently does nothing, in all three modes. `boot-errors.js` exists to
-make that state announce itself. The durable fix is build-time standalone
-validators, which would let the CSP drop `'unsafe-eval'` again.
+When touching it, load the page in a real browser before believing the test
+suite. The same goes for anything that changes what the bundle evaluates at
+import time: this page once shipped with a CSP that made
+`@opentechevents/validate` throw on import (ajv compiled its schemas with
+`new Function`, which needed `'unsafe-eval'`), and the symptom was not an
+error but silence — `main.ts` never finished evaluating, so the page
+registered no listeners at all and every button did nothing, in all three
+modes. `boot-errors.js` exists to make that state announce itself.
 
-When touching either area, load the page in a real browser before believing
-the test suite.
+The CSP is now plain `script-src 'self'`: `@opentechevents/validate` ships
+validators ajv compiled at codegen time, so nothing is compiled in the
+browser (see `packages/validate/scripts/compile-validators.mjs`). If a change
+ever seems to need `'unsafe-eval'` back, something started compiling at
+runtime — find out what.
 
 ## Dev workflow gotcha
 

@@ -10,19 +10,14 @@
       Worker: build.mjs substitutes __FETCH_ENDPOINT__ in both this header and
       the bundle, so the two can never drift apart.
 
-      'unsafe-eval' is here under protest, and it is load-bearing: ajv turns
-      each JSON Schema into a validator with `new Function`, so
-      @opentechevents/validate cannot even initialize without it — the module
-      throws at import time and the page silently has no event listeners at
-      all. What it costs is narrow: no script may still be loaded from another
-      origin, no inline handler may run, and every string that came from a
-      fetched document reaches the DOM through textContent, so there is no
-      injection point that 'unsafe-eval' would turn into execution.
-
-      The real fix is to stop compiling at runtime: ajv can emit standalone
-      validator modules at build time, which this repo is already shaped for
-      (packages/validate vendors its schemas through `pnpm gen`). Doing that
-      lets this line become plain `script-src 'self'` again.
+      script-src is plain 'self': no 'unsafe-eval'. It used to need one,
+      because ajv turned each JSON Schema into a validator with `new
+      Function` at load time. @opentechevents/validate now ships validators
+      that ajv compiled at codegen time (`pnpm gen`, see
+      packages/validate/scripts/compile-validators.mjs), so nothing is
+      compiled in the browser. Adding 'unsafe-eval' back would mean something
+      started compiling at runtime again — find out what, rather than
+      widening this line.
 
       frame-ancestors is deliberately absent: browsers ignore it in a <meta>
       element and log a warning. It belongs in a response header, which
@@ -30,7 +25,7 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self'; img-src 'self'; connect-src 'self' __FETCH_ENDPOINT__; form-action 'none'; base-uri 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' __FETCH_ENDPOINT__; form-action 'none'; base-uri 'none'"
     />
     <title>OTE validator</title>
     <link rel="stylesheet" href="./styles.css" />

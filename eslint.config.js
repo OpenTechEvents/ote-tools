@@ -3,7 +3,18 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/fixtures/**", "apps/embed/versions/**"],
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/fixtures/**",
+      "apps/embed/versions/**",
+      // Ajv's standalone output (`pnpm gen`): machine-generated validator
+      // code, not authored here and not readable by the rules below. Its
+      // guard test (packages/validate/test/compiled-validators.test.ts) is
+      // what keeps it honest. Its hand-written neighbours — including
+      // src/compiled-scope.ts — are still linted.
+      "**/*.compiled.generated.ts",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

@@ -14,8 +14,10 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
 - Stack: TypeScript + Node 22, pnpm workspaces, vitest, ajv for validation.
 - OTE schema: from the @opentechevents/schema npm package (pinned devDependency of
   packages/validate; Dependabot bumps it when the spec releases). `pnpm gen` embeds
-  it into TypeScript; a guard test fails if the embed drifts from the dependency.
-  Never fetch the schema at runtime.
+  it into TypeScript **and compiles it**: ajv turns the schemas into standalone
+  validator code at codegen time, so nothing is compiled — `eval`ed — at runtime
+  and no page needs `'unsafe-eval'`. Guard tests fail if either output drifts from
+  the dependency. Never fetch the schema at runtime.
 - Tests: `pnpm test` at the root. Every new package ships fixtures and tests.
 - Build before type-checking a fresh clone or worktree: packages depend on each
   other through `dist/*.d.ts`, so `pnpm typecheck` (and any single-package
@@ -49,9 +51,10 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   it needs no CORS and its CSP is `connect-src 'self'`). It is the one tool
   without a `?repo=` context, hence its own hostname instead of a path under
   `tools.opentechevents.org`, which keeps redirecting to it. Read
-  `apps/validator/README.md` before touching it: two failure modes there are
-  invisible to the test suite (the detached global `fetch`, and ajv needing
-  `'unsafe-eval'` in the page CSP).
+  `apps/validator/README.md` before touching it: its worst failure mode is
+  invisible to the test suite (the detached global `fetch`), and a page whose
+  bundle throws while importing registers no listeners at all rather than
+  reporting anything — hence `boot-errors.js`.
 - `apps/publish` (Broadcast) has its own `CLAUDE.md` too — the pinned-event
   rule, the generated/guided/planned ladder that lets its destination
   catalogue be wide without becoming a wall of promises, and the

@@ -1,28 +1,18 @@
-import { Ajv2020 } from "ajv/dist/2020.js";
-import type { KeywordDefinition } from "ajv";
-import ajvFormats from "ajv-formats";
-
-// CJS↔ESM interop: at runtime the default binding IS the plugin; TS types it as a namespace.
-const addFormats = ajvFormats as unknown as typeof ajvFormats.default;
-
-// customFormats/customKeywords/annotationKeywords carry real validator
-// functions (not JSON-serializable schema data), so — unlike eventSchema/
-// feedSchema — they can't be embedded as JSON. They also can't be imported
-// live from @opentechevents/schema at runtime: that package's own index.js
-// uses Node's createRequire, which breaks any browser bundle depending on
-// this package (e.g. apps/editor's esbuild build, platform: "browser").
-// validators.generated.ts vendors their exact source at codegen time
-// instead — see scripts/embed-schemas.mjs for the full rationale.
-import { annotationKeywords, customFormats, customKeywords } from "./validators.generated.js";
+// The four validators are compiled from the schemas at codegen time, by Ajv's
+// standalone mode, into plain JavaScript: no Ajv here at runtime, no schema
+// compilation on load, and — the point — no `new Function`, so a page running
+// this needs no 'unsafe-eval' in its CSP. See
+// scripts/compile-validators.mjs, and src/compiled-scope.ts for the formats
+// and keywords that code closes over.
+import {
+  validateEvent as validateEventFn,
+  validateFeed as validateFeedFn,
+  checkEventRecommended as checkEventRecommendedFn,
+  checkFeedRecommended as checkFeedRecommendedFn,
+} from "./validators.compiled.generated.js";
 
 import { formatAjvErrors, type ValidationError } from "./errors.js";
 import { specVersion } from "./schemas.generated.js";
-import {
-  eventSchema,
-  eventRecommendedSchema,
-  feedSchema,
-  feedRecommendedSchema,
-} from "./schemas.js";
 
 export type { ValidationError } from "./errors.js";
 export {
@@ -41,67 +31,18 @@ export interface ValidationResult {
 }
 
 /**
- * Builds an Ajv instance with every keyword/format the v0.3 schemas reference
- * already registered. `strict: true` (unlike v0.2's `strict: false`) means Ajv
- * refuses to compile if any of them is missing, instead of silently ignoring
- * unknown keywords/formats — the schemas' own structural rules (date
- * ordering, duplicate-ID rejection, translation-key collisions, etc.) would
- * otherwise pass compilation but never actually run.
+ * A compiled validator: returns whether the document is valid and, when it is
+ * not, leaves Ajv's own error objects on its `errors` property. Same contract
+ * as the functions `ajv.compile()` used to return at runtime — the schemas'
+ * structural rules (date ordering, duplicate-ID rejection, translation-key
+ * collisions, etc.) are compiled in, not re-derived here.
  */
-function buildAjv(): Ajv2020 {
-  // strictRequired is relaxed on its own: the schemas' location/address
-  // anyOf branches list `required` without repeating `properties` in the
-  // same subschema (the properties live on the parent $defs object instead),
-  // which strictRequired flags as a possible typo. Every other strict check
-  // — in particular, rejecting unregistered keywords/formats, which is the
-  // actual risk this migration cares about — stays on.
-  const instance = new Ajv2020({ allErrors: true, strict: true, strictRequired: false });
-  addFormats(instance);
-  // @opentechevents/schema types these loosely (plain validate functions, not
-  // Ajv's own discriminated KeywordDefinition union) — cast at this single
-  // interop boundary rather than losing strict typing throughout this file.
-  for (const keyword of annotationKeywords) {
-    instance.addKeyword(keyword as unknown as KeywordDefinition);
-  }
-  for (const format of customFormats) instance.addFormat(format.name, format.validate);
-  for (const keyword of customKeywords) {
-    instance.addKeyword(keyword as unknown as KeywordDefinition);
-  }
-  return instance;
-}
+type CompiledValidator = ((json: unknown) => boolean) & {
+  errors?: Parameters<typeof formatAjvErrors>[0];
+};
 
-const ajv = buildAjv();
-ajv.addSchema(eventSchema);
-ajv.addSchema(feedSchema);
-
-const validateEventFn = ajv.getSchema(eventSchema.$id as string);
-const validateFeedFn = ajv.getSchema(feedSchema.$id as string);
-if (!validateEventFn || !validateFeedFn) {
-  throw new Error("Vendored OTE schemas failed to compile");
-}
-
-// Separate Ajv instance for the recommended (quality, warn-only) profiles:
-// they reference the validity schemas by $id via $ref, so those must be
-// registered here too, but keeping this compilation separate from the
-// validity-only `ajv` instance above keeps `validateEvent`/`validateFeed`
-// unaffected by whatever the recommended schemas add.
-const recommendedAjv = buildAjv();
-recommendedAjv.addSchema(eventSchema);
-recommendedAjv.addSchema(feedSchema);
-recommendedAjv.addSchema(eventRecommendedSchema);
-recommendedAjv.addSchema(feedRecommendedSchema);
-
-const checkEventRecommendedFn = recommendedAjv.getSchema(eventRecommendedSchema.$id as string);
-const checkFeedRecommendedFn = recommendedAjv.getSchema(feedRecommendedSchema.$id as string);
-if (!checkEventRecommendedFn || !checkFeedRecommendedFn) {
-  throw new Error("Vendored OTE recommended schemas failed to compile");
-}
-
-function run(
-  fn: NonNullable<ReturnType<typeof ajv.getSchema>>,
-  json: unknown,
-): ValidationResult {
-  const valid = fn(json) as boolean;
+function run(fn: CompiledValidator, json: unknown): ValidationResult {
+  const valid = fn(json);
   return { valid, errors: valid ? [] : formatAjvErrors(fn.errors) };
 }
 
@@ -110,7 +51,7 @@ function run(
  * Pure function: reads no files, makes no network calls.
  */
 export function validateEvent(json: unknown): ValidationResult {
-  return run(validateEventFn!, json);
+  return run(validateEventFn, json);
 }
 
 /**
@@ -118,7 +59,7 @@ export function validateEvent(json: unknown): ValidationResult {
  * Pure function: reads no files, makes no network calls.
  */
 export function validateFeed(json: unknown): ValidationResult {
-  return run(validateFeedFn!, json);
+  return run(validateFeedFn, json);
 }
 
 /**
@@ -129,7 +70,7 @@ export function validateFeed(json: unknown): ValidationResult {
  * event be found, filtered and subscribed to", not "malformed".
  */
 export function checkEventRecommended(json: unknown): ValidationResult {
-  return run(checkEventRecommendedFn!, json);
+  return run(checkEventRecommendedFn, json);
 }
 
 /**
@@ -137,7 +78,7 @@ export function checkEventRecommended(json: unknown): ValidationResult {
  * (quality) profile — see checkEventRecommended.
  */
 export function checkFeedRecommended(json: unknown): ValidationResult {
-  return run(checkFeedRecommendedFn!, json);
+  return run(checkFeedRecommendedFn, json);
 }
 
 // Minimal valid feed envelope for validateEventInFeed. Constant values are
@@ -162,7 +103,7 @@ const EVENT_PATH_PREFIX = "events[0]";
  * validating the assembled feed. Error paths are relative to the event.
  */
 export function validateEventInFeed(json: unknown): ValidationResult {
-  const result = run(validateFeedFn!, { ...FEED_ENVELOPE, events: [json] });
+  const result = run(validateFeedFn, { ...FEED_ENVELOPE, events: [json] });
   return {
     valid: result.valid,
     errors: result.errors.map(({ path, message }) => ({
