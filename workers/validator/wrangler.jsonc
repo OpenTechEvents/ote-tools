@@ -19,15 +19,13 @@
     "not_found_handling": "404-page"
   },
 
-  "routes": [
-    // The tool's public name. tools.opentechevents.org/validator/ redirects
-    // here, so there is one canonical URL for permalinks pasted into issues.
-    { "pattern": "validator.opentechevents.org", "custom_domain": true },
-    // The fetch endpoint's own name, kept so the SSRF-guarded fetcher can be
-    // addressed as an API by other tools later without going through the
-    // validator's hostname.
-    { "pattern": "fetch.opentechevents.org", "custom_domain": true }
-  ],
+  // One hostname, deliberately. A second custom domain (fetch.opentechevents.org
+  // was tried) does not give the fetcher an "API name": assets are served
+  // before this script runs, so that hostname served the whole page too — two
+  // canonical URLs for one tool, which is what the /validator/ redirect exists
+  // to avoid. If an API name is ever genuinely wanted, it needs its own Worker
+  // without an assets binding, not another route onto this one.
+  "routes": [{ "pattern": "validator.opentechevents.org", "custom_domain": true }],
   // Declaring `routes` makes wrangler disable the workers.dev URL by default.
   // Keep it: it is what local development and CI smoke checks point at before
   // DNS exists, and the fallback if a custom domain ever misbehaves.
