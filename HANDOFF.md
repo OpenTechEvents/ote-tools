@@ -43,8 +43,6 @@ a definite answer plus a warning for the loser.
 - **Dangling DNS record `fetch.opentechevents.org`** — still in the zone,
   pointing at Cloudflare with nothing behind it. The deploy token has no DNS
   permission, so it has to be deleted in the dashboard.
-- **Old Worker `ote-fetch-url`** — orphaned after the rename to
-  `ote-validator`; no custom domains left on it. Safe to delete.
 - **`localhost:8000` in `ALLOWED_ORIGINS`** (`workers/validator/wrangler.jsonc`)
   — only serves local `pnpm dev` now that production is same-origin. Remove it
   if that is not worth the exposure.
@@ -52,10 +50,19 @@ a definite answer plus a warning for the loser.
 ### 3. UI polish nobody has judged yet
 
 The redesign follows opentechevents.org's language (tokens, header, buttons,
-cards, dark code blocks, footer — the rule is in `CLAUDE.md`). Not yet looked
-at with fresh eyes: mobile layout below 620px, the candidate-picker when a
-page declares many feeds, and whether the source viewer should collapse very
-long documents.
+cards, dark code blocks, footer — the rule is in `CLAUDE.md`).
+
+The three questions this list used to carry have now been looked at, at 375px
+in a real browser, and none of them needs work: the layout wraps without any
+horizontal overflow (tabs, buttons under their inputs, two-column results
+collapsed to one), the candidate picker stays readable with five feeds and
+long titles, and the source viewer already collapses long documents —
+`.source` is `max-height: 32rem; overflow: auto`.
+
+What is left is genuinely a matter of taste, on a real device rather than an
+emulated viewport: whether the source panel deserves more room on a phone, and
+whether the permalink/badge inputs should show their tail rather than their
+head when the text does not fit.
 
 ## Traps that cost time — do not rediscover them
 
@@ -74,7 +81,12 @@ long documents.
    browser before believing a green suite. Headless works: serve
    `apps/validator/dist` plus a stub `/fetch`, then
    `Google\ Chrome --headless --dump-dom "http://localhost:PORT/?doc=…"` and
-   look for the verdict in the dumped DOM.
+   look for the verdict in the dumped DOM. **But `--window-size` will not go
+   below ~485 CSS px**: ask for 375 and the page still lays out at 485 while
+   the screenshot is cropped to 375, which looks exactly like a page
+   overflowing its viewport. It cost a false "mobile is broken" once. To judge
+   a phone width, load the page in a 375px `<iframe>` on a wider window —
+   media queries follow the frame.
 4. **`pnpm --filter … deploy` runs pnpm's own built-in `deploy`.** Use
    `run deploy`.
 5. **Declaring `routes` disables the `workers.dev` URL** unless
