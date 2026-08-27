@@ -63,6 +63,7 @@ const recommendationsBox = $("recommendations");
 const sourceBox = $("source");
 const permalinkBox = $("permalink");
 const permalinkInput = $<HTMLInputElement>("permalink-input");
+const badgeInput = $<HTMLInputElement>("badge-input");
 
 /** Everything currently on screen, so a kind override can re-render it. */
 let current: { source: string; label: string; provenance?: Provenance } | null = null;
@@ -402,6 +403,19 @@ function sourceLabel(provenance: Provenance): string {
 function showPermalink(url: string): void {
   permalinkBox.hidden = false;
   permalinkInput.value = url;
+  badgeInput.value = badgeMarkdownFor(url);
+}
+
+/**
+ * The README snippet: the badge image, linking to this page's own check of the
+ * same document. Built from the current origin rather than hard-coded, so a
+ * page served from anywhere points at the badge endpoint next to it.
+ */
+function badgeMarkdownFor(permalinkUrl: string): string {
+  const doc = new URL(permalinkUrl).searchParams.get("doc") ?? "";
+  const badge = new URL("/badge", window.location.href);
+  badge.searchParams.set("doc", doc);
+  return `[![OTE feed](${badge.toString()})](${permalinkUrl})`;
 }
 
 function permalinkFor(url: string): string {
@@ -464,6 +478,10 @@ kindSelect.addEventListener("change", () => {
 
 $("permalink-copy").addEventListener("click", () => {
   void navigator.clipboard?.writeText(permalinkInput.value);
+});
+
+$("badge-copy").addEventListener("click", () => {
+  void navigator.clipboard?.writeText(badgeInput.value);
 });
 
 /** `?doc=<url>` — the mode that gets pasted into issues, and why the Worker exists. */

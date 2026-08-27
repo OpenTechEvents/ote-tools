@@ -86,11 +86,26 @@ Local URL mode also requires that origin to be in the Worker's
 `ALLOWED_ORIGINS` (`localhost:8000` already is). Uploading and pasting need
 none of this.
 
-## Permalinks
+**Forget the variable and URL mode fails in a way that does not look like a
+missing variable.** `pnpm dev` serves static files only, so the relative
+`/fetch` hits esbuild's own `404 - Not Found` as `text/plain`, the page tries
+to parse that as the envelope, and reports a fetch-service error. The message
+now names the status, the media type and the variable — but if it ever comes
+back as "unusably", this is the reason.
+
+## Permalinks and the badge
 
 `?doc=<url>` re-runs the whole thing: fetch, discover, validate. That is the
 form that gets pasted into an issue when a feed is broken, and the reason the
-Worker exists at all. A result badge for READMEs is a later step.
+Worker exists at all.
+
+The same panel offers the README badge: a Markdown snippet pointing at the
+Worker's `/badge?doc=…`, which answers the same verdict as an SVG. The page
+only composes the snippet — the endpoint, its caching and why it says "no feed
+found" rather than "invalid" are documented in `workers/validator/README.md`.
+The snippet is built from the page's own origin, so a locally served page
+points at a local badge endpoint (and finds none: `pnpm dev` serves files
+only).
 
 ## A trap no unit test here can catch
 

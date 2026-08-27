@@ -109,6 +109,30 @@ describe("fetchDocument", () => {
     expect(result).toMatchObject({ ok: false, code: "too-many-redirects" });
   });
 
+  it("names the limit it hit, and the modes that do not need this service", async () => {
+    // A slow origin is nobody's bug, so the message has to leave the organizer
+    // with a next step rather than just "took too long".
+    const slow = (async (_input: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const error = new Error("timed out");
+          error.name = "TimeoutError";
+          reject(error);
+        });
+      })) as unknown as typeof fetch;
+
+    const result = await fetchDocument("https://comunidad.example/slow.json", {
+      fetchImpl: slow,
+      resolve: resolver(),
+      limits: { hopTimeoutMs: 100, totalTimeoutMs: 200 },
+    });
+    expect(result).toMatchObject({ ok: false, code: "timeout", status: 504 });
+    expect((result as { message: string }).message).toContain("0.1 s");
+    expect((result as { message: string }).message).toContain("0.2 s");
+    expect((result as { message: string }).message).toMatch(/Upload a file/);
+    expect((result as { message: string }).message).toMatch(/Paste JSON/);
+  });
+
   it("cuts a 50 MB response at the cap without buffering it", async () => {
     const result = await fetchDocument("https://comunidad.example/huge.json", {
       fetchImpl: fakeFetch({ "https://comunidad.example/huge.json": () => hugeStream(50) }),

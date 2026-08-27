@@ -59,12 +59,33 @@ export type FetchResult = FetchedDocument | FetchFailure;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+/** Seconds, without a trailing `.0` for the whole ones. */
+const seconds = (ms: number): string => String(Number((ms / 1000).toFixed(1)));
+
 function failure(
   code: Rejection["code"] | FetchRejectionCode,
   message: string,
   status = 400,
 ): FetchFailure {
   return { ok: false, status, code, message };
+}
+
+/**
+ * The timeout message names the limit it hit, and the two modes that do not
+ * depend on it. A slow origin is the one failure here that is nobody's bug —
+ * not the URL's, not this service's — and "took too long" alone leaves the
+ * organizer with no next step; the file and paste modes validate the exact
+ * same document in the browser, with this Worker out of the picture.
+ */
+function timedOut(limits: FetchLimits): FetchFailure {
+  return failure(
+    "timeout",
+    `That server did not answer within ${seconds(limits.hopTimeoutMs)} s ` +
+      `(${seconds(limits.totalTimeoutMs)} s for the whole chain, redirects included). ` +
+      "Download the document and use “Upload a file” or “Paste JSON”: both validate it in " +
+      "your browser, without this fetch step.",
+    504,
+  );
 }
 
 /**
@@ -132,7 +153,7 @@ export async function fetchDocument(rawUrl: string, deps: FetchDeps): Promise<Fe
     if (!host.ok) return { ok: false, status: 400, code: host.code, message: host.message };
 
     const remaining = Math.min(limits.hopTimeoutMs, deadline - Date.now());
-    if (remaining <= 0) return failure("timeout", "The upstream server took too long.", 504);
+    if (remaining <= 0) return timedOut(limits);
 
     let response: Response;
     try {
@@ -149,9 +170,8 @@ export async function fetchDocument(rawUrl: string, deps: FetchDeps): Promise<Fe
         },
       });
     } catch (error) {
-      const timedOut = error instanceof Error && error.name === "TimeoutError";
-      return timedOut
-        ? failure("timeout", "The upstream server took too long.", 504)
+      return error instanceof Error && error.name === "TimeoutError"
+        ? timedOut(limits)
         : failure("upstream-error", "That URL could not be fetched.", 502);
     }
 

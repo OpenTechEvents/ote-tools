@@ -208,3 +208,27 @@ describe("followCandidate", () => {
     });
   });
 });
+
+describe("when nothing usable is behind the fetch endpoint", () => {
+  it("says what answered instead of JSON, and how to fix it locally", async () => {
+    // The shape of `pnpm dev` without OTE_FETCH_ENDPOINT: the page is served
+    // by esbuild, the relative /fetch hits its 404, and the old message
+    // ("answered unusably") named neither the cause nor a next step.
+    const staticServer = (async () =>
+      new Response("404 - Not Found", {
+        status: 404,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      })) as unknown as typeof fetch;
+
+    const resolution = await resolveUrl("https://comunidad.example/feed.json", {
+      endpoint: "",
+      fetchImpl: staticServer,
+    });
+
+    expect(resolution).toMatchObject({ outcome: "error", code: "fetcher-error" });
+    const { message } = resolution as { message: string };
+    expect(message).toContain("404");
+    expect(message).toContain("text/plain");
+    expect(message).toContain("OTE_FETCH_ENDPOINT");
+  });
+});

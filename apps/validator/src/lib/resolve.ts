@@ -89,7 +89,20 @@ export async function fetchViaWorker(url: string, deps: ResolveDeps): Promise<Fe
   try {
     return (await response.json()) as FetchEnvelope;
   } catch {
-    return { ok: false, code: "fetcher-error", message: "The fetch service answered unusably." };
+    // What answered instead of JSON is the whole diagnosis, so it goes in the
+    // message. The usual cause in development is a page served without a
+    // fetcher behind it: `pnpm dev` serves static files only, so a relative
+    // /fetch hits esbuild's own 404 (text/plain) and lands here.
+    const contentType = response.headers.get("content-type") ?? "no content type";
+    return {
+      ok: false,
+      code: "fetcher-error",
+      message:
+        `The fetch service answered ${response.status} as ${contentType}, not JSON. ` +
+        "In local development that usually means the page has no fetcher behind it: " +
+        "start it with OTE_FETCH_ENDPOINT pointing at a deployed Worker. " +
+        "Uploading a file or pasting JSON works either way.",
+    };
   }
 }
 

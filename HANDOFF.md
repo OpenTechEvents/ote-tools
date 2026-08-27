@@ -5,14 +5,16 @@ published docs: delete it once the pending list is empty.
 
 ## Where things stand
 
-Issue #60 is **done and live**, and so is the `'unsafe-eval'` debt that used
-to head the pending list. `main` is green and deployed; no open PRs.
+Issue #60 is **done and live**, and so are the two items that used to head the
+pending list: the `'unsafe-eval'` debt and the README badge (`/badge?doc=…` on
+the Worker — see `workers/validator/README.md`). `main` is green and deployed;
+no open PRs.
 
 | Thing | State |
 | --- | --- |
 | `apps/validator` | Built here, served by the Worker. Three modes: URL, file, paste. |
 | `packages/discover-feed` | Pure discovery, no network. 23 tests. |
-| `workers/validator` | Cloudflare Worker: the page **and** `/fetch` on one origin. 35 tests. |
+| `workers/validator` | Cloudflare Worker: the page, `/fetch` and `/badge` on one origin. 52 tests. |
 | `packages/validate` | Schemas embedded **and compiled** by `pnpm gen` (ajv standalone). No ajv at runtime, so the page's CSP is `script-src 'self'`. 141 tests. |
 | <https://validator.opentechevents.org/> | Live, deployed by `deploy-validator.yml` on push to main. |
 | `tools.opentechevents.org/validator/` | Redirect to the canonical URL. |
@@ -26,16 +28,7 @@ Read before touching any of it: `apps/validator/README.md`,
 
 ## Pending, most valuable first
 
-### 1. Result badge for READMEs
-
-Named in issue #60, never built. A `<img>`-able endpoint on the Worker
-(`/badge?doc=…`) that returns SVG saying valid / invalid / not discovered, so
-a community can put its feed's status in its own README. Watch out: it makes
-the Worker fetch on someone else's schedule, so it needs caching (the fetch
-limits are per request, not per minute) and a story for how stale the answer
-may be.
-
-### 2. Discovery mechanisms still open in the spec
+### 1. Discovery mechanisms still open in the spec
 
 `/.well-known/ote-feed` and `<script type="application/ote+json">` are
 implemented in `packages/discover-feed` behind the `wellKnown` / `embedded`
@@ -45,7 +38,7 @@ closes — that issue also settles `application/ote+json` vs.
 `application/feed+json`, at which point the lax media-type matching can become
 a definite answer plus a warning for the loser.
 
-### 3. Housekeeping in Cloudflare
+### 2. Housekeeping in Cloudflare
 
 - **Dangling DNS record `fetch.opentechevents.org`** — still in the zone,
   pointing at Cloudflare with nothing behind it. The deploy token has no DNS
@@ -56,7 +49,7 @@ a definite answer plus a warning for the loser.
   — only serves local `pnpm dev` now that production is same-origin. Remove it
   if that is not worth the exposure.
 
-### 4. UI polish nobody has judged yet
+### 3. UI polish nobody has judged yet
 
 The redesign follows opentechevents.org's language (tokens, header, buttons,
 cards, dark code blocks, footer — the rule is in `CLAUDE.md`). Not yet looked
@@ -92,6 +85,15 @@ long documents.
    Worker without an assets binding.
 7. **Dependabot PRs need `@dependabot rebase`, not a CI re-run**, to pick up a
    fix that landed on `main`: re-runs reuse the cached merge base.
+8. **Two different local failures look like "the fetcher is broken".** `pnpm
+   dev` serves static files only: without `OTE_FETCH_ENDPOINT` the relative
+   `/fetch` hits esbuild's `404 - Not Found` in `text/plain` and the page
+   reports a fetch-service error — it never reached the feed. And editing
+   `index.html` while the dev server runs used to leave the served markup
+   stale, so a bundle rebuilt against new elements threw at import and the
+   page registered no listeners (the URL form then submits itself and CSP
+   blocks it with `form-action 'none'`). `build.mjs` now watches the static
+   files too; the messages name both causes.
 
 ## Local environment
 

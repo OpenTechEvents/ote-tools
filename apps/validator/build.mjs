@@ -5,7 +5,7 @@
 // bundle (as __FETCH_ENDPOINT__) and index.html's CSP connect-src. Doing it
 // in one place is the point — a page that can call an endpoint its own CSP
 // blocks fails only at runtime, in the one mode that needs a network.
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, watch, writeFileSync } from "node:fs";
 
 import * as esbuild from "esbuild";
 
@@ -34,21 +34,35 @@ const options = {
   },
 };
 
-mkdirSync("dist", { recursive: true });
-for (const file of ["styles.css", "boot-errors.js"]) copyFileSync(file, `dist/${file}`);
-// The placeholder carries its own leading space so that removing it (the
-// same-origin case) leaves `connect-src 'self'` rather than a stray token.
-writeFileSync(
-  "dist/index.html",
-  readFileSync("index.html", "utf8").replaceAll(
-    " __FETCH_ENDPOINT__",
-    FETCH_ENDPOINT ? ` ${FETCH_ENDPOINT}` : "",
-  ),
-);
+const STATIC_FILES = ["styles.css", "boot-errors.js"];
+
+function copyStatic() {
+  mkdirSync("dist", { recursive: true });
+  for (const file of STATIC_FILES) copyFileSync(file, `dist/${file}`);
+  // The placeholder carries its own leading space so that removing it (the
+  // same-origin case) leaves `connect-src 'self'` rather than a stray token.
+  writeFileSync(
+    "dist/index.html",
+    readFileSync("index.html", "utf8").replaceAll(
+      " __FETCH_ENDPOINT__",
+      FETCH_ENDPOINT ? ` ${FETCH_ENDPOINT}` : "",
+    ),
+  );
+}
+
+copyStatic();
 
 if (serve) {
   const ctx = await esbuild.context(options);
   await ctx.watch();
+  // esbuild watches `src` only, so index.html would otherwise stay as it was
+  // when the server started. That failure is nastier than it sounds: main.ts
+  // resolves its elements at import time, so a bundle rebuilt against newer
+  // markup throws against the stale page — and a page whose module throws
+  // registers no listeners at all, which shows up as the URL form submitting
+  // itself and being blocked by `form-action 'none'`, not as an error about
+  // a missing element.
+  for (const file of [...STATIC_FILES, "index.html"]) watch(file, () => copyStatic());
   const port = Number(process.env.PORT) || undefined;
   const server = await ctx.serve({
     servedir: "dist",

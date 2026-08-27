@@ -11,6 +11,7 @@ non-file paths reach the script:
 ```
 GET https://validator.opentechevents.org/                      → the page
 GET https://validator.opentechevents.org/fetch?url=…           → the fetcher
+GET https://validator.opentechevents.org/badge?doc=…           → an SVG verdict
 GET https://validator.opentechevents.org/health                → limits
 
 GET /fetch?url=https%3A%2F%2Fcomunidad.example%2Ffeed.json
@@ -41,6 +42,43 @@ No database, no accounts, no authentication, no persistence. That is a design
 decision, not a simplification: it removes half of the OWASP Top 10 by
 construction — no SQL injection without SQL, no broken access control with
 nothing to access — and concentrates the remaining risk in one place.
+
+## The badge
+
+`/badge?doc=<url>` answers an SVG with one word, so a community can put its
+feed's status in its own README:
+
+```markdown
+[![OTE feed](https://validator.opentechevents.org/badge?doc=https%3A%2F%2Fcomunidad.example%2Ffeed.json)](https://validator.opentechevents.org/?doc=https%3A%2F%2Fcomunidad.example%2Ffeed.json)
+```
+
+The validator page builds that snippet for you next to the permalink, after a
+URL check.
+
+It runs the same two steps the page does, and keeps them apart for the same
+reason: **`no feed found` is not `invalid`**. The states are `valid`,
+`invalid`, `no feed found`, `several feeds` (the page declares more than one
+and the badge refuses to pick, exactly as the UI does) and `unreachable`. The
+state also travels as `x-ote-badge-state`, from that fixed vocabulary, so it
+can be read with `curl` without parsing an image.
+
+Two properties make this endpoint different from `/fetch`:
+
+- **It is requested on someone else's schedule.** Every reader of a README
+  asks for it, so every answer is cached — in the Cloudflare cache, shared
+  across readers, and downstream via `Cache-Control` for browsers and GitHub's
+  image proxy. A verdict lives an hour, `unreachable` five minutes, so a
+  transient outage does not stick to a README. The cache key is the normalized
+  `doc` URL alone: other query parameters and headers must not each buy their
+  own outbound fetch. The per-IP rate limit is therefore spent **only on a
+  cache miss**.
+- **Its output is an image built from a stranger's document.** Nothing fetched
+  is ever written into the SVG — every string it draws is a constant in
+  `src/badge.ts`, the reason it needs no escaping to be safe. It is served
+  with `nosniff` and `default-src 'none'; sandbox` like everything else here.
+
+Freshness is therefore "within the hour", which is the honest promise for a
+status somebody else's publishing changes.
 
 ## That remaining risk is SSRF
 
@@ -79,7 +117,12 @@ the runtime reduces the impact of a mistake, not the need to write them.
   cap without being buffered (there is a test for exactly that).
 - The cap counts **decompressed** bytes, which is what a decompression bomb
   inflates.
-- **Timeouts**: 5 s per hop, 10 s for the whole chain.
+- **Timeouts**: 5 s per hop, 10 s for the whole chain. Deliberately shorter
+  than a feed reader's (those poll in the background and can wait 30 s); here
+  somebody is watching the page. The timeout message therefore names the limit
+  it hit **and** points at the file and paste modes, which validate the same
+  document in the browser without this service — a slow origin is the one
+  failure here that is nobody's bug to fix from this side.
 - **Rate limiting per IP** via the optional `RATE_LIMITER` binding
   (`wrangler.jsonc`). The Worker runs without it — production should not.
 

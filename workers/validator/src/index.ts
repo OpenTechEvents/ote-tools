@@ -3,8 +3,8 @@
  * origin — and the only component of ote-tools with network access.
  *
  * The page itself is served by the runtime from the `assets` binding
- * (`wrangler.jsonc`); this script only sees what is not a file: `/fetch` and
- * `/health`. Sharing an origin is a design decision, not packaging
+ * (`wrangler.jsonc`); this script only sees what is not a file: `/fetch`,
+ * `/badge` and `/health`. Sharing an origin is a design decision, not packaging
  * convenience: the page needs no CORS at all, and its CSP can say
  * `connect-src 'self'`.
  *
@@ -23,6 +23,7 @@
  * Worker; they run fully in the browser and keep working with it down.
  */
 
+import { badgeTtlSeconds, renderBadge, resolveBadge } from "./badge.js";
 import { dohResolver } from "./dns.js";
 import { DEFAULT_LIMITS, fetchDocument, type FetchResult } from "./fetch-document.js";
 
@@ -106,15 +107,106 @@ export function toResponseBody(result: FetchResult): unknown {
 }
 
 /**
+ * The subset of the Cache API this Worker uses. Structural on purpose: the
+ * tests hand it a Map, and `caches.default` satisfies it as it is.
+ */
+export interface BadgeCache {
+  match(request: Request): Promise<Response | undefined>;
+  put(request: Request, response: Response): Promise<void>;
+}
+
+export interface Deps {
+  fetchImpl: typeof fetch;
+  resolve: (hostname: string) => Promise<string[]>;
+  /** Absent in tests that do not care about caching, and in `wrangler dev`. */
+  cache?: BadgeCache;
+}
+
+/** True when this caller has spent its per-IP budget. */
+async function overLimit(request: Request, env: Env): Promise<boolean> {
+  if (!env.RATE_LIMITER) return false;
+  const key = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const { success } = await env.RATE_LIMITER.limit({ key });
+  return !success;
+}
+
+/**
+ * Cache key for a badge: the requested document, normalized, and nothing
+ * else. Not the incoming request — that carries whatever query parameters,
+ * `Origin` and headers a README's reader happened to send, and each variation
+ * would otherwise buy its own upstream fetch.
+ */
+function badgeCacheKey(origin: string, target: string): Request {
+  let normalized = target;
+  try {
+    normalized = new URL(target).toString();
+  } catch {
+    // Not a URL at all; `fetchDocument` will refuse it. Cache the refusal
+    // under the raw string rather than throwing here.
+  }
+  return new Request(`${origin}/badge?doc=${encodeURIComponent(normalized)}`);
+}
+
+/**
+ * `/badge?doc=…` — the verdict as an SVG for a README.
+ *
+ * This is the one path other people's pages request on their own schedule, so
+ * every answer is cached, both here (the Cloudflare cache, shared across
+ * readers) and downstream via `Cache-Control` (browsers, and GitHub's image
+ * proxy). The freshness a badge promises is therefore "within the hour", which
+ * is the honest thing for a status somebody else's CI changes.
+ */
+async function handleBadge(
+  request: Request,
+  url: URL,
+  env: Env,
+  deps: Deps,
+  cors: Record<string, string>,
+): Promise<Response> {
+  const target = url.searchParams.get("doc");
+  if (!target) {
+    return json({ ok: false, code: "invalid-url", message: "Pass ?doc=…" }, 400, cors);
+  }
+
+  const key = badgeCacheKey(url.origin, target);
+  const cached = await deps.cache?.match(key);
+  if (cached) return cached;
+
+  // Checked only on a cache miss: a cached badge costs no outbound request,
+  // and a popular README must not exhaust the budget for everyone else.
+  if (await overLimit(request, env)) {
+    return json(
+      { ok: false, code: "rate-limited", message: "Too many requests; try again shortly." },
+      429,
+      cors,
+    );
+  }
+
+  const verdict = await resolveBadge(target, { fetchImpl: deps.fetchImpl, resolve: deps.resolve });
+  const ttl = badgeTtlSeconds(verdict.state);
+  const response = new Response(renderBadge(verdict.state), {
+    status: 200,
+    headers: {
+      "content-type": "image/svg+xml; charset=utf-8",
+      "cache-control": `public, max-age=${ttl}, s-maxage=${ttl}, stale-while-revalidate=86400`,
+      // The state as a header too: a fixed vocabulary, so it can be asserted
+      // in tests and read by `curl` without parsing the image.
+      "x-ote-badge-state": verdict.state,
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'; sandbox",
+      "referrer-policy": "no-referrer",
+    },
+  });
+  await deps.cache?.put(key, response.clone());
+  return response;
+}
+
+/**
  * Handles one request. Dependencies are parameters so the tests — including
  * the SSRF ones, which are the tests that matter here — run with a fake
  * network and a fake resolver instead of reaching anything real.
  */
-export async function handleRequest(
-  request: Request,
-  env: Env,
-  deps: { fetchImpl: typeof fetch; resolve: (hostname: string) => Promise<string[]> },
-): Promise<Response> {
+export async function handleRequest(request: Request, env: Env, deps: Deps): Promise<Response> {
   const cors = corsHeaders(request, env);
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -128,6 +220,8 @@ export async function handleRequest(
     return json({ ok: true, limits: DEFAULT_LIMITS }, 200, cors);
   }
 
+  if (url.pathname === "/badge") return handleBadge(request, url, env, deps, cors);
+
   // "/" is the page, served from the assets binding before this script runs;
   // only the API paths reach here.
   if (url.pathname !== "/fetch") {
@@ -139,16 +233,12 @@ export async function handleRequest(
     return json({ ok: false, code: "invalid-url", message: "Pass ?url=…" }, 400, cors);
   }
 
-  if (env.RATE_LIMITER) {
-    const key = request.headers.get("cf-connecting-ip") ?? "unknown";
-    const { success } = await env.RATE_LIMITER.limit({ key });
-    if (!success) {
-      return json(
-        { ok: false, code: "rate-limited", message: "Too many requests; try again shortly." },
-        429,
-        cors,
-      );
-    }
+  if (await overLimit(request, env)) {
+    return json(
+      { ok: false, code: "rate-limited", message: "Too many requests; try again shortly." },
+      429,
+      cors,
+    );
   }
 
   const result = await fetchDocument(target, { fetchImpl: deps.fetchImpl, resolve: deps.resolve });
@@ -172,6 +262,7 @@ export default {
     return handleRequest(request, env, {
       fetchImpl: boundFetch,
       resolve: dohResolver(boundFetch),
+      cache: caches.default,
     });
   },
 };
