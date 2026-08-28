@@ -50,7 +50,7 @@ MUST, and `format: uri` rejecting `…/pycamp-españa` — **both landed in OTE 
 closed; [spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)
 is still open upstream although its fix shipped — it wants closing.
 
-### 2. Moving the `@v1` tag to the 0.4.0 tools — checked, safe
+### 2. Moving the `@v1` tag — the spec is not what blocks it
 
 The 0.4.0 migration asked whether forks on
 `uses: OpenTechEvents/ote-tools/.github/workflows/validate.yml@v1` start
@@ -78,12 +78,41 @@ now says `"specVersion": "0.4.0"`. Any consumer still running
 added in 0.4.0, which names the version and what to do. That is a consumer
 upgrade, not a fork migration, and it is unavoidable in any spec bump.
 
-Conclusion: `@v1` can move once the 0.4.0 packages are published. Do it after
-`publish.yml`, not before — a fork's CI builds ote-tools from source at the
-tagged commit, so it does not strictly need the registry, but the two should
-not disagree about what version is current.
+Conclusion **for the spec delta**: 0.4.0 gives no reason to hold `@v1` back.
 
-### 3. Housekeeping in Cloudflare
+**But `@v1` was not moved, and the reason is not the spec.** The tag still
+points at `305eda2` (2026-07-16) — **164 commits behind `main`**. A fork's CI
+builds ote-tools from source at the tagged commit, so moving the tag today
+does not hand forks "the 0.4.0 change": it hands them six weeks of everything,
+build-feed's config surface and CLI included. The analysis above covers
+v0.3 → v0.4 and nothing else. Someone has to diff `305eda2..main` for the
+fork-visible surface — `packages/build-feed`, `validate.yml`, `build-pages.yml`
+— or, better, test the move against a scratch fork pointing `uses:` at `main`
+first, the way `CONTRIBUTING.md` already prescribes for workflow changes.
+Until one of those happens the tag stays where it is.
+
+### 3. `@opentechevents/export-jsonld` has never been published
+
+Its `CHANGELOG.md` claims a `0.3.0` "initial package release" that never
+reached the registry: `https://registry.npmjs.org/@opentechevents/export-jsonld`
+is a 404. The 0.4.0 release run published the other six packages and failed on
+this one with `Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE … 404`, then
+`E404 … PUT` — which is exactly the case `publish.yml`'s own header describes:
+npm will not accept a trusted publisher for a package that does not exist yet.
+
+Unblock it by hand, once:
+
+```sh
+npm login
+pnpm --filter @opentechevents/export-jsonld publish --access public --no-git-checks
+```
+
+then add this repo + `publish.yml` as its trusted publisher in the package's
+npm settings, and re-run `publish.yml` — it is idempotent, so the six already
+at 0.4.0 are skipped. Until then `@opentechevents/export-jsonld` is
+workspace-only, and the README lists a package nobody can install.
+
+### 4. Housekeeping in Cloudflare
 
 - **Dangling DNS record `fetch.opentechevents.org`** — still in the zone,
   pointing at Cloudflare with nothing behind it. The deploy token has no DNS
@@ -92,7 +121,7 @@ not disagree about what version is current.
   — only serves local `pnpm dev` now that production is same-origin. Remove it
   if that is not worth the exposure.
 
-### 4. UI polish nobody has judged yet
+### 5. UI polish nobody has judged yet
 
 The redesign follows opentechevents.org's language (tokens, header, buttons,
 cards, dark code blocks, footer — the rule is in `CLAUDE.md`).
