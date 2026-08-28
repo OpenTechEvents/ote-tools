@@ -1,14 +1,15 @@
 # Handoff — the OTE validator, and what is left around it
 
 Working notes for picking this up in a fresh session. Not part of the
-published docs: delete it once the pending list is empty.
+published docs. It used to carry the pending list too; that list is now issues
+(see below), so what is left here is the knowledge that would be lost if the
+file went away — traps, machine quirks, commands, test subjects.
 
 ## Where things stand
 
-Issue #60 is **done and live**, and so are the two items that used to head the
-pending list: the `'unsafe-eval'` debt and the README badge (`/badge?doc=…` on
-the Worker — see `workers/validator/README.md`). `main` is green and deployed;
-no open PRs.
+Issue #60 is **done and live**, along with the `'unsafe-eval'` debt and the
+README badge (`/badge?doc=…` on the Worker — see
+`workers/validator/README.md`). `main` is green and deployed; no open PRs.
 
 **The repo implements OTE Spec 0.4.0.** All seven published packages are on npm
 at `0.4.0`, the validator is deployed and reports it, and the migration that
@@ -32,108 +33,42 @@ proxying them breaks Pages' certificate issuance.
 Read before touching any of it: `apps/validator/README.md`,
 `workers/validator/README.md`, and the validator bullet in `CLAUDE.md`.
 
-## Pending, most valuable first
+## What is still open — all of it is an issue now
 
-### 1. Discovery mechanisms still open in the spec
+Nothing in this file is a to-do list any more. The three things that were
+pending have been filed, with their reasoning, so they can be picked up one at
+a time by whoever gets there:
 
-`/.well-known/ote-feed` and `<script type="application/ote+json">` are
-implemented in `packages/discover-feed` behind the `wellKnown` / `embedded`
-options, off by default, and the UI does not expose them. Turn them on when the
-spec settles them — including `application/ote+json` vs.
-`application/feed+json`, at which point the lax media-type matching can become
-a definite answer plus a warning for the loser.
+- **[ote-tools#66](https://github.com/OpenTechEvents/ote-tools/issues/66) — move
+  the `@v1` tag.** It still points at `305eda2` (2026-07-16), 164 commits back,
+  so every organizer fork runs July's tools rather than the 0.4.0 ones. The
+  spec side is already answered in the issue (0.4.0 only relaxes, and forks
+  never write `specVersion` — `buildFeed()` generates it). What blocks the move
+  is the rest of those six weeks: the fork-visible surface has to be diffed, or
+  a scratch fork pointed at `@main`, before the tag deploys it to everyone.
+- **[spec#33](https://github.com/OpenTechEvents/opentechevents-spec/issues/33) —
+  settle discovery.** `/.well-known/ote-feed`, the embedded
+  `<script type="application/ote+json">`, and `ote+json` vs. `feed+json`. Both
+  mechanisms are implemented in `packages/discover-feed` behind options that
+  default to off, and the media-type match is deliberately lax, until the spec
+  decides. This used to be tracked against spec#6, which is the umbrella Feed
+  Schema issue and was never about discovery — so nothing was tracking it.
+- **[ote-tools#67](https://github.com/OpenTechEvents/ote-tools/issues/67) —
+  `localhost` in the validator's `ALLOWED_ORIGINS`.** Production is same-origin
+  now, so the entries only let `pnpm dev` borrow the deployed fetcher, at the
+  cost of letting any localhost page drive a public outbound-request endpoint.
 
-This item used to point at
-[opentechevents-spec#6](https://github.com/OpenTechEvents/opentechevents-spec/issues/6);
-that is the umbrella "define the Feed Schema" issue, not a discovery one, and
-there is no discovery-specific issue open upstream. Someone has to file it
-before this can be tracked properly.
+Closed since the last pass: the `'unsafe-eval'` debt, the README badge, the
+dangling `fetch.opentechevents.org` DNS record, `export-jsonld`'s trusted
+publisher, and spec#31 / spec#32 — both of which shipped in OTE Spec 0.4.0.
 
-The two questions a real 475-event feed raised — image URLs https-only as a
-MUST ([spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)),
-and `format: uri` rejecting `…/pycamp-españa`
-([spec#32](https://github.com/OpenTechEvents/opentechevents-spec/issues/32)) —
-**both landed in OTE Spec 0.4.0**, are implemented here as of
-`@opentechevents/validate` 0.4.0, and both issues are now closed upstream.
-Nothing pending on either.
+The validator UI has also been judged and needs nothing: at 375px in a real
+browser there is no horizontal overflow, the candidate picker holds up with
+five feeds and long titles, and the source panel already scrolls inside
+`max-height: 32rem`.
 
-### 2. Moving the `@v1` tag — the spec is not what blocks it
-
-The 0.4.0 migration asked whether forks on
-`uses: OpenTechEvents/ote-tools/.github/workflows/validate.yml@v1` start
-failing CI the moment the tag moves. **They do not.** Checked, not assumed:
-
-- **Forks never declare `specVersion`.** `buildFeed()` writes
-  `specVersion: SPEC_VERSION` into the assembled feed itself
-  (`packages/build-feed/src/index.ts`), taking it from
-  `@opentechevents/validate`. It is not a field of `ote.config.json`
-  (`FEED_CONFIG_FIELDS`) and events inherit it rather than carrying it. So the
-  one rule that got *stricter* in 0.4.0 — the `const "0.4.0"` — is applied to a
-  value the tools generate, never to one an organizer wrote. No `ote migrate`
-  step is needed, and there is nothing for organizers to edit.
-- **Every other change is a relaxation.** Diffing the spec's `v0.3` and `v0.4`
-  event schemas: `format: uri` → `iri` on every URL field, image
-  `^https://` → `^https?://` on both image shapes, and the `specVersion`
-  `const`. Nothing else — **no enum member was removed anywhere**, so no
-  license id that validated under 0.3 stops validating. A fork that was green
-  stays green; a fork that was red over an `ñ` in a URL or an `http://` poster
-  turns green.
-
-What *does* change for forks is their **output**: the `feed.json` they publish
-now says `"specVersion": "0.4.0"`. Any consumer still running
-`@opentechevents/validate` 0.3.x will reject it — with the upgrade message
-added in 0.4.0, which names the version and what to do. That is a consumer
-upgrade, not a fork migration, and it is unavoidable in any spec bump.
-
-Conclusion **for the spec delta**: 0.4.0 gives no reason to hold `@v1` back.
-
-**But `@v1` was not moved, and the reason is not the spec.** The tag still
-points at `305eda2` (2026-07-16) — **164 commits behind `main`**. A fork's CI
-builds ote-tools from source at the tagged commit, so moving the tag today
-does not hand forks "the 0.4.0 change": it hands them six weeks of everything,
-build-feed's config surface and CLI included. The analysis above covers
-v0.3 → v0.4 and nothing else. Someone has to diff `305eda2..main` for the
-fork-visible surface — `packages/build-feed`, `validate.yml`, `build-pages.yml`
-— or, better, test the move against a scratch fork pointing `uses:` at `main`
-first, the way `CONTRIBUTING.md` already prescribes for workflow changes.
-Until one of those happens the tag stays where it is.
-
-### 3. `localhost:8000` in `ALLOWED_ORIGINS`
-
-`workers/validator/wrangler.jsonc` still allows
-`http://localhost:8000,http://127.0.0.1:8000` to call the production `/fetch`
-endpoint cross-origin. Production is same-origin now, so those two entries buy
-exactly one thing: `pnpm dev` on port 8000 can use the deployed fetcher instead
-of running a local one. What they cost is that any page served from anyone's
-localhost can drive a public endpoint that makes outbound requests on their
-behalf — bounded by the per-IP rate limit binding, not by anything else. A
-judgement call nobody has made; `https://tools.opentechevents.org` in the same
-list is worth re-checking at the same time, since that hostname only redirects
-to the canonical one now.
-
-**Done and off this list:** the dangling `fetch.opentechevents.org` DNS record
-(deleted — `dig` returns `NXDOMAIN`), and `@opentechevents/export-jsonld`'s
-trusted publisher, which now covers the one package that had to be published by
-hand at 0.4.0 because npm cannot attach a trusted publisher to a package that
-does not exist yet. That package still carries no provenance attestation for
-0.4.0; the first release run that publishes it through `publish.yml` fixes it.
-
-### 4. UI polish nobody has judged yet
-
-The redesign follows opentechevents.org's language (tokens, header, buttons,
-cards, dark code blocks, footer — the rule is in `CLAUDE.md`).
-
-The three questions this list used to carry have now been looked at, at 375px
-in a real browser, and none of them needs work: the layout wraps without any
-horizontal overflow (tabs, buttons under their inputs, two-column results
-collapsed to one), the candidate picker stays readable with five feeds and
-long titles, and the source viewer already collapses long documents —
-`.source` is `max-height: 32rem; overflow: auto`.
-
-What is left is genuinely a matter of taste, on a real device rather than an
-emulated viewport: whether the source panel deserves more room on a phone, and
-whether the permalink/badge inputs should show their tail rather than their
-head when the text does not fit.
+What stays below is the part that does not belong in an issue tracker: the
+traps, the machine's quirks, and the commands.
 
 ## Traps that cost time — do not rediscover them
 
