@@ -5,7 +5,35 @@ without corruption, and comes back unchanged through the importers.
 
 **Depends on:** session 2 (fixtures and messages settled).
 
-**Status:** not started.
+**Status:** done (2026-08-28). All nine packages green; the only failure left in
+`pnpm -r --no-bail test` is `workers/validator`'s `test/badge.test.ts` (4 tests),
+session 4's territory as recorded in session 2.
+
+What the session actually found:
+
+- **ICS folding was already octet-aware** and needed no fix — `fold()` measures
+  each character with `TextEncoder`. The new fixture proves it: a
+  character-counting fold would have emitted a 78-octet `URL:` line.
+- **No exporter percent-encodes an id.** ICS `UID`/`URL`/`RELATED-TO`/`X-OTE-*`,
+  RSS `<link>`/`<guid>`/`<media:content>`, and JSON-LD `@id`/`url`/`image`/
+  `superEvent` all carry the literal `ñ`.
+- **One place does encode, and it is not an id:** on an ICS → OTE → ICS round
+  trip, `X-ALT-DESC` hrefs come back percent-encoded. The importer turns the
+  exported HTML links into Markdown, and `marked` encodes an href when it
+  re-renders them. That is a rendered link inside prose — the link text beside
+  it still reads as published — so it is documented in the round-trip test
+  rather than "fixed" by patching marked's URL handling.
+- **`feed-urls` and `discover-feed` normalise through `new URL().toString()`**,
+  which percent-encodes the path and punycodes the host. Correct there: those
+  are transport URLs (where to `fetch()` a fork's files), and fetch would do it
+  anyway. Pinned by a test in `feed-urls` with the reason, so nobody later
+  copies that call into id handling.
+- **`pnpm lint` was red on `main`** before this session: session 1's vendored
+  `isIri` matches control characters literally (`\x00`) and trips
+  `no-control-regex`. Turned off for `**/*.generated.ts` in `eslint.config.js`,
+  next to the existing `ban-ts-comment` exception.
+- `build-feed` needed no edit: `SPEC_VERSION` follows the pin and its test
+  asserts against the constant.
 
 Packages in scope: `export-ics`, `export-rss`, `export-jsonld`, `import-ics`,
 `import-jsonld`, `build-feed`, `discover-feed`, `preview-feed`, `feed-urls`.
@@ -56,9 +84,9 @@ publisher minted, which breaks exactly the update-instead-of-duplicate promise
 
 ## Done when
 
-- [ ] Each exporter has a non-ASCII-IRI fixture with a reviewed snapshot.
-- [ ] ICS line folding verified against a multi-byte URL (octets, not chars).
-- [ ] ICS → OTE → ICS and JSON-LD → OTE → JSON-LD round trips preserve the
+- [x] Each exporter has a non-ASCII-IRI fixture with a reviewed snapshot.
+- [x] ICS line folding verified against a multi-byte URL (octets, not chars).
+- [x] ICS → OTE → ICS and JSON-LD → OTE → JSON-LD round trips preserve the
       address byte for byte.
-- [ ] No exporter percent-encodes an address the publisher wrote literally.
-- [ ] `pnpm test` green across all nine packages.
+- [x] No exporter percent-encodes an address the publisher wrote literally.
+- [x] `pnpm test` green across all nine packages.

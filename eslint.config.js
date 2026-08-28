@@ -56,6 +56,9 @@ export default tseslint.config(
     files: ["**/*.generated.ts"],
     rules: {
       "@typescript-eslint/ban-ts-comment": "off",
+      // 0.4.0's vendored `iri` format rejects control characters by matching
+      // them literally (`\x00`). Deliberate, and not ours to rewrite.
+      "no-control-regex": "off",
     },
   },
   {

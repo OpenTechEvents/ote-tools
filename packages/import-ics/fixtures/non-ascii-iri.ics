@@ -1,0 +1,42 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OpenTechEvents//ote-tools export-ics//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:OTE Export Fixtures
+X-WR-CALDESC:Feed covering online\, in-person\, hybrid\, multi-day and canc
+ elled events.
+BEGIN:VEVENT
+UID:https://eventos.example/comunidad-española/2026/pycamp-españa-edició
+ n-de-otoño
+DTSTAMP:20260706T100000Z
+SUMMARY;LANGUAGE=es:PyCamp España — edición de otoño
+DTSTART;VALUE=DATE:20261106
+DTEND;VALUE=DATE:20261109
+DESCRIPTION;LANGUAGE=es:Encuentro de la comunidad Python. La dirección con
+ serva la ñ del slug: 0.4.0 permite IRIs\, y ningún conector debe reescri
+ birla.\n\nCall for proposals: https://eventos.example/comunidad-española/
+ 2026/cfp-otoño\n\nTickets:\nEntrada — Free — https://eventos.example/
+ comunidad-española/2026/entradas-otoño
+X-ALT-DESC;FMTTYPE=text/html;LANGUAGE=es:<p>Encuentro de la comunidad Pytho
+ n. La dirección conserva la ñ del slug: 0.4.0 permite IRIs\, y ningún c
+ onector debe reescribirla.</p>\n\n<p>Call for proposals: <a href="https://
+ eventos.example/comunidad-española/2026/cfp-otoño">https://eventos.examp
+ le/comunidad-española/2026/cfp-otoño</a></p>\n<p>Tickets:<br/>Entrada 
+ — Free — https://eventos.example/comunidad-española/2026/entradas-oto
+ ño</p>
+LOCATION:Albergue de Cercedilla\, Madrid
+URL:https://eventos.example/comunidad-española/2026/pycamp-españa-edició
+ n-de-otoño
+CATEGORIES:python
+IMAGE;VALUE=URI;DISPLAY=BADGE:http://eventos.example/img/pycamp-españa.png
+RELATED-TO;RELTYPE=PARENT:https://eventos.example/comunidad-española/pycam
+ p-españa
+X-OTE-CFP-URL:https://eventos.example/comunidad-española/2026/cfp-otoño
+X-OTE-OFFER-URL:https://eventos.example/comunidad-española/2026/entradas-o
+ toño
+X-OTE-OFFER-PRICE:0
+X-OTE-OFFER-CURRENCY:EUR
+LAST-MODIFIED:20260701T090000Z
+END:VEVENT
+END:VCALENDAR

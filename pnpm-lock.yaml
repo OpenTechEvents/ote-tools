@@ -237,6 +237,9 @@ importers:
         specifier: ^18.0.11
         version: 18.0.11
     devDependencies:
+      '@opentechevents/import-ics':
+        specifier: workspace:*
+        version: link:../import-ics
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -256,6 +259,9 @@ importers:
         specifier: ^18.0.11
         version: 18.0.11
     devDependencies:
+      '@opentechevents/import-jsonld':
+        specifier: workspace:*
+        version: link:../import-jsonld
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1

@@ -46,7 +46,7 @@ describe("rssToPreview", () => {
 
   it("keeps Markdown list/heading content from the description, not just <p> blocks", () => {
     const rss = feedToRss({
-      specVersion: "0.3.0",
+      specVersion: "0.4.0",
       title: "Markdown fixture",
       updatedAt: "2026-01-01T00:00:00Z",
       events: [
@@ -62,6 +62,27 @@ describe("rssToPreview", () => {
     const [event] = rssToPreview(rss).events;
     expect(event!.description).toContain("First item");
     expect(event!.description).toContain("Second item");
+  });
+
+  it("round trips a non-ASCII IRI through RSS: link and guid come back as published", () => {
+    const id = "https://eventos.example/comunidad-española/2026/pycamp-españa";
+    const rss = feedToRss({
+      specVersion: "0.4.0",
+      title: "IRI fixture",
+      updatedAt: "2026-01-01T00:00:00Z",
+      events: [
+        {
+          id,
+          url: id,
+          name: "PyCamp España",
+          startDate: "2026-01-10T18:00",
+          timezone: "Europe/Madrid",
+        },
+      ],
+    });
+    const [event] = rssToPreview(rss).events;
+    expect(event!.link).toBe(id);
+    expect(event!.details).toContainEqual({ label: "GUID", value: id });
   });
 
   it("falls back to online when the item has no recovered location", () => {

@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { icsToEvents } from "@opentechevents/import-ics";
 import { validateFeed } from "@opentechevents/validate";
 import { describe, expect, it } from "vitest";
 
 import { feedToIcs, type OteFeed } from "../src/index.js";
+
+/** The 0.4.0 IRI case: an address the publisher minted with a literal `ñ`. */
+const NON_ASCII_ID =
+  "https://eventos.example/comunidad-española/2026/pycamp-españa-edición-de-otoño";
 
 const fixturePath = fileURLToPath(
   new URL("../fixtures/feed.json", import.meta.url),
@@ -197,5 +202,71 @@ describe("feedToIcs", () => {
     expect(unfolded).toContain(
       "Talks on WASM and Rust tooling\\, with a deliberately long description to force iCalendar line folding in the exported output.",
     );
+  });
+
+  it("emits a non-ASCII IRI as the publisher wrote it, in every property that carries an address", () => {
+    const vevent = veventFor(NON_ASCII_ID);
+    expect(vevent).toContain(`URL:${NON_ASCII_ID}`);
+    expect(vevent).toContain(
+      "RELATED-TO;RELTYPE=PARENT:https://eventos.example/comunidad-española/pycamp-españa",
+    );
+    expect(vevent).toContain(
+      "X-OTE-CFP-URL:https://eventos.example/comunidad-española/2026/cfp-otoño",
+    );
+    expect(vevent).toContain(
+      "X-OTE-OFFER-URL:https://eventos.example/comunidad-española/2026/entradas-otoño",
+    );
+    expect(vevent).toContain(
+      "IMAGE;VALUE=URI;DISPLAY=BADGE:http://eventos.example/img/pycamp-españa.png",
+    );
+    // Percent-encoding here would mint a second spelling of the id the
+    // publisher minted, and break update-instead-of-duplicate.
+    expect(ics).not.toContain("%C3%B1");
+  });
+
+  it("folds a multi-byte URL by octets, not by characters", () => {
+    const encoder = new TextEncoder();
+    const lines = ics.split("\r\n");
+    const start = lines.findIndex((line) => line.startsWith(`URL:${NON_ASCII_ID.slice(0, 40)}`));
+    expect(start).toBeGreaterThan(-1);
+    const folded = [lines[start]!];
+    for (let i = start + 1; i < lines.length && lines[i]!.startsWith(" "); i++) {
+      folded.push(lines[i]!);
+    }
+    // It really did fold, and counting characters instead of octets would
+    // have put 78 octets on the first line.
+    expect(folded.length).toBeGreaterThan(1);
+    for (const line of folded) {
+      expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
+    }
+    // No fold landed inside a UTF-8 sequence: unfolding gives the address back.
+    expect(folded.map((line, i) => (i === 0 ? line : line.slice(1))).join("")).toBe(
+      `URL:${NON_ASCII_ID}`,
+    );
+  });
+
+  it("round trips a non-ASCII address through import-ics and back, byte for byte", () => {
+    const imported = icsToEvents(ics).events.find((event) => event.url === NON_ASCII_ID);
+    expect(imported).toBeDefined();
+    // An ICS UID is not an OTE id, so the importer never mints one; the
+    // address the round trip has to preserve is `url`.
+    expect(imported!.url).toBe(NON_ASCII_ID);
+
+    const reexported = feedToIcs({
+      ...feed,
+      events: [{ ...imported!, id: NON_ASCII_ID } as OteFeed["events"][number]],
+    });
+    const reunfolded = reexported.replace(/\r\n[ \t]/g, "");
+    expect(reunfolded).toContain(`UID:${NON_ASCII_ID}`);
+    expect(reunfolded).toContain(`URL:${NON_ASCII_ID}`);
+    // Percent-encoding survives nowhere an address is *identified*. It does
+    // appear in X-ALT-DESC hrefs: the importer turns the exported HTML links
+    // back into Markdown, and marked encodes an href when it re-renders them.
+    // That is a rendered link inside prose, not an id, and the link text next
+    // to it still reads as published.
+    for (const line of reunfolded.split("\r\n")) {
+      if (line.startsWith("X-ALT-DESC")) continue;
+      expect(line).not.toContain("%C3%B1");
+    }
   });
 });

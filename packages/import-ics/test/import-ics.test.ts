@@ -312,3 +312,21 @@ describe("icsToEvents · contract", () => {
     expect(result.warnings[0].message).toContain("no events");
   });
 });
+
+describe("icsToEvents · non-ASCII IRI", () => {
+  // The fixture is export-ics output: its URL and LOCATION lines are folded
+  // in the middle of a word, and one fold lands next to a multi-byte `ñ`.
+  const { events } = icsToEvents(fixture("non-ascii-iri.ics"));
+
+  it("unfolds a multi-byte address back to exactly what was published", () => {
+    expect(events).toHaveLength(1);
+    expect(events[0].url).toBe(
+      "https://eventos.example/comunidad-española/2026/pycamp-españa-edición-de-otoño",
+    );
+  });
+
+  it("keeps the characters as characters — no percent-encoding on the way in", () => {
+    expect(JSON.stringify(events[0])).not.toContain("%C3%B1");
+    expect(events[0].name).toBe("PyCamp España — edición de otoño");
+  });
+});

@@ -48,7 +48,7 @@ describe("ote-export-jsonld CLI", () => {
     const out = join(mkdtempSync(join(tmpdir(), "ote-export-jsonld-")), "events.html");
     expect(runCli([fixture, out], io)).toBe(0);
     expect(readFileSync(out, "utf8")).toContain('<script type="application/ld+json">');
-    expect(io.outLines[0]).toContain("7 events");
+    expect(io.outLines[0]).toContain("8 events");
   });
 
   it("invalid feed → exit 1 with validation errors", () => {

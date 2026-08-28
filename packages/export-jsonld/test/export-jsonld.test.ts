@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { htmlToEvents } from "@opentechevents/import-jsonld";
 import { validateFeed } from "@opentechevents/validate";
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +17,10 @@ import {
   type OteEvent,
   type OteFeed,
 } from "../src/index.js";
+
+/** The 0.4.0 IRI case: an address the publisher minted with a literal `ñ`. */
+const NON_ASCII_ID =
+  "https://eventos.example/comunidad-española/2026/pycamp-españa-edición-de-otoño";
 
 const fixturePath = fileURLToPath(new URL("../fixtures/feed.json", import.meta.url));
 const feed = JSON.parse(readFileSync(fixturePath, "utf8")) as OteFeed;
@@ -230,6 +235,26 @@ describe("eventToJsonLd", () => {
     const event = eventFor("https://mdtest.example/2026-11");
     const raw = eventToJsonLd(event, { plainTextDescription: false });
     expect(raw.description).toBe(event.description);
+  });
+
+  it("carries a non-ASCII IRI into @id, url, image and superEvent unchanged", () => {
+    const iri = node(NON_ASCII_ID);
+    expect(iri["@id"]).toBe(NON_ASCII_ID);
+    expect(iri.url).toBe(NON_ASCII_ID);
+    expect(iri.image).toEqual(["http://eventos.example/img/pycamp-españa.png"]);
+    expect((iri.superEvent as JsonLdNode)["@id"]).toBe(
+      "https://eventos.example/comunidad-española/pycamp-españa",
+    );
+    // JSON carries the characters directly; percent-encoding one here would
+    // mint a second spelling of the publisher's id.
+    expect(JSON.stringify(iri)).not.toContain("%C3%B1");
+  });
+
+  it("round trips a non-ASCII address through a script block and import-jsonld", () => {
+    const script = toJsonLdScript(node(NON_ASCII_ID));
+    const { events } = htmlToEvents(`<!doctype html><html><head>${script}</head><body></body></html>`);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.url).toBe(NON_ASCII_ID);
   });
 });
 

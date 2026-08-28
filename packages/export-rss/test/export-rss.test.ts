@@ -6,6 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { feedToRss, type OteFeed } from "../src/index.js";
 
+/** The 0.4.0 IRI case: an address the publisher minted with a literal `ñ`. */
+const NON_ASCII_ID =
+  "https://eventos.example/comunidad-española/2026/pycamp-españa-edición-de-otoño";
+
 const fixturePath = fileURLToPath(
   new URL("../fixtures/feed.json", import.meta.url),
 );
@@ -177,6 +181,20 @@ describe("feedToRss", () => {
     expect(rss).not.toContain("<language>"); // fixture feed has no textLanguage set
     const withLanguage = feedToRss({ ...feed, textLanguage: "es" });
     expect(withLanguage).toContain("<language>es</language>");
+  });
+
+  it("emits a non-ASCII IRI literally in <link> and <guid>, on a UTF-8 document", () => {
+    const item = itemFor(NON_ASCII_ID);
+    expect(item).toContain(`<link>${NON_ASCII_ID}</link>`);
+    expect(item).toContain(`<guid isPermaLink="false">${NON_ASCII_ID}</guid>`);
+    // The declaration is what makes the literal ñ well-formed here; RSS is
+    // never rewritten to percent-encoding, which would be a second spelling
+    // of the same id.
+    expect(rss.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n')).toBe(true);
+    expect(item).not.toContain("%C3%B1");
+    expect(item).toContain(
+      "<media:content url=\"http://eventos.example/img/pycamp-españa.png\"",
+    );
   });
 
   it("feed.license absent (D029): <copyright> is omitted, not guessed", () => {

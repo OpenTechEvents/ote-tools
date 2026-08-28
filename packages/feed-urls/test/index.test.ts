@@ -12,6 +12,20 @@ describe("httpUrl", () => {
     expect(httpUrl(undefined)).toBeNull();
     expect(httpUrl("")).toBeNull();
   });
+
+  it("normalises a non-ASCII feed URL to its wire form, host included", () => {
+    // These are transport URLs — where to `fetch()` a fork's files — never
+    // event ids, so `new URL().toString()` percent-encoding the path (and
+    // punycoding the host) is the form the network wants, and is exactly what
+    // fetch would do with the literal anyway. An OTE `id` must never be put
+    // through this: there it would mint a second spelling of the same event.
+    expect(httpUrl("https://eventos.example/comunidad-española/feed.json")).toBe(
+      "https://eventos.example/comunidad-espa%C3%B1ola/feed.json",
+    );
+    expect(httpUrl("https://comunidád.example/feed.json")).toBe(
+      "https://xn--comunidd-fza.example/feed.json",
+    );
+  });
 });
 
 describe("pagesUrls", () => {

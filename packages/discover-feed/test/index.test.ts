@@ -130,13 +130,13 @@ describe("discoverFromHtml", () => {
   it("only reads embedded feeds when asked to", () => {
     const html = page("") .replace(
       "<p>hi</p>",
-      '<script type="application/ote+json">{"specVersion":"0.3.0"}</script>',
+      '<script type="application/ote+json">{"specVersion":"0.4.0"}</script>',
     );
     expect(discoverFromHtml(html, "https://comunidad.example/")).toEqual([]);
     const [candidate] = discoverFromHtml(html, "https://comunidad.example/", { embedded: true });
     expect(candidate).toMatchObject({
       source: "embedded",
-      inlineDocument: '{"specVersion":"0.3.0"}',
+      inlineDocument: '{"specVersion":"0.4.0"}',
     });
   });
 });
@@ -149,7 +149,7 @@ describe("parseEmbeddedFeeds", () => {
 });
 
 describe("discover", () => {
-  const json = '{"specVersion":"0.3.0","events":[]}';
+  const json = '{"specVersion":"0.4.0","events":[]}';
 
   it("treats a JSON response as the document", () => {
     const result = discover({
@@ -236,11 +236,18 @@ describe("wellKnownFeedUrl", () => {
 });
 
 describe("detectDocumentKind", () => {
-  it("reads the document's shape, since v0.3 has no discriminator", () => {
-    expect(detectDocumentKind({ specVersion: "0.3.0", events: [] })).toBe("feed");
+  it("reads the document's shape, since the format has no discriminator", () => {
+    expect(detectDocumentKind({ specVersion: "0.4.0", events: [] })).toBe("feed");
     expect(detectDocumentKind({ name: "Meetup", startDate: "2026-06-11T18:30" })).toBe("event");
     expect(detectDocumentKind({ title: "Feed", updatedAt: "2026-07-06T10:00:00Z" })).toBe("feed");
     expect(detectDocumentKind([])).toBe("unknown");
-    expect(detectDocumentKind({ specVersion: "0.3.0" })).toBe("unknown");
+    expect(detectDocumentKind({ specVersion: "0.4.0" })).toBe("unknown");
+  });
+
+  it("still recognises a feed that declares an older spec version", () => {
+    // Discovery precedes validation: a document is found, then judged. Most
+    // live feeds will say 0.3.0 for months after 0.4.0 ships, and refusing to
+    // recognise them here would hide them instead of reporting the version.
+    expect(detectDocumentKind({ specVersion: "0.3.0", events: [] })).toBe("feed");
   });
 });
