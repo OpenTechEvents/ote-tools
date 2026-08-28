@@ -17,10 +17,22 @@ import {
   type PreviewFeed,
 } from "@opentechevents/preview-feed";
 
+import {
+  CANONICAL_FILENAME,
+  formatFromBody,
+  formatFromMediaType,
+  formatFromPath,
+  parseSource,
+  siblingUrl,
+  sourceQuery,
+  type FileKey,
+} from "./lib/source.js";
+
 interface FileState {
   label: string;
   filename: string;
-  status: "loading" | "ready" | "missing" | "error";
+  /** `unavailable` = this format was never published here, as far as we know. */
+  status: "loading" | "ready" | "missing" | "error" | "unavailable";
   directUrl?: string;
   url?: string;
   source?: string;
@@ -28,15 +40,16 @@ interface FileState {
   error?: string;
 }
 
-const REPO_RE =
-  /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
-
-type FileKey = "json" | "ics" | "rss";
-
 const files: Record<FileKey, FileState> = {
-  json: { label: "Feed (JSON)", filename: "feed.json", status: "loading" },
-  ics: { label: "Calendar (ICS)", filename: "feed.ics", status: "loading" },
-  rss: { label: "RSS (XML)", filename: "feed.xml", status: "loading" },
+  json: { label: "Feed (JSON)", filename: CANONICAL_FILENAME.json, status: "loading" },
+  ics: { label: "Calendar (ICS)", filename: CANONICAL_FILENAME.ics, status: "loading" },
+  rss: { label: "RSS (XML)", filename: CANONICAL_FILENAME.rss, status: "loading" },
+};
+
+const PARSERS: Record<FileKey, (text: string) => PreviewFeed> = {
+  json: jsonToPreviewFeed,
+  ics: icsToPreviewFeed,
+  rss: rssToPreview,
 };
 
 const repoBanner = document.querySelector<HTMLParagraphElement>("#repo-banner")!;
@@ -55,27 +68,6 @@ function clearCalendars(): void {
   calendars.length = 0;
 }
 
-function parseRepoParam(search: string): string | null {
-  const repo = new URLSearchParams(search).get("repo")?.trim();
-  return repo && REPO_RE.test(repo) ? repo : null;
-}
-
-function parseFeedParam(search: string): { url: URL; tab: FileKey } | null {
-  const raw = new URLSearchParams(search).get("feed")?.trim();
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    const filename = url.pathname.split("/").at(-1);
-    if (filename === "feed.json") return { url, tab: "json" };
-    if (filename === "feed.ics") return { url, tab: "ics" };
-    if (filename === "feed.xml") return { url, tab: "rss" };
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Every place this file might be, in order. More than the obvious Pages URL
  * because a fork on a custom domain answers that one with a CORS-less
@@ -86,12 +78,6 @@ function fileUrls(repo: string, filename: string): string[] {
     referrer: document.referrer,
     origin: window.location.origin,
   });
-}
-
-function siblingFeedUrl(feedUrl: URL, filename: string): string {
-  const url = new URL(feedUrl);
-  url.pathname = url.pathname.replace(/[^/]*$/, filename);
-  return url.toString();
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -105,13 +91,28 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-async function fetchText(url: string): Promise<{ ok: true; text: string } | { ok: false; status: number }> {
+async function fetchText(
+  url: string,
+): Promise<{ ok: true; text: string; contentType: string | null } | { ok: false; status: number }> {
   const cacheBusted = new URL(url);
   cacheBusted.searchParams.set("_", String(Date.now()));
   const response = await fetch(cacheBusted);
   if (!response.ok) return { ok: false, status: response.status };
-  return { ok: true, text: await response.text() };
+  return {
+    ok: true,
+    text: await response.text(),
+    contentType: response.headers.get("content-type"),
+  };
 }
+
+/**
+ * What a 404 means depends on how we got here. In a fork, a missing export is
+ * a workflow that has not run — the organizer's own problem to go fix. At a
+ * feed URL somebody else published, the same 404 usually means only that they
+ * do not publish that format under the name the template uses, which is not a
+ * fault at all and must not be reported as one.
+ */
+let missingMeans: "workflow" | "not-published" = "workflow";
 
 async function loadFile(
   repo: string | null,
@@ -135,7 +136,10 @@ async function loadFile(
     Object.assign(state, {
       status: "error",
       url: finalUrl,
-      error: "Could not fetch this file from GitHub Pages or the default branch.",
+      error:
+        missingMeans === "workflow"
+          ? "Could not fetch this file from GitHub Pages or the default branch."
+          : "Could not fetch this file. The server may not allow requests from other origins (CORS).",
     });
   } else if (!result.ok) {
     Object.assign(state, {
@@ -143,7 +147,9 @@ async function loadFile(
       url: finalUrl,
       error:
         result.status === 404
-          ? "This file has not been generated yet. Check that the export workflow ran successfully."
+          ? missingMeans === "workflow"
+            ? "This file has not been generated yet. Check that the export workflow ran successfully."
+            : `No ${state.filename} is published next to this feed. That is not an error — the spec does not require this format, or it may be published under another name.`
           : `Fetch failed with HTTP ${result.status}.`,
     });
   } else {
@@ -165,6 +171,62 @@ async function loadFile(
     }
   }
   renderPanel(key);
+}
+
+/**
+ * Loads one URL whose format nobody declared, and works out what it is.
+ *
+ * In order: what `?format=` said, then the extension, then the media type the
+ * server sent, then the document's own first bytes. The last one is what makes
+ * a feed served as `text/plain` from a path with no extension work at all, and
+ * it is also the only one that cannot be wrong — so when detection and parsing
+ * disagree, the parse error is reported against the format we chose, with the
+ * source visible, rather than as "invalid feed".
+ */
+async function loadDetected(url: URL, requested: FileKey | undefined): Promise<FileKey> {
+  const result = await fetchText(url.toString()).catch(() => null);
+  const fallback = requested ?? formatFromPath(url.pathname) ?? "json";
+
+  if (result === null || !result.ok) {
+    const state = files[fallback];
+    Object.assign(state, {
+      status: "error",
+      url: url.toString(),
+      error:
+        result === null
+          ? "Could not fetch this URL. The server may not allow requests from other origins (CORS)."
+          : `Fetch failed with HTTP ${result.status}.`,
+    });
+    renderPanel(fallback);
+    return fallback;
+  }
+
+  const key =
+    requested ??
+    formatFromPath(url.pathname) ??
+    formatFromMediaType(result.contentType) ??
+    formatFromBody(result.text) ??
+    "json";
+
+  const state = files[key];
+  try {
+    Object.assign(state, {
+      status: "ready",
+      url: url.toString(),
+      source: result.text,
+      feed: PARSERS[key](result.text),
+      error: undefined,
+    });
+  } catch (error) {
+    Object.assign(state, {
+      status: "error",
+      url: url.toString(),
+      source: result.text,
+      error: `Read as ${state.label}: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+  renderPanel(key);
+  return key;
 }
 
 function renderSummary(parent: HTMLElement, feed: PreviewFeed): void {
@@ -382,7 +444,21 @@ function renderPanel(key: FileKey): void {
   if (key === "ics") clearCalendars();
   panel.replaceChildren();
   if (state.status === "loading") {
-    panel.append(el("p", `Loading ${state.filename}…`, "panel muted"));
+    // The animated ellipsis is not decoration: eventos.wiki's feed is 539 kB
+    // and 475 events, and a static "Loading" for that long reads as a page
+    // that has finished and found nothing.
+    const message = el("p", undefined, "panel muted loading");
+    message.append(
+      `Loading ${state.url ?? state.filename}`,
+      el("span", "…", "loading-dots"),
+    );
+    panel.append(message);
+    return;
+  }
+  if (state.status === "unavailable") {
+    const message = el("section", undefined, "panel");
+    message.append(el("h2", state.label), el("p", state.error, "muted"));
+    panel.append(message);
     return;
   }
   if (state.status === "missing") {
@@ -437,38 +513,148 @@ for (const tab of tabs) {
   });
 }
 
-const repo = parseRepoParam(location.search);
-const directFeed = parseFeedParam(location.search);
-if (directFeed) {
-  for (const key of Object.keys(files) as FileKey[]) {
-    files[key].directUrl = siblingFeedUrl(directFeed.url, files[key].filename);
+/* ------------------------------------------------------------------ *
+ * The form: what this page shows when it was given nothing to preview
+ * ------------------------------------------------------------------ */
+
+const sourcePanel = document.querySelector<HTMLElement>("#source-form-panel")!;
+const sourceForm = document.querySelector<HTMLFormElement>("#source-form")!;
+const sourceProblem = document.querySelector<HTMLElement>("#source-problem")!;
+const feedFields = document.querySelector<HTMLElement>("#feed-fields")!;
+const repoFields = document.querySelector<HTMLElement>("#repo-fields")!;
+const feedInput = document.querySelector<HTMLInputElement>("#feed-url")!;
+const formatSelect = document.querySelector<HTMLSelectElement>("#feed-format")!;
+const repoInput = document.querySelector<HTMLInputElement>("#repo-name")!;
+const changeSource = document.querySelector<HTMLElement>("#change-source")!;
+
+function selectedKind(): "feed" | "repo" {
+  const checked = sourceForm.querySelector<HTMLInputElement>('input[name="kind"]:checked');
+  return checked?.value === "repo" ? "repo" : "feed";
+}
+
+function syncFormKind(): void {
+  const kind = selectedKind();
+  feedFields.hidden = kind !== "feed";
+  repoFields.hidden = kind !== "repo";
+}
+
+for (const radio of sourceForm.querySelectorAll<HTMLInputElement>('input[name="kind"]')) {
+  radio.addEventListener("change", syncFormKind);
+}
+
+/**
+ * Submitting navigates rather than loading in place: the query string *is* the
+ * state of this page, so every preview stays a link somebody can paste into an
+ * issue — the same reason the validator builds a permalink.
+ */
+sourceForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query =
+    selectedKind() === "repo"
+      ? sourceQuery({ repo: repoInput.value.trim() })
+      : sourceQuery({
+          feed: feedInput.value.trim(),
+          format: formatSelect.value as FileKey | "",
+        });
+  window.location.search = query;
+});
+
+document.querySelector<HTMLButtonElement>("#change-source-button")!.addEventListener("click", () => {
+  sourcePanel.hidden = false;
+  sourcePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  feedInput.focus();
+});
+
+function showForm(problem?: string): void {
+  sourcePanel.hidden = false;
+  if (problem) {
+    sourceProblem.textContent = problem;
+    sourceProblem.hidden = false;
   }
-  repoBanner.textContent = directFeed.url.toString();
-  preview.hidden = false;
-  selectTab(directFeed.tab);
-  renderPanel("json");
-  renderPanel("ics");
-  renderPanel("rss");
-  void loadFile(null, "json", jsonToPreviewFeed);
-  void loadFile(null, "ics", icsToPreviewFeed);
-  void loadFile(null, "rss", rssToPreview);
-} else if (!repo) {
+  syncFormKind();
+}
+
+/* ------------------------------------------------------------------ *
+ * Boot
+ * ------------------------------------------------------------------ */
+
+const source = parseSource(location.search);
+
+if (source.kind === "none") {
   repoBanner.textContent = "No feed selected";
-  repoMessage.hidden = false;
-  repoMessage.append(
-    el("h2", "Repository or feed URL required"),
-    el(
-      "p",
-      "Expected URL format: /preview?repo=owner/name or /preview?feed=https%3A%2F%2Fexample.org%2Ffeed.json.",
-    ),
-  );
-} else {
-  repoBanner.textContent = repo;
+  repoMessage.hidden = true;
+  showForm(source.problem);
+} else if (source.kind === "feed") {
+  repoBanner.textContent = source.url.toString();
   preview.hidden = false;
+  changeSource.hidden = false;
+  missingMeans = "not-published";
+  feedInput.value = source.url.toString();
+  formatSelect.value = source.format ?? "";
+  syncFormKind();
+
+  if (source.siblings) {
+    // A file named the way the template names it: the other two exports are
+    // published next to it, so all three tabs are worth loading.
+    for (const key of Object.keys(files) as FileKey[]) {
+      files[key].directUrl = siblingUrl(source.url, files[key].filename);
+    }
+    const tab = source.format ?? formatFromPath(source.url.pathname) ?? "json";
+    selectTab(tab);
+    renderPanel("json");
+    renderPanel("ics");
+    renderPanel("rss");
+    void loadFile(null, "json", jsonToPreviewFeed);
+    void loadFile(null, "ics", icsToPreviewFeed);
+    void loadFile(null, "rss", rssToPreview);
+  } else {
+    // Any other address — `events.json`, `calendar/2026.ics`. Only this one
+    // document exists as far as we know: guessing two sibling names would fill
+    // two tabs with 404s that look like the publisher's fault.
+    //
+    // The tab this URL is *probably* going to fill says "loading" from the
+    // first frame, before anything has been fetched. Painting all three as
+    // unavailable and correcting one later means the destination tab spends
+    // the whole download telling the visitor there is nothing here — which,
+    // on a 539 kB feed, is most of the time they spend looking at it.
+    const guess = source.format ?? formatFromPath(source.url.pathname) ?? "json";
+    for (const key of Object.keys(files) as FileKey[]) {
+      if (key === guess) {
+        Object.assign(files[key], { status: "loading", url: source.url.toString() });
+      } else {
+        Object.assign(files[key], {
+          status: "unavailable",
+          error: `This URL points at a single document. ${files[key].label} would have to be published separately — preview it by its own URL.`,
+        });
+      }
+      renderPanel(key);
+    }
+    selectTab(guess);
+    void loadDetected(source.url, source.format).then((key) => {
+      // Detection can land elsewhere: a `.json` extension over an ICS body, or
+      // no extension at all. Hand the guessed tab back its placeholder.
+      if (key !== guess) {
+        Object.assign(files[guess], {
+          status: "unavailable",
+          url: undefined,
+          error: `This URL points at a single document. ${files[guess].label} would have to be published separately — preview it by its own URL.`,
+        });
+        renderPanel(guess);
+        selectTab(key);
+      }
+    });
+  }
+} else {
+  repoBanner.textContent = source.repo;
+  preview.hidden = false;
+  changeSource.hidden = false;
+  repoInput.value = source.repo;
+  sourceForm.querySelector<HTMLInputElement>('input[name="kind"][value="repo"]')!.checked = true;
+  syncFormKind();
   renderPanel("json");
   renderPanel("ics");
   renderPanel("rss");
-  void loadFile(repo, "json", jsonToPreviewFeed);
-  void loadFile(repo, "ics", icsToPreviewFeed);
-  void loadFile(repo, "rss", rssToPreview);
+  void loadFile(source.repo, "json", jsonToPreviewFeed);
+  void loadFile(source.repo, "ics", icsToPreviewFeed);
+  void loadFile(source.repo, "rss", rssToPreview);
 }

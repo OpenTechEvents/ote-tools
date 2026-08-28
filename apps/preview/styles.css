@@ -70,6 +70,126 @@ footer {
   padding: 1rem;
 }
 
+/* The "what do you want to preview?" form. */
+#source-form-panel h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.35rem;
+}
+
+#source-problem {
+  margin: 0 0 0.75rem;
+}
+
+.source-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  border: 0;
+}
+
+.source-kind legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.source-kind label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* `:not([hidden])` on purpose: a plain `display: grid` here would beat the UA
+   stylesheet's `[hidden] { display: none }` and both field groups would show. */
+.source-fields:not([hidden]) {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.source-fields label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.source-fields input,
+.source-fields select {
+  min-height: 2.35rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.source-fields input:focus-visible,
+.source-fields select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.field-note {
+  margin: 0.15rem 0 0;
+  font-size: 0.88rem;
+}
+
+#source-form button[type="submit"] {
+  min-height: 2.35rem;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#source-form button[type="submit"]:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+#change-source {
+  margin: 0.5rem 0 0;
+}
+
+/*
+ * The loading ellipsis. Three dots that appear one at a time, drawn by
+ * animating the width of a fixed "…" so the line never reflows.
+ */
+.loading {
+  overflow-wrap: anywhere;
+}
+
+.loading-dots {
+  display: inline-block;
+  width: 1.1em;
+  overflow: hidden;
+  vertical-align: bottom;
+  /* Starts at one dot, never at none: a frame with an empty span reads as a
+     line that finished loading and has nothing to say. */
+  animation: loading-dots 1.2s steps(3, end) infinite;
+}
+
+@keyframes loading-dots {
+  from {
+    width: 0.37em;
+  }
+  to {
+    width: 1.48em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-dots {
+    animation: none;
+    width: 1.1em;
+  }
+}
+
 .tabs {
   display: flex;
   gap: 0.4rem;

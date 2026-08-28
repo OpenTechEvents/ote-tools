@@ -10,9 +10,85 @@
     <header>
       <h1>OTE feed previewer</h1>
       <p id="repo-banner"></p>
+      <p id="change-source" hidden>
+        <button type="button" class="secondary" id="change-source-button">
+          Preview another feed
+        </button>
+      </p>
     </header>
 
     <section id="repo-message" class="panel" hidden></section>
+
+    <!--
+      Shown whenever there is nothing to preview: no parameters, or ones this
+      page could not read. A previewer that answers "URL required" and stops
+      leaves the visitor to guess the query string; this asks for the same two
+      things in the form of a question.
+    -->
+    <section id="source-form-panel" class="panel" hidden>
+      <h2>Preview a feed</h2>
+      <p id="source-problem" class="muted" hidden></p>
+      <form id="source-form">
+        <fieldset class="source-kind">
+          <legend>What are you previewing?</legend>
+          <label>
+            <input type="radio" name="kind" value="feed" checked />
+            A feed URL
+          </label>
+          <label>
+            <input type="radio" name="kind" value="repo" />
+            A GitHub repository
+          </label>
+        </fieldset>
+
+        <div id="feed-fields" class="source-fields">
+          <label for="feed-url">Feed URL</label>
+          <input
+            id="feed-url"
+            name="feed"
+            type="url"
+            inputmode="url"
+            placeholder="https://eventos.wiki/events.json"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <label for="feed-format">Format</label>
+          <select id="feed-format" name="format">
+            <option value="">Detect automatically</option>
+            <option value="json">Feed (JSON)</option>
+            <option value="ics">Calendar (ICS)</option>
+            <option value="rss">RSS (XML)</option>
+          </select>
+          <p class="muted field-note">
+            Any address works — the file does not have to be called
+            <code>feed.json</code>. Detection reads the extension, then the
+            media type, then the document itself.
+          </p>
+        </div>
+
+        <div id="repo-fields" class="source-fields" hidden>
+          <label for="repo-name">Repository</label>
+          <input
+            id="repo-name"
+            name="repo"
+            type="text"
+            placeholder="owner/name"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p class="muted field-note">
+            An organizer fork of the OTE template. Its three exports
+            (<code>feed.json</code>, <code>feed.ics</code>,
+            <code>feed.xml</code>) are looked up on GitHub Pages and on the
+            default branch.
+          </p>
+        </div>
+
+        <div class="actions">
+          <button type="submit">Preview</button>
+        </div>
+      </form>
+    </section>
 
     <main id="preview" hidden>
       <nav class="tabs" aria-label="Feed formats">

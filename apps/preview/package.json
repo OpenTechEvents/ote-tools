@@ -8,6 +8,7 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --serve",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.28.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
   }
 }
