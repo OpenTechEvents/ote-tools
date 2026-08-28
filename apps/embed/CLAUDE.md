@@ -115,6 +115,23 @@ even further. Prefer doing the version bump and the entire checklist in one
 sitting rather than leaving `package.json` ahead of the last pushed tag
 across multiple commits.
 
+## An `http://` image is treated as absent on an `https` page
+
+OTE Spec 0.4.0 dropped the https-only MUST on `image[]`, so a *valid* feed can
+now point at an `http://` image. On an `https` page that is mixed content: the
+browser blocks the request before a byte arrives, and an `<img>` can only
+render a broken frame. `render.ts#displayableImage()` is the single gate — the
+card falls back to its placeholder, and the list body/modal render without an
+image and reclaim the space, which is exactly what an imageless event already
+looks like. On an `http` page nothing is blocked and the image renders as
+published, so the check reads `location.protocol` rather than assuming.
+
+Upstream of it, `@opentechevents/preview-feed`'s `firstImage()` prefers the
+first `https://` entry over an earlier `http://` one, so `displayableImage()`
+only bites when *every* entry in `image[]` is `http://`. Both halves are
+deliberate product behaviour, not lint: don't "fix" either by rendering the
+blocked image anyway.
+
 ## The widget only fetches native JSON OTE feeds — on purpose
 
 `icsToPreviewFeed`/`rssToPreview` (from `@opentechevents/preview-feed`) exist

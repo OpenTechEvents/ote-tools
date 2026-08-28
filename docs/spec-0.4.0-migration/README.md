@@ -39,7 +39,7 @@ and [spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)) 
 | 2 | [session-2-validate-messages-and-fixtures.md](session-2-validate-messages-and-fixtures.md) | `packages/validate`: messages that stopped being true, fixtures for the relaxations | 1 | done |
 | 3 | [session-3-connectors.md](session-3-connectors.md) | Exporters, importers, feed builders: non-ASCII IRIs end to end | 2 | done |
 | 4 | [session-4-apps.md](session-4-apps.md) | validator, editor, publish, preview, dashboard-checks | 2 (3 for exports) | done |
-| 5 | [session-5-embed.md](session-5-embed.md) | `apps/embed`: versioned public widget | 2 | not started |
+| 5 | [session-5-embed.md](session-5-embed.md) | `apps/embed`: versioned public widget | 2 | done, minus the `embed-v0.8.0` tag/release |
 | 6 | [session-6-release-and-docs.md](session-6-release-and-docs.md) | Version bumps to `0.4.x`, changelogs, publish, docs, handoff cleanup | 1–5 | not started |
 
 Sessions 3 and 4 started from a red suite, on purpose — the suite is green

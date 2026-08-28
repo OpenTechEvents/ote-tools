@@ -202,6 +202,26 @@ describe("firstImage", () => {
       firstImage([{ url: "https://example.org/first.jpg" }, "https://example.org/second.jpg"]),
     ).toEqual({ url: "https://example.org/first.jpg" });
   });
+
+  it("falls through an http:// entry to a later https:// one", () => {
+    // OTE Spec 0.4.0 allows http:// images; on an https page they are mixed
+    // content and never render, while the https entry below them would have.
+    expect(
+      firstImage(["http://example.org/insecure.jpg", { url: "https://example.org/secure.jpg", alt: "Poster" }]),
+    ).toEqual({ url: "https://example.org/secure.jpg", alt: "Poster" });
+  });
+
+  it("still returns an http:// entry when the list offers nothing else", () => {
+    expect(firstImage(["http://example.org/a.jpg", "http://example.org/b.jpg"])).toEqual({
+      url: "http://example.org/a.jpg",
+    });
+  });
+
+  it("keeps a non-ASCII image address exactly as published", () => {
+    expect(firstImage(["https://example.org/imágenes/pycamp-españa.jpg"])).toEqual({
+      url: "https://example.org/imágenes/pycamp-españa.jpg",
+    });
+  });
 });
 
 describe("cheapestPrice", () => {

@@ -60,3 +60,33 @@ describe("buildOtePreviewUrl", () => {
     );
   });
 });
+
+describe("a non-ASCII feed URL", () => {
+  // OTE Spec 0.4.0 validates HTTP(S) URLs as `iri`, so a feed can live at a
+  // literal `…/pycamp-españa/feed.json`. Percent-encoding is correct for the
+  // query-parameter builders and wrong for the scheme-swapping ones: the
+  // handler that receives a webcal:// or feed:// URL is a calendar/reader app
+  // opening the address itself, not a service reading it out of a parameter.
+  const NON_ASCII_ICS = "https://ejemplo.org/eventos/pycamp-españa/feed.ics";
+  const NON_ASCII_JSON = "https://ejemplo.org/eventos/pycamp-españa/feed.json";
+  const NON_ASCII_RSS = "https://ejemplo.org/eventos/pycamp-españa/feed.xml";
+
+  it("is encoded once in the query-parameter links", () => {
+    const encoded = "https%3A%2F%2Fejemplo.org%2Feventos%2Fpycamp-espa%C3%B1a%2Ffeed";
+    expect(buildFeedlyUrl(NON_ASCII_RSS)).toBe(`https://feedly.com/i/subscription/feed/${encoded}.xml`);
+    expect(buildOteReaderUrl(NON_ASCII_JSON)).toBe(
+      `https://reader.opentechevents.org/?subscribe=${encoded}.json`,
+    );
+    expect(buildOtePreviewUrl(NON_ASCII_JSON)).toBe(
+      `https://tools.opentechevents.org/preview/?feed=${encoded}.json`,
+    );
+  });
+
+  it("keeps its literal spelling in the scheme-swapping links", () => {
+    expect(toWebcalUrl(NON_ASCII_ICS)).toBe("webcal://ejemplo.org/eventos/pycamp-españa/feed.ics");
+    expect(toFeedProtocolUrl(NON_ASCII_RSS)).toBe("feed://ejemplo.org/eventos/pycamp-españa/feed.xml");
+    expect(buildGoogleCalendarUrl(NON_ASCII_ICS)).toBe(
+      "https://www.google.com/calendar/render?cid=webcal://ejemplo.org/eventos/pycamp-españa/feed.ics",
+    );
+  });
+});

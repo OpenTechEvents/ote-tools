@@ -1,5 +1,42 @@
 # @opentechevents/embed changelog
 
+## 0.8.0
+
+### Changed
+
+- The bundle now targets **OTE Spec 0.4.0** (`oteSpecVersion`), a
+  compatibility release that only relaxes validation: no field was added or
+  removed, and every 0.3.0 feed this widget renders today keeps rendering
+  identically. Two relaxations reach the widget — HTTP(S) URL fields validate
+  as `iri` (a published `id`, `url` or image address may contain non-ASCII
+  characters such as `…/pycamp-españa`), and `image[]` accepts `http://` as
+  well as `https://`.
+- **An `http://` image is treated as absent on an `https` page.** The browser
+  blocks it as mixed content before a byte arrives, so an `<img>` there can
+  only ever produce a broken frame. Cards fall back to the usual placeholder
+  (or `placeholder-image`), and the list body and detail modal render without
+  an image and reclaim its space — exactly what an event with no image looks
+  like. On an `http` page the image is not blocked and is rendered as
+  published. No feed that is valid under 0.3.0 can hit this: `http://` images
+  only became legal in 0.4.0.
+- When an event lists several images, the first `https://` entry is preferred
+  over an earlier `http://` one instead of the list's first entry winning
+  unconditionally (`@opentechevents/preview-feed`'s `firstImage`). The
+  publisher's order still decides between entries the browser will actually
+  load; falling through is never worse, since an `https` image loads on an
+  `http` page too.
+
+### Fixed
+
+- Non-ASCII addresses survive the render path unencoded: `event-id` matches an
+  `id` containing a literal `ñ` (the match is exact string comparison, so a
+  single re-encoding anywhere would silently empty a page pinned to one
+  event), and event links and image `src`s keep the spelling the feed
+  published. `<ote-subscribe>`'s links keep encoding the feed URL exactly once
+  where it is a query parameter (Feedly, OTE Reader, OTE Tools preview) and
+  not at all where the scheme is swapped for a handler to open
+  (`webcal://`, `feed://`, Google Calendar's `cid`).
+
 ## 0.7.0
 
 ### Added

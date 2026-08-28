@@ -764,11 +764,32 @@ function detailWhenNode(event: PreviewEvent): HTMLElement | undefined {
   return node;
 }
 
-function renderEventImage(event: PreviewEvent, placeholderImage: string | undefined): HTMLElement | undefined {
+/**
+ * The image the widget can actually show, which is not always the one the feed
+ * carries. OTE Spec 0.4.0 dropped the https-only MUST on `image`, so a valid
+ * feed may point at an `http://` address; on an `https` page that is mixed
+ * content, blocked by the browser before a byte arrives, and the only thing an
+ * `<img>` can produce is a broken frame. Such an image is treated as absent —
+ * the card falls back to its placeholder, the detail surfaces render without
+ * an image and reclaim the space — rather than showing a frame that can never
+ * fill. On an `http` page the image loads normally and is rendered as-is.
+ *
+ * `@opentechevents/preview-feed`'s `firstImage` already prefers an `https`
+ * entry further down `image[]`, so this only bites when *every* entry is
+ * `http://`.
+ */
+function displayableImage(event: PreviewEvent): PreviewEvent["image"] {
   if (!event.image) return undefined;
+  if (!/^http:\/\//i.test(event.image.url)) return event.image;
+  return globalThis.location?.protocol === "https:" ? undefined : event.image;
+}
+
+function renderEventImage(event: PreviewEvent, placeholderImage: string | undefined): HTMLElement | undefined {
+  const image = displayableImage(event);
+  if (!image) return undefined;
   const img = el("img", "event-image");
-  img.src = event.image.url;
-  img.alt = event.image.alt ?? event.name;
+  img.src = image.url;
+  img.alt = image.alt ?? event.name;
   img.loading = "lazy";
   img.addEventListener("error", () => {
     img.replaceWith(renderCardPlaceholder(placeholderImage));
@@ -950,7 +971,7 @@ function renderListEvent(
   );
 
   const body = el("div", "event-details");
-  const hasRenderedImage = state.detailFields.has("image") && Boolean(event.image);
+  const hasRenderedImage = state.detailFields.has("image") && Boolean(displayableImage(event));
   const descriptionLength = event.description?.trim().length ?? 0;
   if (!hasRenderedImage && descriptionLength > 0 && descriptionLength <= 180) {
     body.classList.add("event-details-compact");
@@ -1339,7 +1360,7 @@ function renderModal(
   const modal = el("section", "event-modal");
   applyEventClassNames(modal, event, state);
   const descriptionLength = event.description?.trim().length ?? 0;
-  if (!event.image && descriptionLength > 0 && descriptionLength <= 180) {
+  if (!displayableImage(event) && descriptionLength > 0 && descriptionLength <= 180) {
     modal.classList.add("event-modal-compact");
   }
   modal.setAttribute("role", "dialog");
@@ -1366,7 +1387,7 @@ function renderModal(
   content.append(main, aside);
   modal.append(content);
 
-  if (state.detailFields.has("image") && event.image) {
+  if (state.detailFields.has("image") && displayableImage(event)) {
     const image = renderEventImage(event, state.placeholderImage);
     if (image) aside.append(image);
   }

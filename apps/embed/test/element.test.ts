@@ -39,6 +39,36 @@ const ID_FEED = JSON.stringify({
   ],
 });
 
+// OTE Spec 0.4.0 validates HTTP(S) URL fields as `iri`, so a published `id`
+// can carry a literal `ñ`. `event-id` matches `id` by exact string
+// comparison, which only keeps working while nothing in the pipeline
+// re-encodes the value on its way through.
+const NON_ASCII_ID = "https://ejemplo.org/eventos/pycamp-españa";
+const NON_ASCII_FEED = JSON.stringify({
+  title: "Ejemplo",
+  events: [
+    {
+      id: NON_ASCII_ID,
+      name: "PyCamp España",
+      startDate: "2999-01-01",
+      url: "https://ejemplo.org/eventos/pycamp-españa",
+      image: [{ url: "https://ejemplo.org/imágenes/pycamp-españa.jpg", alt: "Cartel" }],
+    },
+    { id: "https://ejemplo.org/eventos/otro", name: "Otro", startDate: "2999-02-01" },
+  ],
+});
+
+const HTTP_IMAGE_FEED = JSON.stringify({
+  events: [
+    {
+      name: "Insecure Poster",
+      startDate: "2999-01-01",
+      image: ["http://example.org/poster.jpg"],
+      description: "An event whose only image is served over plain http.",
+    },
+  ],
+});
+
 function rawLocationState(layout: WidgetState["layout"]): WidgetState {
   return {
     status: "loaded",
@@ -103,6 +133,35 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(1);
     expect(el.shadowRoot!.textContent).toContain("Second");
     expect(el.shadowRoot!.textContent).not.toContain("First");
+  });
+
+  it("event-id matches a non-ASCII id exactly as the feed publishes it", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => NON_ASCII_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://ejemplo.org/feed.json");
+    el.setAttribute("event-id", NON_ASCII_ID);
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelectorAll("li.event")).toHaveLength(1);
+    expect(el.shadowRoot!.textContent).toContain("PyCamp España");
+    expect(el.shadowRoot!.textContent).not.toContain("Otro");
+  });
+
+  it("keeps a non-ASCII event url and image address unencoded in the DOM", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => NON_ASCII_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://ejemplo.org/feed.json");
+    el.setAttribute("event-id", NON_ASCII_ID);
+    el.setAttribute("event-click", "link");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    expect(root.querySelector(".event-title a")?.getAttribute("href")).toBe(NON_ASCII_ID);
+    expect(root.querySelector("img.event-image")?.getAttribute("src")).toBe(
+      "https://ejemplo.org/imágenes/pycamp-españa.jpg",
+    );
   });
 
   it("event-id ignores show-past: an id is an explicit request for that event", async () => {
@@ -1544,6 +1603,53 @@ describe("<ote-events>", () => {
     const placeholder = el.shadowRoot!.querySelector(".event-image-placeholder");
     expect(placeholder).toBeTruthy();
     expect(placeholder?.tagName).toBe("DIV");
+  });
+
+  it("treats an http:// image as absent on an https page: mixed content never renders", async () => {
+    // OTE Spec 0.4.0 permits http:// image URLs, so this is a valid feed. The
+    // browser blocks the request on an https page, so an <img> could only ever
+    // show a broken frame — the card falls back to its placeholder instead.
+    vi.stubGlobal("location", { protocol: "https:", href: "https://host.example/" });
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => HTTP_IMAGE_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    expect(root.querySelector("img.event-image")).toBeNull();
+    expect(root.querySelector(".event-image-placeholder")?.tagName).toBe("DIV");
+  });
+
+  it("renders that same http:// image when the page itself is http", async () => {
+    // Nothing is blocked here, so there is nothing to degrade: jsdom's default
+    // document URL is http://localhost:3000.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => HTTP_IMAGE_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    expect(el.shadowRoot!.querySelector("img.event-image")?.getAttribute("src")).toBe(
+      "http://example.org/poster.jpg",
+    );
+  });
+
+  it("reclaims the modal's image space when the only image is blocked mixed content", async () => {
+    vi.stubGlobal("location", { protocol: "https:", href: "https://host.example/" });
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => HTTP_IMAGE_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    el.shadowRoot!.querySelector<HTMLElement>("li.event")!.click();
+    await flush();
+
+    const modal = el.shadowRoot!.querySelector(".event-modal")!;
+    expect(modal.querySelector("img.event-image")).toBeNull();
+    // Short description, no image: the compact layout, same as an imageless event.
+    expect(modal.classList.contains("event-modal-compact")).toBe(true);
   });
 
   it("shows a CSS image placeholder in cards layout when an event has no image", async () => {

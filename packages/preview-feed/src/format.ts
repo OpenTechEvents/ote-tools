@@ -116,13 +116,27 @@ export function eventWhen(event: PreviewEvent): string {
   );
 }
 
-/** OTE's `image` field is `(string | {url, alt?})[]`; this picks the first entry. */
+/**
+ * OTE's `image` field is `(string | {url, alt?})[]`; this picks the entry to
+ * display.
+ *
+ * Order is the publisher's preference, so it wins — except that an `https://`
+ * entry is preferred over an earlier `http://` one. OTE Spec 0.4.0 dropped the
+ * https-only MUST on `image`, so a valid feed may now list an `http://` image;
+ * on an `https` page that address is mixed content and is blocked outright by
+ * the browser, while the `https` entry further down the list would have
+ * rendered. Falling through to it costs the publisher nothing and is never
+ * worse: an `https` image also loads fine on an `http` page.
+ */
 export function firstImage(
   images: Array<string | { url: string; alt?: string }> | undefined,
 ): { url: string; alt?: string } | undefined {
-  const first = images?.[0];
-  if (first === undefined) return undefined;
-  return typeof first === "string" ? { url: first } : first;
+  const entries = (images ?? []).map((image) => (typeof image === "string" ? { url: image } : image));
+  return entries.find((image) => !isInsecureUrl(image.url)) ?? entries[0];
+}
+
+function isInsecureUrl(url: string): boolean {
+  return /^http:\/\//i.test(url);
 }
 
 /**
