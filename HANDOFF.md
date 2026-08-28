@@ -98,32 +98,27 @@ fork-visible surface — `packages/build-feed`, `validate.yml`, `build-pages.yml
 first, the way `CONTRIBUTING.md` already prescribes for workflow changes.
 Until one of those happens the tag stays where it is.
 
-### 3. `@opentechevents/export-jsonld` needs its trusted publisher
+### 3. `localhost:8000` in `ALLOWED_ORIGINS`
 
-All seven packages are on npm at 0.4.0, but this one did not get there through
-`publish.yml`. Its `CHANGELOG.md` claimed a `0.3.0` "initial package release"
-that never reached the registry, so at the 0.4.0 run npm had no package to
-attach a trusted publisher to: `Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE …
-404`, then `E404 … PUT`. It was published by hand instead — exactly the escape
-hatch `publish.yml`'s header describes for a brand-new package.
+`workers/validator/wrangler.jsonc` still allows
+`http://localhost:8000,http://127.0.0.1:8000` to call the production `/fetch`
+endpoint cross-origin. Production is same-origin now, so those two entries buy
+exactly one thing: `pnpm dev` on port 8000 can use the deployed fetcher instead
+of running a local one. What they cost is that any page served from anyone's
+localhost can drive a public endpoint that makes outbound requests on their
+behalf — bounded by the per-IP rate limit binding, not by anything else. A
+judgement call nobody has made; `https://tools.opentechevents.org` in the same
+list is worth re-checking at the same time, since that hostname only redirects
+to the canonical one now.
 
-**The next release will fail the same way** unless this repo + `publish.yml`
-are added as its trusted publisher in the package's npm settings. Nothing in
-this repo can do it or check it; it is one form in the npm UI. Do it before
-0.4.1, not during it. The by-hand publish also means this one package has no
-provenance attestation while the other six do — that corrects itself on the
-first run that publishes it through the workflow.
+**Done and off this list:** the dangling `fetch.opentechevents.org` DNS record
+(deleted — `dig` returns `NXDOMAIN`), and `@opentechevents/export-jsonld`'s
+trusted publisher, which now covers the one package that had to be published by
+hand at 0.4.0 because npm cannot attach a trusted publisher to a package that
+does not exist yet. That package still carries no provenance attestation for
+0.4.0; the first release run that publishes it through `publish.yml` fixes it.
 
-### 4. Housekeeping in Cloudflare
-
-- **Dangling DNS record `fetch.opentechevents.org`** — still in the zone,
-  pointing at Cloudflare with nothing behind it. The deploy token has no DNS
-  permission, so it has to be deleted in the dashboard.
-- **`localhost:8000` in `ALLOWED_ORIGINS`** (`workers/validator/wrangler.jsonc`)
-  — only serves local `pnpm dev` now that production is same-origin. Remove it
-  if that is not worth the exposure.
-
-### 5. UI polish nobody has judged yet
+### 4. UI polish nobody has judged yet
 
 The redesign follows opentechevents.org's language (tokens, header, buttons,
 cards, dark code blocks, footer — the rule is in `CLAUDE.md`).
