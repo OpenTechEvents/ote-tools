@@ -5,8 +5,8 @@ and images are not ASCII-and-https, and ships as a properly versioned release.
 
 **Depends on:** session 2.
 
-**Status:** done (2026-08-28), except the release itself — see "What is left"
-below. Widget `0.8.0` / `oteSpecVersion` `0.4.0`, `pnpm test` and
+**Status:** done (2026-08-28), released as `embed-v0.8.0`. Widget `0.8.0` /
+`oteSpecVersion` `0.4.0`, `pnpm test` and
 `pnpm typecheck` green at the root, `versions/v0.8.0/` snapshotted.
 
 What the session decided and found:
@@ -43,17 +43,20 @@ What the session decided and found:
   scheme-swapping links (`webcal://`, `feed://`, Google's `cid`), which a
   calendar app opens as an address rather than reading out of a parameter.
 
-## What is left: the release is not finished
+## The release is finished
 
-`package.json` is at `0.8.0` with the changelog and snapshot in the same
-change, but the **tag, push and GitHub release have not been made** — that is
-precisely the gap `apps/embed/CLAUDE.md` warns about, and until it is closed
-nobody may be told to pin `embed-v0.8.0`. Finish it (or fold it into
-[session 6](session-6-release-and-docs.md)) before advertising the version:
+The whole checklist ran in one sitting, so `package.json` was never left ahead
+of the last pushed tag — the failure mode `apps/embed/CLAUDE.md` documents.
+`main` pushed (`9930b33`), annotated tag `embed-v0.8.0` pushed, GitHub release
+created from it. Verified rather than assumed:
 
 ```sh
-git ls-remote --tags origin | grep embed-v0.8.0   # prints nothing today
+git ls-remote --tags origin | grep embed-v0.8.0   # two refs, tag and commit
 ```
+
+`https://tools.opentechevents.org/embed/v0.8.0/ote-events.js` becomes
+pinnable when Pages next deploys; the committed `versions/v0.8.0/` snapshot is
+already in the pushed tree.
 
 Read [apps/embed/CLAUDE.md](../../apps/embed/CLAUDE.md) before anything else.
 This is the one app whose old builds stay live forever: consumers pin
@@ -122,4 +125,4 @@ Per `apps/embed/CLAUDE.md`:
 - [x] Non-ASCII `id` matching verified against `event-id` in a real browser.
 - [x] Older `versions/` snapshots untouched, and their table rows still say v0.3
       — v0.7.0 moved from the templated top row to a static one, still v0.3.0.
-- [ ] Tagged and released as `embed-v0.8.0` (see "What is left" above).
+- [x] Tagged and released as `embed-v0.8.0`, tag confirmed on origin.

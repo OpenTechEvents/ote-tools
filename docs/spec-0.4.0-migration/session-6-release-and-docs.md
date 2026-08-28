@@ -47,13 +47,11 @@ content:
 - `validate` — `iri` format, image `http://` accepted, reworded messages, the
   recommended-profile change, and the `specVersion` drift decision from session 2.
 - the exporters/importers — the non-ASCII round trip, if anything changed.
-- `apps/embed/CHANGELOG.md` — already written in session 5, for widget
-  `0.8.0`. That release is **unfinished**: `package.json`, changelog and the
-  `versions/v0.8.0/` snapshot all landed, but no `embed-v0.8.0` tag was pushed
-  and no GitHub release was created. Close it here (annotated tag on `main`,
-  pushed, release from the tag) before anything tells a consumer to pin that
-  version, and don't bump `version` again on top of it — the untagged bump is
-  the failure mode `apps/embed/CLAUDE.md` documents.
+- `apps/embed/CHANGELOG.md` — already written in session 5 and **already
+  released**: widget `0.8.0`, tag `embed-v0.8.0` pushed, GitHub release
+  created. Nothing to do here beyond not bumping its `version` again for this
+  migration; the embed is a private package and is not part of the npm
+  publish below.
 
 ## 3. Publish
 
