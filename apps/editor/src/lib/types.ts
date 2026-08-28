@@ -74,7 +74,7 @@ export interface OfferRow {
  * Mostly a flat, all-string form model: "" means "not filled in" and is
  * omitted from the generated event JSON. Dates and times are kept apart so
  * the form can use native date/time inputs; tags and languages are
- * comma-separated. Exceptions: the three genuinely-repeatable v0.3 fields
+ * comma-separated. Exceptions: the three genuinely-repeatable spec fields
  * (organizers/image/offers) are arrays of row objects, and `translations`/
  * `eligibilityNoteTranslations`/`partOfNameTranslations` are language-keyed
  * maps — both still "" = unset at the leaf, coerced in toEventJson like

@@ -26,7 +26,7 @@ describe("pathToPointer", () => {
 describe("indexPositions", () => {
   const source = [
     "{",
-    '  "specVersion": "0.3.0",',
+    '  "specVersion": "0.4.0",',
     '  "events": [',
     "    {",
     '      "name": "Meetup",',

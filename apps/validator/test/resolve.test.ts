@@ -4,7 +4,7 @@ import { followCandidate, resolveUrl } from "../src/lib/resolve.js";
 
 const ENDPOINT = "https://fetch.example";
 
-const FEED = '{"specVersion":"0.3.0","title":"Comunidad","license":"CC0-1.0","updatedAt":"2026-07-06T10:00:00Z","events":[]}';
+const FEED = '{"specVersion":"0.4.0","title":"Comunidad","license":"CC0-1.0","updatedAt":"2026-07-06T10:00:00Z","events":[]}';
 
 const page = (head: string) => `<!doctype html><html><head>${head}</head><body></body></html>`;
 
@@ -56,6 +56,33 @@ describe("resolveUrl", () => {
       outcome: "document",
       text: FEED,
       provenance: { via: "direct", note: { kind: "ote" } },
+    });
+  });
+
+  it("asks the fetcher for a non-ASCII URL encoded exactly once", async () => {
+    // 0.4.0 validates HTTP(S) URLs as `iri`, so `…/pycamp-españa/feed.json` is
+    // an address a feed may really be published at. It travels as the value of
+    // `?url=`, which is a different operation from rewriting the address: one
+    // round of `encodeURIComponent`, undone by the Worker's own
+    // `searchParams.get`. Encoded twice, the Worker fetches `%25C3%25B1` and
+    // answers 404 — a broken feed by our own arithmetic.
+    const feedUrl = "https://comunidad.example/pycamp-españa/feed.json";
+    const asked: string[] = [];
+    const worker = fakeWorker({
+      [feedUrl]: { contentType: "application/ote+json", body: FEED },
+    });
+    const spy = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      asked.push(input.toString());
+      return worker(input, init);
+    }) as unknown as typeof fetch;
+
+    const resolution = await resolveUrl(feedUrl, deps(spy));
+
+    expect(asked).toEqual([`${ENDPOINT}/fetch?url=${encodeURIComponent(feedUrl)}`]);
+    expect(asked[0]).not.toContain("%25");
+    expect(resolution).toMatchObject({
+      outcome: "document",
+      provenance: { via: "direct", url: feedUrl },
     });
   });
 

@@ -4,6 +4,16 @@ All notable changes to the OTE event editor are documented here as they
 land. This app isn't published to npm, so entries are dated rather than
 tied to semver releases.
 
+## 2026-08-28
+
+- **OTE Spec 0.4.0**: the editor validates against 0.4.0, which only relaxes
+  two rules — an HTTP(S) URL may carry non-ASCII characters as published
+  (`…/pycamp-españa`, `format: "iri"`), and an image may be served over
+  `http://`. Neither is reported as an error any more. The URL fields keep
+  their `type="url"` and their `https://…` placeholder: Chrome's native check
+  accepts a literal `ñ` (verified in a browser), and https is still the better
+  address to publish — a nudge, never a requirement the editor enforces.
+
 ## 2026-08-13
 
 - **Live preview groups a recurring series into one card**: the preview

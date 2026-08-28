@@ -151,6 +151,29 @@ describe("composerUrl", () => {
   });
 
   /**
+   * From 0.4.0 an event URL may carry non-ASCII characters as published
+   * (`format: "iri"`). Here it is the *value of a query parameter* in somebody
+   * else's intent link, and encoding it is therefore correct — that is a
+   * different operation from rewriting the address itself, which nothing here
+   * may do. Both halves are asserted so neither gets "simplified" later: the
+   * parameter survives one round of decoding as the literal address, and the
+   * link a network receives carries no raw `ñ`.
+   */
+  it("encodes a non-ASCII event URL as a parameter, and never rewrites the address", () => {
+    const eventUrl = "https://example.org/eventos/pycamp-españa";
+    const post = composePost({ ...full, url: eventUrl }, "telegram");
+    // The address itself reaches the post exactly as the feed publishes it.
+    expect(post.text).toContain(eventUrl);
+
+    const link = composerUrl("telegram", post.text, eventUrl)!;
+    expect(link).toContain(encodeURIComponent(eventUrl));
+    expect(link).not.toContain("ñ");
+    const parsed = new URL(link);
+    expect(parsed.searchParams.get("url")).toBe(eventUrl);
+    expect(parsed.searchParams.get("text")).toContain(eventUrl);
+  });
+
+  /**
    * Mastodon's composer is per-instance and LinkedIn dropped text prefilling.
    * A button that silently loses the post would be worse than no button.
    */

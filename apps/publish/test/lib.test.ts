@@ -5,7 +5,7 @@ import { buildSnippet, eligibilityNote } from "../src/lib/snippet.js";
 import type { OteFeed } from "@opentechevents/export-jsonld";
 
 const feed: OteFeed = {
-  specVersion: "0.3.0",
+  specVersion: "0.4.0",
   title: "Two events",
   updatedAt: "2026-07-06T10:00:00Z",
   events: [

@@ -5,7 +5,41 @@ address in its inputs, and stops telling anyone an image must be https.
 
 **Depends on:** session 2. Export previews additionally depend on session 3.
 
-**Status:** not started.
+**Status:** done (2026-08-28). `pnpm test` green at the root, `pnpm typecheck`
+too — `workers/validator`'s four failing badge tests, the last red thing left by
+session 2, are fixed here.
+
+What the session actually found:
+
+- **Nothing in any app ever claimed images must be https.** The only sentence
+  in the repo that did was `packages/validate`'s error message, already fixed
+  in session 2. The editor's `https://…` placeholders are nudges, not claims,
+  and stay: it is still the better address to publish, and the schema — not
+  the placeholder — decides.
+- **Chrome's native `type="url"` accepts a literal `ñ` in the path.** Verified
+  in a real browser on every such input in the editor (`checkValidity()` true,
+  empty `validationMessage`) and on the validator's own feed-URL field, which
+  is `type="url"` too and was not on this session's list. So no field had to
+  drop the type, and the schema stays the only authority.
+- **No app rejects `http://` images either.** `apps/publish`'s readiness rules
+  count images, they never inspect the scheme; `apps/preview` accepts `http:`
+  and `https:` and nothing else, which is exactly the spec's set.
+- **The encoding chain through the validator page holds end to end**, driven in
+  a real browser against a stand-in fetch endpoint (the real Worker refuses
+  localhost, by SSRF design): a literal `…/pycamp-españa/feed.json` typed into
+  the page reaches `/fetch` percent-encoded exactly once, comes back a valid
+  0.4.0 feed, and its permalink and badge Markdown both carry `%C3%B1` — while
+  the `?doc=` permalink, loaded fresh, decodes back to the literal address in
+  the input. Pinned by unit tests on both halves (`apps/validator`'s
+  `resolve.test.ts`, the Worker's `handler.test.ts`), since the failure mode is
+  a *second* round of encoding, which reads as the publisher's 404.
+- `badgeCacheKey` normalizes both spellings of a non-ASCII URL to one cache
+  entry — asserted now, so a README linking the literal form and one linking
+  the encoded form do not each buy an upstream fetch.
+- `apps/dashboard-checks` asserts no `specVersion` anywhere, and `apps/preview`
+  carries no version string of its own: both needed no edit. The `0.3.0` still
+  found in built bundles is the SPDX id `copyleft-next-0.3.0`, not a spec
+  version.
 
 `apps/embed` is deliberately **not** here — it is a versioned public asset with
 its own release rules. See [session 5](session-5-embed.md).
@@ -81,10 +115,10 @@ image URL. `dashboard-checks.js` is plain JS — check whether it asserts a
 
 ## Done when
 
-- [ ] No app shows `0.3.0` in placeholder or copy.
-- [ ] A feed at a non-ASCII URL validates end to end in a **real browser**:
+- [x] No app shows `0.3.0` in placeholder or copy.
+- [x] A feed at a non-ASCII URL validates end to end in a **real browser**:
       validator page → `/fetch` → verdict → permalink → badge.
-- [ ] The editor accepts a non-ASCII `id`/`url`/image URL without native input
+- [x] The editor accepts a non-ASCII `id`/`url`/image URL without native input
       validation getting in the way, verified in a browser.
-- [ ] Nothing in any app claims images must be https.
-- [ ] `pnpm test` green.
+- [x] Nothing in any app claims images must be https.
+- [x] `pnpm test` green.

@@ -6,7 +6,7 @@ import { buildReport } from "../src/lib/report.js";
 
 /** A feed whose one event has an unparseable startDate, on a single line. */
 const MINIFIED = JSON.stringify({
-  specVersion: "0.3.0",
+  specVersion: "0.4.0",
   title: "Comunidad",
   description: "Una comunidad que publica su feed minificado, como casi todas.",
   url: "https://comunidad.example",
@@ -35,7 +35,7 @@ describe("looksMinified", () => {
   });
 
   it("does not call a short document minified just because it has one line", () => {
-    expect(looksMinified('{"specVersion":"0.3.0","events":[]}')).toBe(false);
+    expect(looksMinified('{"specVersion":"0.4.0","events":[]}')).toBe(false);
   });
 
   it("draws the line where a human stops being able to read one", () => {
@@ -53,7 +53,7 @@ describe("reformatJson", () => {
   });
 
   it("refuses a document that does not parse — those bytes are the evidence", () => {
-    expect(reformatJson('{"specVersion":"0.3.0",}')).toBeNull();
+    expect(reformatJson('{"specVersion":"0.4.0",}')).toBeNull();
   });
 });
 

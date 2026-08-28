@@ -56,7 +56,7 @@ describe("buildReport", () => {
   });
 
   it("reports a JSON syntax error at its line and column, not as a schema error", () => {
-    const report = buildReport('{\n  "specVersion": "0.3.0",\n  "events": [,]\n}');
+    const report = buildReport('{\n  "specVersion": "0.4.0",\n  "events": [,]\n}');
     expect(report.status).toBe("parse-error");
     if (report.status !== "parse-error") return;
     expect(report.position.line).toBeGreaterThanOrEqual(1);
@@ -81,7 +81,7 @@ describe("buildReport", () => {
     // characters — the DOM layer writes it with textContent — so nothing here
     // may escape, encode or otherwise mangle it either.
     const source = JSON.stringify({
-      specVersion: "0.3.0",
+      specVersion: "0.4.0",
       title: "<script>alert(1)</script>",
       license: "CC0-1.0",
       updatedAt: "not-an-instant",
@@ -114,7 +114,7 @@ describe("MUST and SHOULD stay apart", () => {
     // date fails both. The reader must be told once.
     const feed = JSON.parse(
       JSON.stringify({
-        specVersion: "0.3.0",
+        specVersion: "0.4.0",
         title: "Comunidad",
         url: "https://comunidad.example",
         license: "CC0-1.0",

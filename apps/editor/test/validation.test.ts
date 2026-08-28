@@ -25,6 +25,29 @@ describe("validateDraft", () => {
     expect(result.documentErrors).toEqual([]);
   });
 
+  /**
+   * The two relaxations 0.4.0 brought, at the surface an organizer types into.
+   * The schema is the authority here — the form's own `type="url"` inputs are
+   * a convenience on top of it — so neither of these may come back as an error
+   * the editor invented.
+   */
+  it("accepts a non-ASCII address and an http image, as 0.4.0 does", () => {
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        id: "https://x.example/eventos/pycamp-españa",
+        url: "https://x.example/eventos/pycamp-españa",
+        image: ["http://x.example/cartel.png"],
+        location: { onlineUrl: "https://reunión.example/sala" },
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect([...result.fieldErrors.keys()]).toEqual([]);
+    expect(result.documentErrors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
   it("missing required fields map to their form fields", () => {
     const result = validateDraft(
       config,

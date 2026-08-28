@@ -10,7 +10,7 @@ import { handleRequest, type BadgeCache } from "../src/index.js";
  * here is the badge's plumbing, not the schema.
  */
 const VALID_FEED = JSON.stringify({
-  specVersion: "0.3.0",
+  specVersion: "0.4.0",
   title: "Comunidad",
   url: "https://comunidad.example",
   license: "CC-BY-4.0",
@@ -29,6 +29,39 @@ const VALID_FEED = JSON.stringify({
     },
   ],
 });
+
+/**
+ * The same feed at a non-ASCII address, event ids included. Valid only from
+ * 0.4.0 on, where HTTP(S) URL fields validate as `iri` instead of `uri`.
+ */
+const NON_ASCII_FEED = JSON.stringify({
+  specVersion: "0.4.0",
+  title: "Comunidad",
+  url: "https://comunidad.example/pycamp-españa",
+  license: "CC-BY-4.0",
+  organizers: [{ name: "Comunidad", url: "https://comunidad.example/pycamp-españa" }],
+  updatedAt: "2026-07-06T10:00:00Z",
+  events: [
+    {
+      id: "https://comunidad.example/pycamp-españa/e/1",
+      url: "https://comunidad.example/pycamp-españa/e/1",
+      name: "Meetup",
+      startDate: "2026-06-11T18:30",
+      timezone: "Europe/Madrid",
+      attendanceMode: "in-person",
+      location: { venue: "El Cable" },
+      updatedAt: "2026-05-28T11:00:00Z",
+    },
+  ],
+});
+
+/**
+ * What `new URL(…).toString()` — and therefore `fetchDocument` — asks the
+ * network for when the `ñ` is typed literally. The two spellings are the same
+ * address; the fixtures below assert nobody encodes it a second time.
+ */
+const NON_ASCII_DOC = "https://comunidad.example/pycamp-españa/feed.json";
+const NON_ASCII_DOC_ENCODED = "https://comunidad.example/pycamp-espa%C3%B1a/feed.json";
 
 const resolve = async () => ["93.184.216.34"];
 
@@ -56,10 +89,20 @@ describe("resolveBadge", () => {
     expect(verdict.state).toBe("valid");
   });
 
+  it("says valid for a feed at a non-ASCII address", async () => {
+    for (const typed of [NON_ASCII_DOC, NON_ASCII_DOC_ENCODED]) {
+      const verdict = await resolveBadge(typed, {
+        fetchImpl: network({ [NON_ASCII_DOC_ENCODED]: json(NON_ASCII_FEED) }),
+        resolve,
+      });
+      expect(verdict.state).toBe("valid");
+    }
+  });
+
   it("says invalid for a document that fails it", async () => {
     const verdict = await resolveBadge("https://comunidad.example/feed.json", {
       fetchImpl: network({
-        "https://comunidad.example/feed.json": json('{"specVersion":"0.3.0"}'),
+        "https://comunidad.example/feed.json": json('{"specVersion":"0.4.0"}'),
       }),
       resolve,
     });
@@ -234,6 +277,23 @@ describe("the /badge endpoint", () => {
       {},
       deps(fetchImpl, cache),
     );
+    expect(store.size).toBe(1);
+  });
+
+  it("answers the same badge whichever spelling of a non-ASCII URL a README carries", async () => {
+    const store = new Map<string, Response>();
+    const cache: BadgeCache = {
+      match: async (request) => store.get(request.url)?.clone(),
+      put: async (request, response) => void store.set(request.url, response),
+    };
+    const fetchImpl = network({ [NON_ASCII_DOC_ENCODED]: json(NON_ASCII_FEED) });
+
+    const literal = await handleRequest(badge(NON_ASCII_DOC), {}, deps(fetchImpl, cache));
+    expect(literal.headers.get("x-ote-badge-state")).toBe("valid");
+
+    const encoded = await handleRequest(badge(NON_ASCII_DOC_ENCODED), {}, deps(fetchImpl, cache));
+    expect(encoded.headers.get("x-ote-badge-state")).toBe("valid");
+    // One address, one cache entry: `badgeCacheKey` normalizes both spellings.
     expect(store.size).toBe(1);
   });
 

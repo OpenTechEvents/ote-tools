@@ -37,12 +37,13 @@ and [spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)) 
 | --- | --- | --- | --- | --- |
 | 1 | [session-1-upstream-and-pin.md](session-1-upstream-and-pin.md) | Unblock upstream, bump the pin, regenerate | — | done |
 | 2 | [session-2-validate-messages-and-fixtures.md](session-2-validate-messages-and-fixtures.md) | `packages/validate`: messages that stopped being true, fixtures for the relaxations | 1 | done |
-| 3 | [session-3-connectors.md](session-3-connectors.md) | Exporters, importers, feed builders: non-ASCII IRIs end to end | 2 | not started |
-| 4 | [session-4-apps.md](session-4-apps.md) | validator, editor, publish, preview, dashboard-checks | 2 (3 for exports) | not started |
+| 3 | [session-3-connectors.md](session-3-connectors.md) | Exporters, importers, feed builders: non-ASCII IRIs end to end | 2 | done |
+| 4 | [session-4-apps.md](session-4-apps.md) | validator, editor, publish, preview, dashboard-checks | 2 (3 for exports) | done |
 | 5 | [session-5-embed.md](session-5-embed.md) | `apps/embed`: versioned public widget | 2 | not started |
 | 6 | [session-6-release-and-docs.md](session-6-release-and-docs.md) | Version bumps to `0.4.x`, changelogs, publish, docs, handoff cleanup | 1–5 | not started |
 
-Sessions 3 and 4 start from a red suite, on purpose: session 2 left
+Sessions 3 and 4 started from a red suite, on purpose — the suite is green
+again as of session 4. Session 2 left
 `export-ics`, `export-rss`, `export-jsonld` (3, 3 and 5 tests) and
 `workers/validator` (4) failing, each on its own feed fixture still declaring
 `0.3.0`. That list is at the top of session 2's file.

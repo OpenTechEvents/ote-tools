@@ -30,7 +30,7 @@ export interface ImportedEvent {
   tags?: string[];
   status?: string;
   updatedAt?: string;
-  // v0.3 fields the connectors can carry; the form has real UI for these now
+  // Spec fields the connectors can carry; the form has real UI for these now
   // (see FIELD_REGISTRY / missingFormFields below).
   organizers?: unknown[];
   image?: unknown[];

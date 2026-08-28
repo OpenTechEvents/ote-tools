@@ -5,7 +5,7 @@ import { handleRequest, type Env } from "../src/index.js";
 const ORIGIN = "https://tools.opentechevents.org";
 
 const okFetch = (async () =>
-  new Response('{"specVersion":"0.3.0","events":[]}', {
+  new Response('{"specVersion":"0.4.0","events":[]}', {
     status: 200,
     headers: { "content-type": "application/ote+json" },
   })) as unknown as typeof fetch;
@@ -65,8 +65,28 @@ describe("handleRequest", () => {
       ok: true,
       finalUrl: "https://comunidad.example/feed.json",
       contentType: "application/ote+json",
-      body: '{"specVersion":"0.3.0","events":[]}',
+      body: '{"specVersion":"0.4.0","events":[]}',
     });
+  });
+
+  it("fetches a non-ASCII URL once-encoded, and reports the address it used", async () => {
+    // What the organizer typed, and the only form the network may see: the
+    // `ñ` percent-encoded exactly once. Encoded twice (`%25C3%25B1`) the
+    // request 404s and the page blames the publisher for a bug of ours.
+    const typed = "https://comunidad.example/pycamp-españa/feed.json";
+    const onceEncoded = "https://comunidad.example/pycamp-espa%C3%B1a/feed.json";
+    const seen: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      seen.push(input.toString());
+      return new Response('{"specVersion":"0.4.0","events":[]}', {
+        status: 200,
+        headers: { "content-type": "application/ote+json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const response = await call(typed, { fetchImpl });
+    expect(seen).toEqual([onceEncoded]);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, finalUrl: onceEncoded });
   });
 
   it("never lets a remote body be sniffed or rendered as HTML", async () => {
