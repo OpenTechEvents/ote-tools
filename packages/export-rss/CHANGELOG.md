@@ -2,6 +2,13 @@
 
 All notable changes to `@opentechevents/export-rss` are documented here.
 
+## 0.4.0
+
+- Tracks **OTE Spec 0.4.0**; no behavioural change in this package. A feed with
+  a non-ASCII URL (`…/pycamp-españa`) — invalid under 0.3, valid under 0.4.0 —
+  now has a round-trip test through this package's own reverse-parser proving
+  the address survives export and re-parse byte for byte.
+
 ## 0.3.1
 
 - `description` (plain text or Markdown, per the OTE spec) is now rendered to

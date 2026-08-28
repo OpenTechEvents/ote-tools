@@ -150,18 +150,26 @@ the same filenames at the repository root on the default branch via
 
 ### Versioning and changelogs
 
-The published packages track the OTE spec minor they implement: packages that
-speak OTE spec v0.3 are versioned `0.3.x`. That keeps the compatibility story
-obvious: `@opentechevents/validate` 0.3.x validates against spec v0.3, and
-`@opentechevents/import-jsonld` 0.3.x imports into that same event shape.
+The **published** packages track the OTE spec minor they implement: packages
+that speak OTE spec v0.4 are versioned `0.4.x`. That keeps the compatibility
+story obvious: `@opentechevents/validate` 0.4.x validates against spec v0.4,
+and `@opentechevents/import-jsonld` 0.4.x imports into that same event shape.
+
+The ladder covers exactly the packages that go to npm — the ones without
+`"private": true`. Workspace-internal packages (`discover-feed`, `feed-urls`,
+`preview-feed`) are `private: true`, are consumed only through
+`workspace:*`, and keep their own independent versions; nobody installs them
+by version, so putting them on the ladder would only add release work. If one
+of them is ever published, it joins the ladder at that release.
 
 Within a spec minor, each package uses SemVer patch releases independently:
 bug fixes and backwards-compatible improvements bump only the package that
-changed (`0.3.0` → `0.3.1`). A new OTE spec minor moves every published
+changed (`0.4.0` → `0.4.1`). A new OTE spec minor moves every published
 package to the matching minor, even if one package did not need code changes,
-so consumers can read compatibility without a lookup table. Breaking package
-API changes wait for the next compatible major/minor plan and must be called
-out explicitly in the package changelog.
+so consumers can read compatibility without a lookup table — those packages
+still get a changelog entry saying so. Breaking package API changes wait for
+the next compatible major/minor plan and must be called out explicitly in the
+package changelog.
 
 Every published package has its own `CHANGELOG.md`. Add an `Unreleased` entry
 for user-visible fixes, improvements, warnings, mappings, CLI behavior or

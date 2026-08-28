@@ -1,6 +1,6 @@
 # @opentechevents/export-rss
 
-Converts a **valid** OTE Feed (v0.3) into an RSS 2.0 document, one `<item>`
+Converts a **valid** OTE Feed (v0.4) into an RSS 2.0 document, one `<item>`
 per event.
 
 ```ts
@@ -23,7 +23,7 @@ Reads the feed, validates it, writes the RSS to `output.xml` (or stdout when
 omitted). Exit codes: `0` exported · `1` invalid JSON or invalid feed · `2`
 usage or I/O error.
 
-## Mapping (OTE v0.3 → RSS 2.0)
+## Mapping (OTE v0.4 → RSS 2.0)
 
 | OTE | RSS |
 | --- | --- |

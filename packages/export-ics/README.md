@@ -1,6 +1,6 @@
 # @opentechevents/export-ics
 
-Converts a **valid** OTE Feed (v0.3) into an iCalendar document (RFC 5545).
+Converts a **valid** OTE Feed (v0.4) into an iCalendar document (RFC 5545).
 
 ```ts
 import { feedToIcs } from "@opentechevents/export-ics";
@@ -22,7 +22,7 @@ Reads the feed, validates it, writes the ICS to `output.ics` (or stdout when
 omitted). Exit codes: `0` exported · `1` invalid JSON or invalid feed · `2`
 usage or I/O error.
 
-## Mapping (OTE v0.3 → VEVENT)
+## Mapping (OTE v0.4 → VEVENT)
 
 | OTE | iCal |
 | --- | --- |

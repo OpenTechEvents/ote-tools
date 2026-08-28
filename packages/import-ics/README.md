@@ -1,7 +1,7 @@
 # @opentechevents/import-ics
 
 Converts an iCalendar (`.ics`) document into **partial** OTE event documents
-(v0.3), ready for an organizer to review and complete.
+(v0.4), ready for an organizer to review and complete.
 
 Part of the [OpenTechEvents organizer kit](https://github.com/OpenTechEvents/ote-tools);
 see [DESIGN.md](https://github.com/OpenTechEvents/ote-tools/blob/main/DESIGN.md)
@@ -47,7 +47,7 @@ The events are partial on purpose — they have no `id`, may lack `timezone`,
 and are not valid OTE documents yet. Completing them is the caller's job
 (the ote-tools editor does it with a form that marks the missing fields).
 
-## Mapping (VEVENT → OTE v0.3)
+## Mapping (VEVENT → OTE v0.4)
 
 | iCal | OTE |
 | --- | --- |
@@ -76,7 +76,7 @@ nothing to warn about; the source format simply cannot express them).
   conversion, not a warned-about loss. `Z`-suffixed times map to
   `timezone: "UTC"`; a `TZID` is passed through only when it's a real IANA
   zone — checked against the same IANA enum `@opentechevents/validate`
-  embeds from the v0.3 schema, not a shape regex (a regex would trust a
+  embeds from the v0.4 schema, not a shape regex (a regex would trust a
   plausible-looking but nonexistent zone like `Europe/Atlantida`). Windows
   zone names ("W. Europe Standard Time") and floating times (no `TZID`, no
   `Z`) yield **no timezone + a warning** — OTE requires IANA and guessing one

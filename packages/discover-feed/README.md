@@ -3,7 +3,7 @@
 Internal, workspace-only package. Answers *"where is the OTE feed of this
 URL?"* — the reference implementation of the spec's discovery mechanism
 ([opentechevents-spec#6](https://github.com/OpenTechEvents/opentechevents-spec/issues/6),
-[spec/v0.3 § Discovery](https://github.com/OpenTechEvents/opentechevents-spec/blob/main/spec/v0.3/README.md#discovery-how-a-feed-is-found-from-a-website)).
+[spec/v0.4 § Discovery](https://github.com/OpenTechEvents/opentechevents-spec/blob/main/spec/v0.4/README.md#discovery-how-a-feed-is-found-from-a-website)).
 
 ```ts
 import { discover } from "@opentechevents/discover-feed";

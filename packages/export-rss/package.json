@@ -1,6 +1,6 @@
 {
   "name": "@opentechevents/export-rss",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Converts an OTE Feed into an RSS 2.0 document",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/export-rss",

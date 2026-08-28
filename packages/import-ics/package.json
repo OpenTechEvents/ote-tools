@@ -1,6 +1,6 @@
 {
   "name": "@opentechevents/import-ics",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Converts an iCalendar (.ics) document into partial OTE event documents",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/import-ics",

@@ -1,6 +1,6 @@
 # @opentechevents/export-jsonld
 
-Converts **valid** OTE events (v0.3) into [schema.org](https://schema.org)
+Converts **valid** OTE events (v0.4) into [schema.org](https://schema.org)
 `Event` JSON-LD, so an organizer's own website can expose the events they
 already publish as OTE to search engines — without maintaining the same data
 twice. Implements
@@ -52,7 +52,7 @@ when omitted). `--item-list` emits an `ItemList` instead of a `@graph`;
 `--json` emits the bare document instead of a `<script>` block. Exit codes:
 `0` exported · `1` invalid JSON or invalid feed · `2` usage or I/O error.
 
-## Mapping (OTE v0.3 → schema.org/Event)
+## Mapping (OTE v0.4 → schema.org/Event)
 
 | OTE | schema.org |
 | --- | --- |

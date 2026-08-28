@@ -2,7 +2,7 @@
 
 Extracts the schema.org Events an HTML page exposes as
 `<script type="application/ld+json">` (Meetup, Eventbrite, Luma, guild.host…)
-and converts them into **partial** OTE event documents (v0.3), ready for an
+and converts them into **partial** OTE event documents (v0.4), ready for an
 organizer to review and complete.
 
 Part of the [OpenTechEvents organizer kit](https://github.com/OpenTechEvents/ote-tools);
@@ -54,7 +54,7 @@ BreadcrumbList…) and malformed JSON blocks are skipped **without noise**;
 only "the page has no Event at all" warns. The same event repeated across
 blocks is deduplicated (by name + startDate + url).
 
-## Mapping (schema.org → OTE v0.3)
+## Mapping (schema.org → OTE v0.4)
 
 | schema.org | OTE |
 | --- | --- |

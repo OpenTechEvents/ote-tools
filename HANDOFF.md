@@ -32,23 +32,58 @@ Read before touching any of it: `apps/validator/README.md`,
 
 `/.well-known/ote-feed` and `<script type="application/ote+json">` are
 implemented in `packages/discover-feed` behind the `wellKnown` / `embedded`
-options, off by default, and the UI does not expose them. Turn them on when
-[opentechevents-spec#6](https://github.com/OpenTechEvents/opentechevents-spec/issues/6)
-closes — that issue also settles `application/ote+json` vs.
+options, off by default, and the UI does not expose them. Turn them on when the
+spec settles them — including `application/ote+json` vs.
 `application/feed+json`, at which point the lax media-type matching can become
 a definite answer plus a warning for the loser.
 
-Two more spec questions came out of validating a real 475-event feed, both
-filed and both changing what this validator reports the day they land:
-[spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)
-(image URLs are https-only as a MUST, so one old poster invalidates a whole
-feed — proposed as a SHOULD) and
-[spec#32](https://github.com/OpenTechEvents/opentechevents-spec/issues/32)
-(`format: uri` is ASCII-only, so `…/pycamp-españa` is "invalid" — proposed
-`format: iri`). Nothing to do here until the schema moves; `pnpm gen` picks
-it up.
+This item used to point at
+[opentechevents-spec#6](https://github.com/OpenTechEvents/opentechevents-spec/issues/6);
+that is the umbrella "define the Feed Schema" issue, not a discovery one, and
+there is no discovery-specific issue open upstream. Someone has to file it
+before this can be tracked properly.
 
-### 2. Housekeeping in Cloudflare
+The two questions a real 475-event feed raised — image URLs https-only as a
+MUST, and `format: uri` rejecting `…/pycamp-españa` — **both landed in OTE Spec
+0.4.0** and are implemented here as of `@opentechevents/validate` 0.4.0.
+[spec#32](https://github.com/OpenTechEvents/opentechevents-spec/issues/32) is
+closed; [spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)
+is still open upstream although its fix shipped — it wants closing.
+
+### 2. Moving the `@v1` tag to the 0.4.0 tools — checked, safe
+
+The 0.4.0 migration asked whether forks on
+`uses: OpenTechEvents/ote-tools/.github/workflows/validate.yml@v1` start
+failing CI the moment the tag moves. **They do not.** Checked, not assumed:
+
+- **Forks never declare `specVersion`.** `buildFeed()` writes
+  `specVersion: SPEC_VERSION` into the assembled feed itself
+  (`packages/build-feed/src/index.ts`), taking it from
+  `@opentechevents/validate`. It is not a field of `ote.config.json`
+  (`FEED_CONFIG_FIELDS`) and events inherit it rather than carrying it. So the
+  one rule that got *stricter* in 0.4.0 — the `const "0.4.0"` — is applied to a
+  value the tools generate, never to one an organizer wrote. No `ote migrate`
+  step is needed, and there is nothing for organizers to edit.
+- **Every other change is a relaxation.** Diffing the spec's `v0.3` and `v0.4`
+  event schemas: `format: uri` → `iri` on every URL field, image
+  `^https://` → `^https?://` on both image shapes, and the `specVersion`
+  `const`. Nothing else — **no enum member was removed anywhere**, so no
+  license id that validated under 0.3 stops validating. A fork that was green
+  stays green; a fork that was red over an `ñ` in a URL or an `http://` poster
+  turns green.
+
+What *does* change for forks is their **output**: the `feed.json` they publish
+now says `"specVersion": "0.4.0"`. Any consumer still running
+`@opentechevents/validate` 0.3.x will reject it — with the upgrade message
+added in 0.4.0, which names the version and what to do. That is a consumer
+upgrade, not a fork migration, and it is unavoidable in any spec bump.
+
+Conclusion: `@v1` can move once the 0.4.0 packages are published. Do it after
+`publish.yml`, not before — a fork's CI builds ote-tools from source at the
+tagged commit, so it does not strictly need the registry, but the two should
+not disagree about what version is current.
+
+### 3. Housekeeping in Cloudflare
 
 - **Dangling DNS record `fetch.opentechevents.org`** — still in the zone,
   pointing at Cloudflare with nothing behind it. The deploy token has no DNS
@@ -57,7 +92,7 @@ it up.
   — only serves local `pnpm dev` now that production is same-origin. Remove it
   if that is not worth the exposure.
 
-### 3. UI polish nobody has judged yet
+### 4. UI polish nobody has judged yet
 
 The redesign follows opentechevents.org's language (tokens, header, buttons,
 cards, dark code blocks, footer — the rule is in `CLAUDE.md`).

@@ -1,6 +1,6 @@
 # @opentechevents/build-feed
 
-Assembles an OTE Feed (v0.3) from an organizer repo — `events/*.json` plus the
+Assembles an OTE Feed (v0.4) from an organizer repo — `events/*.json` plus the
 `feed` block of `ote.config.json` — validates it with
 `@opentechevents/validate`, and exports it with the M2 exporters.
 
@@ -43,7 +43,7 @@ becomes the feed's `updatedAt`). The CLI does the I/O.
    (optionally) `license`, so a standalone check would wrongly demand a
    per-event license even when the feed already provides one.
 4. Checks what the schema *used to* not see across files: duplicate event
-   `id`s. v0.3's own schema now also catches this feed-wide (via a custom
+   `id`s. v0.4's own schema now also catches this feed-wide (via a custom
    keyword), but with worse attribution (it can't name which two files
    clash) — this package's own check runs first and wins; the schema's
    redundant copy of the same violation is filtered out.
