@@ -1,0 +1,44 @@
+{
+  "_comment": "VALID on purpose, and specific to this package: the 0.4.0 change to the recommended profile. A feed with textLanguage and no organizers used to draw a warning on sight; now it draws one only when an event could actually inherit that language. Here every event declares its own, so the feed-level value labels nothing but the feed's own title and description — the warning must stay silent. Its sibling fixture, feed-textlanguage-event-inherits.json, is the same feed with one event that omits it.",
+  "specVersion": "0.4.0",
+  "title": "Agregador de eventos tech",
+  "description": "Eventos de varias comunidades, cada una con su propio idioma.",
+  "url": "https://agregador.example",
+  "textLanguage": "es",
+  "license": "CC-BY-4.0",
+  "updatedAt": "2026-07-06T10:00:00Z",
+  "events": [
+    {
+      "id": "https://pyalmeria.example/eventos/2026-06-async",
+      "url": "https://pyalmeria.example/eventos/2026-06-async",
+      "name": "PyAlmería — Introducción a async/await",
+      "description": "Charla introductoria a la programación asíncrona en Python.",
+      "image": ["https://pyalmeria.example/img/2026-06-async.png"],
+      "organizers": [{ "name": "PyAlmería", "url": "https://pyalmeria.example" }],
+      "startDate": "2026-06-11T18:30",
+      "endDate": "2026-06-11T20:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": { "venue": "El Cable, Almería" },
+      "textLanguage": "es",
+      "license": "CC-BY-4.0",
+      "updatedAt": "2026-05-28T11:00:00Z"
+    },
+    {
+      "id": "https://rustbcn.example/events/2026-06-async-rust",
+      "url": "https://rustbcn.example/events/2026-06-async-rust",
+      "name": "Async Rust, from the ground up",
+      "description": "An introduction to async Rust, with live examples.",
+      "image": ["https://rustbcn.example/img/2026-06-async-rust.png"],
+      "organizers": [{ "name": "Rust Barcelona", "url": "https://rustbcn.example" }],
+      "startDate": "2026-06-18T18:30",
+      "endDate": "2026-06-18T20:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": { "venue": "Canòdrom, Barcelona" },
+      "textLanguage": "en",
+      "license": "CC-BY-4.0",
+      "updatedAt": "2026-06-01T09:00:00Z"
+    }
+  ]
+}

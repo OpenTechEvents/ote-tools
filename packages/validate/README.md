@@ -1,9 +1,9 @@
 # @opentechevents/validate
 
-Validates OTE **Event** and **Feed** documents against JSON Schema **v0.3**.
+Validates OTE **Event** and **Feed** documents against JSON Schema **v0.4**.
 Everything is embedded at build time (`pnpm gen`): the two validity schemas
 and two recommended (quality) schemas as JSON data
-(`src/schemas.generated.ts`), and v0.3's real validator functions Ajv can't
+(`src/schemas.generated.ts`), and v0.4's real validator functions Ajv can't
 run without — `customFormats`, `customKeywords`, `annotationKeywords` — as
 vendored source (`src/validators.generated.ts`, verbatim from
 `@opentechevents/schema`'s own code, not reimplemented). Nothing is fetched,
@@ -26,10 +26,10 @@ over (`src/compiled-scope.ts`). `test/compiled-validators.test.ts` fails if the
 compiled output drifts from the schemas or that scope stops matching what Ajv
 registered.
 
-> `@opentechevents/schema@0.3.0` isn't published to npm yet — v0.3 is still a
-> draft in the sibling `opentechevents-spec` repo. `package.json` currently
-> points at it via a local `link:` dependency; swap that for a real pinned
-> version once 0.3.0 is released (see `scripts/embed-schemas.mjs`).
+> `package.json` pins an exact published version of `@opentechevents/schema`
+> (never a local `link:`). When the spec releases, bump that pin, run
+> `pnpm gen`, and review the generated diff — the guard tests fail until the
+> re-embed happens (see `scripts/embed-schemas.mjs`).
 
 ## API
 

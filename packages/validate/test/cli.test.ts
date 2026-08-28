@@ -25,13 +25,13 @@ describe("ote-validate CLI", () => {
     const io = makeIO();
     expect(runCli([join(fixturesDir, "valid")], io)).toBe(0);
     expect(io.errLines).toEqual([]);
-    expect(io.outLines.at(-1)).toBe("12/12 valid");
+    expect(io.outLines.at(-1)).toBe("17/17 valid");
   });
 
   it("directory of invalid fixtures → exit 1 with per-file errors", () => {
     const io = makeIO();
     expect(runCli([join(fixturesDir, "invalid")], io)).toBe(1);
-    expect(io.outLines.at(-1)).toBe("0/85 valid");
+    expect(io.outLines.at(-1)).toBe("0/88 valid");
     expect(io.errLines.some((l) => l.startsWith("✗"))).toBe(true);
     expect(io.errLines.some((l) => l.includes("license"))).toBe(true);
   });

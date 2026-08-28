@@ -1,0 +1,13 @@
+{
+  "_comment": "VALID on purpose, and specific to this package: in 0.3 the two image forms were the only URLs pinned to `^https://`. 0.4.0 relaxes both to `^https?://`, so a poster served over plain http is no longer a validation error. Both entry forms are here — bare string and object with alt — because the relaxation had to happen twice in the schema, and one of the two is exactly what a re-tightening would miss.",
+  "specVersion": "0.4.0",
+  "id": "https://comunidad.example/eventos/2026-06-taller",
+  "name": "Taller de introducción a Git",
+  "image": [
+    "http://comunidad.example/img/2026-06-taller.png",
+    { "url": "http://comunidad.example/img/2026-06-taller-16x9.png", "alt": "Cartel del taller" }
+  ],
+  "startDate": "2026-06-18T18:00",
+  "timezone": "Europe/Madrid",
+  "license": "CC-BY-4.0"
+}

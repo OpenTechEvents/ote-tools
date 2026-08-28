@@ -1,0 +1,9 @@
+{
+  "_comment": "INVALID on purpose, and specific to this package: `iri` widened what an address may contain, not whether it has to be one. A space is still not allowed — the id here is two words, and no consumer can dereference it. This is the fixture that proves the 0.4.0 relaxation did not become \"anything goes\".",
+  "specVersion": "0.4.0",
+  "id": "https://eventos.wiki/events/2025/pycamp españa",
+  "name": "PyCamp España 2025",
+  "startDate": "2025-04-25",
+  "timezone": "Europe/Madrid",
+  "license": "CC-BY-4.0"
+}

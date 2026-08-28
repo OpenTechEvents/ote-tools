@@ -66,7 +66,23 @@ describe("validateEvent — invalid fixtures", () => {
     expect(errors).toContainEqual({
       path: "specVersion",
       message:
-        "is not a spec version this validator knows (it implements OTE Spec 0.3.0); if the spec has moved on, update @opentechevents/validate",
+        "is not a spec version this validator knows (it implements OTE Spec 0.4.0); if the spec has moved on, update @opentechevents/validate",
+    });
+  });
+
+  // The product decision behind this: a document from the PREVIOUS release is
+  // still an error — the schema pins one version with a `const` — but it is
+  // not the same error as an invented version, and for months after a release
+  // most live feeds are exactly this document. It gets told which version to
+  // move to instead of being sent looking for a typo.
+  it("a specVersion from an earlier release says which version to move to", () => {
+    const { errors } = validateEvent(
+      loadFixture("invalid", "event-old-specversion.json"),
+    );
+    expect(errors).toContainEqual({
+      path: "specVersion",
+      message:
+        'is OTE Spec 0.3.0, an earlier release than the 0.4.0 this validator implements; set specVersion to "0.4.0" and check again — every other error here is already measured against 0.4.0',
     });
   });
 
@@ -210,6 +226,25 @@ describe("checkEventRecommended / checkFeedRecommended — quality profile, not 
     expect(checkEventRecommended(event).valid).toBe(true);
   });
 
+  // The 0.4.0 change to the recommended profile, and the only part of that
+  // release a pure validity suite cannot see: the feed.textLanguage warning
+  // used to fire on the shape of the feed alone. Now it fires only when an
+  // event can actually inherit the language — which makes its absence, in the
+  // first fixture, the thing worth pinning.
+  it("a feed whose events all declare their own textLanguage draws no warning for it", () => {
+    const feed = loadFixture("valid", "feed-textlanguage-all-events-declare.json");
+    expect(validateFeed(feed).valid).toBe(true);
+    const warnings = checkFeedRecommended(feed).errors;
+    expect(warnings.filter((w) => w.path === "textLanguage")).toEqual([]);
+  });
+
+  it("a feed one of whose events inherits textLanguage still draws the warning", () => {
+    const feed = loadFixture("valid", "feed-textlanguage-event-inherits.json");
+    expect(validateFeed(feed).valid).toBe(true);
+    const warnings = checkFeedRecommended(feed).errors;
+    expect(warnings.filter((w) => w.path === "textLanguage")).toHaveLength(1);
+  });
+
   it("checkFeedRecommended reports readable warnings, same shape as validateFeed", () => {
     const result = checkFeedRecommended(loadFixture("valid", "feed.json"));
     for (const warning of result.errors) {
@@ -253,7 +288,7 @@ describe("validateFeed — invalid cases", () => {
 
 describe("error messages a publisher can act on", () => {
   const event = (image: unknown) => ({
-    specVersion: "0.3.0",
+    specVersion: "0.4.0",
     license: "CC0-1.0",
     id: "https://comunidad.example/e/1",
     name: "Meetup",
@@ -265,17 +300,35 @@ describe("error messages a publisher can act on", () => {
   const messagesFor = (image: unknown): string[] =>
     validateEvent(event(image)).errors.map((e) => `${e.path}: ${e.message}`);
 
-  it("names the rule an http image URL broke, and only that", () => {
+  it("names the rule a non-http image URL broke, and only that", () => {
     // The schema takes either a bare string or an object, so ajv reports the
     // branch that was never meant plus its vacuous `not`. Only the real
     // problem should survive: three messages, two of them about a shape the
     // publisher did not use, is how "must NOT be valid" ended up on screen.
-    expect(messagesFor([{ url: "http://x.example/a.png", alt: "Cartel" }])).toEqual([
-      "image[0].url: must be an https:// URL — http:// is not accepted here",
+    // The scheme used to be the http/https distinction; 0.4.0 accepts both,
+    // so the value that still fails is one from another protocol entirely.
+    expect(messagesFor([{ url: "ftp://x.example/a.png", alt: "Cartel" }])).toEqual([
+      "image[0].url: must be an http(s) URL",
     ]);
-    expect(messagesFor(["http://x.example/a.png"])).toEqual([
-      "image[0]: must be an https:// URL — http:// is not accepted here",
+    expect(messagesFor(["ftp://x.example/a.png"])).toEqual([
+      "image[0]: must be an http(s) URL",
     ]);
+  });
+
+  it("no longer claims an image has to be served over https", () => {
+    expect(messagesFor(["http://x.example/a.png"])).toEqual([]);
+    expect(
+      messagesFor([{ url: "http://x.example/a.png", alt: "Cartel" }]),
+    ).toEqual([]);
+  });
+
+  it("says what an unusable web address is without naming a JSON Schema format", () => {
+    const { errors } = validateEvent(
+      loadFixture("invalid", "event-id-with-space.json"),
+    );
+    const message = errors.find((e) => e.path === "id")?.message ?? "";
+    expect(message).not.toMatch(/\biri\b/i);
+    expect(message).toMatch(/spaces/);
   });
 
   it("says what a credential-carrying URL is, in words", () => {
@@ -301,20 +354,14 @@ describe("error messages a publisher can act on", () => {
   });
 
   it("explains the other `not` in these schemas rather than reusing the URL one", () => {
-    // feed.textLanguage without organizers is a SHOULD about attribution, not
-    // about credentials; both are spelled `not` in JSON Schema.
-    const { errors } = checkFeedRecommended({
-      specVersion: "0.3.0",
-      title: "Agregador",
-      description: "Eventos de muchas comunidades.",
-      url: "https://agregador.example",
-      license: "CC0-1.0",
-      textLanguage: "es",
-      updatedAt: "2026-07-06T10:00:00Z",
-      events: [],
-    });
+    // feed.textLanguage inherited by an event that declares none is a SHOULD
+    // about attribution, not about credentials; both are spelled `not` in
+    // JSON Schema.
+    const { errors } = checkFeedRecommended(
+      loadFixture("valid", "feed-textlanguage-event-inherits.json"),
+    );
     const message = errors.find((e) => e.path === "textLanguage")?.message ?? "";
-    expect(message).toMatch(/organizers/);
+    expect(message).toMatch(/textLanguage/);
     expect(message).not.toMatch(/credentials/);
   });
 });

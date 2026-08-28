@@ -1,6 +1,6 @@
 {
-  "_comment": "INVÁLIDO a propósito: endDate es anterior a startDate — el evento terminaría antes de empezar. Ver CHANGES.log #P003 / DECISIONS.md D004.",
-  "specVersion": "0.3.0",
+  "_comment": "INVÁLIDO a propósito: endDate es anterior a startDate — el evento terminaría antes de empezar. Ver docs/history/CHANGES.log #P003 / DECISIONS.md D004.",
+  "specVersion": "0.4.0",
   "id": "https://x.example/1",
   "name": "X",
   "startDate": "2026-06-26T20:00",

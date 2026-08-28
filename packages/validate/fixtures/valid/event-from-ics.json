@@ -1,5 +1,5 @@
 {
-  "specVersion": "0.3.0",
+  "specVersion": "0.4.0",
   "id": "https://calendar.example/ics/rust-madrid#a1b2c3d4-uid-from-the-ics",
   "name": "Rust Madrid — June meetup",
   "description": "Talks on WASM and Rust tooling.",

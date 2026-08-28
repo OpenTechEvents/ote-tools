@@ -1,0 +1,10 @@
+{
+  "_comment": "INVALID on purpose, and specific to this package: 0.4.0 lets an image be served over http, but the credentials rule survives it untouched. A feed is public, and a poster URL carrying user:pass@ leaks that secret to everyone who reads the feed. Same rule as event-url-userinfo.json, on the field that changed.",
+  "specVersion": "0.4.0",
+  "id": "https://comunidad.example/eventos/2026-06-taller",
+  "name": "Taller de introducción a Git",
+  "image": ["https://user:pass@comunidad.example/img/2026-06-taller.png"],
+  "startDate": "2026-06-18T18:00",
+  "timezone": "Europe/Madrid",
+  "license": "CC-BY-4.0"
+}

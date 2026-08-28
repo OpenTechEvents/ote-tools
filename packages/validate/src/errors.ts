@@ -36,24 +36,29 @@ const LOCATION_MESSAGE =
 const INSTANT_MESSAGE =
   "must be an ISO-8601 instant with offset or Z (e.g. 2026-07-06T10:00:00Z)";
 
+const IRI_MESSAGE =
+  "must be a usable web address: no spaces, quotation marks or < >, and nothing a browser could not open (accented characters such as ñ or á are fine)";
+
 /** Specific messages for known field patterns, keyed by path suffix. */
 const PATTERN_MESSAGES: Array<[RegExp, string]> = [
   [/\/timezone$/, "must be an IANA timezone (e.g. Europe/Madrid) or UTC"],
   [/\/license$/, "must be an SPDX identifier (e.g. CC-BY-4.0) or a URL"],
   [/\/languages\/\d+$/, "must be a BCP 47 language tag (e.g. es, en-US)"],
-  [/\/id$/, "must be a URI (e.g. https://example.org/events/2026-06)"],
+  [
+    /\/id$/,
+    "must be an http(s) address, e.g. https://example.org/events/2026-06 (accented characters are fine; it does not have to resolve to an OTE document)",
+  ],
   [/\/(url|onlineUrl|licenseUrl|waitlistUrl)$/, "must be an http(s) URL"],
 ];
 
 /**
- * Messages keyed by the *pattern itself*, which beats keying by field name: the
- * same `url` property is `^https?://` in some places and `^https://` in others
- * (images must be fetchable over TLS by whoever renders the feed), and a field
- * that says "must be an http(s) URL" about an `http://` value it just rejected
- * sends the publisher looking for a typo that is not there.
+ * Messages keyed by the *pattern itself* rather than by field name. Every
+ * HTTP(S) field in the spec now carries the same `^https?://` — 0.4.0 dropped
+ * the `^https://` images once had — so this table has one entry, and its job
+ * is reaching the fields no path regex above names: an `image` entry fails at
+ * `image[0]`, a property name the message table cannot key on.
  */
 const PATTERN_BY_REGEX: Array<[string, string]> = [
-  ["^https://", "must be an https:// URL — http:// is not accepted here"],
   ["^https?://", "must be an http(s) URL"],
 ];
 
@@ -75,7 +80,7 @@ const URL_FIELD = /\/(id|url|onlineUrl|licenseUrl|waitlistUrl)$|\/image\/\d+$/;
 const NOT_MESSAGES: Array<[RegExp, string]> = [
   [
     /\/textLanguage$/,
-    "should only be set when the feed also names its own organizers — without them it hands every event a single language none of them may actually share",
+    "is inherited by an event that declares no textLanguage of its own, in a feed that names no organizers — so it attributes a language that event never stated. Either name the feed's organizers, or let every event declare its own textLanguage",
   ],
 ];
 
@@ -102,12 +107,67 @@ function collectWallClockFailures(errors: ErrorObject[]): Set<string> {
 }
 
 /**
+ * The value an error is about, read out of the document by its JSON Pointer —
+ * `undefined` when the document was not passed in or the pointer leads
+ * nowhere. Ajv's error objects carry the schema's expectation, never the
+ * data's own value (that needs `verbose: true`, which the compiled validators
+ * are not built with), so a message that wants to quote the value has to come
+ * back for it.
+ */
+function valueAt(document: unknown, instancePath: string): unknown {
+  if (instancePath === "") return document;
+  let current: unknown = document;
+  for (const raw of instancePath.slice(1).split("/")) {
+    if (typeof current !== "object" || current === null) return undefined;
+    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+/**
+ * What to say about a `specVersion` this validator cannot check.
+ *
+ * The schemas pin one version with a `const`, so anything else is an error —
+ * that part is not a choice this function gets to make. What it does choose is
+ * whether the publisher hears "your document is wrong" or "your document is
+ * from the previous release". Most live feeds say the previous version for
+ * months after a spec release, and telling their maintainers only that the
+ * value "is not a spec version this validator knows" sends them looking for a
+ * typo in a field that has none.
+ *
+ * So: an older release gets the version it should move to; anything else
+ * (a newer release, an invented string) means the spec moved on ahead of this
+ * package, and the fix is on our side, not the publisher's.
+ */
+function specVersionMessage(declared: unknown): string {
+  const asNumbers = (v: unknown): number[] | null =>
+    typeof v === "string" && /^\d+\.\d+\.\d+$/.test(v) ? v.split(".").map(Number) : null;
+  const found = asNumbers(declared);
+  const implemented = asNumbers(specVersion);
+  let isOlder = false;
+  if (found && implemented) {
+    for (let i = 0; i < 3; i++) {
+      if (found[i]! !== implemented[i]!) {
+        isOlder = found[i]! < implemented[i]!;
+        break;
+      }
+    }
+  }
+  if (isOlder) {
+    return `is OTE Spec ${declared}, an earlier release than the ${specVersion} this validator implements; set specVersion to "${specVersion}" and check again — every other error here is already measured against ${specVersion}`;
+  }
+  return `is not a spec version this validator knows (it implements OTE Spec ${specVersion}); if the spec has moved on, update @opentechevents/validate`;
+}
+
+/**
  * Translates an ajv error into a readable `{path, message}`, or `null` when the
  * error is composition noise (anyOf/oneOf/allOf) already covered by a better message.
  */
 function humanize(
   err: ErrorObject,
   wallClockFailures: Set<string>,
+  declared: unknown,
 ): { path: string; message: string } | null {
   const { keyword, instancePath, schemaPath, params } = err;
 
@@ -155,10 +215,7 @@ function humanize(
       // document may be perfectly valid against a newer spec. Say so, instead
       // of a bare "must be 0.2.0" that reads like the document is wrong.
       if (/\/specVersion$/.test(instancePath) || instancePath === "/specVersion") {
-        return {
-          path,
-          message: `is not a spec version this validator knows (it implements OTE Spec ${specVersion}); if the spec has moved on, update @opentechevents/validate`,
-        };
+        return { path, message: specVersionMessage(declared) };
       }
       const allowed = (params as { allowedValue: unknown }).allowedValue;
       return { path, message: `must be ${JSON.stringify(allowed)}` };
@@ -206,6 +263,12 @@ function humanize(
       ) {
         return null;
       }
+      // "must be a valid iri" is the format name, not the rule. What the
+      // spec's `isIri` actually rejects is a string that cannot be a web
+      // address: control characters, a space, `<`, `>`, `"`, or anything
+      // `new URL()` refuses. Accented characters pass — that is the whole
+      // point of 0.4.0 moving these fields off `uri`.
+      if (format === "iri") return { path, message: IRI_MESSAGE };
       return { path, message: `must be a valid ${format}` };
     }
     case "minLength":
@@ -244,7 +307,7 @@ const INFORMATIVE = (keyword: string): boolean =>
  * Drops the wreckage of the branch that was never the right one.
  *
  * When a value must match one of several shapes, ajv reports every branch's
- * failure. An image entry given as `{ "url": "http://…" }` fails the
+ * failure. An image entry given as `{ "url": "ftp://…" }` fails the
  * *bare-string* branch twice — "must be string", and "must NOT be valid" from
  * the credentials check, which passes vacuously on a non-string and so trips
  * its own `not` — while the branch that actually applies reports the real
@@ -288,9 +351,17 @@ function branchNoise(all: ErrorObject[]): Set<ErrorObject> {
   return noise;
 }
 
-/** Converts raw ajv errors into a deduplicated list of readable errors. */
+/**
+ * Converts raw ajv errors into a deduplicated list of readable errors.
+ *
+ * `document` is the document those errors came from, and is read for exactly
+ * one thing: the `specVersion` it declares, which Ajv's error object for a
+ * failed `const` does not carry (only the value the schema wanted). Omitting
+ * it costs the version-specific half of that one message, nothing else.
+ */
 export function formatAjvErrors(
   errors: ErrorObject[] | null | undefined,
+  document?: unknown,
 ): ValidationError[] {
   const all = errors ?? [];
   const wallClockFailures = collectWallClockFailures(all);
@@ -299,7 +370,7 @@ export function formatAjvErrors(
   const out: ValidationError[] = [];
   for (const err of all) {
     if (noise.has(err)) continue;
-    const humanized = humanize(err, wallClockFailures);
+    const humanized = humanize(err, wallClockFailures, valueAt(document, err.instancePath));
     if (!humanized) continue;
     const key = `${humanized.path}|${humanized.message}`;
     if (seen.has(key)) continue;

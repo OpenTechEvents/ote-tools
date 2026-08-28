@@ -43,11 +43,11 @@ type CompiledValidator = ((json: unknown) => boolean) & {
 
 function run(fn: CompiledValidator, json: unknown): ValidationResult {
   const valid = fn(json);
-  return { valid, errors: valid ? [] : formatAjvErrors(fn.errors) };
+  return { valid, errors: valid ? [] : formatAjvErrors(fn.errors, json) };
 }
 
 /**
- * Validates an (already-parsed) OTE Event document against the v0.3 schema.
+ * Validates an (already-parsed) OTE Event document against the v0.4 schema.
  * Pure function: reads no files, makes no network calls.
  */
 export function validateEvent(json: unknown): ValidationResult {
@@ -55,7 +55,7 @@ export function validateEvent(json: unknown): ValidationResult {
 }
 
 /**
- * Validates an (already-parsed) OTE Feed document against the v0.3 schema.
+ * Validates an (already-parsed) OTE Feed document against the v0.4 schema.
  * Pure function: reads no files, makes no network calls.
  */
 export function validateFeed(json: unknown): ValidationResult {
@@ -63,7 +63,7 @@ export function validateFeed(json: unknown): ValidationResult {
 }
 
 /**
- * Checks an (already-parsed) OTE Event document against the v0.3 *recommended*
+ * Checks an (already-parsed) OTE Event document against the v0.4 *recommended*
  * (quality) profile. Unlike validateEvent, failures here are never rejections
  * — a document that fails is still a valid OTE document; report these as
  * warnings only. `valid: false` here means "missing fields that help this
@@ -74,7 +74,7 @@ export function checkEventRecommended(json: unknown): ValidationResult {
 }
 
 /**
- * Checks an (already-parsed) OTE Feed document against the v0.3 *recommended*
+ * Checks an (already-parsed) OTE Feed document against the v0.4 *recommended*
  * (quality) profile — see checkEventRecommended.
  */
 export function checkFeedRecommended(json: unknown): ValidationResult {
