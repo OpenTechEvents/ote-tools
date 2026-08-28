@@ -10,6 +10,12 @@ pending list: the `'unsafe-eval'` debt and the README badge (`/badge?doc=…` on
 the Worker — see `workers/validator/README.md`). `main` is green and deployed;
 no open PRs.
 
+**The repo implements OTE Spec 0.4.0.** All seven published packages are on npm
+at `0.4.0`, the validator is deployed and reports it, and the migration that
+got there is finished — its per-session notes were deleted with the release
+commit, and every decision worth keeping is in this file, `CONTRIBUTING.md` or
+the package changelogs.
+
 | Thing | State |
 | --- | --- |
 | `apps/validator` | Built here, served by the Worker. Three modes: URL, file, paste. |
@@ -44,11 +50,12 @@ there is no discovery-specific issue open upstream. Someone has to file it
 before this can be tracked properly.
 
 The two questions a real 475-event feed raised — image URLs https-only as a
-MUST, and `format: uri` rejecting `…/pycamp-españa` — **both landed in OTE Spec
-0.4.0** and are implemented here as of `@opentechevents/validate` 0.4.0.
-[spec#32](https://github.com/OpenTechEvents/opentechevents-spec/issues/32) is
-closed; [spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)
-is still open upstream although its fix shipped — it wants closing.
+MUST ([spec#31](https://github.com/OpenTechEvents/opentechevents-spec/issues/31)),
+and `format: uri` rejecting `…/pycamp-españa`
+([spec#32](https://github.com/OpenTechEvents/opentechevents-spec/issues/32)) —
+**both landed in OTE Spec 0.4.0**, are implemented here as of
+`@opentechevents/validate` 0.4.0, and both issues are now closed upstream.
+Nothing pending on either.
 
 ### 2. Moving the `@v1` tag — the spec is not what blocks it
 
@@ -91,26 +98,21 @@ fork-visible surface — `packages/build-feed`, `validate.yml`, `build-pages.yml
 first, the way `CONTRIBUTING.md` already prescribes for workflow changes.
 Until one of those happens the tag stays where it is.
 
-### 3. `@opentechevents/export-jsonld` has never been published
+### 3. `@opentechevents/export-jsonld` needs its trusted publisher
 
-Its `CHANGELOG.md` claims a `0.3.0` "initial package release" that never
-reached the registry: `https://registry.npmjs.org/@opentechevents/export-jsonld`
-is a 404. The 0.4.0 release run published the other six packages and failed on
-this one with `Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE … 404`, then
-`E404 … PUT` — which is exactly the case `publish.yml`'s own header describes:
-npm will not accept a trusted publisher for a package that does not exist yet.
+All seven packages are on npm at 0.4.0, but this one did not get there through
+`publish.yml`. Its `CHANGELOG.md` claimed a `0.3.0` "initial package release"
+that never reached the registry, so at the 0.4.0 run npm had no package to
+attach a trusted publisher to: `Skipped OIDC: ERR_PNPM_AUTH_TOKEN_EXCHANGE …
+404`, then `E404 … PUT`. It was published by hand instead — exactly the escape
+hatch `publish.yml`'s header describes for a brand-new package.
 
-Unblock it by hand, once:
-
-```sh
-npm login
-pnpm --filter @opentechevents/export-jsonld publish --access public --no-git-checks
-```
-
-then add this repo + `publish.yml` as its trusted publisher in the package's
-npm settings, and re-run `publish.yml` — it is idempotent, so the six already
-at 0.4.0 are skipped. Until then `@opentechevents/export-jsonld` is
-workspace-only, and the README lists a package nobody can install.
+**The next release will fail the same way** unless this repo + `publish.yml`
+are added as its trusted publisher in the package's npm settings. Nothing in
+this repo can do it or check it; it is one form in the npm UI. Do it before
+0.4.1, not during it. The by-hand publish also means this one package has no
+provenance attestation while the other six do — that corrects itself on the
+first run that publishes it through the workflow.
 
 ### 4. Housekeeping in Cloudflare
 
