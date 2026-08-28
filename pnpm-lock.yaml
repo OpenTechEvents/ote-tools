@@ -364,8 +364,8 @@ importers:
         version: 3.0.1(ajv@8.20.0)
     devDependencies:
       '@opentechevents/schema':
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.4.0
+        version: 0.4.0
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -1083,8 +1083,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
-  '@opentechevents/schema@0.3.0':
-    resolution: {integrity: sha512-4lW8hs+tk0ZziUBOHexr0+PIfQm5P7TD11tUJgN1tGI5ldvYpmvRisY8gcZm0lBTVtjACeZ8xQH5OA89gEX09A==}
+  '@opentechevents/schema@0.4.0':
+    resolution: {integrity: sha512-/Bi+1bW+B5cY6YUQh0QdcB+c/itCB/TQdlqkcotqu2tUGOpcpoBz4rDSJ+AoASIzckQZgKEs4FvKkVNV3Qbjkw==}
 
   '@poppinss/colors@4.1.6':
     resolution: {integrity: sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg==}
@@ -2496,7 +2496,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@opentechevents/schema@0.3.0': {}
+  '@opentechevents/schema@0.4.0': {}
 
   '@poppinss/colors@4.1.6':
     dependencies:

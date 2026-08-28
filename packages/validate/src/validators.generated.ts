@@ -49,7 +49,7 @@ const VARIANT = new Set(languageSubtags.variant);
  * Deliberately does NOT handle `extlang`, extension singletons (`-u-...`, `-t-...`), private use
  * (`x-...`) or the 26 fixed `grandfathered` tags: none has a real use case for "what language is
  * this event's text in", and `grandfathered` tags are relics RFC 5646 itself deprecates in favor
- * of the modern subtag form. See CHANGES.log #P006 / DECISIONS.md D007.
+ * of the modern subtag form. See docs/history/CHANGES.log #P006 / DECISIONS.md D007.
  *
  * Returns null if the tag doesn't parse; a well-formed tag with an unregistered subtag also
  * returns null — e.g. "en-12345678" is 8 alphanumeric characters, which the grammar's own
@@ -98,6 +98,21 @@ function isOteLanguageTag(value) {
 }
 
 /**
+ * JSON Schema's `iri` format is the Unicode sibling of `uri`: the web address a person actually
+ * publishes may carry non-ASCII characters such as `ñ` or `á`. The schemas still pair it with
+ * an explicit `^https?://` pattern wherever OTE wants web URLs only.
+ */
+function isIri(value) {
+  if (typeof value !== "string" || /[\u0000-\u0020<>"]/.test(value)) return false;
+  try {
+    new URL(encodeURI(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Formats the schemas use beyond what ajv-formats provides. Ajv's strict mode refuses to
  * compile a schema referencing an unregistered format, so register these before compiling —
  * the same requirement `annotationKeywords` already has, for the same reason:
@@ -105,6 +120,7 @@ function isOteLanguageTag(value) {
  *   for (const f of customFormats) ajv.addFormat(f.name, f.validate);
  */
 export const customFormats = [
+  { name: "iri", validate: isIri },
   { name: "ote-local-date-time", validate: isOteLocalDateTime },
   { name: "ote-language-tag", validate: isOteLanguageTag },
 ];
@@ -298,7 +314,7 @@ export const customKeywords = [
      * effective language in different case (P026): the inherited case is exactly as capable of
      * this contradiction as the local one `distinctTranslationLanguages` already covers, and
      * without this an event that omits its own textLanguage was the one shape where it slipped
-     * through. See CHANGES.log #P015 / DECISIONS.md D016.
+     * through. See docs/history/CHANGES.log #P015 / DECISIONS.md D016.
      */
     validate: (schemaValue, data) => {
       if (!schemaValue || !Array.isArray(data.events)) return true;
@@ -346,7 +362,7 @@ export const customKeywords = [
      * no available text at all (no effective `textLanguage`, no `translations`), this stays
      * silent rather than warn: `README.md`'s own reasoning for why `textLanguage` is not
      * recommended on its own (an `.ics` importer never has it, and inventing one is worse than
-     * omitting it) would otherwise be defeated by the back door. See CHANGES.log #P019 /
+     * omitting it) would otherwise be defeated by the back door. See docs/history/CHANGES.log #P019 /
      * DECISIONS.md D019.
      */
     validate: (schemaValue, data) => {
@@ -377,7 +393,7 @@ export const customKeywords = [
      * never infers that two DIFFERENT tags (a regional variant, an alias, a macrolanguage) name the
      * same language — "pt" and "pt-BR" stay distinct. Lives on the `languages` property itself, not
      * the whole event object, so a failure reports at `/languages` without needing the
-     * `OBJECT_KEYWORD_FIELD` lookup `languagesCoveredByText` needed. See CHANGES.log #P031 /
+     * `OBJECT_KEYWORD_FIELD` lookup `languagesCoveredByText` needed. See docs/history/CHANGES.log #P031 /
      * DECISIONS.md D028.
      */
     validate: (schemaValue, data) => {

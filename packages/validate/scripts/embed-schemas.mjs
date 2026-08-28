@@ -29,17 +29,14 @@
 // script imports it, and only at codegen time in Node) — never a runtime
 // dependency, and never fetched at runtime either way.
 //
-// TEMPORARY: @opentechevents/schema@0.3.0 is not published to npm yet (the
-// v0.3 spec is still a draft in the sibling opentechevents-spec repo), so
-// package.json currently points at it via `link:../../../opentechevents-spec`.
-// Swap that back to a real pinned version once 0.3.0 is published, then
-// re-run `pnpm gen` and re-run tests — the guard tests below surface any
-// last-minute drift between the draft and the published release.
+// package.json pins an exact registry version of @opentechevents/schema —
+// never a `link:` to a local checkout of the spec repo, which would make the
+// generated modules depend on whatever is uncommitted next door.
 //
-// Syncing with a new spec version = bump the dependency (Dependabot opens
-// that PR once this is on a real registry version), run `pnpm gen`, review
-// the diff. The guard tests (test/schemas-generated.test.ts,
-// test/validators-generated.test.ts) fail until the re-embed happens, so a
+// Syncing with a new spec version = bump that pin (Dependabot opens the PR
+// when the spec releases), run `pnpm gen`, review the diff by hand. The guard
+// tests (test/schemas-generated.test.ts, test/validators-generated.test.ts,
+// test/compiled-validators.test.ts) fail until the re-embed happens, so a
 // bump can never land stale.
 import { readFileSync, writeFileSync } from "node:fs";
 import { compiledValidatorsSource } from "./compile-validators.mjs";
