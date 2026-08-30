@@ -503,8 +503,9 @@ function renderLinkOffer(json: unknown): void {
 }
 
 /** Groups the findings so the ones that need action are not buried. */
-function renderLinkResults(checked: CheckedUrl[]): void {
+function renderLinkResults(checked: CheckedUrl[], total: number): void {
   const counts = summarize(checked);
+  const done = counts.ok + counts.broken + counts.unverifiable;
   linksBox.replaceChildren(
     element("h3", undefined, "Links"),
     element(
@@ -512,7 +513,11 @@ function renderLinkResults(checked: CheckedUrl[]): void {
       "muted",
       `${counts.ok} load, ${counts.broken} broken, ${counts.unverifiable} could not be checked` +
         (counts.skipped > 0 ? `, ${counts.skipped} not checked` : "") +
-        ". None of this affects the verdict above.",
+        ". None of this affects the verdict above." +
+        // Said while it is still running: the counts above are a partial
+        // answer until the last batch lands, and a reader watching "0 broken"
+        // should know whether that is a result or a progress report.
+        (done < total ? ` Checked ${done} of ${total} so far…` : ""),
     ),
   );
 
@@ -572,6 +577,12 @@ async function runLinkCheck(json: unknown, button: HTMLButtonElement): Promise<v
   const report = await checkDocumentLinks(json, {
     endpoint: FETCH_ENDPOINT,
     fetchImpl: browserFetch,
+    // The list goes out in batches, so the answers come back in batches too:
+    // showing each one as it lands beats a spinner over a document whose
+    // links take several round trips to check.
+    onProgress: (checked, total) => {
+      renderLinkResults(checked, total);
+    },
   });
   if (report.status === "error") {
     button.disabled = false;
@@ -579,7 +590,7 @@ async function runLinkCheck(json: unknown, button: HTMLButtonElement): Promise<v
     linksBox.append(element("p", "warn", report.message));
     return;
   }
-  renderLinkResults(report.checked);
+  renderLinkResults(report.checked, report.checked.length);
 }
 
 /* ------------------------------------------------------------------ *

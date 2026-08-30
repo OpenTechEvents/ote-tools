@@ -12,6 +12,12 @@
  * `<img>`, which needs no CORS. It cannot report a status code, so it can
  * only ever say "did not load" — which is exactly the answer that needs a
  * status code to be trustworthy. Not worth its own code path.)
+ *
+ * The list is sent in **batches**, because a Worker invocation may make only
+ * 50 subrequests and each URL costs several (#71). One request per feed asked
+ * the Worker for something the platform does not grant; several small ones
+ * ask for what it does, and the page shows each batch as it lands instead of
+ * waiting for all of them.
  */
 
 import { collectDocumentUrls, type DocumentUrl, type UrlKind } from "./urls.js";
@@ -42,7 +48,26 @@ export interface LinkCheckDeps {
   /** Same base as the fetch endpoint; empty string means this page's origin. */
   endpoint: string;
   fetchImpl: typeof fetch;
+  /** Called after each batch, so the page fills in as answers arrive. */
+  onProgress?: (checked: CheckedUrl[], total: number) => void;
 }
+
+/**
+ * URLs per request. Must stay at or below the Worker's own `maxUrls`
+ * (`workers/validator/src/check-urls.ts`), which is sized so that a batch
+ * fits inside one invocation's subrequest budget. Lower than that cap on
+ * purpose: the margin is what absorbs a URL that needs a redirect hop or a
+ * GET fallback.
+ */
+export const BATCH_SIZE = 10;
+
+/**
+ * Most URLs this page will check for one document. A 200-event feed carries
+ * hundreds, and each batch is a request against a per-IP rate limit — so the
+ * ceiling is stated and the remainder is reported as unchecked, rather than
+ * quietly hammering the endpoint until it refuses.
+ */
+export const MAX_URLS_CHECKED = 120;
 
 /** What a broken URL of each kind actually costs whoever reads the feed. */
 export const KIND_CONSEQUENCE: Record<UrlKind, string> = {
@@ -62,30 +87,22 @@ export const KIND_LABEL: Record<UrlKind, string> = {
   license: "Licence",
 };
 
-/**
- * Checks every URL in a parsed document.
- *
- * Never throws: the link check is an extra, and a fetcher that is down must
- * leave the schema verdict — which is already on screen — untouched.
- */
-export async function checkDocumentLinks(
-  json: unknown,
+/** One batch. Returns the endpoint's answers, or a message to show instead. */
+async function checkBatch(
+  urls: string[],
   deps: LinkCheckDeps,
-): Promise<LinkReport> {
-  const urls = collectDocumentUrls(json);
-  if (urls.length === 0) return { status: "ok", checked: [] };
-
+): Promise<{ ok: true; results: UrlCheckResult[] } | { ok: false; message: string }> {
   const endpoint = `${deps.endpoint.replace(/\/$/, "")}/check-urls`;
   let response: Response;
   try {
     response = await deps.fetchImpl(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ urls: urls.map((entry) => entry.url) }),
+      body: JSON.stringify({ urls }),
     });
   } catch {
     return {
-      status: "error",
+      ok: false,
       message:
         "The link checker could not be reached. The verdict above is unaffected — it was " +
         "produced in this tab, from the document itself.",
@@ -96,32 +113,74 @@ export async function checkDocumentLinks(
   try {
     body = await response.json();
   } catch {
-    return { status: "error", message: "The link checker answered something unreadable." };
+    return { ok: false, message: "The link checker answered something unreadable." };
   }
 
   if (!response.ok || (body as { ok?: boolean }).ok !== true) {
     const message = (body as { message?: string }).message;
-    return {
-      status: "error",
-      message: message ?? `The link checker answered ${response.status}.`,
-    };
+    return { ok: false, message: message ?? `The link checker answered ${response.status}.` };
   }
 
-  const results = (body as { results?: UrlCheckResult[] }).results ?? [];
-  const byUrl = new Map(results.map((result) => [result.url, result]));
+  return { ok: true, results: (body as { results?: UrlCheckResult[] }).results ?? [] };
+}
 
-  return {
-    status: "ok",
-    checked: urls.map((entry: DocumentUrl) => ({
+/**
+ * Checks every URL in a parsed document, a batch at a time.
+ *
+ * Never throws: the link check is an extra, and a checker that is down must
+ * leave the schema verdict — which is already on screen — untouched.
+ */
+export async function checkDocumentLinks(
+  json: unknown,
+  deps: LinkCheckDeps,
+): Promise<LinkReport> {
+  const urls = collectDocumentUrls(json);
+  if (urls.length === 0) return { status: "ok", checked: [] };
+
+  const attempted = urls.slice(0, MAX_URLS_CHECKED);
+  const beyondCap: CheckedUrl[] = urls.slice(MAX_URLS_CHECKED).map((entry) => ({
+    kind: entry.kind,
+    pointers: entry.pointers,
+    url: entry.url,
+    state: "skipped",
+    reason: `not checked: this page checks the first ${MAX_URLS_CHECKED} addresses`,
+  }));
+
+  const answers = new Map<string, UrlCheckResult>();
+  const checked = (): CheckedUrl[] => [
+    ...attempted.map((entry: DocumentUrl) => ({
       kind: entry.kind,
       pointers: entry.pointers,
-      ...(byUrl.get(entry.url) ?? {
+      ...(answers.get(entry.url) ?? {
         url: entry.url,
         state: "skipped" as const,
-        reason: "no answer for this URL",
+        reason: "not checked yet",
       }),
     })),
-  };
+    ...beyondCap,
+  ];
+
+  // Sequential, not parallel: batches exist because the Worker has a budget,
+  // and firing them all at once would just move the crowding one level up
+  // (and into a per-IP rate limit).
+  for (let start = 0; start < attempted.length; start += BATCH_SIZE) {
+    const batch = attempted.slice(start, start + BATCH_SIZE);
+    const answer = await checkBatch(
+      batch.map((entry) => entry.url),
+      deps,
+    );
+    // A failed batch ends the run, but never discards the batches already in:
+    // partial answers are the whole point of doing this in pieces.
+    if (!answer.ok) {
+      return start === 0
+        ? { status: "error", message: answer.message }
+        : { status: "ok", checked: checked() };
+    }
+    for (const result of answer.results) answers.set(result.url, result);
+    deps.onProgress?.(checked(), urls.length);
+  }
+
+  return { status: "ok", checked: checked() };
 }
 
 /** Counts by state, for a one-line summary. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkDocumentLinks, summarize } from "../src/lib/links.js";
+import { BATCH_SIZE, checkDocumentLinks, summarize } from "../src/lib/links.js";
 import { collectDocumentUrls } from "../src/lib/urls.js";
 
 // The feed this comes from: corunajug.org validated cleanly while every image
@@ -138,5 +138,94 @@ describe("checkDocumentLinks", () => {
       fetchImpl,
     });
     expect(report).toEqual({ status: "ok", checked: [] });
+  });
+});
+
+// A Worker invocation may make 50 subrequests and each URL costs several, so
+// one request per feed asked for something the platform does not grant — the
+// endpoint answered 500 for every real feed (#71). The page now asks in
+// batches, and these pin the parts of that a unit test can see.
+describe("checkDocumentLinks — batching", () => {
+  /** A document with `count` distinct image URLs. */
+  const documentWith = (count: number) => ({
+    specVersion: "0.4.0",
+    events: Array.from({ length: count }, (_, i) => ({
+      name: `Event ${i}`,
+      image: [`https://example.org/img/${i}.png`],
+    })),
+  });
+
+  function recordingFetch() {
+    const batches: string[][] = [];
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const { urls } = JSON.parse(String(init?.body)) as { urls: string[] };
+      batches.push(urls);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          results: urls.map((url) => ({ url, state: "ok", reason: "answered 200" })),
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    }) as unknown as typeof fetch;
+    return { batches, fetchImpl };
+  }
+
+  it("never sends more URLs in one request than a Worker invocation can afford", async () => {
+    const { batches, fetchImpl } = recordingFetch();
+    await checkDocumentLinks(documentWith(25), { endpoint: "", fetchImpl });
+    expect(batches.length).toBeGreaterThan(1);
+    for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(BATCH_SIZE);
+  });
+
+  it("checks every URL across the batches, not just the first ones", async () => {
+    const { fetchImpl } = recordingFetch();
+    const report = await checkDocumentLinks(documentWith(25), { endpoint: "", fetchImpl });
+    if (report.status !== "ok") throw new Error("expected results");
+    expect(report.checked).toHaveLength(25);
+    expect(report.checked.every((entry) => entry.state === "ok")).toBe(true);
+  });
+
+  it("reports progress as batches land", async () => {
+    const { fetchImpl } = recordingFetch();
+    const seen: number[] = [];
+    await checkDocumentLinks(documentWith(25), {
+      endpoint: "",
+      fetchImpl,
+      onProgress: (checked) => {
+        seen.push(checked.filter((entry) => entry.state === "ok").length);
+      },
+    });
+    // Partial answers on the way, not one jump from nothing to everything.
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.at(-1)).toBe(25);
+  });
+
+  it("keeps the batches already in when a later one fails", async () => {
+    let calls = 0;
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const { urls } = JSON.parse(String(init?.body)) as { urls: string[] };
+      if (++calls > 1) return new Response("error code: 1101", { status: 500 });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          results: urls.map((url) => ({ url, state: "ok", reason: "answered 200" })),
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    }) as unknown as typeof fetch;
+
+    const report = await checkDocumentLinks(documentWith(25), { endpoint: "", fetchImpl });
+    // Ten good answers beat one error message about all twenty-five.
+    if (report.status !== "ok") throw new Error("expected partial results");
+    expect(summarize(report.checked).ok).toBe(BATCH_SIZE);
+    expect(summarize(report.checked).skipped).toBe(25 - BATCH_SIZE);
+  });
+
+  it("still reports an error when the very first batch fails", async () => {
+    const fetchImpl = (async () =>
+      new Response("error code: 1101", { status: 500 })) as unknown as typeof fetch;
+    const report = await checkDocumentLinks(documentWith(3), { endpoint: "", fetchImpl });
+    expect(report.status).toBe("error");
   });
 });

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { checkUrls, DEFAULT_CHECK_LIMITS, type UrlCheckResult } from "../src/check-urls.js";
+import {
+  checkUrls,
+  DEFAULT_CHECK_LIMITS,
+  MIN_SUBREQUESTS_PER_URL,
+  type UrlCheckResult,
+} from "../src/check-urls.js";
 
 // The whole point of this endpoint is *not* crying wolf. A feed with an image
 // that 404s has a real problem its publisher wants to know about; a feed whose
@@ -208,5 +213,130 @@ describe("checkUrls — budgets", () => {
   it("has limits worth publishing", () => {
     expect(DEFAULT_CHECK_LIMITS.maxUrls).toBeGreaterThan(0);
     expect(DEFAULT_CHECK_LIMITS.concurrency).toBeLessThanOrEqual(10);
+  });
+});
+
+// The bug that made this endpoint useless in production (#71): a Worker
+// invocation may make 50 subrequests, every outbound call counts — fetches,
+// DNS lookups AND Cache API calls — and nothing here was counting. The
+// runtime threw "Too many subrequests" from inside a cache call, outside the
+// try/catch that guarded the fetches, and one 500 replaced twenty perfectly
+// good answers.
+//
+// These tests count what the platform counts. The old code passes every test
+// above this line, so the arithmetic is the only thing that catches it.
+/**
+ * Cloudflare's own number, not ours: a Worker invocation may make 50
+ * subrequests. Hard-coded on purpose — asserting against
+ * DEFAULT_CHECK_LIMITS.maxSubrequests would let a bad edit to that constant
+ * move the goalposts with the test still green.
+ */
+const PLATFORM_SUBREQUEST_CEILING = 50;
+
+describe("checkUrls — the platform's subrequest ceiling", () => {
+  /** Everything the platform charges for: fetches, DNS, and cache reads/writes. */
+  function countingDeps(status = 200) {
+    let subrequests = 0;
+    const fetchImpl = (async () => {
+      subrequests++;
+      return new Response(null, { status });
+    }) as typeof fetch;
+    const store = new Map<string, Response>();
+    return {
+      count: () => subrequests,
+      hosts: [] as string[],
+      deps: {
+        fetchImpl,
+        resolve: async (hostname: string) => {
+          subrequests++;
+          hosts.push(hostname);
+          return ["93.184.216.34"];
+        },
+        cache: {
+          match: async (request: Request) => {
+            subrequests++;
+            return store.get(request.url)?.clone();
+          },
+          put: async (request: Request, response: Response) => {
+            subrequests++;
+            store.set(request.url, response);
+          },
+        },
+      },
+    };
+  }
+  const hosts: string[] = [];
+
+  it("never spends more subrequests than its budget, however many URLs arrive", async () => {
+    hosts.length = 0;
+    const { deps, count } = countingDeps();
+    const urls = Array.from({ length: 40 }, (_, i) => `https://host${i}.example/a`);
+    const results = await checkUrls(urls, ORIGIN, { ...deps, limits: { maxUrls: 40 } });
+
+    // Staying under the platform's ceiling is what keeps the runtime from
+    // throwing "Too many subrequests" from wherever it happens to be.
+    expect(count()).toBeLessThan(PLATFORM_SUBREQUEST_CEILING);
+    // And every URL still gets an answer, even the ones there was no budget for.
+    expect(results).toHaveLength(40);
+    expect(results.every((result) => result.reason.length > 0)).toBe(true);
+  });
+
+  it("reports what it could not afford as skipped, never as working", async () => {
+    hosts.length = 0;
+    const { deps } = countingDeps();
+    const urls = Array.from({ length: 40 }, (_, i) => `https://host${i}.example/a`);
+    const results = await checkUrls(urls, ORIGIN, { ...deps, limits: { maxUrls: 40 } });
+
+    const unchecked = results.filter((result) => result.state === "skipped");
+    expect(unchecked.length).toBeGreaterThan(0);
+    // Distinguishable from a 403/429 "could not be checked", which is about
+    // the server; this one is about us.
+    expect(unchecked.some((result) => result.reason.includes("outbound calls"))).toBe(true);
+    expect(unchecked.every((result) => result.state !== "ok")).toBe(true);
+  });
+
+  it("resolves each hostname once for the whole batch, not once per URL", async () => {
+    hosts.length = 0;
+    const { deps } = countingDeps();
+    // Twenty URLs, four hosts — the shape of a real feed.
+    const urls = Array.from(
+      { length: 20 },
+      (_, i) => `https://host${i % 4}.example/page-${i}`,
+    );
+    await checkUrls(urls, ORIGIN, { ...deps, limits: { maxUrls: 20 } });
+    expect(new Set(hosts).size).toBe(hosts.length);
+    expect(hosts.length).toBeLessThanOrEqual(4);
+  });
+
+  it("answers rather than throwing when the runtime cuts a subrequest off", async () => {
+    // What the platform actually does at the ceiling: throw from inside a
+    // call, here the cache — the path that used to escape entirely.
+    let calls = 0;
+    const deps = {
+      fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
+      resolve,
+      cache: {
+        match: async () => {
+          if (++calls > 3) throw new Error("Too many subrequests by single Worker invocation.");
+          return undefined;
+        },
+        put: async () => {},
+      },
+    };
+    const urls = Array.from({ length: 10 }, (_, i) => `https://example.org/${i}`);
+    const results = await checkUrls(urls, ORIGIN, { ...deps, limits: { maxUrls: 10 } });
+
+    expect(results).toHaveLength(10);
+    expect(results.filter((result) => result.state === "ok").length).toBeGreaterThan(0);
+    expect(results.filter((result) => result.state === "skipped").length).toBeGreaterThan(0);
+  });
+
+  it("advertises a URL cap it can actually honour", () => {
+    // `maxUrls: 60` against a 50-subrequest ceiling was a promise, not a
+    // limit. Whatever the numbers become, they have to agree.
+    expect(
+      DEFAULT_CHECK_LIMITS.maxUrls * MIN_SUBREQUESTS_PER_URL,
+    ).toBeLessThanOrEqual(DEFAULT_CHECK_LIMITS.maxSubrequests + DEFAULT_CHECK_LIMITS.maxUrls);
+    expect(DEFAULT_CHECK_LIMITS.maxSubrequests).toBeLessThan(50);
   });
 });

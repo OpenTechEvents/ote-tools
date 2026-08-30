@@ -63,6 +63,11 @@ behind a button, and it can never change the verdict. A 404 is not a schema
 violation, and a page where a broken image turned a feed red would have
 publishers "fixing" documents that are already correct.
 
+The list goes out in batches of ten, and results fill in as each lands: one
+request per feed asked the Worker for more subrequests than a Worker
+invocation is allowed (#71), which is a platform limit, not a tuning
+parameter.
+
 It runs server-side because it cannot run here: from a browser, a cross-origin
 request without CORS fails identically whether the host is dead or merely
 CORS-less, so a client-side checker would report healthy URLs as broken — the

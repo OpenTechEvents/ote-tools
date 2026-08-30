@@ -68,10 +68,19 @@ Three rules hold it to being useful rather than noisy:
   positive that was just removed from the ecosystem's daily health check. They
   come back as `unverifiable`, which the page renders differently and never
   counts as the publisher's problem. So do timeouts and 5xx.
-- **Budgets are hard**: deduplicated, capped at 60 URLs per request with a
-  concurrency limit, a per-URL timeout and a total budget; whatever is left
-  over is reported as `skipped`, never as fine. Answers are cached per URL for
-  five minutes, so two validations of the same feed do not hammer anyone.
+- **Budgets are hard, and the platform's is the hardest.** A Worker
+  invocation may make **50 subrequests**, and every outbound call counts: each
+  `fetch`, each DNS lookup, and — the one that is easy to forget — each Cache
+  API call. At ~4 per URL, the ceiling arrives at the eleventh, which is why
+  this endpoint answered 500 for every real feed until #71. So subrequests are
+  counted against a budget of 40, DNS is resolved once per hostname instead of
+  once per URL, and `maxUrls` is **12**: a number one invocation can honour,
+  rather than a promise. A caller with more URLs sends more requests — the
+  page batches at 10. Whatever cannot be afforded comes back `skipped`, never
+  as fine, and the endpoint answers 200 with partial results rather than
+  failing. Answers are cached per URL for five minutes (a cache hit costs one
+  subrequest instead of four), so two validations of the same feed do not
+  hammer anyone.
 
 `HEAD` first, then `GET` with `Range: bytes=0-0` — plenty of servers refuse
 `HEAD`, and treating that refusal as a verdict would invent broken links. The
