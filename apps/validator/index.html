@@ -3,6 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- What the page used to say in its hero. It is the page's one-sentence
+         description, so it belongs where search engines, link previews and
+         screen readers look for one — not in a banner the reader has to
+         scroll past to reach the form. -->
+    <meta
+      name="description"
+      content="Is this document a valid OpenTechEvents feed or event? Paste a URL, drop a file, or paste the JSON. Nothing to install."
+    />
     <!--
       Strict CSP, no unsafe-inline. This page renders documents fetched from
       URLs a stranger chose, so nothing inline may execute and nothing may be
@@ -37,7 +45,7 @@
       <div class="wrap header-inner">
         <a class="brand" href="https://opentechevents.org/">
           <span class="brand-mark">OTE</span>
-          <span class="brand-name">OpenTechEvents</span>
+          <span class="brand-name">Validator</span>
         </a>
         <nav class="nav" aria-label="Site">
           <a href="https://opentechevents.org/#spec">How it works</a>
@@ -49,16 +57,10 @@
     </header>
 
     <main id="main">
-      <section class="hero">
-        <div class="wrap">
-          <p class="eyebrow">Tools</p>
-          <h1>OTE validator</h1>
-          <p class="lead">
-            Is this document a valid OpenTechEvents feed or event? Paste a URL, drop a file, or
-            paste the JSON. Nothing to install.
-          </p>
-        </div>
-      </section>
+      <!-- The visible name of this page is the brand mark in the header. The
+           document still needs one heading that says what it is, for anything
+           that reads structure rather than pixels. -->
+      <h1 class="sr-only">OTE validator</h1>
 
       <div class="wrap">
         <nav class="tabs" aria-label="Input mode">
@@ -107,7 +109,9 @@
 
         <p id="status" class="status" hidden></p>
 
-        <section id="discovery" class="panel result" hidden></section>
+        <!-- Discovery that did NOT reach a document: there is no verdict to
+             show, so this IS the answer and it stays above the fold. -->
+        <section id="discovery-alert" class="panel result" hidden></section>
         <section id="candidates" class="panel result" hidden></section>
 
         <!-- Findings on the left, the document on the right once the viewport
@@ -148,6 +152,12 @@
             <section id="source" class="source-panel" hidden></section>
           </div>
         </div>
+
+        <!-- Where the document came from, once there is a verdict about it.
+             Below the verdict on purpose: the question this page answers is
+             "is this document valid", and how it was located is provenance —
+             worth being able to check, not worth being read first. -->
+        <section id="discovery" class="panel result secondary" hidden></section>
 
         <section id="permalink" class="panel" hidden>
           <label for="permalink-input">Link to this result</label>

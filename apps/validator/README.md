@@ -74,10 +74,18 @@ page cost a reader different things.
 ## Two verdicts, never merged
 
 **Discovery** ("I found your feed, here") and **validation** ("it is valid")
-are rendered as separate steps. If they were one, an organizer whose `<link>`
-has a typo would read *"my JSON is broken"* and go fix the wrong thing. A page
-that declares no feed produces "no OTE feed discovered", not "invalid"; a page
+are separate answers. If they were one, an organizer whose `<link>` has a typo
+would read *"my JSON is broken"* and go fix the wrong thing. A page that
+declares no feed produces "no OTE feed discovered", not "invalid"; a page
 declaring several stops and asks which one.
+
+They are not, however, equally important. Discovery that **failed** is the
+whole answer — there is no verdict behind it — so "no feed found" and "which
+feed?" sit directly under the form. Discovery that **succeeded** is
+provenance: worth being able to check when a URL quietly resolved to a
+different document than expected, but not worth reading before the verdict, so
+it renders below it as "Where this came from". The page's own question is *is
+this document valid*, and the layout answers that first.
 
 ## MUST and SHOULD, never merged either
 

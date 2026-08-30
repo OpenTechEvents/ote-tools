@@ -104,6 +104,19 @@ a:hover {
   top: 12px;
 }
 
+/* The page's name is the brand mark in the header; this is the same name for
+   anything that reads structure rather than pixels. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---------- header ---------- */
 
 .site-header {
@@ -179,33 +192,14 @@ a:hover {
   border-radius: 0 7px 7px 0;
 }
 
-/* ---------- hero ---------- */
-
-.hero {
-  padding: 52px 0 28px;
-}
-
-.eyebrow {
-  font: 700 0.7rem/1 var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin: 0 0 14px;
-}
-
-.lead {
-  font-size: 1.13rem;
-  color: var(--ink-soft);
-  max-width: 40em;
-  margin: 0;
-}
-
 /* ---------- input modes ---------- */
 
+/* The tabs are the first thing on the page now that the hero is gone, so the
+   space above them is theirs rather than a banner's. */
 .tabs {
   display: flex;
   gap: 6px;
-  margin: 0 0 14px;
+  margin: 36px 0 14px;
   flex-wrap: wrap;
 }
 
@@ -517,6 +511,16 @@ p.warn {
   margin: 0;
 }
 
+/* Provenance, below the verdict: something to check when a URL resolved to a
+   feed the reader did not expect, not something to read first. */
+.panel.secondary {
+  background: var(--bg-alt);
+}
+
+.panel.secondary h3 {
+  margin-top: 0;
+}
+
 /* ---------- findings ---------- */
 
 .findings {
@@ -808,8 +812,8 @@ p.warn {
     font-size: 16px;
   }
 
-  .hero {
-    padding: 36px 0 20px;
+  .tabs {
+    margin-top: 24px;
   }
 
   .nav {

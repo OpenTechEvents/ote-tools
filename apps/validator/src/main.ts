@@ -75,6 +75,7 @@ const pasteInput = $<HTMLTextAreaElement>("paste-input");
 const pasteButton = $<HTMLButtonElement>("paste-validate");
 const statusBox = $("status");
 const discoveryBox = $("discovery");
+const discoveryAlertBox = $("discovery-alert");
 const candidatesBox = $("candidates");
 const verdictBox = $("verdict");
 const resultsBox = $("results");
@@ -112,6 +113,7 @@ function setMode(mode: "url" | "file" | "paste"): void {
 function clearResults(): void {
   for (const box of [
     discoveryBox,
+    discoveryAlertBox,
     candidatesBox,
     verdictBox,
     noticesBox,
@@ -166,10 +168,23 @@ function mediaTypeLine(provenance: Provenance): string | null {
   }
 }
 
+/**
+ * Where the document came from, rendered *after* the verdict.
+ *
+ * Discovery used to open the page as step 1, which put a paragraph about
+ * `<link rel="alternate">` above the one thing the reader came for. Once a
+ * document has been found, how it was found is provenance: worth being able
+ * to check — a URL that quietly resolved to a different feed is exactly the
+ * confusion this panel prevents — but not worth reading first.
+ *
+ * Discovery that *fails* is the opposite, and is not rendered here: with no
+ * document there is no verdict, so "no feed found" and "several feeds
+ * declared" stay above the fold. See renderNotFound and renderCandidates.
+ */
 function renderDiscovery(provenance: Provenance, redirects: string[]): void {
   discoveryBox.replaceChildren();
   discoveryBox.hidden = false;
-  discoveryBox.append(element("h2", undefined, "1. Discovery"));
+  discoveryBox.append(element("h3", undefined, "Where this came from"));
 
   const list = element("dl", "facts");
   const fact = (term: string, value: string) => {
@@ -178,19 +193,19 @@ function renderDiscovery(provenance: Provenance, redirects: string[]): void {
 
   switch (provenance.via) {
     case "direct":
-      discoveryBox.append(element("p", "ok", "This URL is the OTE document itself."));
+      discoveryBox.append(element("p", "muted", "This URL is the OTE document itself."));
       fact("Document", provenance.url);
       break;
     case "link":
       discoveryBox.append(
-        element("p", "ok", "Found a feed declared by this page's <link rel=\"alternate\">."),
+        element("p", "muted", "Found a feed declared by this page's <link rel=\"alternate\">."),
       );
       fact("Page", provenance.pageUrl);
       fact("Feed", provenance.url);
       break;
     case "embedded":
       discoveryBox.append(
-        element("p", "ok", "Found a feed embedded in this page as <script type=\"application/ote+json\">."),
+        element("p", "muted", "Found a feed embedded in this page as <script type=\"application/ote+json\">."),
       );
       fact("Page", provenance.pageUrl);
       break;
@@ -206,7 +221,7 @@ function renderCandidates(pageUrl: string, candidates: FeedCandidate[]): void {
   candidatesBox.replaceChildren();
   candidatesBox.hidden = false;
   candidatesBox.append(
-    element("h2", undefined, "1. Discovery"),
+    element("h2", undefined, "Which feed?"),
     element(
       "p",
       undefined,
@@ -230,10 +245,10 @@ function renderCandidates(pageUrl: string, candidates: FeedCandidate[]): void {
 }
 
 function renderNotFound(pageUrl: string, reason: string, wellKnownUrl?: string): void {
-  discoveryBox.replaceChildren();
-  discoveryBox.hidden = false;
-  discoveryBox.append(
-    element("h2", undefined, "1. Discovery"),
+  discoveryAlertBox.replaceChildren();
+  discoveryAlertBox.hidden = false;
+  discoveryAlertBox.append(
+    element("h2", undefined, "No feed found"),
     // Deliberately NOT an invalid-document verdict: nothing has been
     // validated, because nothing was found to validate.
     element("p", "warn", "No OTE feed discovered on this page."),
@@ -241,7 +256,9 @@ function renderNotFound(pageUrl: string, reason: string, wellKnownUrl?: string):
     element("p", "muted", `Page: ${pageUrl}`),
   );
   if (wellKnownUrl) {
-    discoveryBox.append(element("p", "muted", `Not tried: ${wellKnownUrl} (still an open question in the spec).`));
+    discoveryAlertBox.append(
+      element("p", "muted", `Not tried: ${wellKnownUrl} (still an open question in the spec).`),
+    );
   }
 }
 
@@ -304,7 +321,7 @@ function renderVerdict(report: Extract<Report, { status: "validated" }>, label: 
   verdictBox.replaceChildren();
   verdictBox.hidden = false;
 
-  const heading = element("h2", undefined, "2. Validation");
+  const heading = element("h2", undefined, "Validation");
   const badge = element(
     "p",
     report.valid ? "badge ok" : "badge bad",
@@ -383,7 +400,7 @@ function renderReport(report: Report, label: string): void {
       verdictBox.replaceChildren();
       verdictBox.hidden = false;
       verdictBox.append(
-        element("h2", undefined, "2. Validation"),
+        element("h2", undefined, "Validation"),
         element("p", "badge bad", "Not valid JSON"),
         element(
           "p",
@@ -707,10 +724,15 @@ async function applyResolution(resolution: Resolution, permalinkUrl: string): Pr
     case "candidates":
       renderCandidates(resolution.pageUrl, resolution.candidates);
       showPermalink(permalinkUrl);
+      // These two outcomes are as final as a verdict, and the "Fetching …"
+      // line above them is not: only validateSource used to clear it, so a
+      // finished discovery kept claiming to still be fetching.
+      setStatus("");
       break;
     case "not-found":
       renderNotFound(resolution.pageUrl, resolution.reason, resolution.wellKnownUrl);
       showPermalink(permalinkUrl);
+      setStatus("");
       break;
     case "error":
       setStatus(resolution.message, "error");
