@@ -1,6 +1,6 @@
 import type { ErrorObject } from "ajv";
 
-import { specVersion } from "./schemas.generated.js";
+import { LATEST_VERSION, PUBLISHED_VERSIONS } from "./generated/versions.js";
 
 /** A validation error with a readable path and a human-readable message. */
 export interface ValidationError {
@@ -126,38 +126,26 @@ function valueAt(document: unknown, instancePath: string): unknown {
 }
 
 /**
- * What to say about a `specVersion` this validator cannot check.
+ * What to say about a `specVersion` that does not match the schemas the
+ * document was measured against.
  *
- * The schemas pin one version with a `const`, so anything else is an error —
- * that part is not a choice this function gets to make. What it does choose is
- * whether the publisher hears "your document is wrong" or "your document is
- * from the previous release". Most live feeds say the previous version for
- * months after a spec release, and telling their maintainers only that the
- * value "is not a spec version this validator knows" sends them looking for a
- * typo in a field that has none.
- *
- * So: an older release gets the version it should move to; anything else
- * (a newer release, an invented string) means the spec moved on ahead of this
- * package, and the fix is on our side, not the publisher's.
+ * Reaching this message means the two disagree *on purpose*: a document is
+ * normally checked against the version it declares (see versions.ts), so this
+ * fires when a caller picked the version by hand — the migration rehearsal,
+ * "show me what 0.4 would break" — or used the package's latest-only
+ * synchronous API. Either way the field is not a typo, so the message names
+ * both versions and says which one produced every other finding, instead of
+ * the bare "must be 0.4.0" that reads like the document is wrong.
  */
-function specVersionMessage(declared: unknown): string {
-  const asNumbers = (v: unknown): number[] | null =>
-    typeof v === "string" && /^\d+\.\d+\.\d+$/.test(v) ? v.split(".").map(Number) : null;
-  const found = asNumbers(declared);
-  const implemented = asNumbers(specVersion);
-  let isOlder = false;
-  if (found && implemented) {
-    for (let i = 0; i < 3; i++) {
-      if (found[i]! !== implemented[i]!) {
-        isOlder = found[i]! < implemented[i]!;
-        break;
-      }
-    }
+function specVersionMessage(declared: unknown, target: string): string {
+  const known =
+    typeof declared === "string" &&
+    (PUBLISHED_VERSIONS as readonly string[]).includes(declared);
+  if (known) {
+    return `says OTE Spec ${declared}, but this check was made against ${target}: set specVersion to "${target}" to move this document to ${target} — every other finding here is already measured against ${target}`;
   }
-  if (isOlder) {
-    return `is OTE Spec ${declared}, an earlier release than the ${specVersion} this validator implements; set specVersion to "${specVersion}" and check again — every other error here is already measured against ${specVersion}`;
-  }
-  return `is not a spec version this validator knows (it implements OTE Spec ${specVersion}); if the spec has moved on, update @opentechevents/validate`;
+  const value = typeof declared === "string" ? `"${declared}"` : "this value";
+  return `must be "${target}", the version this check was made against; ${value} is not a published OTE Spec version (published: ${PUBLISHED_VERSIONS.join(", ")})`;
 }
 
 /**
@@ -168,6 +156,7 @@ function humanize(
   err: ErrorObject,
   wallClockFailures: Set<string>,
   declared: unknown,
+  target: string,
 ): { path: string; message: string } | null {
   const { keyword, instancePath, schemaPath, params } = err;
 
@@ -211,11 +200,11 @@ function humanize(
       return { path, message: `is missing required property "${prop}"` };
     }
     case "const": {
-      // A specVersion this validator doesn't know is drift, not a typo: the
-      // document may be perfectly valid against a newer spec. Say so, instead
-      // of a bare "must be 0.2.0" that reads like the document is wrong.
+      // A specVersion that disagrees with the schemas used is a version
+      // question, not a typo — say which version answered, instead of a bare
+      // "must be 0.4.0" that reads like the document is wrong.
       if (/\/specVersion$/.test(instancePath) || instancePath === "/specVersion") {
-        return { path, message: specVersionMessage(declared) };
+        return { path, message: specVersionMessage(declared, target) };
       }
       const allowed = (params as { allowedValue: unknown }).allowedValue;
       return { path, message: `must be ${JSON.stringify(allowed)}` };
@@ -358,10 +347,16 @@ function branchNoise(all: ErrorObject[]): Set<ErrorObject> {
  * one thing: the `specVersion` it declares, which Ajv's error object for a
  * failed `const` does not carry (only the value the schema wanted). Omitting
  * it costs the version-specific half of that one message, nothing else.
+ *
+ * `version` is the spec version whose schemas produced these errors — not
+ * necessarily the newest one, since a document is checked against the version
+ * it declares. A message that named a version other than the one that judged
+ * the document would be the same confusion this package exists to remove.
  */
 export function formatAjvErrors(
   errors: ErrorObject[] | null | undefined,
   document?: unknown,
+  version: string = LATEST_VERSION,
 ): ValidationError[] {
   const all = errors ?? [];
   const wallClockFailures = collectWallClockFailures(all);
@@ -370,7 +365,12 @@ export function formatAjvErrors(
   const out: ValidationError[] = [];
   for (const err of all) {
     if (noise.has(err)) continue;
-    const humanized = humanize(err, wallClockFailures, valueAt(document, err.instancePath));
+    const humanized = humanize(
+      err,
+      wallClockFailures,
+      valueAt(document, err.instancePath),
+      version,
+    );
     if (!humanized) continue;
     const key = `${humanized.path}|${humanized.message}`;
     if (seen.has(key)) continue;

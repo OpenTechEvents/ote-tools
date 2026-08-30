@@ -24,6 +24,7 @@
  */
 
 import { badgeTtlSeconds, renderBadge, resolveBadge } from "./badge.js";
+import { checkUrls, DEFAULT_CHECK_LIMITS } from "./check-urls.js";
 import { dohResolver } from "./dns.js";
 import { DEFAULT_LIMITS, fetchDocument, type FetchResult } from "./fetch-document.js";
 
@@ -76,7 +77,7 @@ function corsHeaders(request: Request, env: Env): Record<string, string> {
   if (!origin || !allowedOrigins(env).includes(origin)) return {};
   return {
     "access-control-allow-origin": origin,
-    "access-control-allow-methods": "GET, OPTIONS",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
     "access-control-allow-headers": "content-type",
     "access-control-max-age": "86400",
     vary: "origin",
@@ -201,6 +202,72 @@ async function handleBadge(
   return response;
 }
 
+/** The most URLs one request may carry, before anything is fetched. */
+const MAX_SUBMITTED_URLS = 500;
+
+/**
+ * `POST /check-urls` — are these URLs reachable?
+ *
+ * The list comes from the page rather than from a document fetched here, so
+ * the same endpoint serves all three input modes: a file the user never
+ * uploaded still has links worth checking. Every URL goes through the same
+ * SSRF gauntlet as `/fetch` — a list from a stranger is a list from a
+ * stranger, whatever document it claims to come from.
+ *
+ * Separate from validation on purpose: the schema verdict is instant and must
+ * never wait behind hundreds of network requests. The page shows the verdict
+ * and asks for this afterwards.
+ */
+async function handleCheckUrls(
+  request: Request,
+  url: URL,
+  env: Env,
+  deps: Deps,
+  cors: Record<string, string>,
+): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, code: "invalid-body", message: "Send JSON." }, 400, cors);
+  }
+
+  const urls = (body as { urls?: unknown }).urls;
+  if (!Array.isArray(urls) || urls.some((entry) => typeof entry !== "string")) {
+    return json(
+      { ok: false, code: "invalid-body", message: 'Send {"urls": ["…"]}.' },
+      400,
+      cors,
+    );
+  }
+  if (urls.length > MAX_SUBMITTED_URLS) {
+    return json(
+      {
+        ok: false,
+        code: "too-many-urls",
+        message: `At most ${MAX_SUBMITTED_URLS} URLs per request.`,
+      },
+      400,
+      cors,
+    );
+  }
+
+  if (await overLimit(request, env)) {
+    return json(
+      { ok: false, code: "rate-limited", message: "Too many requests; try again shortly." },
+      429,
+      cors,
+    );
+  }
+
+  const results = await checkUrls(urls as string[], url.origin, {
+    fetchImpl: deps.fetchImpl,
+    resolve: deps.resolve,
+    cache: deps.cache,
+  });
+  return json({ ok: true, limits: DEFAULT_CHECK_LIMITS, results }, 200, cors);
+}
+
 /**
  * Handles one request. Dependencies are parameters so the tests — including
  * the SSRF ones, which are the tests that matter here — run with a fake
@@ -210,14 +277,24 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
   const cors = corsHeaders(request, env);
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+
+  const url = new URL(request.url);
+
+  // The one endpoint that takes a body: a list of hundreds of URLs does not
+  // belong in a query string.
+  if (url.pathname === "/check-urls") {
+    if (request.method !== "POST") {
+      return json({ ok: false, code: "method-not-allowed", message: "Use POST." }, 405, cors);
+    }
+    return handleCheckUrls(request, url, env, deps, cors);
+  }
+
   if (request.method !== "GET") {
     return json({ ok: false, code: "method-not-allowed", message: "Use GET." }, 405, cors);
   }
 
-  const url = new URL(request.url);
-
   if (url.pathname === "/health") {
-    return json({ ok: true, limits: DEFAULT_LIMITS }, 200, cors);
+    return json({ ok: true, limits: DEFAULT_LIMITS, urlChecks: DEFAULT_CHECK_LIMITS }, 200, cors);
   }
 
   if (url.pathname === "/badge") return handleBadge(request, url, env, deps, cors);

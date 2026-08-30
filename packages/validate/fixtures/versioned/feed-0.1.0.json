@@ -1,0 +1,18 @@
+{
+  "_comment": "VALID against its own OTE Spec 0.1.0 schemas, but 0.1.0 is OUTSIDE the support window (the last three releases). Pins the other half of the policy: out of window is an error with a migration message, not a silent pass and not the same message as a version nobody ever published.",
+  "specVersion": "0.1.0",
+  "title": "Eventos de PyAlmería",
+  "license": "CC-BY-4.0",
+  "updatedAt": "2026-06-01T07:30:00Z",
+  "events": [
+    {
+      "id": "https://pyalmeria.example/eventos/2026-06-async",
+      "name": "PyAlmería — Introducción a async/await",
+      "startDate": "2026-06-11T18:30",
+      "timezone": "Europe/Madrid",
+      "location": {
+        "venue": "Almería"
+      }
+    }
+  ]
+}

@@ -58,9 +58,9 @@ describe("reformatJson", () => {
 });
 
 describe("what this buys the reader", () => {
-  it("turns 'line 1, column far away' into a line worth clicking", () => {
-    const flat = buildReport(MINIFIED);
-    const indented = buildReport(reformatJson(MINIFIED)!);
+  it("turns 'line 1, column far away' into a line worth clicking", async () => {
+    const flat = await buildReport(MINIFIED);
+    const indented = await buildReport(reformatJson(MINIFIED)!);
 
     // Same verdict either way: reformatting cannot change what is valid.
     expect(flat).toMatchObject({ status: "validated", valid: false });

@@ -25,6 +25,9 @@
   --ok-soft: #e2f5ec;
   --warn: #b06d00;
   --warn-soft: #fdf0dc;
+  /* The amber of the warning family, light enough not to be mistaken for the
+     red of an error — used for notices, which are never defects. */
+  --warn-line: #e0a52e;
   --bad: #c4302f;
   --bad-soft: #fcf1f1;
   --radius: 10px;
@@ -539,6 +542,64 @@ p.warn {
 
 .findings.warn li {
   border-left-color: var(--warn);
+}
+
+/* A notice is not a finding. It rides the same warning channel — the page has
+   exactly two verdicts and a spec version is not a third one — but in the
+   light amber end of it: `--warn` (#b06d00) next to the red of an error reads
+   as one, and a supported-but-older release is not a problem to fix. */
+.findings.notice li {
+  border-left-color: var(--warn-line);
+  background: var(--warn-soft);
+}
+
+.findings.muted li {
+  border-left-color: var(--line);
+  color: var(--ink-soft);
+}
+
+.findings li.notice {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.notice-text {
+  margin: 0;
+}
+
+/* The link is a block of its own rather than a URL printed mid-sentence:
+   somewhere to click, not something to copy out by hand. */
+.notice-link {
+  display: inline-block;
+  margin: 8px 12px 0 0;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--accent);
+}
+
+.notice-link:hover {
+  color: var(--accent-ink);
+}
+
+/* ---------- links ---------- */
+
+.link-kind {
+  justify-self: start;
+  font: 700 0.68rem/1 var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.link-url {
+  font: 500 0.82rem/1.5 var(--mono);
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+#links h4 {
+  margin: 18px 0 0;
+  font-size: 0.95rem;
 }
 
 .finding-where {

@@ -1,5 +1,6 @@
 // GENERATED FILE — DO NOT EDIT.
-// Source of truth: the @opentechevents/schema package (its version is pinned in package.json).
+// The OTE Spec 0.4.0 schemas, from the @opentechevents/schema package
+// (its version is pinned in package.json).
 // Regenerate with: pnpm gen
 // A guard test (test/schemas-generated.test.ts) fails if this file drifts.
 

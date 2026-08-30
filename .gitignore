@@ -7,3 +7,5 @@ coverage/
 .claude/
 .vscode/
 .pnpm-store/
+# wrangler's build scratch, written by `wrangler dev`.
+.wrangler/

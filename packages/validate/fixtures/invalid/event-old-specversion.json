@@ -1,9 +1,0 @@
-{
-  "_comment": "INVALID on purpose, and specific to this package: a document from the previous spec release. This validator implements exactly one specVersion (the schema pins it with a `const`), so a 0.3.0 document is rejected — but it is not the same failure as an invented version, and it is what most live feeds will say for months after 0.4.0 ships. Its message says which version this is and what to change. Its counterpart is event-future-specversion.json.",
-  "specVersion": "0.3.0",
-  "id": "https://pyalmeria.example/eventos/2026-06-async",
-  "name": "PyAlmería — Introducción a async/await",
-  "startDate": "2026-06-11T18:30",
-  "timezone": "Europe/Madrid",
-  "license": "CC-BY-4.0"
-}

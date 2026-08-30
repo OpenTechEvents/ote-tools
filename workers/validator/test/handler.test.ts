@@ -173,3 +173,59 @@ describe("handleRequest", () => {
     });
   });
 });
+
+describe("POST /check-urls", () => {
+  const post = (body: unknown, fetchImpl?: typeof fetch) =>
+    handleRequest(
+      new Request("https://validator.example/check-urls", {
+        method: "POST",
+        headers: { origin: ORIGIN, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      {},
+      {
+        fetchImpl:
+          fetchImpl ?? ((async () => new Response(null, { status: 200 })) as typeof fetch),
+        resolve: async () => ["93.184.216.34"],
+      },
+    );
+
+  it("answers with one result per URL", async () => {
+    const response = await post({ urls: ["https://example.org/a"] });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      results: [{ url: "https://example.org/a", state: "ok" }],
+    });
+  });
+
+  it("keeps a bot wall out of the broken column", async () => {
+    // The one behaviour that decides whether this feature is usable at all.
+    const fetchImpl = (async () => new Response(null, { status: 403 })) as typeof fetch;
+    const response = await post({ urls: ["https://www.meetup.com/grupo/"] }, fetchImpl);
+    const body = (await response.json()) as { results: { state: string }[] };
+    expect(body.results[0]!.state).toBe("unverifiable");
+  });
+
+  it("refuses a body that is not a list of URLs", async () => {
+    const response = await post({ urls: "https://example.org/a" });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: "invalid-body" });
+  });
+
+  it("refuses a list longer than any real feed needs", async () => {
+    const urls = Array.from({ length: 501 }, (_, i) => `https://example.org/${i}`);
+    const response = await post({ urls });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: "too-many-urls" });
+  });
+
+  it("is POST only", async () => {
+    const response = await handleRequest(
+      new Request("https://validator.example/check-urls", { headers: { origin: ORIGIN } }),
+      {},
+      { fetchImpl: okFetch, resolve: async () => ["93.184.216.34"] },
+    );
+    expect(response.status).toBe(405);
+  });
+});

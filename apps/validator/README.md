@@ -31,6 +31,46 @@ The page runs the same validator as the CLI, CI and `apps/editor`. A validator
 with a second opinion about what is valid would leave the format without a
 referee, which is the whole reason this page exists.
 
+## Each document is checked against the version it declares
+
+Every OTE release pins its own `specVersion` with a `const`, so measuring a
+0.3 feed against the 0.4 schemas yields exactly one error — about
+`specVersion` — and calls a healthy feed broken. This page used to do that,
+while the adopter-registration bot linked here saying the same feed validated.
+
+Now `buildReport` asks `@opentechevents/validate` for the version the document
+declares. Inside the support window (the last three releases) the document is
+**valid**, with a *notice* saying a newer release exists and where to read what
+changed. Outside it, the migration message is an error. A `specVersion` that is
+missing or was never published is an error of its own: there are no rules to
+judge such a document by.
+
+The **Spec version** selector next to *Validate as* is an override, not a
+setting: automatic is the default, and the verdict line always says which of
+the two produced it. Its reason to exist is the migration rehearsal — someone
+on 0.3 seeing what 0.4 would break before committing to it. Under an override
+the mismatch on `specVersion` is a finding, as it should be: that field is one
+of the things a migration changes.
+
+Because the page embeds every version, `build.mjs` builds with `splitting: true`
+into an outdir. The latest version's compiled schemas ship in the initial load;
+the others sit in chunks fetched only when a document of that vintage turns up.
+
+## Link checking is a separate question from validity
+
+*"Do these URLs load?"* is answered by `POST /check-urls` on the Worker, opt-in
+behind a button, and it can never change the verdict. A 404 is not a schema
+violation, and a page where a broken image turned a feed red would have
+publishers "fixing" documents that are already correct.
+
+It runs server-side because it cannot run here: from a browser, a cross-origin
+request without CORS fails identically whether the host is dead or merely
+CORS-less, so a client-side checker would report healthy URLs as broken — the
+exact false positive this feature exists to remove. `lib/urls.ts` decides what
+is worth asking about (never `id`: an OTE `id` is an identifier that need not
+resolve) and what each URL is for, since a dead image and a dead registration
+page cost a reader different things.
+
 ## Two verdicts, never merged
 
 **Discovery** ("I found your feed, here") and **validation** ("it is valid")

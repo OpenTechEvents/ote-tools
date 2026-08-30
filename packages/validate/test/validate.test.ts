@@ -59,30 +59,31 @@ describe("validateEvent — invalid fixtures", () => {
     }
   });
 
-  it("a specVersion this validator doesn't know reads as drift, not as a typo", () => {
+  // These two are about the SYNCHRONOUS API, which checks against the latest
+  // published version whatever the document declares. That is the right tool
+  // for a document this kit is writing and the wrong one for a document
+  // somebody else published — `validateDocument` (test/versions.test.ts) is
+  // the version-aware answer. What both messages must do is name the version
+  // that did the judging, so nobody reads a version mismatch as a typo.
+  it("a specVersion nobody published names the versions that exist", () => {
     const { errors } = validateEvent(
       loadFixture("invalid", "event-future-specversion.json"),
     );
     expect(errors).toContainEqual({
       path: "specVersion",
       message:
-        "is not a spec version this validator knows (it implements OTE Spec 0.4.0); if the spec has moved on, update @opentechevents/validate",
+        'must be "0.4.0", the version this check was made against; "0.9.0" is not a published OTE Spec version (published: 0.1.0, 0.2.0, 0.3.0, 0.4.0)',
     });
   });
 
-  // The product decision behind this: a document from the PREVIOUS release is
-  // still an error — the schema pins one version with a `const` — but it is
-  // not the same error as an invented version, and for months after a release
-  // most live feeds are exactly this document. It gets told which version to
-  // move to instead of being sent looking for a typo.
-  it("a specVersion from an earlier release says which version to move to", () => {
+  it("a specVersion from an earlier release names both versions", () => {
     const { errors } = validateEvent(
-      loadFixture("invalid", "event-old-specversion.json"),
+      loadFixture("versioned", "event-0.3.0.json"),
     );
     expect(errors).toContainEqual({
       path: "specVersion",
       message:
-        'is OTE Spec 0.3.0, an earlier release than the 0.4.0 this validator implements; set specVersion to "0.4.0" and check again — every other error here is already measured against 0.4.0',
+        'says OTE Spec 0.3.0, but this check was made against 0.4.0: set specVersion to "0.4.0" to move this document to 0.4.0 — every other finding here is already measured against 0.4.0',
     });
   });
 

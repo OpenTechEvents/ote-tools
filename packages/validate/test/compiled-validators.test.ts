@@ -19,10 +19,16 @@ import {
 const addFormats = ajvFormats as unknown as typeof ajvFormats.default;
 
 const { compiledValidatorsSource } = await import("../scripts/compile-validators.mjs");
+const { publishedVersions } = await import("../scripts/spec-versions.mjs");
 
-const compiledFile = fileURLToPath(
-  new URL("../src/validators.compiled.generated.ts", import.meta.url),
-);
+const entries = publishedVersions();
+
+const compiledFileFor = (dir: string): string =>
+  fileURLToPath(new URL(`../src/generated/${dir}/validators.compiled.ts`, import.meta.url));
+
+/** Every version's compiled module, concatenated — for the checks that are about all of them. */
+const allCompiledSources = (): string =>
+  entries.map((entry) => readFileSync(compiledFileFor(entry.dir), "utf8")).join("\n");
 
 // src/validators.compiled.generated.ts is Ajv's standalone output: the
 // schemas compiled to plain JavaScript at codegen time so nothing has to be
@@ -31,27 +37,30 @@ const compiledFile = fileURLToPath(
 // and src/compiled-scope.ts (which the generated code reaches its formats and
 // keywords through, by name) no longer matching what Ajv registered when it
 // compiled them.
-describe("validators.compiled.generated.ts", () => {
-  it("matches what the current schemas compile to", () => {
+describe.each(entries)("generated/$dir/validators.compiled.ts", (entry) => {
+  const source = () => readFileSync(compiledFileFor(entry.dir), "utf8");
+
+  it("matches what that version's schemas compile to", () => {
     // Fails after a @opentechevents/schema or ajv bump until `pnpm gen` runs.
-    expect(readFileSync(compiledFile, "utf8")).toBe(compiledValidatorsSource());
+    expect(source()).toBe(compiledValidatorsSource(entry));
   });
 
-  it("exports one validator per schema", () => {
-    const source = readFileSync(compiledFile, "utf8");
-    for (const name of [
-      "validateEvent",
-      "validateFeed",
-      "checkEventRecommended",
-      "checkFeedRecommended",
-    ]) {
-      expect(source).toContain(`export const ${name} = `);
+  it("exports one validator per schema the version has", () => {
+    const names = ["validateEvent", "validateFeed"];
+    // Before 0.3.0 there is no recommended profile to compile, and the module
+    // must not pretend otherwise — src/loader.ts reports its absence.
+    if (entry.hasRecommended) names.push("checkEventRecommended", "checkFeedRecommended");
+    for (const name of names) {
+      expect(source()).toContain(`export const ${name} = `);
+    }
+    if (!entry.hasRecommended) {
+      expect(source()).not.toContain("export const checkEventRecommended = ");
     }
   });
 
   it("compiles to code that needs no eval", () => {
     // Comments stripped: the file's own header says the words this looks for.
-    const code = readFileSync(compiledFile, "utf8")
+    const code = source()
       .split("\n")
       .filter((line) => !line.startsWith("//"))
       .join("\n");
@@ -88,7 +97,7 @@ describe("compiled-scope.ts", () => {
     }
     // Annotation keywords restrict nothing, so the compiled code never calls
     // them — and Ajv proves it by generating code that references none.
-    const source = readFileSync(compiledFile, "utf8");
+    const source = allCompiledSources();
     for (const keyword of annotationKeywords) {
       expect(source).not.toContain(`keywords[${JSON.stringify(keyword.keyword)}]`);
     }

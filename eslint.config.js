@@ -13,7 +13,10 @@ export default tseslint.config(
       // guard test (packages/validate/test/compiled-validators.test.ts) is
       // what keeps it honest. Its hand-written neighbours — including
       // src/compiled-scope.ts — are still linted.
-      "**/*.compiled.generated.ts",
+      // One per published spec version, under src/generated/<vX.Y>/.
+      "**/validators.compiled.ts",
+      // wrangler's own build scratch, written by `wrangler dev`/`deploy`.
+      "**/.wrangler/**",
     ],
   },
   eslint.configs.recommended,

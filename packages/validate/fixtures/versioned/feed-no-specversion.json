@@ -1,0 +1,17 @@
+{
+  "_comment": "No specVersion at all. There is no version to check this against, so the only honest answer is an error naming the versions that exist — not a verdict measured against a version the document never claimed.",
+  "title": "Eventos de PyAlmería",
+  "license": "CC-BY-4.0",
+  "updatedAt": "2026-06-01T07:30:00Z",
+  "events": [
+    {
+      "id": "https://pyalmeria.example/eventos/2026-06-async",
+      "name": "PyAlmería — Introducción a async/await",
+      "startDate": "2026-06-11T18:30",
+      "timezone": "Europe/Madrid",
+      "location": {
+        "venue": "Almería"
+      }
+    }
+  ]
+}

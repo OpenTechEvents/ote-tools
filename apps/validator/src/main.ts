@@ -13,6 +13,12 @@
  */
 
 import type { FeedCandidate } from "@opentechevents/discover-feed";
+import {
+  LATEST_VERSION,
+  PUBLISHED_VERSIONS,
+  SUPPORTED_VERSIONS,
+  type SpecVersionNotice,
+} from "@opentechevents/validate";
 
 import { looksMinified, reformatJson } from "./lib/format.js";
 import { tokenizeJsonLine } from "./lib/highlight.js";
@@ -24,7 +30,15 @@ import {
   type Finding,
   type Report,
 } from "./lib/report.js";
+import {
+  checkDocumentLinks,
+  summarize,
+  KIND_CONSEQUENCE,
+  KIND_LABEL,
+  type CheckedUrl,
+} from "./lib/links.js";
 import { followCandidate, resolveUrl, type Provenance, type Resolution } from "./lib/resolve.js";
+import { collectDocumentUrls } from "./lib/urls.js";
 
 /** Injected at build time (see build.mjs); the CSP in index.html must match. */
 declare const __FETCH_ENDPOINT__: string;
@@ -66,8 +80,12 @@ const verdictBox = $("verdict");
 const resultsBox = $("results");
 const kindRow = $("kind-row");
 const kindSelect = $<HTMLSelectElement>("kind-select");
+const versionRow = $("version-row");
+const versionSelect = $<HTMLSelectElement>("version-select");
+const noticesBox = $("notices");
 const errorsBox = $("errors");
 const recommendationsBox = $("recommendations");
+const linksBox = $("links");
 const sourceBox = $("source");
 const permalinkBox = $("permalink");
 const permalinkInput = $<HTMLInputElement>("permalink-input");
@@ -92,7 +110,16 @@ function setMode(mode: "url" | "file" | "paste"): void {
 }
 
 function clearResults(): void {
-  for (const box of [discoveryBox, candidatesBox, verdictBox, errorsBox, recommendationsBox, sourceBox]) {
+  for (const box of [
+    discoveryBox,
+    candidatesBox,
+    verdictBox,
+    noticesBox,
+    errorsBox,
+    recommendationsBox,
+    linksBox,
+    sourceBox,
+  ]) {
     box.replaceChildren();
     box.hidden = true;
   }
@@ -101,6 +128,7 @@ function clearResults(): void {
   // detection that has not happened yet are just furniture.
   resultsBox.hidden = true;
   kindRow.hidden = true;
+  versionRow.hidden = true;
   permalinkBox.hidden = true;
 }
 
@@ -256,6 +284,22 @@ function renderFindings(
   box.append(list);
 }
 
+/**
+ * How the verdict names the version it used. The document's own version is
+ * the normal case and says so plainly; a hand-picked one has to be
+ * unmistakable, because it answers a different question than the one the page
+ * answers by default.
+ */
+function versionSentence(report: Extract<Report, { status: "validated" }>): string {
+  if (report.specVersion === null) {
+    return `Checked as an OTE ${report.kind}. No spec version could be applied.`;
+  }
+  const against = report.overridden
+    ? `against spec ${report.specVersion} (selected by hand)`
+    : `against spec ${report.specVersion}, the version it declares`;
+  return `Checked as an OTE ${report.kind} ${against}.`;
+}
+
 function renderVerdict(report: Extract<Report, { status: "validated" }>, label: string): void {
   verdictBox.replaceChildren();
   verdictBox.hidden = false;
@@ -266,13 +310,10 @@ function renderVerdict(report: Extract<Report, { status: "validated" }>, label: 
     report.valid ? "badge ok" : "badge bad",
     report.valid ? "Valid OTE document" : "Invalid OTE document",
   );
-  const summary = element(
-    "p",
-    "muted",
-    report.valid
-      ? `Checked as an OTE ${report.kind} against spec ${report.specVersion}. ${report.recommendations.length} recommendation(s) unmet.`
-      : `Checked as an OTE ${report.kind} against spec ${report.specVersion}. ${report.errors.length} error(s) must be fixed.`,
-  );
+  const counts = report.valid
+    ? `${report.recommendations.length} recommendation(s) unmet.`
+    : `${report.errors.length} error(s) must be fixed.`;
+  const summary = element("p", "muted", `${versionSentence(report)} ${counts}`);
   verdictBox.append(heading, badge, summary, element("p", "muted", label));
 
   kindSelect.value = report.kind;
@@ -284,6 +325,48 @@ function renderVerdict(report: Extract<Report, { status: "validated" }>, label: 
       : `Detected as a ${report.detected} from the document's shape. Change it above if that is wrong.`,
   );
   verdictBox.append(detection);
+}
+
+/**
+ * Notices: true things that are not defects — an older but still supported
+ * release, a version the user picked by hand.
+ *
+ * Deliberately NOT a third verdict state. The page already has exactly two
+ * (valid / invalid) plus a warning channel for the recommended profile, and
+ * inventing a yellow "valid, but…" badge is how a supported-but-older feed
+ * ends up being "fixed" by a publisher who had nothing to fix.
+ */
+function renderNotices(notices: SpecVersionNotice[]): void {
+  noticesBox.replaceChildren();
+  noticesBox.hidden = notices.length === 0;
+  if (notices.length === 0) return;
+
+  noticesBox.append(
+    element("h3", undefined, "Notices"),
+    element(
+      "p",
+      "muted",
+      "About this document's spec version. These do not affect the verdict above.",
+    ),
+  );
+  const list = element("ul", "findings notice");
+  for (const notice of notices) {
+    const item = element("li", "notice");
+    item.append(element("p", "notice-text", notice.message));
+    // Links arrive as {label, href} rather than inside the sentence: a URL
+    // printed mid-paragraph is something the reader has to copy by hand. These
+    // are this page's own constants — nothing from a fetched document ever
+    // becomes an anchor here.
+    for (const link of notice.links) {
+      const anchor = element("a", "notice-link", link.label);
+      anchor.href = link.href;
+      anchor.rel = "noopener noreferrer";
+      anchor.target = "_blank";
+      item.append(anchor);
+    }
+    list.append(item);
+  }
+  noticesBox.append(list);
 }
 
 function renderReport(report: Report, label: string): void {
@@ -328,12 +411,29 @@ function renderReport(report: Report, label: string): void {
       }
       errorsBox.hidden = true;
       recommendationsBox.hidden = true;
+      noticesBox.hidden = true;
       highlightLine(report.position.line);
       return;
     case "validated":
       resultsBox.hidden = false;
       kindRow.hidden = false;
+      versionRow.hidden = false;
       renderVerdict(report, label);
+      renderNotices([
+        ...report.notices,
+        // Said rather than left as an empty list: "no recommendations" would
+        // read as "nothing to improve", when the profile did not exist yet.
+        ...(report.recommendedProfileChecked || report.specVersion === null
+          ? []
+          : [
+              {
+                message:
+                  `OTE Spec ${report.specVersion} predates the recommended (quality) ` +
+                  "profile, which arrived in 0.3.0 — so this check covers validity only.",
+                links: [],
+              },
+            ]),
+      ]);
       renderFindings(
         errorsBox,
         "Errors",
@@ -348,7 +448,121 @@ function renderReport(report: Report, label: string): void {
         report.recommendations,
         "warn",
       );
+      renderLinkOffer(report.document);
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Step 3: are the document's URLs reachable?
+ * ------------------------------------------------------------------ */
+
+/**
+ * Opt-in, and on its own: the schema verdict is instant, and hundreds of
+ * network requests are not. Nothing here can change that verdict — a 404 is
+ * not a schema violation, and a page that let one turn a feed red would have
+ * publishers "fixing" documents that are already correct.
+ */
+function renderLinkOffer(json: unknown): void {
+  const urls = collectDocumentUrls(json);
+  linksBox.replaceChildren();
+  linksBox.hidden = urls.length === 0;
+  if (urls.length === 0) return;
+
+  linksBox.append(
+    element("h3", undefined, "Links"),
+    element(
+      "p",
+      "muted",
+      `This document points at ${urls.length} address(es). Checking them is a separate ` +
+        "question from validity: a broken link never makes a document invalid.",
+    ),
+  );
+  const button = element("button", "btn btn-ghost", "Check whether these URLs load");
+  button.type = "button";
+  button.addEventListener("click", () => {
+    void runLinkCheck(json, button);
+  });
+  linksBox.append(button);
+}
+
+/** Groups the findings so the ones that need action are not buried. */
+function renderLinkResults(checked: CheckedUrl[]): void {
+  const counts = summarize(checked);
+  linksBox.replaceChildren(
+    element("h3", undefined, "Links"),
+    element(
+      "p",
+      "muted",
+      `${counts.ok} load, ${counts.broken} broken, ${counts.unverifiable} could not be checked` +
+        (counts.skipped > 0 ? `, ${counts.skipped} not checked` : "") +
+        ". None of this affects the verdict above.",
+    ),
+  );
+
+  const section = (
+    state: CheckedUrl["state"],
+    title: string,
+    blurb: string,
+    tone: "error" | "warn" | "muted",
+  ): void => {
+    const entries = checked.filter((entry) => entry.state === state);
+    if (entries.length === 0) return;
+    linksBox.append(
+      element("h4", undefined, `${title} (${entries.length})`),
+      element("p", "muted", blurb),
+    );
+    const list = element("ul", `findings ${tone}`);
+    for (const entry of entries) {
+      const item = element("li");
+      item.append(
+        element("span", "link-kind", KIND_LABEL[entry.kind]),
+        element("span", "link-url", entry.url),
+        element(
+          "span",
+          "finding-message",
+          state === "broken"
+            ? `${entry.reason} — ${KIND_CONSEQUENCE[entry.kind]}`
+            : entry.reason,
+        ),
+      );
+      list.append(item);
+    }
+    linksBox.append(list);
+  };
+
+  section(
+    "broken",
+    "Broken",
+    "Nobody can fetch these: they answered a client error, or the host does not resolve.",
+    "error",
+  );
+  section(
+    "unverifiable",
+    "Could not be checked",
+    // Said plainly, because this is the class that would otherwise be read as
+    // a defect: platforms that refuse automated requests are the norm, not a
+    // publisher's mistake.
+    "These servers refuse automated requests, rate-limited us, or did not answer in time. " +
+      "That is not a problem with the document — open them in a browser to be sure.",
+    "warn",
+  );
+  section("skipped", "Not checked", "Left over from this batch's budget.", "muted");
+}
+
+async function runLinkCheck(json: unknown, button: HTMLButtonElement): Promise<void> {
+  button.disabled = true;
+  button.textContent = "Checking…";
+  const report = await checkDocumentLinks(json, {
+    endpoint: FETCH_ENDPOINT,
+    fetchImpl: browserFetch,
+  });
+  if (report.status === "error") {
+    button.disabled = false;
+    button.textContent = "Check whether these URLs load";
+    linksBox.append(element("p", "warn", report.message));
+    return;
+  }
+  renderLinkResults(report.checked);
 }
 
 /* ------------------------------------------------------------------ *
@@ -423,26 +637,71 @@ function selectedKind(): DocumentKind | undefined {
   return kindSelect.value === "" ? undefined : (kindSelect.value as DocumentKind);
 }
 
-function validateSource(source: string, label: string, provenance?: Provenance): void {
+/** The version chosen by hand, or undefined while the select is on "auto". */
+function selectedVersion(): string | undefined {
+  return versionSelect.value === "" ? undefined : versionSelect.value;
+}
+
+/**
+ * Fills the version selector from the versions this build embeds. Every
+ * published version is offered, including the ones outside the support
+ * window: somebody still on 0.1 is precisely who needs to see what a move
+ * would cost, and the option's label says where each version stands.
+ */
+function fillVersionSelect(): void {
+  versionSelect.replaceChildren();
+  const auto = element("option", undefined, "From the document");
+  auto.value = "";
+  versionSelect.append(auto);
+  // Newest first: the version a migration is heading towards is the one most
+  // people are reaching for.
+  for (const version of [...PUBLISHED_VERSIONS].reverse()) {
+    const label =
+      version === LATEST_VERSION
+        ? `${version} (current)`
+        : SUPPORTED_VERSIONS.includes(version)
+          ? version
+          : `${version} (out of support)`;
+    const option = element("option", undefined, label);
+    option.value = version;
+    versionSelect.append(option);
+  }
+  versionSelect.value = "";
+}
+
+async function validateSource(
+  source: string,
+  label: string,
+  provenance?: Provenance,
+): Promise<void> {
   const shown = displayText(source);
   // `current` holds the text the findings are addressed to, not the bytes that
   // arrived: changing the kind re-renders against the same source the user is
   // looking at.
   current = { source: shown, label, provenance, reformatted: shown !== source };
-  const report = buildReport(shown, { kind: selectedKind() });
+  const report = await buildReport(shown, {
+    kind: selectedKind(),
+    version: selectedVersion(),
+  });
   renderSource(shown, shown !== source);
   renderReport(report, label);
   setStatus("");
 }
 
-function applyResolution(resolution: Resolution, permalinkUrl: string): void {
+async function applyResolution(resolution: Resolution, permalinkUrl: string): Promise<void> {
   switch (resolution.outcome) {
     case "document":
       renderDiscovery(resolution.provenance, resolution.redirects);
       // A fresh document gets a fresh detection: the previous document's kind
-      // must not leak into this one.
+      // — and the previous document's hand-picked version — must not leak
+      // into this one.
       kindSelect.value = "";
-      validateSource(resolution.text, sourceLabel(resolution.provenance), resolution.provenance);
+      versionSelect.value = "";
+      await validateSource(
+        resolution.text,
+        sourceLabel(resolution.provenance),
+        resolution.provenance,
+      );
       showPermalink(permalinkUrl);
       break;
     case "candidates":
@@ -499,7 +758,7 @@ async function runUrl(url: string): Promise<void> {
   clearResults();
   setStatus(`Fetching ${url}…`);
   const resolution = await resolveUrl(url, { endpoint: FETCH_ENDPOINT, fetchImpl: browserFetch });
-  applyResolution(resolution, permalinkFor(url));
+  await applyResolution(resolution, permalinkFor(url));
 }
 
 async function runCandidate(candidate: FeedCandidate, pageUrl: string): Promise<void> {
@@ -509,7 +768,7 @@ async function runCandidate(candidate: FeedCandidate, pageUrl: string): Promise<
     fetchImpl: browserFetch,
   });
   candidatesBox.hidden = true;
-  applyResolution(resolution, permalinkFor(candidate.url));
+  await applyResolution(resolution, permalinkFor(candidate.url));
 }
 
 /* ------------------------------------------------------------------ *
@@ -532,18 +791,30 @@ fileInput.addEventListener("change", async () => {
   clearResults();
   // Read in this tab and validate here: the file never leaves the browser,
   // and this mode works with the fetcher down.
-  validateSource(await file.text(), `Source: ${file.name} (validated in your browser)`);
+  await validateSource(await file.text(), `Source: ${file.name} (validated in your browser)`);
 });
 
 pasteButton.addEventListener("click", () => {
   clearResults();
-  validateSource(pasteInput.value, "Source: pasted JSON (validated in your browser)");
+  void validateSource(pasteInput.value, "Source: pasted JSON (validated in your browser)");
 });
 
-kindSelect.addEventListener("change", () => {
+/** Re-runs the current document after a kind or version override. */
+async function revalidateCurrent(): Promise<void> {
   if (!current) return;
-  const report = buildReport(current.source, { kind: selectedKind() });
+  const report = await buildReport(current.source, {
+    kind: selectedKind(),
+    version: selectedVersion(),
+  });
   renderReport(report, current.label);
+}
+
+kindSelect.addEventListener("change", () => {
+  void revalidateCurrent();
+});
+
+versionSelect.addEventListener("change", () => {
+  void revalidateCurrent();
 });
 
 $("permalink-copy").addEventListener("click", () => {
@@ -553,6 +824,8 @@ $("permalink-copy").addEventListener("click", () => {
 $("badge-copy").addEventListener("click", () => {
   void navigator.clipboard?.writeText(badgeInput.value);
 });
+
+fillVersionSelect();
 
 /** `?doc=<url>` — the mode that gets pasted into issues, and why the Worker exists. */
 const requested = new URLSearchParams(window.location.search).get("doc");

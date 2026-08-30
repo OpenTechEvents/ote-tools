@@ -20,7 +20,7 @@
  */
 
 import { discover, detectDocumentKind } from "@opentechevents/discover-feed";
-import { validateEvent, validateFeed } from "@opentechevents/validate";
+import { validateDocument } from "@opentechevents/validate";
 
 import { fetchDocument, type FetchDeps } from "./fetch-document.js";
 
@@ -72,8 +72,14 @@ export function badgeTtlSeconds(state: BadgeState): number {
   return STATES[state].ttlSeconds;
 }
 
-/** Judges an already-fetched document, exactly as the page's report does. */
-function judge(text: string): BadgeVerdict {
+/**
+ * Judges an already-fetched document, exactly as the page's report does —
+ * including which version's schemas do the judging. A badge that measured
+ * every feed against the newest release would turn every supported-but-older
+ * feed in the ecosystem red, on somebody else's README, for months after each
+ * spec release.
+ */
+async function judge(text: string): Promise<BadgeVerdict> {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -86,10 +92,14 @@ function judge(text: string): BadgeVerdict {
     return { state: "invalid", detail: "neither an OTE feed nor an OTE event" };
   }
 
-  const result = kind === "feed" ? validateFeed(json) : validateEvent(json);
-  return result.valid
-    ? { state: "valid", detail: `a valid OTE ${kind}` }
-    : { state: "invalid", detail: `${result.errors.length} schema error(s) in the ${kind}` };
+  const report = await validateDocument(json, { kind });
+  const against = report.checkedVersion ? ` against spec ${report.checkedVersion}` : "";
+  return report.valid
+    ? { state: "valid", detail: `a valid OTE ${kind}${against}` }
+    : {
+        state: "invalid",
+        detail: `${report.errors.length} schema error(s) in the ${kind}${against}`,
+      };
 }
 
 /**
@@ -109,7 +119,7 @@ export async function resolveBadge(target: string, deps: FetchDeps): Promise<Bad
 
   switch (found.outcome) {
     case "document":
-      return judge(found.text);
+      return await judge(found.text);
 
     case "not-found":
       return { state: "not-discovered", detail: found.reason };
@@ -126,7 +136,7 @@ export async function resolveBadge(target: string, deps: FetchDeps): Promise<Bad
       }
       const candidate = found.candidates[0];
       if (candidate.source === "embedded") {
-        return judge(candidate.inlineDocument ?? "");
+        return await judge(candidate.inlineDocument ?? "");
       }
 
       const second = await fetchDocument(candidate.url, deps);
@@ -143,7 +153,7 @@ export async function resolveBadge(target: string, deps: FetchDeps): Promise<Bad
           detail: "the feed this page links to is not an OTE document",
         };
       }
-      return judge(linked.text);
+      return await judge(linked.text);
     }
   }
 }

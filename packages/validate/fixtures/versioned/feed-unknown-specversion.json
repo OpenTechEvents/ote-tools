@@ -1,0 +1,18 @@
+{
+  "_comment": "A specVersion that was never published — same situation as declaring none: no rules to judge the document by. Its counterpart is feed-no-specversion.json.",
+  "specVersion": "9.9.9",
+  "title": "Eventos de PyAlmería",
+  "license": "CC-BY-4.0",
+  "updatedAt": "2026-06-01T07:30:00Z",
+  "events": [
+    {
+      "id": "https://pyalmeria.example/eventos/2026-06-async",
+      "name": "PyAlmería — Introducción a async/await",
+      "startDate": "2026-06-11T18:30",
+      "timezone": "Europe/Madrid",
+      "location": {
+        "venue": "Almería"
+      }
+    }
+  ]
+}

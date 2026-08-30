@@ -125,8 +125,24 @@
               </select>
               <span class="hint">Detection follows the document's shape; override it here.</span>
             </div>
+            <!-- The version selector is an override of the document's own
+                 declaration, not a setting: automatic is the default, and the
+                 verdict above always says which of the two produced it. Its
+                 reason to exist is the migration rehearsal — seeing what a
+                 newer release would break before moving to it. Options are
+                 filled in by main.ts from the versions the validator embeds. -->
+            <div id="version-row" class="kind-row" hidden>
+              <label for="version-select">Spec version</label>
+              <select id="version-select"></select>
+              <span class="hint">
+                A document is checked against the version it declares. Pick one to see what
+                moving to it would change.
+              </span>
+            </div>
+            <section id="notices" class="panel result" hidden></section>
             <section id="errors" class="panel result" hidden></section>
             <section id="recommendations" class="panel result" hidden></section>
+            <section id="links" class="panel result" hidden></section>
           </div>
           <div class="results-side">
             <section id="source" class="source-panel" hidden></section>

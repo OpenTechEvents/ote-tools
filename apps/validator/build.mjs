@@ -19,13 +19,24 @@ const serve = process.argv.includes("--serve");
 // Cloudflare.
 const FETCH_ENDPOINT = process.env.OTE_FETCH_ENDPOINT ?? "";
 
+// `splitting` with an outdir instead of a single outfile: the validator
+// embeds the schemas of every published spec version (a document is checked
+// against the version it declares), and each version's compiled validators
+// are a few hundred kilobytes. They sit behind a dynamic import in
+// @opentechevents/validate, so esbuild puts each one in its own chunk and the
+// page downloads the newest version up front and an older one only when it
+// actually meets a document that declares it.
 const options = {
   entryPoints: ["src/main.ts"],
   bundle: true,
+  splitting: true,
   format: "esm",
   platform: "browser",
   target: "es2022",
-  outfile: "dist/main.js",
+  outdir: "dist",
+  // The page loads ./main.js by name; only the shared chunks get hashes.
+  entryNames: "[name]",
+  chunkNames: "chunks/[name]-[hash]",
   sourcemap: true,
   minify: !serve,
   logLevel: "info",

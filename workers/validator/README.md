@@ -13,6 +13,7 @@ GET https://validator.opentechevents.org/                      → the page
 GET https://validator.opentechevents.org/fetch?url=…           → the fetcher
 GET https://validator.opentechevents.org/badge?doc=…           → an SVG verdict
 GET https://validator.opentechevents.org/health                → limits
+POST https://validator.opentechevents.org/check-urls           → are these URLs alive?
 
 GET /fetch?url=https%3A%2F%2Fcomunidad.example%2Ffeed.json
 
@@ -43,10 +44,48 @@ decision, not a simplification: it removes half of the OWASP Top 10 by
 construction — no SQL injection without SQL, no broken access control with
 nothing to access — and concentrates the remaining risk in one place.
 
+## `/check-urls`
+
+```
+POST /check-urls   {"urls": ["https://comunidad.example/img/poster.png", …]}
+
+200 {"ok":true,"limits":{…},"results":[
+      {"url":"…","state":"ok","status":200,"reason":"answered 200"},
+      {"url":"…","state":"broken","status":404,"reason":"answered 404"},
+      {"url":"…","state":"unverifiable","status":403,"reason":"answered 403 — …"}]}
+```
+
+The failure it exists for: a registered feed validated cleanly with every image
+URL carrying a `www.` its server does not answer on. Valid document, nothing
+renders, nobody notices.
+
+Three rules hold it to being useful rather than noisy:
+
+- **It never touches validity.** The page shows this apart from the verdict. A
+  broken link is not a schema violation.
+- **403 and 429 are not failures.** Much of the web answers 403 to anything
+  that looks automated; reporting those as broken is precisely the false
+  positive that was just removed from the ecosystem's daily health check. They
+  come back as `unverifiable`, which the page renders differently and never
+  counts as the publisher's problem. So do timeouts and 5xx.
+- **Budgets are hard**: deduplicated, capped at 60 URLs per request with a
+  concurrency limit, a per-URL timeout and a total budget; whatever is left
+  over is reported as `skipped`, never as fine. Answers are cached per URL for
+  five minutes, so two validations of the same feed do not hammer anyone.
+
+`HEAD` first, then `GET` with `Range: bytes=0-0` — plenty of servers refuse
+`HEAD`, and treating that refusal as a verdict would invent broken links. The
+URL list comes from the page (so it works for uploaded and pasted documents
+too) and every URL goes through the same SSRF checks as `/fetch`: a list from a
+stranger is a list from a stranger, whatever document it claims to come from.
+
 ## The badge
 
 `/badge?doc=<url>` answers an SVG with one word, so a community can put its
-feed's status in its own README:
+feed's status in its own README. It judges with `validateDocument`, against the
+version the document declares — a badge measuring every feed against the newest
+release would turn every supported-but-older feed in the ecosystem red, on
+somebody else's README, for months after each spec release:
 
 ```markdown
 [![OTE feed](https://validator.opentechevents.org/badge?doc=https%3A%2F%2Fcomunidad.example%2Ffeed.json)](https://validator.opentechevents.org/?doc=https%3A%2F%2Fcomunidad.example%2Ffeed.json)

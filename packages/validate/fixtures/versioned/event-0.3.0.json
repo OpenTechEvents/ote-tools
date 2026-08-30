@@ -1,0 +1,9 @@
+{
+  "_comment": "VALID at OTE Spec 0.3.0, which is inside the support window. Specific to this package: it pins the rule that a document is measured against the version it declares, not the newest one. Checked against 0.4.0 it fails on specVersion alone — which is exactly the false 'this feed is broken' this fixture exists to keep out.",
+  "specVersion": "0.3.0",
+  "id": "https://pyalmeria.example/eventos/2026-06-async",
+  "name": "PyAlmería — Introducción a async/await",
+  "startDate": "2026-06-11T18:30",
+  "timezone": "Europe/Madrid",
+  "license": "CC-BY-4.0"
+}

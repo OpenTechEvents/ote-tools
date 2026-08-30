@@ -19,6 +19,18 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   time, so nothing is compiled — `eval`ed — at runtime and no page needs
   `'unsafe-eval'`. Guard tests fail if either output drifts from the dependency.
   Never fetch the schema at runtime.
+- **Every published spec version is embedded, and a document is judged against
+  the version it declares.** Each release pins its own `specVersion` with a
+  `const`, so checking a valid 0.3 feed against the 0.4 schemas produces one
+  meaningless error and calls a healthy feed broken — three tools in the
+  ecosystem shipped exactly that. `validateDocument()` picks the version;
+  `validateEvent`/`validateFeed` stay synchronous and latest-only, which is
+  right for documents this kit *writes* and wrong for documents it *judges*.
+  The support policy (last three minors; older means migrate; unpublished means
+  there is nothing to check against) mirrors the spec repo's decision and lives
+  in `packages/validate/src/versions.ts` — do not reinvent it here. Being on a
+  supported-but-older release is a notice, never a defect, and no message in
+  this kit blames a publisher for a legitimate choice.
 - **Check the pinned spec version before any schema-shaped work** — validation
   rules, error messages, connectors, fixtures, anything that asks "is this
   document valid". The spec moves on its own repo and its own schedule, so the
