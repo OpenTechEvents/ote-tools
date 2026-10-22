@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@event-calendar/core": "^5.12.0",
+    "@event-calendar/core": "^5.17.2",
     "@opentechevents/preview-feed": "workspace:*",
     "dompurify": "^3.4.14",
     "marked": "^18.0.11"
