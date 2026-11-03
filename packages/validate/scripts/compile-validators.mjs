@@ -36,7 +36,12 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { _ } from "ajv";
 import standaloneCode from "ajv/dist/standalone/index.js";
 import ajvFormats from "ajv-formats";
-import { annotationKeywords, customFormats, customKeywords } from "@opentechevents/schema";
+import {
+  ajvOptions,
+  annotationKeywords,
+  customFormats,
+  customKeywords,
+} from "@opentechevents/schema";
 
 const addFormats = ajvFormats.default ?? ajvFormats;
 
@@ -77,12 +82,16 @@ const RUNTIME_IMPORTS = [
  */
 function buildAjv(schemas) {
   const ajv = new Ajv2020({
+    // The spec package's own options, taken from its export rather than
+    // copied. Today they are `{ strict: true, strictRequired: false }` —
+    // exactly what this script used to spell out — but a copy is a copy: when
+    // a future version needs another exemption, a hand-written set diverges
+    // silently and this codegen either fails for a reason that reads like a
+    // bug or compiles rules nobody meant. (The package's README used to
+    // document a bare `strict: true`, under which no OTE schema in any
+    // version has ever compiled; `ajvOptions` exists because of that.)
+    ...ajvOptions,
     allErrors: true,
-    strict: true,
-    // See the same note in src/index.ts's former buildAjv: the schemas'
-    // location/address anyOf branches list `required` without repeating
-    // `properties` in the same subschema.
-    strictRequired: false,
     // Keyword functions are invoked as `fn.call(<context>, …)`. The default
     // context is Ajv's `self`, which a standalone module has no value for —
     // and in a browser `self` silently resolves to the global object instead
