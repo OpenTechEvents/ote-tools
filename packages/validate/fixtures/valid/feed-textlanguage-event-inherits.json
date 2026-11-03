@@ -1,6 +1,6 @@
 {
   "_comment": "VALID on purpose, and specific to this package: the sibling of feed-textlanguage-all-events-declare.json, with the second event's own textLanguage removed. That event now inherits \"es\" from a feed that names no organizers — the one combination the 0.4.0 recommended profile still warns about, because the feed is attributing a language that event never stated. The document stays VALID: this is a SHOULD, not a rule.",
-  "specVersion": "0.4.0",
+  "specVersion": "0.6.0",
   "title": "Agregador de eventos tech",
   "description": "Eventos de varias comunidades, cada una con su propio idioma.",
   "url": "https://agregador.example",

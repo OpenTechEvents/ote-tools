@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { LATEST_VERSION } from "@opentechevents/validate";
+
 import { buildReport, MAX_DEPTH, maxDepth, type Report } from "../src/lib/report.js";
 
 /** Reuses packages/validate's fixtures: one corpus, one opinion of "valid". */
@@ -155,16 +157,20 @@ describe("MUST and SHOULD stay apart", () => {
 // the registration bot linked here saying the same feed validated. Everything
 // below is about the two never disagreeing again.
 describe("buildReport — spec versions", () => {
-  it("calls a real 0.3 feed valid and says which version judged it", async () => {
-    const report = validated(await buildReport(fixture("versioned/feed-corunajug-0.3.0.json")));
+  it("calls an older-but-supported document valid and says which version judged it", async () => {
+    // Was the corunajug 0.3 feed until 0.5.0 and 0.6.0 published on the same
+    // day and slid 0.3 out of the three-minor window. The point is unchanged:
+    // a document behind the latest release is judged by its own rules and is
+    // valid. The out-of-window case has its own test below.
+    const report = validated(await buildReport(fixture("versioned/event-0.4.0.json")));
     expect(report.valid).toBe(true);
     expect(report.errors).toEqual([]);
-    expect(report.specVersion).toBe("0.3.0");
-    expect(report.declaredVersion).toBe("0.3.0");
+    expect(report.specVersion).toBe("0.4.0");
+    expect(report.declaredVersion).toBe("0.4.0");
   });
 
   it("puts the newer-release note in the notices, never in the errors", async () => {
-    const report = validated(await buildReport(fixture("versioned/feed-corunajug-0.3.0.json")));
+    const report = validated(await buildReport(fixture("versioned/event-0.4.0.json")));
     expect(report.notices).toHaveLength(1);
     // The changelog travels as a link, not as a URL printed inside the text.
     expect(report.notices[0]!.links[0]!.href).toContain("CHANGELOG.md");
@@ -173,9 +179,9 @@ describe("buildReport — spec versions", () => {
     expect(report.valid).toBe(true);
   });
 
-  it("still reports a 0.4 feed exactly as before", async () => {
+  it("still reports a current-version feed exactly as before", async () => {
     const report = validated(await buildReport(fixture("valid/feed.json")));
-    expect(report).toMatchObject({ valid: true, specVersion: "0.4.0", notices: [] });
+    expect(report).toMatchObject({ valid: true, specVersion: LATEST_VERSION, notices: [] });
   });
 
   it("asks an out-of-window document to migrate", async () => {
@@ -196,10 +202,10 @@ describe("buildReport — spec versions", () => {
 
   it("honours a hand-picked version, and marks the answer as such", async () => {
     const report = validated(
-      await buildReport(fixture("versioned/event-0.3.0.json"), { version: "0.4.0" }),
+      await buildReport(fixture("versioned/event-0.3.0.json"), { version: LATEST_VERSION }),
     );
     expect(report.overridden).toBe(true);
-    expect(report.specVersion).toBe("0.4.0");
+    expect(report.specVersion).toBe(LATEST_VERSION);
     expect(report.notices.map((notice) => notice.message).join(" ")).toContain("selected it");
   });
 

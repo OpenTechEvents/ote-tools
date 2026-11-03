@@ -1,0 +1,9 @@
+{
+  "_comment": "VALID at OTE Spec 0.4.0, the OLDEST version still inside the support window (0.4, 0.5, 0.6). Specific to this package: it pins that a document is measured against the version it declares, and that being behind inside the window is a notice and never an error. Replaces event-0.3.0.json in that role — 0.3 left the window when 0.5.0 and 0.6.0 published on 2026-11-03, which is the policy working, not a regression.",
+  "specVersion": "0.4.0",
+  "id": "https://pyalmeria.example/eventos/2026-06-async",
+  "name": "PyAlmería — Introducción a async/await",
+  "startDate": "2026-06-11T18:30",
+  "timezone": "Europe/Madrid",
+  "license": "CC-BY-4.0"
+}

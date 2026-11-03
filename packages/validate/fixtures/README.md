@@ -1,11 +1,17 @@
 # Fixtures
 
-Copied from `spec/v0.4/examples` in
-[opentechevents-spec](https://github.com/OpenTechEvents/opentechevents-spec/tree/main/spec/v0.4/examples)
-(tag `schema-v0.4.0`, commit `6026f545e45fd4e2aa77a5b861612eb4b8f76fbc`, copied
-2026-08-28). Re-copy them whenever the pinned `@opentechevents/schema` version
+Copied from `spec/v0.6/examples` in
+[opentechevents-spec](https://github.com/OpenTechEvents/opentechevents-spec/tree/main/spec/v0.6/examples)
+(tag `schema-v0.6.0`, commit `f81a190ffdaf2226243ee9be7cbbfbfcf0f84191`, copied
+2026-11-03). Re-copy them whenever the pinned `@opentechevents/schema` version
 moves: they are the spec's own examples, validated in the spec's CI, and
 keeping them a copy rather than a rewrite is what makes them evidence.
+
+The npm package ships schemas only, not examples, so the copy comes from the
+spec repository at the tag matching the pinned version — not from
+`node_modules`. Verify the four schema files at that tag are byte-identical to
+the ones in the installed package before copying; if they are not, the tag and
+the release have diverged and the examples cannot be trusted as evidence.
 
 - `valid/` — documents that must pass validation. `feed.json`, `feed-community.json`
   and `feed-multipart.json` are Feeds; the rest are Events.

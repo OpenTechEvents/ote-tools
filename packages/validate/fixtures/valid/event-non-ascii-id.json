@@ -1,6 +1,6 @@
 {
   "_comment": "VALID on purpose, and specific to this package: 0.4.0 changed the HTTP(S) fields from `format: uri` to `format: iri`, so a publisher may keep the ñ they actually published instead of percent-encoding it into a second spelling of the same identity. The spec's own example (event-iri-url.json) covers id and url; this one adds partOf.id, the third field an identifier can hide in. See spec issue #32.",
-  "specVersion": "0.4.0",
+  "specVersion": "0.6.0",
   "id": "https://eventos.wiki/events/2025/pycamp-españa/apertura",
   "url": "https://eventos.wiki/events/2025/pycamp-españa/apertura",
   "name": "PyCamp España 2025 — sesión de apertura",

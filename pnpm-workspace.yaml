@@ -18,3 +18,13 @@ allowBuilds:
   # script. Turn it on locally if you want `pnpm --filter @opentechevents/fetch-url dev`
   # (wrangler dev), which does need workerd.
   workerd: false
+# TEMPORARY supply-chain exemption, re-created by pnpm on every spec release:
+# @opentechevents/schema 0.6.0 was published on 2026-11-03 (by us, from
+# OpenTechEvents/opentechevents-spec) and packages/validate pinned it the same
+# day, younger than pnpm's minimum release age.
+# TODO(2026-11-10): drop this list once 0.6.0 is past that age — `pnpm install
+# --frozen-lockfile && pnpm test` must still pass without it. Every entry here
+# is a package we install without the cooling-off window that catches
+# compromised releases, so it must not become permanent or grow a second line.
+minimumReleaseAgeExclude:
+  - '@opentechevents/schema@0.6.0'

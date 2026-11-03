@@ -38,7 +38,20 @@ describe("the support window", () => {
       status: "current",
       version: LATEST_VERSION,
     });
-    expect(classifySpecVersion("0.3.0")).toEqual({ status: "outdated", version: "0.3.0" });
+    // The oldest version still inside the window, whichever that is — the
+    // window slides on every release and a literal here would need editing
+    // each time, which is exactly how a policy test stops testing the policy.
+    const oldestSupported = SUPPORTED_VERSIONS[0]!;
+    expect(classifySpecVersion(oldestSupported)).toEqual({
+      status: "outdated",
+      version: oldestSupported,
+    });
+    // 0.3 was inside the window until 0.5.0 and 0.6.0 published on the same
+    // day; it falling out is the policy working.
+    expect(classifySpecVersion("0.3.0")).toEqual({
+      status: "out-of-window",
+      version: "0.3.0",
+    });
     expect(classifySpecVersion("0.1.0")).toEqual({
       status: "out-of-window",
       version: "0.1.0",
@@ -82,29 +95,25 @@ describe("loadValidators", () => {
 });
 
 describe("validateDocument — inside the support window", () => {
-  it("calls a real 0.3 feed valid, and says so against 0.3", async () => {
-    // The feed from the issue this work came out of: corunajug.org, 9 events,
-    // declaring 0.3.0. The registration bot said "validates against v0.3" and
-    // linked here; this page used to answer "invalid".
-    const report = await validateDocument(
-      loadFixture("versioned", "feed-corunajug-0.3.0.json"),
-      { kind: "feed" },
-    );
+  it("calls an older-but-supported document valid, and says so against its own version", async () => {
+    const report = await validateDocument(loadFixture("versioned", "event-0.4.0.json"), {
+      kind: "event",
+    });
     expect(report.valid).toBe(true);
     expect(report.errors).toEqual([]);
-    expect(report.checkedVersion).toBe("0.3.0");
-    expect(report.verdict).toEqual({ status: "outdated", version: "0.3.0" });
+    expect(report.checkedVersion).toBe("0.4.0");
+    expect(report.verdict).toEqual({ status: "outdated", version: "0.4.0" });
   });
 
   it("says a newer release exists, as a notice and nothing more", async () => {
-    const report = await validateDocument(loadFixture("versioned", "event-0.3.0.json"), {
+    const report = await validateDocument(loadFixture("versioned", "event-0.4.0.json"), {
       kind: "event",
     });
     expect(report.valid).toBe(true);
     expect(report.notices).toHaveLength(1);
     // The notice earns its place by saying what changed, not that something
     // did — and it carries the link as a link, not as a URL mid-sentence.
-    expect(report.notices[0]!.message).toContain("0.4.0");
+    expect(report.notices[0]!.message).toContain(LATEST_VERSION);
     expect(report.notices[0]!.links[0]!.href).toContain("CHANGELOG.md");
   });
 
@@ -119,20 +128,19 @@ describe("validateDocument — inside the support window", () => {
   });
 
   it("still reports real errors in an older document", async () => {
-    const stale = { ...(loadFixture("versioned", "event-0.3.0.json") as object), name: "" };
+    const stale = { ...(loadFixture("versioned", "event-0.4.0.json") as object), name: "" };
     const report = await validateDocument(stale, { kind: "event" });
     expect(report.valid).toBe(false);
-    // Measured against 0.3, and about the actual defect — not about the version.
-    expect(report.checkedVersion).toBe("0.3.0");
+    // Measured against 0.4, and about the actual defect — not about the version.
+    expect(report.checkedVersion).toBe("0.4.0");
     expect(report.errors.map((e) => e.path)).toContain("name");
     expect(report.errors.map((e) => e.path)).not.toContain("specVersion");
   });
 
   it("reports the recommended profile of the version it checked", async () => {
-    const report = await validateDocument(
-      loadFixture("versioned", "feed-corunajug-0.3.0.json"),
-      { kind: "feed" },
-    );
+    const report = await validateDocument(loadFixture("versioned", "event-0.4.0.json"), {
+      kind: "event",
+    });
     expect(report.recommendedProfileChecked).toBe(true);
     // Recommendations never touch validity — that is the existing contract,
     // and the version notice rides the same channel.
@@ -187,7 +195,7 @@ describe("validateDocument — outside the window and beyond", () => {
 });
 
 describe("validateDocument — a version chosen by hand", () => {
-  it("rehearses the migration: what 0.4 would break in a 0.3 document", async () => {
+  it("rehearses the migration: what the latest would break in a 0.3 document", async () => {
     const report = await validateDocument(loadFixture("versioned", "event-0.3.0.json"), {
       kind: "event",
       version: LATEST_VERSION,
@@ -199,7 +207,7 @@ describe("validateDocument — a version chosen by hand", () => {
     // so it shows up as a finding — with both versions named.
     const versionError = report.errors.find((e) => e.path === "specVersion");
     expect(versionError?.message).toContain("says OTE Spec 0.3.0");
-    expect(versionError?.message).toContain("0.4.0");
+    expect(versionError?.message).toContain(LATEST_VERSION);
     // And the notice says which of the two answers the user is looking at.
     expect(report.notices.map((notice) => notice.message).join(" ")).toContain(
       "because you selected it",
@@ -212,6 +220,9 @@ describe("validateDocument — a version chosen by hand", () => {
       version: "0.3.0",
     });
     expect(report.overridden).toBe(false);
-    expect(report.valid).toBe(true);
+    // Out of the window now, so the policy asks for a migration — but the
+    // document itself is still clean against the 0.3 rules it declared, and
+    // the only error is the version one.
+    expect(report.errors.filter((e) => e.path !== "specVersion")).toEqual([]);
   });
 });

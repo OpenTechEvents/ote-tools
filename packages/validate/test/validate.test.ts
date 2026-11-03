@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  LATEST_VERSION,
+  PUBLISHED_VERSIONS,
   checkEventRecommended,
   checkFeedRecommended,
   validateEvent,
@@ -69,10 +71,16 @@ describe("validateEvent — invalid fixtures", () => {
     const { errors } = validateEvent(
       loadFixture("invalid", "event-future-specversion.json"),
     );
+    // Built from the constants rather than spelled out: every spec release
+    // moves both the version doing the judging and the published list, and a
+    // hand-written copy of either turns the next release into a test failure
+    // that says nothing about the behaviour under test.
     expect(errors).toContainEqual({
       path: "specVersion",
       message:
-        'must be "0.4.0", the version this check was made against; "0.9.0" is not a published OTE Spec version (published: 0.1.0, 0.2.0, 0.3.0, 0.4.0)',
+        `must be "${LATEST_VERSION}", the version this check was made against; ` +
+        `"0.9.0" is not a published OTE Spec version ` +
+        `(published: ${PUBLISHED_VERSIONS.join(", ")})`,
     });
   });
 
@@ -83,7 +91,9 @@ describe("validateEvent — invalid fixtures", () => {
     expect(errors).toContainEqual({
       path: "specVersion",
       message:
-        'says OTE Spec 0.3.0, but this check was made against 0.4.0: set specVersion to "0.4.0" to move this document to 0.4.0 — every other finding here is already measured against 0.4.0',
+        `says OTE Spec 0.3.0, but this check was made against ${LATEST_VERSION}: ` +
+        `set specVersion to "${LATEST_VERSION}" to move this document to ${LATEST_VERSION} — ` +
+        `every other finding here is already measured against ${LATEST_VERSION}`,
     });
   });
 
@@ -289,7 +299,9 @@ describe("validateFeed — invalid cases", () => {
 
 describe("error messages a publisher can act on", () => {
   const event = (image: unknown) => ({
-    specVersion: "0.4.0",
+    // The latest version, so these assert on the image rule alone — a stale
+    // literal here adds a specVersion finding to every expectation below.
+    specVersion: LATEST_VERSION,
     license: "CC0-1.0",
     id: "https://comunidad.example/e/1",
     name: "Meetup",

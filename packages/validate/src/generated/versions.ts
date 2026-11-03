@@ -10,13 +10,13 @@
  * their schemas stay reachable. Support (a policy: see src/versions.ts) is a
  * narrower set than this.
  */
-export const PUBLISHED_VERSIONS = ["0.1.0","0.2.0","0.3.0","0.4.0"] as const;
+export const PUBLISHED_VERSIONS = ["0.1.0","0.2.0","0.3.0","0.4.0","0.5.0","0.6.0"] as const;
 
 /** The newest published version; what a new document should declare. */
-export const LATEST_VERSION = "0.4.0";
+export const LATEST_VERSION = "0.6.0";
 
 /**
  * Versions whose schemas include the recommended (quality) profile. Before
  * 0.3.0 the profile did not exist, so there is nothing to check against.
  */
-export const VERSIONS_WITH_RECOMMENDED = ["0.3.0","0.4.0"] as const;
+export const VERSIONS_WITH_RECOMMENDED = ["0.3.0","0.4.0","0.5.0","0.6.0"] as const;

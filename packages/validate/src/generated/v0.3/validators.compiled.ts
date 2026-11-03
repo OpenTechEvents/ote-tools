@@ -1868,7 +1868,7 @@ return errors === 0;
 }
 validate47.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const keyword1 = keywords["orderedInstants"];
+const keyword2 = keywords["orderedInstants"];
 
 function validate46(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -2491,11 +2491,11 @@ errors++;
 }
 const _errs45 = errors;
 let valid13;
-keyword1.errors = null;
-valid13 = keyword1.call(this, true, data, schema58, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword2.errors = null;
+valid13 = keyword2.call(this, true, data, schema58, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid13){
-if(Array.isArray(keyword1.errors)){
-vErrors = vErrors === null ? keyword1.errors : vErrors.concat(keyword1.errors);
+if(Array.isArray(keyword2.errors)){
+vErrors = vErrors === null ? keyword2.errors : vErrors.concat(keyword2.errors);
 errors = vErrors.length;
 for(let i0=_errs45; i0<errors; i0++){
 const err41 = vErrors[i0];
@@ -2768,11 +2768,11 @@ errors++;
 }
 const _errs15 = errors;
 let valid4;
-keyword1.errors = null;
-valid4 = keyword1.call(this, true, data, schema64, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword2.errors = null;
+valid4 = keyword2.call(this, true, data, schema64, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid4){
-if(Array.isArray(keyword1.errors)){
-vErrors = vErrors === null ? keyword1.errors : vErrors.concat(keyword1.errors);
+if(Array.isArray(keyword2.errors)){
+vErrors = vErrors === null ? keyword2.errors : vErrors.concat(keyword2.errors);
 errors = vErrors.length;
 for(let i0=_errs15; i0<errors; i0++){
 const err14 = vErrors[i0];
@@ -3661,10 +3661,10 @@ return errors === 0;
 }
 validate61.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const keyword8 = keywords["distinctLanguageTags"];
+const keyword10 = keywords["distinctLanguageTags"];
 const keyword0 = keywords["orderedDates"];
-const keyword2 = keywords["distinctTranslationLanguages"];
-const keyword4 = keywords["distinctPartOfId"];
+const keyword3 = keywords["distinctTranslationLanguages"];
+const keyword5 = keywords["distinctPartOfId"];
 
 function validate22(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -4395,11 +4395,11 @@ break outer0;
 }
 const _errs53 = errors;
 let valid19;
-keyword8.errors = null;
-valid19 = keyword8.call(this, true, data19, schema33.properties.languages, {instancePath:instancePath+"/languages",parentData:data,parentDataProperty:"languages",rootData,dynamicAnchors});
+keyword10.errors = null;
+valid19 = keyword10.call(this, true, data19, schema33.properties.languages, {instancePath:instancePath+"/languages",parentData:data,parentDataProperty:"languages",rootData,dynamicAnchors});
 if(!valid19){
-if(Array.isArray(keyword8.errors)){
-vErrors = vErrors === null ? keyword8.errors : vErrors.concat(keyword8.errors);
+if(Array.isArray(keyword10.errors)){
+vErrors = vErrors === null ? keyword10.errors : vErrors.concat(keyword10.errors);
 errors = vErrors.length;
 for(let i4=_errs53; i4<errors; i4++){
 const err48 = vErrors[i4];
@@ -4692,11 +4692,11 @@ errors++;
 }
 const _errs78 = errors;
 let valid27;
-keyword2.errors = null;
-valid27 = keyword2.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword3.errors = null;
+valid27 = keyword3.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid27){
-if(Array.isArray(keyword2.errors)){
-vErrors = vErrors === null ? keyword2.errors : vErrors.concat(keyword2.errors);
+if(Array.isArray(keyword3.errors)){
+vErrors = vErrors === null ? keyword3.errors : vErrors.concat(keyword3.errors);
 errors = vErrors.length;
 for(let i6=_errs78; i6<errors; i6++){
 const err67 = vErrors[i6];
@@ -4719,11 +4719,11 @@ errors++;
 }
 const _errs79 = errors;
 let valid28;
-keyword4.errors = null;
-valid28 = keyword4.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword5.errors = null;
+valid28 = keyword5.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid28){
-if(Array.isArray(keyword4.errors)){
-vErrors = vErrors === null ? keyword4.errors : vErrors.concat(keyword4.errors);
+if(Array.isArray(keyword5.errors)){
+vErrors = vErrors === null ? keyword5.errors : vErrors.concat(keyword5.errors);
 errors = vErrors.length;
 for(let i7=_errs79; i7<errors; i7++){
 const err69 = vErrors[i7];
@@ -6368,11 +6368,11 @@ break outer0;
 }
 const _errs53 = errors;
 let valid19;
-keyword8.errors = null;
-valid19 = keyword8.call(this, true, data19, schema33.properties.languages, {instancePath:instancePath+"/languages",parentData:data,parentDataProperty:"languages",rootData,dynamicAnchors});
+keyword10.errors = null;
+valid19 = keyword10.call(this, true, data19, schema33.properties.languages, {instancePath:instancePath+"/languages",parentData:data,parentDataProperty:"languages",rootData,dynamicAnchors});
 if(!valid19){
-if(Array.isArray(keyword8.errors)){
-vErrors = vErrors === null ? keyword8.errors : vErrors.concat(keyword8.errors);
+if(Array.isArray(keyword10.errors)){
+vErrors = vErrors === null ? keyword10.errors : vErrors.concat(keyword10.errors);
 errors = vErrors.length;
 for(let i4=_errs53; i4<errors; i4++){
 const err48 = vErrors[i4];
@@ -6665,11 +6665,11 @@ errors++;
 }
 const _errs78 = errors;
 let valid27;
-keyword2.errors = null;
-valid27 = keyword2.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword3.errors = null;
+valid27 = keyword3.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid27){
-if(Array.isArray(keyword2.errors)){
-vErrors = vErrors === null ? keyword2.errors : vErrors.concat(keyword2.errors);
+if(Array.isArray(keyword3.errors)){
+vErrors = vErrors === null ? keyword3.errors : vErrors.concat(keyword3.errors);
 errors = vErrors.length;
 for(let i6=_errs78; i6<errors; i6++){
 const err67 = vErrors[i6];
@@ -6692,11 +6692,11 @@ errors++;
 }
 const _errs79 = errors;
 let valid28;
-keyword4.errors = null;
-valid28 = keyword4.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword5.errors = null;
+valid28 = keyword5.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid28){
-if(Array.isArray(keyword4.errors)){
-vErrors = vErrors === null ? keyword4.errors : vErrors.concat(keyword4.errors);
+if(Array.isArray(keyword5.errors)){
+vErrors = vErrors === null ? keyword5.errors : vErrors.concat(keyword5.errors);
 errors = vErrors.length;
 for(let i7=_errs79; i7<errors; i7++){
 const err69 = vErrors[i7];
@@ -6734,9 +6734,9 @@ return errors === 0;
 }
 validate71.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
-const keyword3 = keywords["uniqueEventIds"];
-const keyword5 = keywords["eventsNotNewerThanFeed"];
-const keyword6 = keywords["eventsRespectInheritedTextLanguage"];
+const keyword4 = keywords["uniqueEventIds"];
+const keyword6 = keywords["eventsNotNewerThanFeed"];
+const keyword7 = keywords["eventsRespectInheritedTextLanguage"];
 
 function validate65(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="https://opentechevents.org/schema/v0.3/feed.schema.json" */;
@@ -7436,11 +7436,11 @@ errors++;
 }
 const _errs52 = errors;
 let valid18;
-keyword2.errors = null;
-valid18 = keyword2.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword3.errors = null;
+valid18 = keyword3.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid18){
-if(Array.isArray(keyword2.errors)){
-vErrors = vErrors === null ? keyword2.errors : vErrors.concat(keyword2.errors);
+if(Array.isArray(keyword3.errors)){
+vErrors = vErrors === null ? keyword3.errors : vErrors.concat(keyword3.errors);
 errors = vErrors.length;
 for(let i2=_errs52; i2<errors; i2++){
 const err46 = vErrors[i2];
@@ -7463,11 +7463,11 @@ errors++;
 }
 const _errs53 = errors;
 let valid19;
-keyword3.errors = null;
-valid19 = keyword3.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword4.errors = null;
+valid19 = keyword4.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid19){
-if(Array.isArray(keyword3.errors)){
-vErrors = vErrors === null ? keyword3.errors : vErrors.concat(keyword3.errors);
+if(Array.isArray(keyword4.errors)){
+vErrors = vErrors === null ? keyword4.errors : vErrors.concat(keyword4.errors);
 errors = vErrors.length;
 for(let i3=_errs53; i3<errors; i3++){
 const err48 = vErrors[i3];
@@ -7490,11 +7490,11 @@ errors++;
 }
 const _errs54 = errors;
 let valid20;
-keyword5.errors = null;
-valid20 = keyword5.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword6.errors = null;
+valid20 = keyword6.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid20){
-if(Array.isArray(keyword5.errors)){
-vErrors = vErrors === null ? keyword5.errors : vErrors.concat(keyword5.errors);
+if(Array.isArray(keyword6.errors)){
+vErrors = vErrors === null ? keyword6.errors : vErrors.concat(keyword6.errors);
 errors = vErrors.length;
 for(let i4=_errs54; i4<errors; i4++){
 const err50 = vErrors[i4];
@@ -7517,11 +7517,11 @@ errors++;
 }
 const _errs55 = errors;
 let valid21;
-keyword6.errors = null;
-valid21 = keyword6.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword7.errors = null;
+valid21 = keyword7.call(this, true, data, schema77, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid21){
-if(Array.isArray(keyword6.errors)){
-vErrors = vErrors === null ? keyword6.errors : vErrors.concat(keyword6.errors);
+if(Array.isArray(keyword7.errors)){
+vErrors = vErrors === null ? keyword7.errors : vErrors.concat(keyword7.errors);
 errors = vErrors.length;
 for(let i5=_errs55; i5<errors; i5++){
 const err52 = vErrors[i5];
@@ -8292,11 +8292,11 @@ break outer0;
 }
 const _errs53 = errors;
 let valid19;
-keyword8.errors = null;
-valid19 = keyword8.call(this, true, data19, schema33.properties.languages, {instancePath:instancePath+"/languages",parentData:data,parentDataProperty:"languages",rootData,dynamicAnchors});
+keyword10.errors = null;
+valid19 = keyword10.call(this, true, data19, schema33.properties.languages, {instancePath:instancePath+"/languages",parentData:data,parentDataProperty:"languages",rootData,dynamicAnchors});
 if(!valid19){
-if(Array.isArray(keyword8.errors)){
-vErrors = vErrors === null ? keyword8.errors : vErrors.concat(keyword8.errors);
+if(Array.isArray(keyword10.errors)){
+vErrors = vErrors === null ? keyword10.errors : vErrors.concat(keyword10.errors);
 errors = vErrors.length;
 for(let i4=_errs53; i4<errors; i4++){
 const err48 = vErrors[i4];
@@ -8589,11 +8589,11 @@ errors++;
 }
 const _errs78 = errors;
 let valid27;
-keyword2.errors = null;
-valid27 = keyword2.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword3.errors = null;
+valid27 = keyword3.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid27){
-if(Array.isArray(keyword2.errors)){
-vErrors = vErrors === null ? keyword2.errors : vErrors.concat(keyword2.errors);
+if(Array.isArray(keyword3.errors)){
+vErrors = vErrors === null ? keyword3.errors : vErrors.concat(keyword3.errors);
 errors = vErrors.length;
 for(let i6=_errs78; i6<errors; i6++){
 const err67 = vErrors[i6];
@@ -8616,11 +8616,11 @@ errors++;
 }
 const _errs79 = errors;
 let valid28;
-keyword4.errors = null;
-valid28 = keyword4.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword5.errors = null;
+valid28 = keyword5.call(this, true, data, schema33, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid28){
-if(Array.isArray(keyword4.errors)){
-vErrors = vErrors === null ? keyword4.errors : vErrors.concat(keyword4.errors);
+if(Array.isArray(keyword5.errors)){
+vErrors = vErrors === null ? keyword5.errors : vErrors.concat(keyword5.errors);
 errors = vErrors.length;
 for(let i7=_errs79; i7<errors; i7++){
 const err69 = vErrors[i7];
@@ -8658,7 +8658,7 @@ return errors === 0;
 }
 validate85.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
-const keyword7 = keywords["languagesCoveredByText"];
+const keyword9 = keywords["languagesCoveredByText"];
 
 function validate84(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="https://opentechevents.org/schema/v0.3/event.recommended.schema.json" */;
@@ -9912,11 +9912,11 @@ Object.assign(props0, props6);
 if(data && typeof data == "object" && !Array.isArray(data)){
 const _errs93 = errors;
 let valid29;
-keyword7.errors = null;
-valid29 = keyword7.call(this, true, data, schema94, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
+keyword9.errors = null;
+valid29 = keyword9.call(this, true, data, schema94, {instancePath,parentData,parentDataProperty,rootData,dynamicAnchors});
 if(!valid29){
-if(Array.isArray(keyword7.errors)){
-vErrors = vErrors === null ? keyword7.errors : vErrors.concat(keyword7.errors);
+if(Array.isArray(keyword9.errors)){
+vErrors = vErrors === null ? keyword9.errors : vErrors.concat(keyword9.errors);
 errors = vErrors.length;
 for(let i1=_errs93; i1<errors; i1++){
 const err81 = vErrors[i1];

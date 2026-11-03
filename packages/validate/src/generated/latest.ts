@@ -10,11 +10,11 @@ export {
   feedSchema,
   eventRecommendedSchema,
   feedRecommendedSchema,
-} from "./v0.4/schemas.js";
+} from "./v0.6/schemas.js";
 
 export {
   validateEvent,
   validateFeed,
   checkEventRecommended,
   checkFeedRecommended,
-} from "./v0.4/validators.compiled.js";
+} from "./v0.6/validators.compiled.js";

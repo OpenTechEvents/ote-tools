@@ -1,13 +1,24 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { LATEST_VERSION } from "../src/index.js";
 import { runCli, type CliIO } from "../src/cli.js";
 
 const fixturesDir = fileURLToPath(new URL("../fixtures/", import.meta.url));
+
+/**
+ * How many .json files a fixture directory holds, counted rather than
+ * written down: these directories are re-copied from the spec's own examples
+ * whenever the pinned schema version moves (see fixtures/README.md), so a
+ * literal here fails on the next spec release for a reason that has nothing
+ * to do with the CLI.
+ */
+const fixtureCount = (dir: string): number =>
+  readdirSync(join(fixturesDir, dir)).filter((f) => f.endsWith(".json")).length;
 
 function makeIO(): CliIO & { outLines: string[]; errLines: string[] } {
   const outLines: string[] = [];
@@ -25,32 +36,34 @@ describe("ote-validate CLI", () => {
     const io = makeIO();
     expect(await runCli([join(fixturesDir, "valid")], io)).toBe(0);
     expect(io.errLines).toEqual([]);
-    expect(io.outLines.at(-1)).toBe("17/17 valid");
+    const n = fixtureCount("valid");
+    expect(io.outLines.at(-1)).toBe(`${n}/${n} valid`);
   });
 
   it("directory of invalid fixtures → exit 1 with per-file errors", async () => {
     const io = makeIO();
     expect(await runCli([join(fixturesDir, "invalid")], io)).toBe(1);
-    expect(io.outLines).toContain("0/87 valid");
+    const n = fixtureCount("invalid");
+    expect(io.outLines).toContain(`0/${n} valid`);
     expect(io.errLines.some((l) => l.startsWith("✗"))).toBe(true);
     expect(io.errLines.some((l) => l.includes("license"))).toBe(true);
     // One of the 87 (event-future-specversion.json, 0.9.0) is not a defect
     // but a version this release cannot judge, and the summary says so
     // separately. The run still exits 1: the other 86 are real defects.
-    expect(io.outLines.at(-1)).toContain("1/87 not judged");
+    expect(io.outLines.at(-1)).toContain(`1/${n} not judged`);
   });
 
   it("single valid file → exit 0, classified as event", async () => {
     const io = makeIO();
     const file = join(fixturesDir, "valid", "event-minimal.json");
     expect(await runCli([file], io)).toBe(0);
-    expect(io.outLines[0]).toMatch(/✓ .*event-minimal\.json \(event\) — OTE 0\.4\.0/);
+    expect(io.outLines[0]).toMatch(/✓ .*event-minimal\.json \(event\) — OTE 0\.6\.0/);
   });
 
   it("feed.json is classified as feed", async () => {
     const io = makeIO();
     expect(await runCli([join(fixturesDir, "valid", "feed.json")], io)).toBe(0);
-    expect(io.outLines[0]).toMatch(/\(feed\) — OTE 0\.4\.0/);
+    expect(io.outLines[0]).toMatch(/\(feed\) — OTE 0\.6\.0/);
   });
 
   it("no arguments → exit 2 with usage", async () => {
@@ -83,10 +96,12 @@ describe("ote-validate CLI", () => {
     const io = makeIO();
     const dir = mkdtempSync(join(tmpdir(), "ote-validate-future-"));
     const file = join(dir, "future.json");
-    // 0.5.0 is a real spec version, published on the website but not yet in
-    // the pinned @opentechevents/schema — exactly the case that reported
-    // "0/18 valid" on documents that were fine.
-    writeFileSync(file, JSON.stringify({ specVersion: "0.5.0", name: "x" }), "utf8");
+    // A version this release has no schemas for. It used to be 0.5.0, which
+    // was the live case: published on the website, absent from the pinned
+    // @opentechevents/schema, and reported as "0/18 valid" on documents that
+    // were fine. 0.5.0 ships now, so the example has to be one that genuinely
+    // does not exist — the behaviour under test is unchanged.
+    writeFileSync(file, JSON.stringify({ specVersion: "0.9.0", name: "x" }), "utf8");
     expect(await runCli([file], io)).toBe(3);
     expect(io.errLines[0]).toMatch(/^\? .*future\.json \(event\) — not checked/);
     expect(io.errLines.some((l) => l.includes("not a published OTE Spec version"))).toBe(true);
@@ -99,10 +114,10 @@ describe("ote-validate CLI", () => {
     const dir = mkdtempSync(join(tmpdir(), "ote-validate-mixed-"));
     writeFileSync(
       join(dir, "future.json"),
-      JSON.stringify({ specVersion: "0.5.0", name: "x" }),
+      JSON.stringify({ specVersion: "0.9.0", name: "x" }),
       "utf8",
     );
-    writeFileSync(join(dir, "broken.json"), JSON.stringify({ specVersion: "0.4.0" }), "utf8");
+    writeFileSync(join(dir, "broken.json"), JSON.stringify({ specVersion: LATEST_VERSION }), "utf8");
     expect(await runCli([dir], io)).toBe(1);
   });
 
@@ -141,6 +156,6 @@ describe("ote-validate CLI", () => {
     expect(await runCli([file], io)).toBe(0);
     // A green that does not name the rules it applied is the failure mode
     // this assertion guards: it is what let nine skipped keywords read as 18/18.
-    expect(io.outLines[0]).toContain("OTE 0.4.0");
+    expect(io.outLines[0]).toContain(`OTE ${LATEST_VERSION}`);
   });
 });

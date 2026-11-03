@@ -16,4 +16,6 @@ export const VERSION_MODULES: Record<string, () => Promise<CompiledModule>> = {
   "0.2.0": () => import("./v0.2/validators.compiled.js"),
   "0.3.0": () => import("./v0.3/validators.compiled.js"),
   "0.4.0": () => import("./v0.4/validators.compiled.js"),
+  "0.5.0": () => import("./v0.5/validators.compiled.js"),
+  "0.6.0": () => import("./v0.6/validators.compiled.js"),
 };
