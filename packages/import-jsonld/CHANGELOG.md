@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/import-jsonld` are documented here.
 
-## Unreleased
+## 0.4.1
 
 - **New: `ote-import-jsonld` CLI.** `ote-import-jsonld [--tz <zone>] <page.html|->`
   prints `{ events, warnings }` as JSON; exit `0` = at least one event, `1` = the

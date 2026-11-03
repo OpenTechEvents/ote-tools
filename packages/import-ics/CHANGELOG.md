@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/import-ics` are documented here.
 
-## Unreleased
+## 0.4.1
 
 - **New: `ote-import-ics` CLI.** `ote-import-ics [--tz <zone>] [--public] <calendar.ics|->`
   prints `{ events, warnings }` as JSON; exit `0` = at least one event, `1` =
