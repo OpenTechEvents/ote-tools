@@ -43,6 +43,25 @@ The events are partial on purpose — they have no `id` and usually lack
 `timezone`. Completing them is the caller's job (the ote-tools editor does
 it with a form that marks the missing fields).
 
+## CLI
+
+```
+ote-import-jsonld [--tz <IANA zone>] <page.html|->
+```
+
+Prints `{ events, warnings }` as JSON on stdout. Exit `0` = at least one event ·
+`1` = the page carries no schema.org Event · `2` = usage or I/O error.
+
+```sh
+curl -sL "https://www.meetup.com/rust-madrid/events/123456789/" | ote-import-jsonld -
+ote-import-jsonld --tz Europe/Madrid saved-page.html
+```
+
+JSON rather than a human summary, because the caller is a program — the editor, or
+an agent following the [organizer skill](../../skills/ote-event/) — and the events
+are still *partial*: printing a verdict here would invite treating them as finished.
+The `warnings` are the list of what to ask the organizer about, field by field.
+
 ## What counts as an Event
 
 Blocks whose `@type` is `Event` or a subtype (`BusinessEvent`,

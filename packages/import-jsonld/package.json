@@ -17,6 +17,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "ote-import-jsonld": "./dist/bin.js"
+  },
   "files": [
     "dist"
   ],

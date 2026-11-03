@@ -47,6 +47,25 @@ The events are partial on purpose — they have no `id`, may lack `timezone`,
 and are not valid OTE documents yet. Completing them is the caller's job
 (the ote-tools editor does it with a form that marks the missing fields).
 
+## CLI
+
+```
+ote-import-ics [--tz <IANA zone>] [--public] <calendar.ics|->
+```
+
+Prints `{ events, warnings }` as JSON on stdout. Exit `0` = at least one event ·
+`1` = nothing could be converted · `2` = usage or I/O error.
+
+```sh
+ote-import-ics --tz Europe/Madrid calendar.ics
+curl -sL "https://calendar.example/rust-madrid.ics" | ote-import-ics --public -
+```
+
+`--public` is opt-in, never a default: it is what lets `ORGANIZER`'s email through,
+and a calendar shared by link or exported from a private account is not publication.
+Copying an address out of one is not translating a value, it is changing its level
+of exposure.
+
 ## Mapping (VEVENT → OTE v0.4)
 
 | iCal | OTE |
