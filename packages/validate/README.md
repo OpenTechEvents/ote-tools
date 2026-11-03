@@ -118,7 +118,8 @@ import {
 ## CLI
 
 ```
-ote-validate <dir|file>
+ote-validate <dir|file> [--spec-version <x.y.z>]
+ote-validate --versions
 ```
 
 - File: validates that document.
@@ -126,8 +127,34 @@ ote-validate <dir|file>
   hidden entries).
 - Type detection: an object with an `events` array is a Feed; anything else is
   an Event.
-- Output: `✓`/`✗` per file with indented errors, plus an `N/M valid` summary.
-- Exit codes: `0` all valid · `1` some invalid · `2` usage or I/O error.
+- **Each document is measured against the version it declares**, not against
+  the latest one — the CLI runs `validateDocument`. Being on an
+  older-but-supported release is a note, never a failure.
+- Output: `✓`/`✗`/`?` per file, each naming the version whose rules were
+  applied, plus an `N/M valid` summary. A `✓` says what it checked on purpose:
+  a green that does not name its rules is how nine skipped keywords once read
+  as `18/18 valid`.
+- `--spec-version <x.y.z>`: measure against this version instead of the
+  declared one — the migration rehearsal, "what would 0.5 break?", asked
+  before committing to the answer.
+- `--versions`: the latest, supported and published versions, and which ones
+  carry a recommended profile. For asking what this release can judge before
+  submitting anything to it.
+
+### Exit codes
+
+| code | meaning |
+| --- | --- |
+| `0` | every document valid |
+| `1` | a document is invalid — a real defect, against the rules it declared |
+| `2` | usage or I/O error |
+| `3` | no defect found, but a document declares a version this release cannot judge it against (unpublished, or outside the support window) |
+
+`3` is distinct from `1` deliberately. CI and agents have to tell a version
+pin from a broken feed, and returning `1` for both says the publisher is at
+fault when they are not — which is exactly how 18 documents that were valid
+against `spec/v0.5` were reported as `0/18 valid`. When both occur in one run,
+`1` wins: a real defect is the more urgent answer.
 
 ## Development
 
