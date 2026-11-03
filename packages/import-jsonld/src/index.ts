@@ -4,6 +4,7 @@ import type {
   HtmlToEventsOptions,
   ImportResult,
   ImportWarning,
+  OteAddress,
   OteAttendanceMode,
   OteEventStatus,
   OteImageEntry,
@@ -17,6 +18,7 @@ export type {
   HtmlToEventsOptions,
   ImportResult,
   ImportWarning,
+  OteAddress,
   OteAttendanceMode,
   OteEventStatus,
   OteGeo,
@@ -96,6 +98,23 @@ const asNumber = (value: unknown): number | undefined => {
 const bareEnum = (value: string): string =>
   value.replace(/^https?:\/\/(www\.)?schema\.org\//i, "");
 
+const CANONICAL_RE =
+  /<link\b(?=[^>]*\brel\s*=\s*["']?canonical["']?)[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/i;
+
+/**
+ * The page's own `<link rel="canonical">`, when it has one.
+ *
+ * Needed because an Event's JSON-LD often omits `url` — the page is the url,
+ * so saying it twice feels redundant to whoever wrote the markup. Reading the
+ * canonical link recovers it from the HTML the caller already handed over,
+ * which is why this needs no flag and works when the page arrives on stdin.
+ */
+function extractCanonicalUrl(html: string): string | undefined {
+  const match = CANONICAL_RE.exec(html);
+  const href = match ? asString(match[1]) : undefined;
+  return href !== undefined && /^https?:\/\//i.test(href) ? href : undefined;
+}
+
 const DT_RE =
   /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
@@ -159,6 +178,52 @@ interface EventWarning {
   message: string;
 }
 
+/**
+ * schema.org PostalAddress → location.address, part for part.
+ *
+ * This is a straight 1:1 rename, not a judgement call: OTE's address fields
+ * were modelled on PostalAddress precisely so a connector would not have to
+ * decide anything here. Folding these into the `venue` string and dropping
+ * the rest loses `locality` and `country`, the two a consumer actually
+ * filters on.
+ */
+function mapAddress(postal: JsonObject, warnings: EventWarning[]): OteAddress | undefined {
+  const address: OteAddress = {};
+  for (const [schemaKey, oteKey] of [
+    ["streetAddress", "street"],
+    ["addressLocality", "locality"],
+    ["addressRegion", "region"],
+    ["postalCode", "postalCode"],
+  ] as const) {
+    const value = asString(postal[schemaKey]);
+    if (value !== undefined) address[oteKey] = value;
+  }
+
+  // addressCountry is the one part that is not free text: OTE wants an ISO
+  // 3166-1 alpha-2 code, while schema.org allows a code, a country name, or a
+  // Country object. A name is not a code, and this connector has no table to
+  // turn one into the other — so a two-letter value is taken as the code and
+  // anything else is named in a warning rather than guessed at.
+  const rawCountry = postal.addressCountry;
+  const country =
+    typeof rawCountry === "object" && rawCountry !== null
+      ? (asString((rawCountry as JsonObject).name) ??
+        asString((rawCountry as JsonObject)["@id"]))
+      : asString(rawCountry);
+  if (country !== undefined) {
+    if (/^[A-Za-z]{2}$/.test(country)) {
+      address.country = country.toUpperCase();
+    } else {
+      warnings.push({
+        field: "location.address.country",
+        message: `addressCountry "${country}" is not an ISO 3166-1 alpha-2 code — set it by hand (note the UK is "GB")`,
+      });
+    }
+  }
+
+  return Object.keys(address).length > 0 ? address : undefined;
+}
+
 function mapLocation(
   raw: unknown,
   event: PartialOteEvent,
@@ -204,6 +269,13 @@ function mapLocation(
       addPart(asString(postal.streetAddress));
       addPart(asString(postal.addressLocality));
       addPart(asString(postal.addressRegion));
+      // The parts again, this time unflattened. `address` complements
+      // `venue` and does not replace it — venue stays the one string every
+      // format can print, so the overlap is the spec's intent, not a bug.
+      if (location.address === undefined) {
+        const mapped = mapAddress(postal, warnings);
+        if (mapped) location.address = mapped;
+      }
     }
     if (parts.length > 0 && location.venue === undefined) {
       location.venue = parts.join(", ");
@@ -358,21 +430,42 @@ function mapPartOf(raw: unknown): OtePartOf | undefined {
   return name ? { id, name } : { id };
 }
 
+/**
+ * The `partOf` that an event's own parts should carry: the parent's identity,
+ * as a URI.
+ *
+ * Falls back to the page url when the parent node carries neither `@id` nor
+ * `url`, because a conference published as one page with its talks in
+ * `subEvent` is exactly the shape that has no per-event URI — and `partOf.id`
+ * is required, so without a URI the parts cannot be linked at all. Still
+ * never invented: every candidate here is a URI the source actually supplied.
+ */
+function parentPartOf(node: JsonObject, pageUrl: string | undefined): OtePartOf | undefined {
+  const id = asString(node["@id"]) ?? asString(node.url) ?? pageUrl;
+  if (id === undefined) return undefined;
+  const name = asString(node.name);
+  return name ? { id, name } : { id };
+}
+
+/** schema.org subEvent (or an array of them) → the Event nodes it contains. */
+function subEventNodes(raw: unknown): JsonObject[] {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  return entries.filter(
+    (entry): entry is JsonObject => typeof entry === "object" && entry !== null,
+  );
+}
+
 function mapEvent(
   node: JsonObject,
   allDayTimezonePolicy: string,
+  pageUrl: string | undefined,
+  inheritedPartOf: OtePartOf | undefined,
 ): {
   event: PartialOteEvent;
   warnings: EventWarning[];
 } {
   const event: PartialOteEvent = {};
-  const warnings: EventWarning[] = [
-    {
-      field: "id",
-      message:
-        "not imported: mint a stable OTE id (a URI under your domain) — the page's url was kept in `url`",
-    },
-  ];
+  const warnings: EventWarning[] = [];
 
   const name = asString(node.name);
   if (name) event.name = name;
@@ -403,8 +496,28 @@ function mapEvent(
     }
   }
 
-  const url = asString(node.url);
+  // The Event's own url, or failing that the page it was published on — the
+  // markup frequently omits `url` because the page *is* the url.
+  const url = asString(node.url) ?? pageUrl;
   if (url) event.url = url;
+
+  // The id warning has to tell the truth about `url`, because its whole point
+  // is telling the reader what they still have to supply. Claiming "the
+  // page's url was kept in `url`" when no url was kept sends them looking for
+  // a field that is not there.
+  const mintAnId = "not imported: mint a stable OTE id (a URI under your domain)";
+  warnings.push({
+    field: "id",
+    message: url
+      ? `${mintAnId} — the page's url was kept in \`url\``
+      : inheritedPartOf !== undefined
+        // A part is not given the page url on purpose: every talk claiming the
+        // conference's page as its own url is worse than no url. So --url is
+        // not the fix here, and saying it would be would send the reader round
+        // in a circle.
+        ? `${mintAnId}. This part carries no url of its own, and it does not inherit the parent's — set both by hand`
+        : `${mintAnId}. The source carried no url either, and the page has no <link rel="canonical"> to fall back on — pass --url, or set both by hand`,
+  });
 
   // --- dates ---------------------------------------------------------------
   // schema.org dates are ISO 8601 with a UTC offset. OTE wants local time +
@@ -528,6 +641,13 @@ function mapEvent(
     }
   }
 
+  // A part extracted from its parent's subEvent: the parent's identity is
+  // what makes it a part, and it is not something the part's own node says.
+  // An explicit superEvent wins — it is the source's own statement.
+  if (inheritedPartOf !== undefined && event.partOf === undefined) {
+    event.partOf = inheritedPartOf;
+  }
+
   for (const prop of UNMODELED_PROPS) {
     if (node[prop] !== undefined) {
       warnings.push({
@@ -559,6 +679,11 @@ export function htmlToEvents(
   const warnings: ImportWarning[] = [];
   const allDayTimezonePolicy = options.allDayTimezonePolicy ?? "UTC";
 
+  // An explicit --url wins over the page's own canonical link: the caller
+  // knows where the HTML came from, and a scraped or mirrored page can carry
+  // a canonical pointing somewhere else entirely.
+  const pageUrl = options.pageUrl ?? extractCanonicalUrl(html);
+
   const nodes: JsonObject[] = [];
   for (const block of extractJsonLdBlocks(html)) {
     try {
@@ -576,10 +701,45 @@ export function htmlToEvents(
     return { events, warnings };
   }
 
+  // A parent and its subEvent parts become one document each — OTE has no
+  // nesting, it has `partOf`. The parent is kept too: a conference is a real
+  // event in its own right, not just a container for its talks.
+  //
+  // collectEventNodes stops descending at an Event node, so a part is never
+  // also collected on its own; flattening here is the only place it happens.
+  const queue: { node: JsonObject; partOf: OtePartOf | undefined }[] = [];
+  for (const node of nodes) {
+    queue.push({ node, partOf: undefined });
+    if (node.subEvent === undefined) continue;
+    const parts = subEventNodes(node.subEvent);
+    if (parts.length === 0) continue;
+    const partOf = parentPartOf(node, pageUrl);
+    if (partOf === undefined) {
+      // Without a URI for the parent there is no partOf.id, and a part that
+      // cannot say what it is part of would silently become a standalone
+      // event — a quieter and worse outcome than saying so.
+      warnings.push({
+        eventIndex: events.length,
+        field: "subEvent",
+        message: `the Event has ${parts.length} subEvent(s) but no @id or url to use as partOf.id — the parts were not imported; give the parent a url (or pass --url) and re-run`,
+      });
+      continue;
+    }
+    for (const part of parts) queue.push({ node: part, partOf });
+  }
+
   // Pages sometimes repeat the same event in several blocks; keep the first.
   const seen = new Set<string>();
-  for (const node of nodes) {
-    const { event, warnings: eventWarnings } = mapEvent(node, allDayTimezonePolicy);
+  for (const { node, partOf } of queue) {
+    const { event, warnings: eventWarnings } = mapEvent(
+      node,
+      allDayTimezonePolicy,
+      // A part inherits the parent's identity, not the parent's url: giving
+      // every talk the conference's url would make 17 events claim the same
+      // page as their own.
+      partOf === undefined ? pageUrl : undefined,
+      partOf,
+    );
     const key = `${event.name ?? ""}|${event.startDate ?? ""}|${event.url ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);

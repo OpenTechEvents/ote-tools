@@ -16,8 +16,26 @@ export interface OteGeo {
   lon: number;
 }
 
+/**
+ * A postal address in parts, mapped 1:1 onto schema.org PostalAddress.
+ *
+ * Complements `venue`, never replaces it: `venue` is the one string every
+ * output format can print, while `address` is what a translator needs to emit
+ * a schema.org PostalAddress — whose subfields Google validates one by one
+ * for the Event rich result. So the two overlap on purpose.
+ */
+export interface OteAddress {
+  street?: string;
+  locality?: string;
+  region?: string;
+  postalCode?: string;
+  /** ISO 3166-1 alpha-2. A code, never a country name. */
+  country?: string;
+}
+
 export interface OteLocation {
   venue?: string;
+  address?: OteAddress;
   onlineUrl?: string;
   geo?: OteGeo;
 }
@@ -120,4 +138,16 @@ export interface HtmlToEventsOptions {
    * know the event's actual locale.
    */
   allDayTimezonePolicy?: string;
+  /**
+   * The URL the page was fetched from, used for `url` when the Event's own
+   * JSON-LD carries none — which is common, because the page *is* the url and
+   * saying it twice feels redundant to whoever wrote the markup.
+   *
+   * Takes precedence over the page's `<link rel="canonical">`: the caller
+   * knows where the HTML actually came from, and a scraped or mirrored page
+   * can carry a canonical pointing somewhere else. Absent means "use the
+   * canonical link if the page has one" — so a page piped in on stdin still
+   * gets a url without any flag.
+   */
+  pageUrl?: string;
 }
