@@ -1,5 +1,21 @@
 # @opentechevents/embed changelog
 
+## 0.8.1
+
+### Changed
+
+- Bundled dependencies only; no change to the widget's API, markup, styling or
+  behavior, and `oteSpecVersion` stays **0.4.0**. Released as its own version
+  because `/embed/latest/` and the legacy `/embed/` alias are rebuilt from
+  `main`, so a bundle that reaches consumers without a version and a changelog
+  row is a bundle nobody can tell apart from the last one.
+  - `dompurify` 3.4.14 → 3.4.17. This is the sanitizer every feed-supplied
+    string passes through before it reaches the DOM, which is why it gets a
+    release of its own rather than waiting for the next feature.
+  - `marked` 18.0.11 → 18.1.3 (the bump asked for 18.1.1; `^18.1.1` resolves
+    to 18.1.3). Also bumped in `apps/editor` and the three `packages/export-*`
+    renderers so the monorepo stays on one version of it.
+
 ## 0.8.0
 
 ### Changed
