@@ -1,0 +1,38 @@
+{
+  "$comment": "Does the skill fire on what organizers actually type, and stay quiet otherwise? Only activation is measured here — the run is stopped as soon as the agent reports which skills it loaded. Keep the negatives: a skill that fires on everything is as broken as one that never fires.",
+  "skill": "ote-event",
+  "positive": [
+    { "prompt": "https://eventos.wiki/events/2026/biznagafest", "why": "a bare event URL, no verb at all" },
+    { "prompt": "créame el OTE spec de esta conferencia: https://eventos.wiki/events/2026/biznagafest y añádelo a la web", "why": "the compound request this skill exists for" },
+    { "prompt": "añade este meetup al feed https://www.meetup.com/rust-madrid/events/123456789/", "why": "Spanish, platform URL" },
+    { "prompt": "add this Luma event to our events.json", "why": "English, names the output file" },
+    { "prompt": "quiero publicar los eventos de mi comunidad en formato abierto", "why": "no URL, no format named" },
+    { "prompt": "tengo un .ics exportado de Google Calendar con mis charlas, ¿puedes convertirlo?", "why": "the .ics path" },
+    { "prompt": "convert this calendar export into OTE events", "why": "English .ics path" },
+    { "prompt": "how do I make my meetups discoverable by event directories?", "why": "the problem, not the solution" },
+    { "prompt": "añade el badge de OTE al README", "why": "website branch only" },
+    { "prompt": "pon el link rel=alternate del feed de eventos en el head", "why": "the discovery tag, named technically" },
+    { "prompt": "necesito el JSON-LD de schema.org para las páginas de mis eventos", "why": "SEO entry point into the same flow" },
+    { "prompt": "our conference is on 7 Nov 2026 at FYCMA in Málaga, 9 to 18h, organized by GDG Málaga — make the OTE file", "why": "description only, no source document" },
+    { "prompt": "update the OTE event, the date moved to 14 November", "why": "the edit path, where the id/slug invariants bite" },
+    { "prompt": "is my events.json valid?", "why": "validation-only request" },
+    { "prompt": "quiero que mis eventos salgan en los directorios de comunidades", "why": "feed-level intent in Spanish" },
+    { "prompt": "embed our upcoming events on the homepage", "why": "the widget" },
+    { "prompt": "set up open tech events for our community site", "why": "names the project, nothing else" },
+    { "prompt": "this page has the event, can you get it into our repo? https://www.eventbrite.es/e/123", "why": "Eventbrite" },
+    { "prompt": "añade las 4 sesiones del curso al calendario de la comunidad", "why": "several events at once" },
+    { "prompt": "I organize a monthly meetup and want one JSON file people can subscribe to", "why": "describes the format without naming it" }
+  ],
+  "negative": [
+    { "prompt": "créame un .ics para mandar por email a los asistentes", "why": "exporting a calendar file, not publishing OTE" },
+    { "prompt": "add an event to my Google Calendar for Thursday", "why": "a personal calendar, no publishing at all" },
+    { "prompt": "valida este JSON contra su JSON Schema", "why": "generic schema validation" },
+    { "prompt": "pon un badge de build status en el README", "why": "a badge, the wrong one" },
+    { "prompt": "add an RSS feed to my blog", "why": "a feed, the wrong kind" },
+    { "prompt": "parse this iCalendar file and tell me how many events it has", "why": "reading an .ics with no intent to publish" },
+    { "prompt": "write a schema.org Organization JSON-LD block for our about page", "why": "JSON-LD, not for an event" },
+    { "prompt": "qué es OpenTechEvents?", "why": "a question about the project, not a task" },
+    { "prompt": "crea una landing para la conferencia", "why": "about the same event, nothing to do with the feed" },
+    { "prompt": "rename the files in events/ so the dates line up", "why": "it must refuse this, but refusing is not the same as activating a publishing flow — if it does activate, the slug invariant must hold" }
+  ]
+}

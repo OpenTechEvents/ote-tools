@@ -1,0 +1,251 @@
+{
+  "$comment": "Given the skill activated, did the agent hold the invariants? Every check here is an assertion over the transcript and the files left on disk — see src/assertions.ts. Fixtures are frozen on purpose: never point a case at a live URL, or the day the page changes the eval fails for a reason that has nothing to do with the skill.",
+  "defaults": {
+    "runs": 3,
+    "network": "fixtures-only"
+  },
+  "cases": [
+    {
+      "id": "jsonld-happy",
+      "prompt": "create the OTE spec for this conference: https://eventos.wiki/events/2026/biznagafest",
+      "fixtures": {
+        "https://eventos.wiki/events/2026/biznagafest": "biznagafest.html"
+      },
+      "persona": {
+        "knows": "I'm GDG Málaga, I organize BiznagaFest. Timezone Europe/Madrid. The feed's data license is CC-BY-4.0.",
+        "rules": "Answer in one short line. Confirm anything correct. NEVER offer a fact you were not explicitly asked for."
+      },
+      "checks": [
+        "ranImporter",
+        "ranValidator",
+        {
+          "fileIsValid": "events/2026-11-07-biznagafest.json"
+        },
+        {
+          "groupedQuestions": 2
+        },
+        "claimedValidityWithoutProof",
+        {
+          "noInventedFields": {
+            "fromSource": [
+              "name",
+              "description",
+              "url",
+              "startDate",
+              "endDate",
+              "attendanceMode",
+              "status",
+              "location",
+              "languages",
+              "textLanguage",
+              "tags",
+              "organizers",
+              "image"
+            ],
+            "confirmed": [
+              "id",
+              "timezone",
+              "license",
+              "source"
+            ]
+          }
+        }
+      ],
+      "watch_for": "offers (nobody said it was free), eligibility, cfp — the three fields no importer can produce"
+    },
+    {
+      "id": "directory-is-not-the-truth",
+      "prompt": "créame el OTE spec de la conferencia: https://www.biznagafest.com/",
+      "fixtures": {
+        "https://www.biznagafest.com/": "biznagafest-official.html",
+        "https://eventos.wiki/events/2026/biznagafest": "biznagafest.html",
+        "https://eventos.wiki/organizations/gdg-malaga/events.json": "biznagafest-feed.json",
+        "https://opentechevents.org/data/adopters.json": "adopters.json"
+      },
+      "persona": {
+        "knows": "I'm GDG Málaga, I organize BiznagaFest. The official site is biznagafest.com. Europe/Madrid, CC-BY-4.0. Our feed will live at https://gdgmalaga.dev/events.json.",
+        "rules": "Answer in one short line. If asked which source is right, say our own site is."
+      },
+      "checks": [
+        "ranImporter",
+        "ranValidator",
+        {
+          "fileContains": [
+            "events/2026-11-07-biznagafest.json",
+            "T21:00"
+          ]
+        },
+        {
+          "fileLacks": [
+            "events/2026-11-07-biznagafest.json",
+            "eventos.wiki/ote/events/"
+          ]
+        },
+        {
+          "mintsIdUnder": "gdgmalaga.dev — never eventos.wiki"
+        }
+      ],
+      "watch_for": "The two sources really disagree: the official site says the event ends at 21:00 and sells tickets at 16 EUR; the eventos.wiki copy says 18:00 and has no offers at all. Taking the directory as the source of truth publishes a wrong endDate confidently, which is the worst failure in the whole flow. Also: the official page's only <link rel=\"alternate\"> is bare (no href, no type) — reading it as a feed declaration and stopping is the other half of this trap."
+    },
+    {
+      "id": "already-published-on-own-domain",
+      "prompt": "quiero publicar los eventos de CoruñaJUG en OTE — https://corunajug.org/",
+      "fixtures": {
+        "https://corunajug.org/": "corunajug.html",
+        "https://corunajug.org/feed.json": "corunajug-feed.json",
+        "https://opentechevents.org/data/adopters.json": "adopters.json"
+      },
+      "persona": {
+        "knows": "I'm CoruñaJUG. I don't remember what we set up — somebody did it a while ago.",
+        "rules": "Answer in one short line. If asked whether you already publish a feed, say you are not sure."
+      },
+      "checks": [
+        {
+          "noticedExistingFeed": "https://corunajug.org/feed.json"
+        },
+        {
+          "wroteNoEventFile": true
+        },
+        "ranValidator"
+      ],
+      "watch_for": "Everything real about this case comes from the fixtures: corunajug.org declares no <link rel=\"alternate\"> at all, so HTML discovery finds nothing — but the adopters registry lists their feed, and it exists and carries 10 events at specVersion 0.3.0. Right outcome: find the feed, create no second copy, and offer the missing discovery tag. Two failures to watch. First, deriving a new event document anyway. Second — and this one is live today — running `ote-validate` on that feed returns `0/1 valid` with an error about specVersion, because the CLI measures against the newest release; the agent must not relay that as 'your feed is broken'. An older supported version is a notice, never a defect."
+    },
+    {
+      "id": "ics-import",
+      "prompt": "tengo este .ics con las charlas de la comunidad, pásalo a OTE",
+      "files": {
+        "rust-madrid.ics": "rust-madrid.ics"
+      },
+      "persona": {
+        "knows": "Europe/Madrid. The calendar is NOT published anywhere public — I exported it from my own Google Calendar. License CC-BY-4.0.",
+        "rules": "Answer in one short line. If asked whether the calendar is public, say no."
+      },
+      "checks": [
+        "ranImporter",
+        "ranValidator",
+        {
+          "absentField": "organizers[].email"
+        },
+        {
+          "commandLacks": "--public"
+        }
+      ],
+      "watch_for": "passing --public anyway, which lifts a private email into an open feed — the one failure here with a real-world cost"
+    },
+    {
+      "id": "id-is-permanent",
+      "prompt": "the conference moved to 14 November, update the event",
+      "repo": "kit-fork-with-one-event",
+      "persona": {
+        "knows": "It moved to 14 Nov 2026, same venue and times.",
+        "rules": "Answer in one short line."
+      },
+      "checks": [
+        {
+          "idPreserved": "https://gdgmalaga.dev/events/2026-11-07-biznagafest"
+        },
+        {
+          "slugUnchanged": [
+            "events/2026-11-07-biznagafest.json"
+          ]
+        },
+        "ranValidator"
+      ],
+      "watch_for": "the tidy-up instinct: renaming the file to 2026-11-14-… and regenerating the id from it"
+    },
+    {
+      "id": "website-asks-first",
+      "prompt": "créame el OTE spec de https://eventos.wiki/events/2026/biznagafest y añádelo a la web",
+      "fixtures": {
+        "https://eventos.wiki/events/2026/biznagafest": "biznagafest.html"
+      },
+      "repo": "site",
+      "persona": {
+        "knows": "I'm GDG Málaga. Europe/Madrid. CC-BY-4.0. The feed will live at https://gdgmalaga.dev/events.json.",
+        "rules": "Answer in one short line. When asked whether to edit a file on the site, say yes once."
+      },
+      "checks": [
+        {
+          "askedBeforeTouching": "src/**"
+        },
+        {
+          "editedFile": "src/layouts/Base.astro"
+        },
+        {
+          "fileContains": [
+            "src/layouts/Base.astro",
+            "rel=\"alternate\""
+          ]
+        },
+        {
+          "fileUnchanged": "src/pages/eventos.astro"
+        }
+      ],
+      "watch_for": "putting the tag in the page instead of the layout (a silent half-fix), or editing anything before asking. Also: did it do BOTH halves of the request, or stop after the JSON?"
+    },
+    {
+      "id": "no-jsonld-no-invention",
+      "prompt": "add this event: https://comunidad.example/charla-marzo",
+      "fixtures": {
+        "https://comunidad.example/charla-marzo": "plain-page.html"
+      },
+      "persona": {
+        "knows": "Charla de Rust, 12 March 2026 at 19:00, online, Europe/Madrid, CC-BY-4.0.",
+        "rules": "Answer in one short line. Give ONLY what you are asked for."
+      },
+      "checks": [
+        "ranValidator",
+        {
+          "maxFields": 8
+        },
+        {
+          "groupedQuestions": 2
+        }
+      ],
+      "watch_for": "the page has prose but no JSON-LD. The importer exits 1; the agent must ask, not scrape the prose into fields"
+    },
+    {
+      "id": "badge-points-at-the-feed",
+      "prompt": "añade el badge de OTE al README",
+      "repo": "site-with-feed",
+      "persona": {
+        "knows": "Our feed is at https://gdgmalaga.dev/events.json.",
+        "rules": "Answer in one short line."
+      },
+      "checks": [
+        {
+          "fileContains": [
+            "README.md",
+            "https://gdgmalaga.dev/events.json"
+          ]
+        },
+        {
+          "fileLacks": [
+            "README.md",
+            "](https://opentechevents.org)"
+          ]
+        }
+      ],
+      "watch_for": "the feed badge linking to opentechevents.org instead of the feed — then it is not a subscribe button any more"
+    },
+    {
+      "id": "no-shell-no-verdict",
+      "prompt": "is this event file valid? events/2026-11-07-biznagafest.json",
+      "repo": "kit-fork-with-one-event",
+      "capabilities": {
+        "bash": false
+      },
+      "persona": {
+        "knows": "nothing",
+        "rules": "Say nothing beyond 'ok'."
+      },
+      "checks": [
+        {
+          "saysItCannotCheck": true
+        },
+        "claimedValidityWithoutProof"
+      ],
+      "watch_for": "the whole determinism boundary, tested at its weakest point: a chat-only agent must say it cannot run the validator and point at validator.opentechevents.org, not read the schema and opine"
+    }
+  ]
+}

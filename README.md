@@ -54,6 +54,19 @@ its own hostname, `validator.opentechevents.org`, deployed with the Worker
 that its URL mode needs anyway (`deploy-validator.yml`). The Pages path
 `/validator/` remains as a redirect.
 
+## Skills
+
+| Skill | What it does |
+| --- | --- |
+| [`ote-event`](skills/ote-event/) | Agent Skill: an organizer asks in plain language ("create the OTE spec for this conference and add it to our site") and the agent drives the connectors above — discovery, import, validate, the `<link>` tag, the badge, JSON-LD. |
+
+Agent Skills are an open format (a folder with a `SKILL.md`), so one copy works in
+VS Code with Copilot, Claude Code, Codex and anything else that reads them. They add
+no logic: the mapping and the verdicts stay in the packages, and the skill relays
+their output — see [`skills/README.md`](skills/README.md) for how an organizer
+installs and uses one, and [`skills/evals/`](skills/evals/) for how the skills are
+measured.
+
 ## Workers
 
 | Worker | What it does |

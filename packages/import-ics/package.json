@@ -17,6 +17,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "ote-import-ics": "./dist/bin.js"
+  },
   "files": [
     "dist"
   ],
