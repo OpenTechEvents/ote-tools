@@ -1,0 +1,51 @@
+{
+  "specVersion": "0.4.0",
+  "license": "CC-BY-4.0",
+  "title": "GDG Málaga",
+  "url": "https://eventos.wiki/organizations/gdg-malaga",
+  "description": "Hacemos eventos de desarrollo y destacamos el talento malagueño en tecnología 💃☀️\nDo cool things that matter! 💜",
+  "textLanguage": "es",
+  "organizers": [
+    {
+      "name": "GDG Málaga",
+      "url": "https://eventos.wiki/organizations/gdg-malaga",
+      "type": "organization"
+    }
+  ],
+  "updatedAt": "2026-11-03T14:50:57.642Z",
+  "events": [
+    {
+      "id": "https://eventos.wiki/ote/events/d93b5622-2321-4a80-b272-9798d4ae3728",
+      "name": "BiznagaFest",
+      "startDate": "2026-11-07T09:00",
+      "endDate": "2026-11-07T18:00",
+      "timezone": "Europe/Madrid",
+      "url": "https://eventos.wiki/events/2026/biznagafest",
+      "description": "Conferencia tech de la Costa del Sol el 07 de noviembre de 2026 en FYCMA - Palacio de Ferias Y Congresos de Málaga. Charlas y workshops sobre DevOps, Backend, Frontend, IA, Chatbots y Blockchain.",
+      "textLanguage": "es",
+      "attendanceMode": "in-person",
+      "status": "scheduled",
+      "image": [
+        {
+          "url": "https://brown-occasional-primate-727.mypinata.cloud/ipfs/bafkreicspu4prhfyjun5wwvsizpfxsut6uoi7rsymssemtuy5rdqcbo72y",
+          "alt": "Cartel de BiznagaFest"
+        }
+      ],
+      "tags": [
+        "devops",
+        "backend",
+        "frontend",
+        "ia",
+        "blockchain"
+      ],
+      "location": {
+        "venue": "FYCMA - Palacio de Ferias y Congresos de Málaga",
+        "address": {
+          "street": "5º, Palacio de Ferias y Congresos, Av. de José Ortega y Gasset, 201, Cruz de Humilladero, 29006 Málaga, España",
+          "region": "Málaga",
+          "country": "ES"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "feed": {
+    "title": "GDG Málaga",
+    "url": "https://gdgmalaga.dev/events.json",
+    "license": "CC-BY-4.0",
+    "textLanguage": "es",
+    "organizers": [{ "name": "GDG Málaga", "url": "https://gdgmalaga.dev", "type": "organization" }]
+  },
+  "profile": "conference"
+}

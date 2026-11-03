@@ -5,6 +5,10 @@ packages:
   # published to GitHub Pages, and a Worker is neither static nor published
   # there. See workers/fetch-url/README.md.
   - workers/*
+  # Not shipped and not deployed: the evals for skills/, which drive an agent
+  # over frozen fixtures and assert on what it did. A workspace member so it
+  # gets the same vitest and tsconfig as everything else.
+  - skills/evals
 allowBuilds:
   esbuild: true
   # wrangler's local runtime (workers/fetch-url). Its install script downloads
