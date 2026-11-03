@@ -304,3 +304,190 @@ describe("htmlToEvents · contract", () => {
     }
   });
 });
+
+describe("location.address (schema.org PostalAddress, unflattened)", () => {
+  const page = (address: string) =>
+    `<script type="application/ld+json">{"@type":"Event","name":"X",
+      "startDate":"2026-09-01T10:00:00+02:00","location":{"@type":"Place",
+      "name":"FYCMA","address":${address}}}</script>`;
+
+  it("maps every part, and keeps venue alongside it", () => {
+    const { events } = htmlToEvents(
+      page(`{"@type":"PostalAddress","streetAddress":"Av. de Jose Ortega y Gasset, 201",
+        "addressLocality":"Marbella","addressRegion":"Andalucia","postalCode":"29006",
+        "addressCountry":"ES"}`),
+    );
+    expect(events[0].location?.address).toEqual({
+      street: "Av. de Jose Ortega y Gasset, 201",
+      locality: "Marbella",
+      region: "Andalucia",
+      postalCode: "29006",
+      country: "ES",
+    });
+    // address COMPLEMENTS venue rather than replacing it: venue stays the one
+    // string every output format can print, so the overlap is deliberate.
+    expect(events[0].location?.venue).toContain("FYCMA");
+  });
+
+  it("locality and country survive even when that is all the page carries", () => {
+    // The loss that started this: biznagafest.com publishes exactly these two
+    // inside PostalAddress, and both used to be folded away into venue.
+    const { events } = htmlToEvents(
+      page(`{"@type":"PostalAddress","addressLocality":"Malaga","addressCountry":"ES"}`),
+    );
+    expect(events[0].location?.address).toEqual({ locality: "Malaga", country: "ES" });
+  });
+
+  it("a two-letter country code is upper-cased", () => {
+    const { events } = htmlToEvents(page(`{"@type":"PostalAddress","addressCountry":"es"}`));
+    expect(events[0].location?.address?.country).toBe("ES");
+  });
+
+  it("a country name is not a code: absent + warning, never guessed", () => {
+    const { events, warnings } = htmlToEvents(
+      page(`{"@type":"PostalAddress","addressLocality":"Madrid","addressCountry":"Spain"}`),
+    );
+    expect(events[0].location?.address).toEqual({ locality: "Madrid" });
+    expect(
+      warnings.some(
+        (w) => w.field === "location.address.country" && w.message.includes("Spain"),
+      ),
+    ).toBe(true);
+  });
+
+  it("reads addressCountry from a Country object", () => {
+    const { events } = htmlToEvents(
+      page(`{"@type":"PostalAddress","addressCountry":{"@type":"Country","name":"ES"}}`),
+    );
+    expect(events[0].location?.address?.country).toBe("ES");
+  });
+
+  it("a string address leaves no parts to map", () => {
+    const { events } = htmlToEvents(page(`"Calle Mayor 1, Madrid"`));
+    expect(events[0].location?.address).toBeUndefined();
+    expect(events[0].location?.venue).toContain("Calle Mayor 1");
+  });
+});
+
+describe("url when the JSON-LD carries none", () => {
+  const noUrl = `<link rel="canonical" href="https://www.biznagafest.com/">
+    <script type="application/ld+json">{"@type":"Event","name":"BiznagaFest 2026",
+    "startDate":"2026-11-07T09:00:00+01:00"}</script>`;
+
+  it("falls back to the page's canonical link", () => {
+    const { events } = htmlToEvents(noUrl);
+    expect(events[0].url).toBe("https://www.biznagafest.com/");
+  });
+
+  it("the id warning only promises a url when one was actually kept", () => {
+    const { warnings } = htmlToEvents(noUrl);
+    expect(warnings.find((w) => w.field === "id")?.message).toContain(
+      "the page's url was kept in `url`",
+    );
+  });
+
+  it("no url anywhere: the id warning says so instead of promising one", () => {
+    // The bug this replaces: the warning claimed the url "was kept in `url`"
+    // while `url` was absent, sending the reader after a field that is not there.
+    const { events, warnings } = htmlToEvents(
+      `<script type="application/ld+json">{"@type":"Event","name":"X",
+       "startDate":"2026-09-01T10:00:00+02:00"}</script>`,
+    );
+    expect(events[0].url).toBeUndefined();
+    const id = warnings.find((w) => w.field === "id");
+    expect(id?.message).not.toContain("was kept in `url`");
+    expect(id?.message).toContain("--url");
+  });
+
+  it("pageUrl wins over the canonical link", () => {
+    const { events } = htmlToEvents(noUrl, { pageUrl: "https://mirror.example/bz" });
+    expect(events[0].url).toBe("https://mirror.example/bz");
+  });
+
+  it("the Event's own url wins over both", () => {
+    const { events } = htmlToEvents(
+      `<link rel="canonical" href="https://page.example/">
+       <script type="application/ld+json">{"@type":"Event","name":"X",
+       "url":"https://own.example/e/1","startDate":"2026-09-01T10:00:00+02:00"}</script>`,
+      { pageUrl: "https://flag.example/" },
+    );
+    expect(events[0].url).toBe("https://own.example/e/1");
+  });
+
+  it("a non-http canonical is ignored", () => {
+    const { events } = htmlToEvents(
+      `<link rel="canonical" href="/relative/path">
+       <script type="application/ld+json">{"@type":"Event","name":"X",
+       "startDate":"2026-09-01T10:00:00+02:00"}</script>`,
+    );
+    expect(events[0].url).toBeUndefined();
+  });
+});
+
+describe("subEvent: one document per part, linked with partOf", () => {
+  const conference = `<script type="application/ld+json">{"@type":"Event",
+    "name":"BiznagaFest 2026","url":"https://biznagafest.com/2026",
+    "startDate":"2026-11-07T09:00:00+01:00","subEvent":[
+      {"@type":"Event","name":"Talk A","startDate":"2026-11-07T10:00:00+01:00"},
+      {"@type":"Event","name":"Talk B","startDate":"2026-11-07T11:00:00+01:00"}]}</script>`;
+
+  it("emits the parent and each part", () => {
+    const { events } = htmlToEvents(conference);
+    expect(events.map((e) => e.name)).toEqual(["BiznagaFest 2026", "Talk A", "Talk B"]);
+  });
+
+  it("each part carries partOf pointing at the parent", () => {
+    const { events } = htmlToEvents(conference);
+    const partOf = { id: "https://biznagafest.com/2026", name: "BiznagaFest 2026" };
+    expect(events[1].partOf).toEqual(partOf);
+    expect(events[2].partOf).toEqual(partOf);
+    // The parent is an event in its own right, not a container for its talks.
+    expect(events[0].partOf).toBeUndefined();
+  });
+
+  it("a part does not inherit the parent's url as its own", () => {
+    const { events } = htmlToEvents(conference);
+    // 17 talks all claiming the conference's page as their url is worse than
+    // 17 talks with no url: the id each still needs would be identical.
+    expect(events[1].url).toBeUndefined();
+    expect(events[0].url).toBe("https://biznagafest.com/2026");
+  });
+
+  it("an explicit superEvent on the part wins over the inherited parent", () => {
+    const { events } = htmlToEvents(
+      `<script type="application/ld+json">{"@type":"Event","name":"Parent",
+       "url":"https://p.example/1","subEvent":{"@type":"Event","name":"Part",
+       "startDate":"2026-09-01T10:00:00+02:00",
+       "superEvent":{"@type":"Event","@id":"https://other.example/series"}}}</script>`,
+    );
+    expect(events[1].partOf).toEqual({ id: "https://other.example/series" });
+  });
+
+  it("falls back to the page url for partOf.id when the parent has none", () => {
+    const { events } = htmlToEvents(
+      `<script type="application/ld+json">{"@type":"Event","name":"Parent",
+       "startDate":"2026-09-01T09:00:00+02:00","subEvent":{"@type":"Event",
+       "name":"Part","startDate":"2026-09-01T10:00:00+02:00"}}</script>`,
+      { pageUrl: "https://conf.example/2026" },
+    );
+    expect(events[1].partOf).toEqual({ id: "https://conf.example/2026", name: "Parent" });
+  });
+
+  it("no URI for the parent at all: the parts are not imported, and it says so", () => {
+    // partOf.id is required. A part that cannot say what it is part of would
+    // silently become a standalone event — quieter, and worse.
+    const { events, warnings } = htmlToEvents(
+      `<script type="application/ld+json">{"@type":"Event","name":"Parent",
+       "startDate":"2026-09-01T09:00:00+02:00","subEvent":[{"@type":"Event",
+       "name":"Part","startDate":"2026-09-01T10:00:00+02:00"}]}</script>`,
+    );
+    expect(events.map((e) => e.name)).toEqual(["Parent"]);
+    const warning = warnings.find((w) => w.field === "subEvent");
+    expect(warning?.message).toContain("1 subEvent(s)");
+    expect(warning?.message).toContain("partOf.id");
+  });
+
+  it("a part is never also collected as a standalone event", () => {
+    expect(htmlToEvents(conference).events).toHaveLength(3);
+  });
+});

@@ -46,7 +46,7 @@ it with a form that marks the missing fields).
 ## CLI
 
 ```
-ote-import-jsonld [--tz <IANA zone>] <page.html|->
+ote-import-jsonld [--tz <IANA zone>] [--url <page url>] <page.html|->
 ```
 
 Prints `{ events, warnings }` as JSON on stdout. Exit `0` = at least one event ·
@@ -55,7 +55,13 @@ Prints `{ events, warnings }` as JSON on stdout. Exit `0` = at least one event �
 ```sh
 curl -sL "https://www.meetup.com/rust-madrid/events/123456789/" | ote-import-jsonld -
 ote-import-jsonld --tz Europe/Madrid saved-page.html
+ote-import-jsonld --url https://conf.example/2026 mirrored-page.html
 ```
+
+`--url` is the url the page came from, used for `url` when the Event's own
+JSON-LD carries none. It defaults to the page's `<link rel="canonical">`, so a
+page piped in on stdin still gets a `url` without any flag — only pass it when
+the page has no canonical link, or carries one pointing somewhere else.
 
 JSON rather than a human summary, because the caller is a program — the editor, or
 an agent following the [organizer skill](../../skills/ote-event/) — and the events
@@ -83,7 +89,8 @@ blocks is deduplicated (by name + startDate + url).
 | `startDate` / `endDate` | `startDate` / `endDate` + `timezone` (see below) |
 | `eventAttendanceMode` | `attendanceMode` (`Offline`→`in-person`, `Online`→`online`, `Mixed`→`hybrid`) |
 | `eventStatus` | `status` (`EventScheduled`→`scheduled`, `EventCancelled`→`cancelled`, `EventPostponed`→`postponed`, `EventRescheduled`→`rescheduled`, `EventMovedOnline`→`moved-online`) |
-| `location` `Place` | `location.venue` (name + streetAddress) and `location.geo` |
+| `location` `Place` | `location.venue` (name + streetAddress), `location.address` and `location.geo` |
+| `location.address` `PostalAddress` | `location.address` — `streetAddress`→`street`, `addressLocality`→`locality`, `addressRegion`→`region`, `postalCode`, `addressCountry`→`country` (see below) |
 | `location` `VirtualLocation` | `location.onlineUrl` |
 | `inLanguage` | `languages` |
 | `keywords` | `tags` |
@@ -91,6 +98,7 @@ blocks is deduplicated (by name + startDate + url).
 | `image` (bare string or `ImageObject`) | `image[]` — `ImageObject.caption` becomes `alt` |
 | `offers` | `offers[]` — `price`, `priceCurrency`→`currency`, `url`, `availability` (`InStock`→`in-stock`, `SoldOut`→`sold-out`), `validFrom`/`validThrough`→`opensAt`/`closesAt` (only when they carry a UTC offset — see below) |
 | `superEvent` | `partOf` — only when it carries a usable id (its own `@id` or `url`) |
+| `subEvent` | one OTE document per part, each with `partOf` pointing at the parent (see below) |
 
 `cfp` and `eligibility` have no schema.org equivalent at all, so this
 importer never sets them.
@@ -128,6 +136,27 @@ importer never sets them.
 - **`superEvent` needs a real id to become `partOf`.** `partOf.id` is
   required and must be a URI; a bare name with no `@id` or `url` isn't
   enough to build one without inventing data.
+- **`subEvent` becomes N documents, not nesting.** OTE has no nested events;
+  it has `partOf`. A conference with its talks in `subEvent` yields one
+  document for the conference plus one per talk, each carrying
+  `partOf: { id, name }` built from the parent's `@id`, its `url`, or
+  `--url` — in that order. A part does **not** inherit the parent's `url` as
+  its own: seventeen talks all claiming the conference's page would give
+  seventeen events the same identity. When the parent has no URI at all there
+  is no `partOf.id` to build, so the parts are **not** imported and a warning
+  names how many were skipped — a part that cannot say what it is part of
+  would silently become a standalone event, which is quieter and worse.
+- **`location.address` complements `venue`, it does not replace it.** Both
+  are emitted from the same `PostalAddress`, on purpose: `venue` is the one
+  string every output format can print, `address` is what a translator needs
+  to emit a schema.org `PostalAddress` whose subfields Google validates one by
+  one. Folding the parts into `venue` alone loses `locality` and `country`,
+  the two a consumer actually filters on.
+- **`addressCountry` must already be a code.** OTE wants ISO 3166-1 alpha-2,
+  while schema.org allows a code, a country name, or a `Country` object. A
+  two-letter value is taken as the code (upper-cased); anything else —
+  `"Spain"`, `"España"` — is left absent with a warning, because this
+  connector has no name-to-code table and will not guess one.
 - **`cfp`, `eligibility` and `performer`** have no schema.org equivalent at
   all (`performer` specifically has no OTE field to map to), so none of them
   are ever set; `performer`'s presence is still flagged as unmodeled, since

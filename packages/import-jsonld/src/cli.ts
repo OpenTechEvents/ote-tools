@@ -9,9 +9,12 @@ export interface CliIO {
 }
 
 const USAGE =
-  "Usage: ote-import-jsonld [--tz <IANA zone>] <page.html|->\n" +
+  "Usage: ote-import-jsonld [--tz <IANA zone>] [--url <page url>] <page.html|->\n" +
   "  -            read the page's HTML from stdin\n" +
-  "  --tz <zone>  timezone for all-day events, which schema.org cannot carry (default: UTC)";
+  "  --tz <zone>  timezone for all-day events, which schema.org cannot carry (default: UTC)\n" +
+  "  --url <url>  the url the page came from, used for `url` when the JSON-LD has none.\n" +
+  "               Defaults to the page's own <link rel=\"canonical\">, so this is only\n" +
+  "               needed when the page has none or points somewhere else.";
 
 /**
  * Runs the CLI: reads an event page's HTML and writes the partial OTE events
@@ -33,16 +36,21 @@ export function runCli(
   },
   readStdin: () => string = () => readFileSync(0, "utf8"),
 ): number {
-  const tzIndex = argv.indexOf("--tz");
-  let timezone: string | undefined;
   const rest = [...argv];
-  if (tzIndex !== -1) {
-    timezone = rest[tzIndex + 1];
-    if (!timezone || timezone.startsWith("-")) {
-      io.err(USAGE);
-      return 2;
-    }
-    rest.splice(tzIndex, 2);
+  const takeValue = (flag: string): string | undefined | null => {
+    const index = rest.indexOf(flag);
+    if (index === -1) return undefined;
+    const value = rest[index + 1];
+    if (!value || value.startsWith("-")) return null; // present but unusable
+    rest.splice(index, 2);
+    return value;
+  };
+
+  const timezone = takeValue("--tz");
+  const pageUrl = takeValue("--url");
+  if (timezone === null || pageUrl === null) {
+    io.err(USAGE);
+    return 2;
   }
 
   const unknownFlag = rest.find((arg) => arg.startsWith("--"));
@@ -60,10 +68,10 @@ export function runCli(
     return 2;
   }
 
-  const result = htmlToEvents(
-    html,
-    timezone ? { allDayTimezonePolicy: timezone } : {},
-  );
+  const result = htmlToEvents(html, {
+    ...(timezone ? { allDayTimezonePolicy: timezone } : {}),
+    ...(pageUrl ? { pageUrl } : {}),
+  });
   io.out(JSON.stringify(result, null, 2));
   return result.events.length > 0 ? 0 : 1;
 }
