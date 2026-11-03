@@ -12,10 +12,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fullcalendar/core": "^6.1.21",
-    "@fullcalendar/daygrid": "^6.1.21",
-    "@fullcalendar/list": "^6.1.21",
-    "@fullcalendar/timegrid": "^6.1.21",
+    "@fullcalendar/core": "^6.1.22",
+    "@fullcalendar/daygrid": "^6.1.22",
+    "@fullcalendar/list": "^6.1.22",
+    "@fullcalendar/timegrid": "^6.1.22",
     "@opentechevents/feed-urls": "workspace:*",
     "@opentechevents/preview-feed": "workspace:*"
   },
