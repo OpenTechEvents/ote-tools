@@ -1,5 +1,23 @@
 # @opentechevents/embed changelog
 
+## 0.8.2
+
+### Changed
+
+- `@event-calendar/core` 5.12.0 → 5.18.1 (the bump asked for 5.17.2;
+  `^5.17.2` resolves to 5.18.1). Only `layout="calendar"` loads this library,
+  and it is lazy-loaded, so nothing changes for an embed that does not use
+  that layout. `oteSpecVersion` stays **0.4.0**.
+
+  Released apart from 0.8.1 because it is the one bump in this batch that can
+  change how the widget *looks*. Verified in a real browser rather than from
+  the test suite alone: the month grid renders inside the shadow root fully
+  styled (106 day cells, 9 event chips, today highlighted, navigation
+  working) with no console errors. That is the specific risk worth checking —
+  this library was chosen over FullCalendar precisely because it ships its
+  stylesheet as an importable file that survives the shadow boundary, and a
+  regression there would render the calendar unstyled rather than broken.
+
 ## 0.8.1
 
 ### Changed
