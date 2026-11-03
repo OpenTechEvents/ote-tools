@@ -33,11 +33,6 @@ ote-validate   → decides validity. Nothing else does.
 - **Node 20+** (for `npx`), and an agent that can run shell commands.
 - Network access, for fetching the event page and the packages.
 
-> ⚠️ The importer CLIs (`ote-import-jsonld`, `ote-import-ics`) ship from this branch
-> and are **not published to npm yet**. Until the next patch release the skill's
-> extraction step only works against a local checkout — see
-> [Running against a checkout](#running-against-a-checkout).
-
 ## Install
 
 A skill is a folder with a `SKILL.md` in it. The open format puts them in
@@ -112,25 +107,6 @@ By design, and these are the ones worth knowing before you trust it with your fe
   directory that subscribed to you.
 - It will not edit your website's templates, README or `<head>` without asking first.
 
-## Running against a checkout
-
-While the importer CLIs are unpublished, point the skill at a local build:
-
-```sh
-git clone https://github.com/OpenTechEvents/ote-tools.git
-cd ote-tools && pnpm install && pnpm build
-```
-
-Then the two extraction commands become, from your project:
-
-```sh
-curl -sL "<event url>" | node /path/to/ote-tools/packages/import-jsonld/dist/bin.js -
-node /path/to/ote-tools/packages/import-ics/dist/bin.js --tz Europe/Madrid calendar.ics
-```
-
-`ote-validate` and the exporters are published, so their `npx` forms in the skill work
-as written today.
-
 ## Developing the skills
 
 - English is canonical in this repo, including skill bodies. The skill instructs the
@@ -140,3 +116,7 @@ as written today.
   when it gets there.
 - Changing a `description` changes **when** the skill fires — run the activation evals
   (`evals/`) before and after, or you are guessing.
+- To try a connector change before it is released, build the checkout
+  (`pnpm install && pnpm build`) and swap the `npx -y -p @opentechevents/<pkg>@0.4 <bin>`
+  prefix for `node /path/to/ote-tools/packages/<pkg>/dist/bin.js`. The arguments and
+  exit codes are the same.
