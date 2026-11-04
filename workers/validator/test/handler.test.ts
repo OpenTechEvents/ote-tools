@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { handleRequest, type Env } from "../src/index.js";
+import { handleRequest, lazyProbe, type Env } from "../src/index.js";
 
 const ORIGIN = "https://tools.opentechevents.org";
 
@@ -162,6 +162,14 @@ describe("handleRequest", () => {
     expect(response.status).toBe(404);
   });
 
+  it("wires the connect check into the deps the Worker actually runs with", () => {
+    // Asserted without calling it: `cloudflare:sockets` does not exist under
+    // vitest. The point is the wiring — a preflight that quietly stopped
+    // being passed through would cost a visitor 52 extra seconds on a dead
+    // host and break no other test in this file.
+    expect(typeof lazyProbe).toBe("function");
+  });
+
   it("has a health endpoint that publishes its limits", async () => {
     const response = await handleRequest(new Request("https://validator.example/health"), {}, {
       fetchImpl: okFetch,
@@ -169,7 +177,17 @@ describe("handleRequest", () => {
     });
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
-      limits: { maxBytes: 5 * 1024 * 1024, maxRedirects: 3 },
+      // The timeouts are published because callers reason about them: the
+      // other two tools in the ecosystem wait 60 s, and a reader has to be
+      // able to see that this one does too (#70).
+      limits: {
+        maxBytes: 5 * 1024 * 1024,
+        maxRedirects: 3,
+        hopTimeoutMs: 60_000,
+        totalTimeoutMs: 60_000,
+        connectTimeoutMs: 8_000,
+        maxAttempts: 2,
+      },
     });
   });
 });

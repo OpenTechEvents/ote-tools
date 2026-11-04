@@ -22,7 +22,12 @@
 import { discover, detectDocumentKind } from "@opentechevents/discover-feed";
 import { validateDocument } from "@opentechevents/validate";
 
-import { fetchDocument, type FetchDeps } from "./fetch-document.js";
+import {
+  DEFAULT_LIMITS,
+  fetchDocument,
+  type FetchDeps,
+  type FetchFailure,
+} from "./fetch-document.js";
 
 /**
  * What a badge can say. Deliberately coarse: a README has room for one word,
@@ -37,8 +42,15 @@ export type BadgeState =
   | "not-discovered"
   /** The page declares several feeds; the badge refuses to pick, as the page does. */
   | "ambiguous"
-  /** The document could not be fetched at all — DNS, timeout, refusal, 500. */
-  | "unreachable";
+  /** The document could not be fetched at all — DNS, refusal, 500. */
+  | "unreachable"
+  /**
+   * The origin did not answer inside the fetch budget. Kept apart from
+   * `unreachable` deliberately: this badge sits in a publisher's README, and
+   * "unreachable" over a feed that is valid and merely slow to generate is an
+   * accusation (#70). A slow feed and a dead feed are different news.
+   */
+  | "slow";
 
 export interface BadgeVerdict {
   state: BadgeState;
@@ -65,11 +77,23 @@ const STATES: Record<BadgeState, StateStyle> = {
   ambiguous: { text: "several feeds", color: "#b06d00", ttlSeconds: 3600 },
   // A transient outage must not stick to a README for an hour.
   unreachable: { text: "unreachable", color: "#b06d00", ttlSeconds: 300 },
+  // Same short life, for the same reason: the origin may be quick tomorrow.
+  slow: { text: "slow", color: "#b06d00", ttlSeconds: 300 },
 };
 
 /** Cache lifetime for a verdict, in seconds. */
 export function badgeTtlSeconds(state: BadgeState): number {
   return STATES[state].ttlSeconds;
+}
+
+/**
+ * Which word a failed fetch earns. Only the clock running out becomes `slow`;
+ * everything else — a name that does not resolve, a refused connection, a
+ * 500, a URL this service will not fetch — is `unreachable`, because in those
+ * cases there really is nothing at the other end to be slow.
+ */
+function failureState(code: FetchFailure["code"]): BadgeState {
+  return code === "timeout" ? "slow" : "unreachable";
 }
 
 /**
@@ -108,8 +132,19 @@ async function judge(text: string): Promise<BadgeVerdict> {
  * merged them would send organizers to the wrong file.
  */
 export async function resolveBadge(target: string, deps: FetchDeps): Promise<BadgeVerdict> {
-  const first = await fetchDocument(target, deps);
-  if (!first.ok) return { state: "unreachable", detail: first.message };
+  // One budget for the whole resolution, not one per fetch. A page that
+  // declares a feed costs two fetches, and with independent budgets a single
+  // badge request could hold a README reader's connection for twice the
+  // advertised ceiling — now 60 s a fetch, so the difference is not academic.
+  const budgeted: FetchDeps = {
+    ...deps,
+    deadline:
+      deps.deadline ??
+      Date.now() + (deps.limits?.totalTimeoutMs ?? DEFAULT_LIMITS.totalTimeoutMs),
+  };
+
+  const first = await fetchDocument(target, budgeted);
+  if (!first.ok) return { state: failureState(first.code), detail: first.message };
 
   const found = discover({
     url: first.finalUrl,
@@ -138,8 +173,8 @@ export async function resolveBadge(target: string, deps: FetchDeps): Promise<Bad
       // put embedding out of scope (D036) because the document carries no
       // discriminator, so every candidate is now a URL to fetch.
       const candidate = found.candidates[0];
-      const second = await fetchDocument(candidate.url, deps);
-      if (!second.ok) return { state: "unreachable", detail: second.message };
+      const second = await fetchDocument(candidate.url, budgeted);
+      if (!second.ok) return { state: failureState(second.code), detail: second.message };
 
       const linked = discover({
         url: second.finalUrl,
