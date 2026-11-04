@@ -105,16 +105,17 @@ never the identity and never the authority.**
 
 Pick by what the organizer gave you. Never hand-map fields yourself.
 
-> **Why the version pins below differ from the validator's.** `validate` is on `@0.6`
-> because that is what is released; the importers and `build-feed` are still `0.4.x` on
-> npm. The pins are not decoration — they say which release was actually tested with
-> these instructions. When those packages ship a newer line, move the pin here in the
-> same change, and do not raise one past what npm has.
+> **Why one pin below is lower than the rest.** Everything is on `@0.6` except
+> `import-ics`, which is still `0.4.1` on npm — its code has not changed since that
+> release, and the 0.6 work it needs touches how an imported event's `id` is minted,
+> which is deliberately being released on its own. The pins are not decoration: they
+> say which release was actually tested with these instructions. Move one when that
+> package ships, in the same change, and never raise one past what npm has.
 
 **An event page URL** — fetch it, pipe the HTML in:
 
 ```sh
-curl -sL "<event url>" | npx -y -p @opentechevents/import-jsonld@0.4 ote-import-jsonld -
+curl -sL "<event url>" | npx -y -p @opentechevents/import-jsonld@0.6 ote-import-jsonld -
 ```
 
 If your environment cannot fetch (or the site blocks you), ask the organizer to paste
@@ -210,7 +211,7 @@ Run the validator on what you wrote and paste its output. If the repo is a kit f
 also check the feed assembles:
 
 ```sh
-npx -y -p @opentechevents/build-feed@0.4 ote-build-feed . --check
+npx -y -p @opentechevents/build-feed@0.6 ote-build-feed . --check
 ```
 
 Mention failures of the **recommended** profile once, as warnings, and move on: a valid
