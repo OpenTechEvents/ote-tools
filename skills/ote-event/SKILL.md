@@ -105,12 +105,10 @@ never the identity and never the authority.**
 
 Pick by what the organizer gave you. Never hand-map fields yourself.
 
-> **Why one pin below is lower than the rest.** Everything is on `@0.6` except
-> `import-ics`, which is still `0.4.1` on npm — its code has not changed since that
-> release, and the 0.6 work it needs touches how an imported event's `id` is minted,
-> which is deliberately being released on its own. The pins are not decoration: they
-> say which release was actually tested with these instructions. Move one when that
-> package ships, in the same change, and never raise one past what npm has.
+> **About the version pins below.** Every package is on `@0.6`, which implements OTE
+> Spec 0.6.0. The pins are not decoration: they say which release was actually tested
+> with these instructions. Move one when that package ships a newer line, in the same
+> change, and never raise one past what npm has.
 
 **An event page URL** — fetch it, pipe the HTML in:
 
@@ -147,11 +145,19 @@ What you must not do is read the agenda off the page and present it as imported.
 **A `.ics` / Google Calendar export:**
 
 ```sh
-npx -y -p @opentechevents/import-ics@0.4 ote-import-ics --tz <IANA zone> calendar.ics
+npx -y -p @opentechevents/import-ics@0.6 ote-import-ics --tz <IANA zone> \
+  --source-url <where the .ics came from> calendar.ics
 ```
 
 Pass `--public` **only** if the calendar is itself publicly published — it is what
 allows the organizer's email through, and a calendar shared by link is not publication.
+
+`--source-url` is where the `.ics` was fetched from. Give it: without it the importer
+has no way to mint an `id`, and it is also what lets a link be rescued from an HTML
+description. If the community has its own domain, pass `--id-base <url>` instead and
+the `id` is minted there — **the better option, and permanent either way.** An `id`
+is minted once and never changes: re-importing later under a different base hands
+every consumer that stored the old one a duplicate, with no way to relate the two.
 
 **Only a description in chat** — write the fields they gave you and nothing else.
 
