@@ -26,6 +26,7 @@ import { excerptAt, formatPointer } from "./lib/locate.js";
 import {
   buildReport,
   MAX_SOURCE_BYTES,
+  recommendationsBlurb,
   type DocumentKind,
   type Finding,
   type Report,
@@ -515,7 +516,7 @@ function renderReport(report: Report, label: string): void {
       renderFindings(
         recommendationsBox,
         "Recommendations",
-        "Unmet spec recommendations (SHOULD). The document is still valid; these make it easier to find, filter and subscribe to.",
+        recommendationsBlurb(report.specVersion),
         report.recommendations,
         "warn",
       );
