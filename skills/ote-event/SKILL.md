@@ -14,13 +14,34 @@ asked — linked from their website.
 **Never state that a document is valid.** Validity is decided by one program:
 
 ```sh
-npx -y -p @opentechevents/validate@0.4 ote-validate <file|dir>
+npx -y -p @opentechevents/validate@0.6 ote-validate <file|dir>
 ```
 
-Exit `0` = valid · `1` = invalid · `2` = usage or I/O problem. Show its output as it
+Exit `0` = valid · `1` = invalid · `2` = usage or I/O problem · `3` = **this release
+cannot judge that `specVersion`** — not a defect in the document. Show its output as it
 came. If you cannot run it, say so and stop at that step — do not substitute your own
 reading of the schema. The same holds for extraction: the importers below own the
 mapping, you do not re-derive it.
+
+**Ask the tool what it supports rather than assuming.** It answers:
+
+```sh
+npx -y -p @opentechevents/validate@0.6 ote-validate --versions
+```
+
+### When the CLI is behind the spec
+
+This happens: a spec version is published before the tools that implement it ship. The
+rule is the same as everywhere else in this skill — **do not improvise a verdict.**
+
+- Exit `3` means exactly "I have no rules for that version", and it is deliberately
+  distinct from `1`. Read it as *not judged*, never as *invalid*, and never tell an
+  organizer their document is broken on the strength of it.
+- Write the version the installed CLI supports (`--versions` names it), get a real
+  `0`, and say plainly that a newer spec release exists. A document on a supported
+  older release is valid — that is what the support window is for.
+- Do not hand-assemble a validator to fill the gap. That is how a run reports
+  everything green while silently skipping the rules that would have failed it.
 
 ## Step 0 — Find the source of truth, and separate it from the copies
 
@@ -84,6 +105,12 @@ never the identity and never the authority.**
 
 Pick by what the organizer gave you. Never hand-map fields yourself.
 
+> **Why the version pins below differ from the validator's.** `validate` is on `@0.6`
+> because that is what is released; the importers and `build-feed` are still `0.4.x` on
+> npm. The pins are not decoration — they say which release was actually tested with
+> these instructions. When those packages ship a newer line, move the pin here in the
+> same change, and do not raise one past what npm has.
+
 **An event page URL** — fetch it, pipe the HTML in:
 
 ```sh
@@ -94,6 +121,27 @@ If your environment cannot fetch (or the site blocks you), ask the organizer to 
 the page source and pass it the same way via a file. Exit `1` means the page carries no
 schema.org Event — fall back to asking them directly, do not invent fields from prose
 in the page.
+
+**An agenda that exists only as prose is out of scope for extraction.** A conference
+page often publishes one `Event` block for the conference and writes its seventeen
+talks as HTML — headings, a table, a grid of cards. Reading those into events is
+exactly the hand-mapping this skill forbids, and the reason is not pedantry: prose
+drops a track, a timezone or a co-speaker without ever signalling it, and the result
+looks as confident as data that came from the source.
+
+The route when the organizer wants those talks published:
+
+1. Say plainly that the page carries no structured agenda, so the talks cannot be
+   extracted — and that this is a limit of the source, not of their event.
+2. Offer the two real options: they supply the agenda in a form that *is* data (a
+   `.ics` export, a CSV, a list they confirm field by field), or they publish the
+   conference as one event now and add the parts later.
+3. If they dictate the talks to you, that is **them describing their own event** —
+   the "only a description in chat" path. Write only the fields they gave, confirm
+   each one, and set `source` to the conference page only if they tell you that is
+   where it came from.
+
+What you must not do is read the agenda off the page and present it as imported.
 
 **A `.ics` / Google Calendar export:**
 
@@ -168,13 +216,16 @@ npx -y -p @opentechevents/build-feed@0.4 ote-build-feed . --check
 Mention failures of the **recommended** profile once, as warnings, and move on: a valid
 event with a missing `image` publishes fine. Do not negotiate warnings into blockers.
 
-⚠️ **The CLI is for documents you just wrote, not for judging someone's published
-feed.** It measures against the newest spec release, so a perfectly healthy feed that
-declares an older supported version (`0.3.0`, say) comes back `0/1 valid` with an error
-about `specVersion`. That is the version pin talking, not a defect in their data —
-never tell a publisher their feed is broken on that basis. To judge a document you did
-not write, use <https://validator.opentechevents.org/>, which judges it against the
-version it declares.
+ℹ️ **The CLI judges a document by the version it declares** (since
+`@opentechevents/validate@0.6.0`). A healthy feed on an older-but-supported release
+comes back valid with a note saying a newer release exists — it is not an error, and it
+does not change the verdict. This used to be the opposite, and the old behaviour is
+what made tools report healthy feeds as broken; if you are running an older CLI, treat
+a lone `specVersion` complaint as the pin talking, not as a defect in their data.
+
+Outside the support window (the last three spec minors) migration *is* asked for, and
+that is a real finding: the document is still measured against its own rules, so every
+other finding in that report is real too.
 
 Then offer a visual check, their choice, never forced:
 
