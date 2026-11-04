@@ -40,6 +40,25 @@ export interface OteLocation {
   geo?: OteGeo;
 }
 
+export interface OteSpeaker {
+  name: string;
+  /**
+   * The organisation the speaker appears as — one display name, the way an
+   * agenda writes it. A bare string on purpose: it is a label on the person,
+   * not a second organisation to describe.
+   */
+  affiliation?: string;
+  url?: string;
+  sameAs?: string[];
+  type?: "organization" | "person";
+}
+
+/** A published recording: a bare URL, or one with a title. */
+export interface OteRecordingEntry {
+  url: string;
+  title?: string;
+}
+
 export interface OteOrganizer {
   name: string;
   url?: string;
@@ -101,6 +120,10 @@ export interface PartialOteEvent {
   status?: OteEventStatus;
   /** From schema.org organizer — the source is a public page, so email (when given) is imported directly. */
   organizers?: OteOrganizer[];
+  /** From schema.org performer (OTE 0.5+). */
+  speakers?: OteSpeaker[];
+  /** From schema.org recordedIn / workFeaturedIn (OTE 0.5+). */
+  recordings?: (string | OteRecordingEntry)[];
   /** From schema.org image; ImageObject.caption becomes alt. */
   image?: (string | OteImageEntry)[];
   /** From schema.org offers. */

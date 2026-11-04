@@ -11,6 +11,8 @@ import type {
   OteOffer,
   OteOrganizer,
   OtePartOf,
+  OteRecordingEntry,
+  OteSpeaker,
   PartialOteEvent,
 } from "./types.js";
 
@@ -27,6 +29,8 @@ export type {
   OteOffer,
   OteOrganizer,
   OtePartOf,
+  OteRecordingEntry,
+  OteSpeaker,
   PartialOteEvent,
 } from "./types.js";
 
@@ -168,10 +172,11 @@ const AVAILABILITY_MAP: Record<string, "in-stock" | "sold-out"> = {
 /**
  * schema.org properties OTE does not model — flagged when present.
  * `image`/`organizer`/`offers` used to be here too; v0.3 added real OTE
- * fields for all three, so they now get dedicated mapping (mapImages,
- * mapOrganizers, mapOffers) instead of a generic drop warning.
+ * fields for all three. `performer` left in 0.5, which added `speakers`.
+ * Empty for now, and kept rather than deleted: the next schema.org property
+ * OTE declines to model goes here, and an empty list says that is a choice.
  */
-const UNMODELED_PROPS = ["performer"] as const;
+const UNMODELED_PROPS = [] as const;
 
 interface EventWarning {
   field?: string;
@@ -413,6 +418,105 @@ function mapOffers(raw: unknown, warnings: EventWarning[]): OteOffer[] | undefin
 }
 
 /**
+ * schema.org performer → speakers[] (OTE 0.5+).
+ *
+ * Modelled on mapOrganizers, because `speakers` was modelled on `organizers`
+ * — a name, where they are from, and where to find them.
+ *
+ * `affiliation` exists so the employer does not end up inside `name`: "Martí
+ * Cristobal, Bettatech" as a name stops matching that person anywhere else.
+ * schema.org spells it `affiliation` (an Organization) or `worksFor`; OTE
+ * wants one display string, so only the organisation's name travels.
+ */
+function mapSpeakers(raw: unknown, warnings: EventWarning[]): OteSpeaker[] | undefined {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const speakers: OteSpeaker[] = [];
+  let sawUnnamed = false;
+  for (const entry of entries) {
+    if (typeof entry === "string") {
+      const name = asString(entry);
+      if (name) speakers.push({ name });
+      continue;
+    }
+    if (typeof entry !== "object" || entry === null) continue;
+    const node = entry as JsonObject;
+    const name = asString(node.name);
+    if (!name) {
+      sawUnnamed = true;
+      continue;
+    }
+    const speaker: OteSpeaker = { name };
+
+    const types = Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
+    const isOrganization = types.some(
+      (t) => typeof t === "string" && bareEnum(t) === "Organization",
+    );
+    if (types.some((t) => typeof t === "string" && bareEnum(t) === "Person")) {
+      speaker.type = "person";
+    } else if (isOrganization) {
+      speaker.type = "organization";
+    }
+
+    const url = asString(node.url);
+    if (url) speaker.url = url;
+
+    // sameAs is HTTP(S) only in OTE: schema.org sameAs is a web page, and a
+    // DID or an acct: handle is an identifier rather than a page.
+    const sameAsRaw = Array.isArray(node.sameAs) ? node.sameAs : [node.sameAs];
+    const sameAs = sameAsRaw
+      .map((value) => asString(value))
+      .filter((value): value is string => value !== undefined && /^https?:\/\//i.test(value));
+    if (sameAs.length > 0) speaker.sameAs = sameAs;
+
+    // Ignored on an organization: the field means "the organisation this
+    // speaker is there as", which an organisation does not have.
+    if (!isOrganization) {
+      const affiliationRaw = node.affiliation ?? node.worksFor;
+      const affiliation =
+        typeof affiliationRaw === "object" && affiliationRaw !== null
+          ? asString((affiliationRaw as JsonObject).name)
+          : asString(affiliationRaw);
+      if (affiliation) speaker.affiliation = affiliation;
+    }
+
+    speakers.push(speaker);
+  }
+  if (sawUnnamed) {
+    warnings.push({
+      field: "speakers",
+      message: "a performer had no name — could not import; add it by hand",
+    });
+  }
+  return speakers.length > 0 ? speakers : undefined;
+}
+
+/**
+ * schema.org recordedIn / workFeaturedIn → recordings[] (OTE 0.5+).
+ *
+ * A watch page is fine here, unlike `image`, so a CreativeWork's `url` (or
+ * its `@id` when that is already a URL) is what travels. Recordings are
+ * published after the event, so most pages carry none — absent is the normal
+ * case and draws no warning.
+ */
+function mapRecordings(raw: unknown): (string | OteRecordingEntry)[] | undefined {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const recordings: (string | OteRecordingEntry)[] = [];
+  for (const entry of entries) {
+    if (typeof entry === "string") {
+      if (/^https?:\/\//i.test(entry.trim())) recordings.push(entry.trim());
+      continue;
+    }
+    if (typeof entry !== "object" || entry === null) continue;
+    const node = entry as JsonObject;
+    const url = asString(node.url) ?? asString(node["@id"]);
+    if (!url || !/^https?:\/\//i.test(url)) continue;
+    const title = asString(node.name) ?? asString(node.headline);
+    recordings.push(title ? { url, title } : url);
+  }
+  return recordings.length > 0 ? recordings : undefined;
+}
+
+/**
  * schema.org superEvent → partOf. Only usable when it carries something that
  * can serve as partOf.id (a URI): its own @id, or its url. A bare name with
  * neither is not enough — partOf.id is required, and inventing a URI from a
@@ -626,6 +730,21 @@ function mapEvent(
   if (node.offers !== undefined) {
     const offers = mapOffers(node.offers, warnings);
     if (offers) event.offers = offers;
+  }
+
+  if (node.performer !== undefined) {
+    const speakers = mapSpeakers(node.performer, warnings);
+    if (speakers) event.speakers = speakers;
+  }
+
+  // Two schema.org properties land in the same OTE field; a page using both
+  // gets one merged list rather than the second silently winning.
+  const recordingSources = [node.recordedIn, node.workFeaturedIn].filter(
+    (value) => value !== undefined,
+  );
+  if (recordingSources.length > 0) {
+    const recordings = mapRecordings(recordingSources.flatMap((v) => (Array.isArray(v) ? v : [v])));
+    if (recordings) event.recordings = recordings;
   }
 
   if (node.superEvent !== undefined) {

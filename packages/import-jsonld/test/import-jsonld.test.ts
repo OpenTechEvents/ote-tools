@@ -491,3 +491,113 @@ describe("subEvent: one document per part, linked with partOf", () => {
     expect(htmlToEvents(conference).events).toHaveLength(3);
   });
 });
+
+describe("performer → speakers (OTE 0.5+)", () => {
+  const page = (performer: string) =>
+    `<script type="application/ld+json">{"@type":"Event","name":"X",
+      "startDate":"2026-09-01T10:00:00+02:00","performer":${performer}}</script>`;
+
+  it("imports a list of people", () => {
+    // Exactly biznagafest.com's shape, which used to produce
+    // 'schema.org "performer" has no OTE equivalent and was not imported'.
+    const { events, warnings } = htmlToEvents(
+      page(`[{"@type":"Person","name":"Fernando Herrera"},
+             {"@type":"Person","name":"Gisela Torres"}]`),
+    );
+    expect(events[0].speakers).toEqual([
+      { name: "Fernando Herrera", type: "person" },
+      { name: "Gisela Torres", type: "person" },
+    ]);
+    expect(warnings.some((w) => w.message.includes("performer"))).toBe(false);
+  });
+
+  it("keeps the employer out of name, in affiliation", () => {
+    const { events } = htmlToEvents(
+      page(`{"@type":"Person","name":"Martí Cristobal",
+             "affiliation":{"@type":"Organization","name":"Bettatech"}}`),
+    );
+    // The whole point of the field: "Martí Cristobal, Bettatech" inside name
+    // stops matching that person anywhere else.
+    expect(events[0].speakers).toEqual([
+      { name: "Martí Cristobal", affiliation: "Bettatech", type: "person" },
+    ]);
+  });
+
+  it("reads affiliation from worksFor, and from a bare string", () => {
+    expect(
+      htmlToEvents(page(`{"@type":"Person","name":"A","worksFor":{"name":"Acme"}}`))
+        .events[0].speakers?.[0]?.affiliation,
+    ).toBe("Acme");
+    expect(
+      htmlToEvents(page(`{"@type":"Person","name":"B","affiliation":"Globex"}`))
+        .events[0].speakers?.[0]?.affiliation,
+    ).toBe("Globex");
+  });
+
+  it("ignores affiliation on an organization", () => {
+    // An organisation is not "there as" another organisation.
+    const { events } = htmlToEvents(
+      page(`{"@type":"Organization","name":"GDG Málaga","affiliation":"Google"}`),
+    );
+    expect(events[0].speakers).toEqual([{ name: "GDG Málaga", type: "organization" }]);
+  });
+
+  it("keeps only HTTP(S) sameAs entries", () => {
+    // OTE's sameAs is a web page; a DID or an acct: handle is an identifier.
+    const { events } = htmlToEvents(
+      page(`{"@type":"Person","name":"A","url":"https://a.example",
+             "sameAs":["https://github.com/a","did:plc:xyz","acct:a@b.social"]}`),
+    );
+    expect(events[0].speakers?.[0]).toEqual({
+      name: "A",
+      type: "person",
+      url: "https://a.example",
+      sameAs: ["https://github.com/a"],
+    });
+  });
+
+  it("a performer with no name is warned, not invented", () => {
+    const { events, warnings } = htmlToEvents(
+      page(`[{"@type":"Person","url":"https://a.example"},{"@type":"Person","name":"B"}]`),
+    );
+    expect(events[0].speakers).toEqual([{ name: "B", type: "person" }]);
+    expect(warnings.some((w) => w.field === "speakers")).toBe(true);
+  });
+});
+
+describe("recordedIn / workFeaturedIn → recordings (OTE 0.5+)", () => {
+  const page = (body: string) =>
+    `<script type="application/ld+json">{"@type":"Event","name":"X",
+      "startDate":"2026-09-01T10:00:00+02:00",${body}}</script>`;
+
+  it("maps a watch page, with and without a title", () => {
+    const { events } = htmlToEvents(
+      page(`"recordedIn":[{"@type":"VideoObject","url":"https://youtube.com/watch?v=a","name":"Part 1"},
+                          "https://peertube.example/w/b"]`),
+    );
+    expect(events[0].recordings).toEqual([
+      { url: "https://youtube.com/watch?v=a", title: "Part 1" },
+      "https://peertube.example/w/b",
+    ]);
+  });
+
+  it("merges recordedIn and workFeaturedIn instead of one winning", () => {
+    const { events } = htmlToEvents(
+      page(`"recordedIn":"https://a.example/1","workFeaturedIn":"https://b.example/2"`),
+    );
+    expect(events[0].recordings).toEqual(["https://a.example/1", "https://b.example/2"]);
+  });
+
+  it("a non-http recording is dropped, not emitted", () => {
+    const { events } = htmlToEvents(page(`"recordedIn":"ipfs://QmXyz"`));
+    expect(events[0].recordings).toBeUndefined();
+  });
+
+  it("no recording is the normal case and draws no warning", () => {
+    // Recordings are published after the event, so most pages carry none.
+    const { events, warnings } = htmlToEvents(page(`"name":"X"`));
+    expect(events[0].recordings).toBeUndefined();
+    expect(warnings.some((w) => w.field === "recordings")).toBe(false);
+  });
+});
+

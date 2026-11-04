@@ -79,7 +79,7 @@ BreadcrumbList…) and malformed JSON blocks are skipped **without noise**;
 only "the page has no Event at all" warns. The same event repeated across
 blocks is deduplicated (by name + startDate + url).
 
-## Mapping (schema.org → OTE v0.4)
+## Mapping (schema.org → OTE v0.6)
 
 | schema.org | OTE |
 | --- | --- |
@@ -99,6 +99,8 @@ blocks is deduplicated (by name + startDate + url).
 | `offers` | `offers[]` — `price`, `priceCurrency`→`currency`, `url`, `availability` (`InStock`→`in-stock`, `SoldOut`→`sold-out`), `validFrom`/`validThrough`→`opensAt`/`closesAt` (only when they carry a UTC offset — see below) |
 | `superEvent` | `partOf` — only when it carries a usable id (its own `@id` or `url`) |
 | `subEvent` | one OTE document per part, each with `partOf` pointing at the parent (see below) |
+| `performer` | `speakers[]` — `name`, `url`, `sameAs` (HTTP(S) only), `@type: Person`→`type: "person"`, and `affiliation`/`worksFor`→`affiliation` (see below) |
+| `recordedIn`, `workFeaturedIn` | `recordings[]` — a bare watch URL, or `{ url, title }` from `name`/`headline`. Both properties merge into one list |
 
 `cfp` and `eligibility` have no schema.org equivalent at all, so this
 importer never sets them.
@@ -157,10 +159,17 @@ importer never sets them.
   two-letter value is taken as the code (upper-cased); anything else —
   `"Spain"`, `"España"` — is left absent with a warning, because this
   connector has no name-to-code table and will not guess one.
-- **`cfp`, `eligibility` and `performer`** have no schema.org equivalent at
-  all (`performer` specifically has no OTE field to map to), so none of them
-  are ever set; `performer`'s presence is still flagged as unmodeled, since
-  unlike the other two it's a real schema.org property being silently
-  dropped.
+- **`performer` became `speakers` in OTE 0.5.** It used to be flagged as an
+  unmodeled drop; it is mapped now. `affiliation` is the part worth knowing:
+  schema.org gives either an `affiliation` Organization or `worksFor`, and OTE
+  wants one display string, so only the organisation's *name* travels. It
+  exists so the employer does not end up inside `name` — "Martí Cristobal,
+  Bettatech" as a name stops matching that person anywhere else. Ignored on an
+  `Organization` performer, which is not "there as" anyone.
+- **`sameAs` keeps HTTP(S) entries only.** OTE's `sameAs` is a web page; a
+  `did:`, an `acct:` handle or an AT-URI is an identifier, not a page, so
+  those are dropped rather than published as links that resolve to nothing.
+- **`cfp` and `eligibility`** have no schema.org equivalent at all, so neither
+  is ever set.
 - **No `id` is ever derived.** An OTE id is a URI the organizer mints under
   their own domain; every event carries a warning saying so.
