@@ -6,7 +6,6 @@ import {
   discover,
   discoverFromHtml,
   isOteMediaType,
-  parseEmbeddedFeeds,
   parseLinkElements,
   wellKnownFeedUrl,
 } from "../src/index.js";
@@ -127,24 +126,16 @@ describe("discoverFromHtml", () => {
     expect(candidates).toEqual([]);
   });
 
-  it("only reads embedded feeds when asked to", () => {
-    const html = page("") .replace(
+  it("never reads a feed embedded in the page", () => {
+    // Out of scope since OTE Spec 0.6 (D036): the document carries no
+    // discriminator, so "has events[]" cannot tell an OTE feed from any
+    // other JSON on the page. The slot is reserved; this used to be
+    // readable behind an `embedded` flag, which is gone.
+    const html = page("").replace(
       "<p>hi</p>",
-      '<script type="application/ote+json">{"specVersion":"0.4.0"}</script>',
+      '<script type="application/ote+json">{"specVersion":"0.6.0"}</script>',
     );
     expect(discoverFromHtml(html, "https://comunidad.example/")).toEqual([]);
-    const [candidate] = discoverFromHtml(html, "https://comunidad.example/", { embedded: true });
-    expect(candidate).toMatchObject({
-      source: "embedded",
-      inlineDocument: '{"specVersion":"0.4.0"}',
-    });
-  });
-});
-
-describe("parseEmbeddedFeeds", () => {
-  it("ignores scripts of any other type", () => {
-    const html = page("", '<body><script type="application/ld+json">{}</script><script>x=1</script></body>');
-    expect(parseEmbeddedFeeds(html)).toEqual([]);
   });
 });
 
@@ -204,16 +195,20 @@ describe("discover", () => {
     expect(result.outcome).toBe("not-found");
   });
 
-  it("offers /.well-known/ote-feed only behind the flag", () => {
+  it("offers /.well-known/ote-feed unless asked not to", () => {
+    // Was behind a flag while the spec had not chosen; D036 made it a
+    // documented MAY, so the default flipped.
     const input = {
       url: "https://comunidad.example/pagina/",
       contentType: "text/html",
       body: page(""),
     };
-    expect(discover(input)).not.toHaveProperty("wellKnownUrl");
-    expect(discover({ ...input, options: { wellKnown: true } })).toMatchObject({
+    expect(discover(input)).toMatchObject({
       wellKnownUrl: "https://comunidad.example/.well-known/ote-feed",
     });
+    expect(discover({ ...input, options: { wellKnown: false } })).not.toHaveProperty(
+      "wellKnownUrl",
+    );
   });
 
   it("rejects what is neither JSON nor HTML", () => {
@@ -251,3 +246,66 @@ describe("detectDocumentKind", () => {
     expect(detectDocumentKind({ specVersion: "0.3.0", events: [] })).toBe("feed");
   });
 });
+
+describe("the discovery rules settled in OTE Spec 0.6 (D036)", () => {
+  const FEED = '{"specVersion":"0.6.0","events":[]}';
+  const noLink = page("");
+
+  it("offers /.well-known/ote-feed by default", () => {
+    // A documented MAY now: a consumer that looks there is correct, and a
+    // publisher who has not set one up loses nothing by being asked.
+    const result = discover({
+      url: "https://comunidad.example/",
+      contentType: "text/html",
+      body: noLink,
+    });
+    expect(result).toMatchObject({
+      outcome: "not-found",
+      wellKnownUrl: "https://comunidad.example/.well-known/ote-feed",
+    });
+  });
+
+  it("still lets a caller turn it off", () => {
+    const result = discover({
+      url: "https://comunidad.example/",
+      contentType: "text/html",
+      body: noLink,
+      options: { wellKnown: false },
+    });
+    expect(result).not.toHaveProperty("wellKnownUrl");
+  });
+
+  it("calls application/ote+json the canonical type", () => {
+    const result = discover({
+      url: "https://comunidad.example/feed.json",
+      contentType: "application/ote+json",
+      body: FEED,
+    });
+    expect(result).toMatchObject({ note: { kind: "ote" } });
+  });
+
+  it("accepts application/feed+json but marks it as JSON Feed's", () => {
+    // The document is fine and the header is the publisher's one-line fix.
+    // Refusing it would punish them for a label; accepting it silently —
+    // which is what this did — is what kept the question open.
+    const result = discover({
+      url: "https://comunidad.example/feed.json",
+      contentType: "application/feed+json",
+      body: FEED,
+    });
+    expect(result).toMatchObject({
+      outcome: "document",
+      note: { kind: "json-feed-type", mediaType: "application/feed+json" },
+    });
+  });
+
+  it("a generic JSON type is still parsed and still says nothing about OTE", () => {
+    const result = discover({
+      url: "https://comunidad.example/feed.json",
+      contentType: "application/json",
+      body: FEED,
+    });
+    expect(result).toMatchObject({ outcome: "document", note: { kind: "generic-json" } });
+  });
+});
+

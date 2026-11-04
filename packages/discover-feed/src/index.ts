@@ -12,23 +12,27 @@
  * v0.3 "Discovery: how a feed is found from a website" section.
  */
 
-import { parseEmbeddedFeeds, parseLinkElements } from "./html.js";
+import { parseLinkElements } from "./html.js";
 import { classifyContentType, isOteMediaType, normalizeMediaType } from "./media-types.js";
 
 export type { HtmlLink } from "./html.js";
-export { headSection, parseEmbeddedFeeds, parseLinkElements } from "./html.js";
+export { headSection, parseLinkElements } from "./html.js";
 export type { ContentKind } from "./media-types.js";
 export {
   classifyContentType,
   GENERIC_JSON_MEDIA_TYPES,
   isJsonMediaType,
   isOteMediaType,
+  JSON_FEED_MEDIA_TYPE,
   normalizeMediaType,
+  OTE_MEDIA_TYPE,
   OTE_MEDIA_TYPES,
 } from "./media-types.js";
 
+import { JSON_FEED_MEDIA_TYPE, OTE_MEDIA_TYPE } from "./media-types.js";
+
 /** Where a candidate feed URL came from. */
-export type CandidateSource = "link" | "embedded" | "well-known";
+export type CandidateSource = "link" | "well-known";
 
 /** A feed the page points at — not yet fetched, let alone validated. */
 export interface FeedCandidate {
@@ -59,8 +63,14 @@ export type DiscoveryResult =
 
 /** What the served media type says about OTE conformance. */
 export type MediaTypeNote =
-  /** Served as `application/ote+json` or `application/feed+json`. */
+  /** Served as `application/ote+json`, the canonical type. */
   | { kind: "ote"; mediaType: string }
+  /**
+   * Served as `application/feed+json` — JSON Feed's type. Accepted, because
+   * the document is fine and the label is the publisher's to fix, but
+   * warned about rather than waved through (OTE Spec 0.6, D036).
+   */
+  | { kind: "json-feed-type"; mediaType: string }
   /** Served as generic JSON: parses fine, but the type announces nothing. */
   | { kind: "generic-json"; mediaType: string }
   /** No usable content-type at all; treated as JSON because it parses as one. */
@@ -68,15 +78,16 @@ export type MediaTypeNote =
 
 export interface DiscoverOptions {
   /**
-   * Offer `/.well-known/ote-feed` when a page declares no feed. Open question
-   * in the spec (#6), so off by default — the caller decides.
+   * Offer `/.well-known/ote-feed` when a page declares no feed.
+   *
+   * **On by default** since OTE Spec 0.6 settled it as a documented MAY
+   * (D036): a consumer that looks there is correct, and a publisher who has
+   * not set one up loses nothing by being asked. Pass `false` to skip it.
+   *
+   * It stays a complement. The primary mechanism is
+   * `<link rel="alternate">` in the page `<head>`.
    */
   wellKnown?: boolean;
-  /**
-   * Accept a feed embedded as `<script type="application/ote+json">`. Also an
-   * open question in the spec (#6), so off by default.
-   */
-  embedded?: boolean;
 }
 
 export interface DiscoverInput {
@@ -97,9 +108,9 @@ export function wellKnownFeedUrl(url: string): string {
 function mediaTypeNote(contentType: string | null): MediaTypeNote {
   const mediaType = normalizeMediaType(contentType);
   if (!mediaType) return { kind: "missing" };
-  return isOteMediaType(mediaType)
-    ? { kind: "ote", mediaType }
-    : { kind: "generic-json", mediaType };
+  if (mediaType === OTE_MEDIA_TYPE) return { kind: "ote", mediaType };
+  if (mediaType === JSON_FEED_MEDIA_TYPE) return { kind: "json-feed-type", mediaType };
+  return { kind: "generic-json", mediaType };
 }
 
 /**
@@ -128,11 +139,7 @@ function hasRel(rel: string, wanted: string): boolean {
  * deduplicated by URL. The primary mechanism per the spec:
  * `<link rel="alternate" type="application/ote+json" href="…">` in the head.
  */
-export function discoverFromHtml(
-  html: string,
-  baseUrl: string,
-  options: DiscoverOptions = {},
-): FeedCandidate[] {
+export function discoverFromHtml(html: string, baseUrl: string): FeedCandidate[] {
   const candidates: FeedCandidate[] = [];
   const seen = new Set<string>();
 
@@ -145,20 +152,11 @@ export function discoverFromHtml(
     candidates.push({ url, mediaType: link.type, title: link.title, source: "link" });
   }
 
-  if (options.embedded) {
-    parseEmbeddedFeeds(html).forEach((text, index) => {
-      candidates.push({
-        // Fragment-only URL: identifies which embedded block this is without
-        // pretending there is something at the other end to fetch.
-        url: `${baseUrl}#ote-feed-${index + 1}`,
-        mediaType: "application/ote+json",
-        title: "",
-        source: "embedded",
-        inlineDocument: text,
-      });
-    });
-  }
-
+  // A feed embedded in the page is deliberately out of scope (D036). The
+  // blocker is that the document carries no discriminator: "has events[]"
+  // does not tell an OTE feed from any other JSON on the page. The slot is
+  // reserved, and whatever lands will arrive with that discriminator — so
+  // this implementation would not have been the one to keep.
   return candidates;
 }
 
@@ -166,12 +164,14 @@ const NO_FEED_REASON =
   'This page declares no OTE feed: no <link rel="alternate" type="application/ote+json"> in its <head>.';
 
 function fromHtml(body: string, url: string, options: DiscoverOptions): DiscoveryResult {
-  const candidates = discoverFromHtml(body, url, options);
+  const candidates = discoverFromHtml(body, url);
   if (candidates.length > 0) return { outcome: "candidates", candidates };
   return {
     outcome: "not-found",
     reason: NO_FEED_REASON,
-    ...(options.wellKnown ? { wellKnownUrl: wellKnownFeedUrl(url) } : {}),
+    // Default ON since D036 made it a documented MAY — `?? true`, not a
+    // truthiness check, so only an explicit `false` turns it off.
+    ...((options.wellKnown ?? true) ? { wellKnownUrl: wellKnownFeedUrl(url) } : {}),
   };
 }
 

@@ -188,24 +188,6 @@ describe("resolveUrl", () => {
 });
 
 describe("followCandidate", () => {
-  it("uses an embedded feed without going back to the network", async () => {
-    const never = (async () => {
-      throw new Error("should not fetch");
-    }) as unknown as typeof fetch;
-    const resolution = await followCandidate(
-      {
-        url: "https://comunidad.example/#ote-feed-1",
-        mediaType: "application/ote+json",
-        title: "",
-        source: "embedded",
-        inlineDocument: FEED,
-      },
-      "https://comunidad.example/",
-      deps(never),
-    );
-    expect(resolution).toMatchObject({ outcome: "document", text: FEED, provenance: { via: "embedded" } });
-  });
-
   it("fetches the chosen candidate and keeps the page it came from", async () => {
     const resolution = await followCandidate(
       {
@@ -230,8 +212,34 @@ describe("followCandidate", () => {
         via: "link",
         pageUrl: "https://comunidad.example/",
         url: "https://comunidad.example/en.json",
-        note: { kind: "ote", mediaType: "application/feed+json" },
+        // JSON Feed's type, which OTE Spec 0.6 (D036) says to accept and
+        // warn about rather than wave through as canonical. It used to come
+        // back as plain "ote", which is what kept the question open.
+        note: { kind: "json-feed-type", mediaType: "application/feed+json" },
       },
+    });
+  });
+
+  it("reports the canonical type as canonical", async () => {
+    const resolution = await followCandidate(
+      {
+        url: "https://comunidad.example/en.json",
+        mediaType: "application/ote+json",
+        title: "English",
+        source: "link",
+      },
+      "https://comunidad.example/",
+      deps(
+        fakeWorker({
+          "https://comunidad.example/en.json": {
+            contentType: "application/ote+json",
+            body: FEED,
+          },
+        }),
+      ),
+    );
+    expect(resolution).toMatchObject({
+      provenance: { note: { kind: "ote", mediaType: "application/ote+json" } },
     });
   });
 });

@@ -4,11 +4,12 @@
  * Cloudflare Worker, a Node test) and because the input is, by definition,
  * someone else's page: a scanner that only ever reads attribute values can't
  * be tricked into executing anything. It does not build a tree and makes no
- * claim of being an HTML parser — it looks for `<link>` (and, behind a flag,
- * `<script type="application/ote+json">`) the way a feed reader does.
+ * claim of being an HTML parser — it looks for `<link>` the way a feed
+ * reader does. It used to scan `<script type="application/ote+json">` too,
+ * behind a flag; embedding is out of scope as of OTE Spec 0.6 (D036).
  */
 
-import { normalizeMediaType, OTE_MEDIA_TYPES } from "./media-types.js";
+import { normalizeMediaType } from "./media-types.js";
 
 /** A `<link>` element reduced to the attributes discovery cares about. */
 export interface HtmlLink {
@@ -21,7 +22,6 @@ export interface HtmlLink {
 
 const COMMENT = /<!--[\s\S]*?-->/g;
 const LINK_TAG = /<link\b([^>]*)>/gi;
-const SCRIPT_TAG = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
 const ATTRIBUTE = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/g;
 
 /**
@@ -69,18 +69,4 @@ export function parseLinkElements(html: string): HtmlLink[] {
     });
   }
   return links;
-}
-
-/**
- * Contents of every `<script type="application/ote+json">` in the document —
- * an open question in the spec, hence gated behind a flag by callers.
- */
-export function parseEmbeddedFeeds(html: string): string[] {
-  const embedded: string[] = [];
-  for (const match of html.replace(COMMENT, "").matchAll(SCRIPT_TAG)) {
-    const attributes = parseAttributes(match[1]);
-    const type = normalizeMediaType(attributes.type ?? "");
-    if ((OTE_MEDIA_TYPES as readonly string[]).includes(type)) embedded.push(match[2].trim());
-  }
-  return embedded;
 }

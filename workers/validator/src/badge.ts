@@ -134,11 +134,10 @@ export async function resolveBadge(target: string, deps: FetchDeps): Promise<Bad
           detail: `${found.candidates.length} feeds declared by this page`,
         };
       }
+      // An embedded feed used to be a candidate source here. OTE Spec 0.6
+      // put embedding out of scope (D036) because the document carries no
+      // discriminator, so every candidate is now a URL to fetch.
       const candidate = found.candidates[0];
-      if (candidate.source === "embedded") {
-        return await judge(candidate.inlineDocument ?? "");
-      }
-
       const second = await fetchDocument(candidate.url, deps);
       if (!second.ok) return { state: "unreachable", detail: second.message };
 

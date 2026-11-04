@@ -157,12 +157,16 @@ function element<K extends keyof HTMLElementTagNameMap>(
  * ------------------------------------------------------------------ */
 
 function mediaTypeLine(provenance: Provenance): string | null {
-  if (provenance.via === "embedded") return null;
   switch (provenance.note.kind) {
     case "ote":
-      return `Served as ${provenance.note.mediaType}.`;
+      return `Served as ${provenance.note.mediaType}, the canonical OTE feed type.`;
+    case "json-feed-type":
+      // Accepted, and said so plainly: the document is fine and the header
+      // is a one-line fix the publisher owns. Refusing it would punish them
+      // for a label (OTE Spec 0.6, D036).
+      return `Served as ${provenance.note.mediaType}, which is JSON Feed's type — this document was read as OTE anyway. The canonical type is application/ote+json.`;
     case "generic-json":
-      return `Served as ${provenance.note.mediaType} — valid to parse, but it does not announce OTE. The spec has not settled on application/ote+json vs. application/feed+json yet.`;
+      return `Served as ${provenance.note.mediaType} — valid to parse, but it does not announce OTE. The canonical type is application/ote+json.`;
     case "missing":
       return "Served without a content type; treated as JSON because it parses as JSON.";
   }
@@ -202,12 +206,6 @@ function renderDiscovery(provenance: Provenance, redirects: string[]): void {
       );
       fact("Page", provenance.pageUrl);
       fact("Feed", provenance.url);
-      break;
-    case "embedded":
-      discoveryBox.append(
-        element("p", "muted", "Found a feed embedded in this page as <script type=\"application/ote+json\">."),
-      );
-      fact("Page", provenance.pageUrl);
       break;
   }
 
@@ -257,7 +255,14 @@ function renderNotFound(pageUrl: string, reason: string, wellKnownUrl?: string):
   );
   if (wellKnownUrl) {
     discoveryAlertBox.append(
-      element("p", "muted", `Not tried: ${wellKnownUrl} (still an open question in the spec).`),
+      // Suggested, NOT fetched: discovery hands this URL over and stops, and
+      // nothing here goes and looks. Saying "also tried" would be a verdict
+      // on a request that was never made.
+      element(
+        "p",
+        "muted",
+        `Worth trying: ${wellKnownUrl} — a documented MAY in the spec. This page did not fetch it.`,
+      ),
     );
   }
 }
@@ -757,8 +762,6 @@ function sourceLabel(provenance: Provenance): string {
       return `Source: ${provenance.url}`;
     case "link":
       return `Source: ${provenance.url} (discovered from ${provenance.pageUrl})`;
-    case "embedded":
-      return `Source: feed embedded in ${provenance.pageUrl}`;
   }
 }
 

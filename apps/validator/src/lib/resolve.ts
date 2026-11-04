@@ -51,9 +51,7 @@ export type Provenance =
   /** The URL the user gave was itself the document. */
   | { via: "direct"; url: string; note: MediaTypeNote }
   /** An HTML page declared exactly one feed, and this is it. */
-  | { via: "link"; pageUrl: string; url: string; note: MediaTypeNote }
-  /** The feed was embedded in the page as `<script type="application/ote+json">`. */
-  | { via: "embedded"; pageUrl: string };
+  | { via: "link"; pageUrl: string; url: string; note: MediaTypeNote };
 
 export type Resolution =
   /** A document to validate, plus how it was found. */
@@ -168,15 +166,8 @@ export async function followCandidate(
   pageUrl: string,
   deps: ResolveDeps,
 ): Promise<Resolution> {
-  if (candidate.source === "embedded") {
-    return {
-      outcome: "document",
-      text: candidate.inlineDocument ?? "",
-      provenance: { via: "embedded", pageUrl },
-      redirects: [],
-    };
-  }
-
+  // A feed embedded in the page was a candidate source until OTE Spec 0.6
+  // put embedding out of scope (D036), so every candidate is a URL now.
   const envelope = await fetchViaWorker(candidate.url, deps);
   if (!envelope.ok) return toError(envelope);
 
