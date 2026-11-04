@@ -22,6 +22,17 @@ import {
   type MediaTypeNote,
 } from "@opentechevents/discover-feed";
 
+/** How a document was delivered: compression, cache validators, timings. */
+export interface Transport {
+  encoding: string | null;
+  etag: string | null;
+  lastModified: string | null;
+  cacheControl: string | null;
+  accessControlAllowOrigin: string | null;
+  headersMs: number;
+  totalMs: number;
+}
+
 /** The envelope `workers/fetch-url` answers with. */
 export type FetchEnvelope =
   | {
@@ -32,6 +43,8 @@ export type FetchEnvelope =
       bytes: number;
       redirects: string[];
       body: string;
+      /** How it was served, not what it says. Absent from an older worker. */
+      transport?: Transport;
     }
   | { ok: false; code: string; message: string };
 
@@ -55,7 +68,15 @@ export type Provenance =
 
 export type Resolution =
   /** A document to validate, plus how it was found. */
-  | { outcome: "document"; text: string; provenance: Provenance; redirects: string[] }
+  | {
+      outcome: "document";
+      text: string;
+      provenance: Provenance;
+      redirects: string[];
+      /** Absent when the document was pasted rather than fetched. */
+      transport?: Transport;
+      bytes?: number;
+    }
   /** Several feeds declared: the user picks. Never chosen silently. */
   | { outcome: "candidates"; pageUrl: string; candidates: FeedCandidate[] }
   /** An HTML page that declares no feed. A discovery result, not an error. */
@@ -134,6 +155,8 @@ export async function resolveUrl(url: string, deps: ResolveDeps): Promise<Resolu
         text: found.text,
         provenance: { via: "direct", url: envelope.finalUrl, note: found.note },
         redirects: envelope.redirects,
+        ...(envelope.transport ? { transport: envelope.transport } : {}),
+        bytes: envelope.bytes,
       };
 
     case "not-found":
@@ -193,5 +216,7 @@ export async function followCandidate(
     text: found.text,
     provenance: { via: "link", pageUrl, url: envelope.finalUrl, note: found.note },
     redirects: envelope.redirects,
+    ...(envelope.transport ? { transport: envelope.transport } : {}),
+    bytes: envelope.bytes,
   };
 }

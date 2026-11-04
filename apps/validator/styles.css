@@ -431,6 +431,30 @@ p.warn {
   overflow-wrap: anywhere;
 }
 
+/* ---------- how it is served ---------- */
+
+/* Transport findings sit inside the provenance panel, separated by a rule
+   rather than a box: they are the same kind of thing as "where this came
+   from" — facts about delivery — and a second card would read as a third
+   verdict next to valid/invalid. */
+.transport {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.transport h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+/* Deliberately the neutral `--line` of a plain finding, not `--warn`: these
+   are things worth doing, not defects in the document, and the page already
+   spends its amber on the spec-version notice. */
+.transport .findings li {
+  border-left-color: var(--line);
+}
+
 /* ---------- candidates ---------- */
 
 .candidates {

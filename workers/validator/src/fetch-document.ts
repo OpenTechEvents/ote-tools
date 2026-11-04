@@ -42,6 +42,37 @@ export interface FetchedDocument {
   bytes: number;
   /** Hops followed, for the UI to show what it really fetched. */
   redirects: string[];
+  /**
+   * How the document was *served*, as opposed to what it says.
+   *
+   * The spec grew a "Serving the feed" section for a reason the adopter
+   * numbers make plain: one registered feed is 553 KB uncompressed with no
+   * cache validator and answers in 23.9 s, of which 23.6 s is the origin
+   * thinking; another is 321 KB, brotli'd, with an `ETag`, in 276 ms. A
+   * validator that only ever said "valid" had nothing to tell the first
+   * publisher.
+   */
+  transport: Transport;
+}
+
+/** What the response said about how it was delivered. */
+export interface Transport {
+  /** `content-encoding`, or null when the body came down uncompressed. */
+  encoding: string | null;
+  /** Present means a conditional request can answer 304 instead of resending. */
+  etag: string | null;
+  lastModified: string | null;
+  /** `cache-control`, verbatim — the UI decides what is worth saying. */
+  cacheControl: string | null;
+  /** `access-control-allow-origin`: whether a browser on another origin may read it. */
+  accessControlAllowOrigin: string | null;
+  /**
+   * Milliseconds to the response headers, and to the last byte. The gap is
+   * the interesting part: 23.6 s of a 23.9 s fetch was the origin thinking,
+   * which is a different problem from a large document.
+   */
+  headersMs: number;
+  totalMs: number;
 }
 
 /** Codes that describe a failed fetch rather than a refused URL. */
@@ -156,6 +187,7 @@ export async function fetchDocument(rawUrl: string, deps: FetchDeps): Promise<Fe
     if (remaining <= 0) return timedOut(limits);
 
     let response: Response;
+    const startedAt = Date.now();
     try {
       response = await deps.fetchImpl(checked.url.toString(), {
         method: "GET",
@@ -199,8 +231,30 @@ export async function fetchDocument(rawUrl: string, deps: FetchDeps): Promise<Fe
       );
     }
 
+    // Read before the body is drained: `content-encoding` in particular is
+    // gone from a response whose stream has been consumed by some runtimes.
+    const headersMs = Date.now() - startedAt;
+    const readTransport = (totalMs: number): Transport => ({
+      encoding: response.headers.get("content-encoding"),
+      etag: response.headers.get("etag"),
+      lastModified: response.headers.get("last-modified"),
+      cacheControl: response.headers.get("cache-control"),
+      accessControlAllowOrigin: response.headers.get("access-control-allow-origin"),
+      headersMs,
+      totalMs,
+    });
+
     if (!response.body) {
-      return { ok: true, finalUrl: checked.url.toString(), status: response.status, contentType: response.headers.get("content-type"), body: "", bytes: 0, redirects };
+      return {
+        ok: true,
+        finalUrl: checked.url.toString(),
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+        body: "",
+        bytes: 0,
+        redirects,
+        transport: readTransport(Date.now() - startedAt),
+      };
     }
 
     const read = await readCapped(response.body, limits.maxBytes);
@@ -220,6 +274,7 @@ export async function fetchDocument(rawUrl: string, deps: FetchDeps): Promise<Fe
       body: read.text,
       bytes: read.bytes,
       redirects,
+      transport: readTransport(Date.now() - startedAt),
     };
   }
 

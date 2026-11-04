@@ -101,6 +101,7 @@ export function toResponseBody(result: FetchResult): unknown {
       contentType: result.contentType,
       bytes: result.bytes,
       redirects: result.redirects,
+      transport: result.transport,
       body: result.body,
     };
   }

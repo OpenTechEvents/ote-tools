@@ -37,7 +37,14 @@ import {
   KIND_LABEL,
   type CheckedUrl,
 } from "./lib/links.js";
-import { followCandidate, resolveUrl, type Provenance, type Resolution } from "./lib/resolve.js";
+import { transportFindings } from "./lib/transport.js";
+import {
+  followCandidate,
+  resolveUrl,
+  type Provenance,
+  type Resolution,
+  type Transport,
+} from "./lib/resolve.js";
 import { collectDocumentUrls } from "./lib/urls.js";
 
 /** Injected at build time (see build.mjs); the CSP in index.html must match. */
@@ -185,6 +192,48 @@ function mediaTypeLine(provenance: Provenance): string | null {
  * document there is no verdict, so "no feed found" and "several feeds
  * declared" stay above the fold. See renderNotFound and renderCandidates.
  */
+/**
+ * Renders the transport findings, or says plainly that there are none.
+ *
+ * "Nothing to report" is worth printing: silence reads as "not checked".
+ */
+function renderTransport(transport: Transport, bytes: number | undefined): void {
+  const findings = transportFindings(transport, bytes);
+  const box = element("div", "transport");
+  box.append(element("h3", undefined, "How it is served"));
+
+  if (findings.length === 0) {
+    box.append(
+      element(
+        "p",
+        "ok",
+        "Compressed, with a cache validator and a permissive CORS header. Nothing to flag.",
+      ),
+    );
+  } else {
+    const ul = element("ul", "findings");
+    for (const finding of findings) ul.append(element("li", undefined, finding));
+    box.append(ul);
+  }
+
+  // Always shown, findings or not: the numbers are the evidence for the
+  // sentences above, and let a publisher check a change actually landed.
+  const list = element("dl", "facts");
+  const fact = (term: string, value: string) =>
+    list.append(element("dt", undefined, term), element("dd", undefined, value));
+  if (bytes !== undefined) fact("Size", `${(bytes / 1024).toFixed(1)} KB as received`);
+  fact("Compression", transport.encoding ?? "none");
+  fact("Cache validator", transport.etag ?? transport.lastModified ?? "none");
+  if (transport.cacheControl) fact("Cache-Control", transport.cacheControl);
+  fact(
+    "Timing",
+    `${transport.headersMs} ms to first byte, ${transport.totalMs} ms total`,
+  );
+  box.append(list);
+
+  discoveryBox.append(box);
+}
+
 function renderDiscovery(provenance: Provenance, redirects: string[]): void {
   discoveryBox.replaceChildren();
   discoveryBox.hidden = false;
@@ -725,6 +774,11 @@ async function applyResolution(resolution: Resolution, permalinkUrl: string): Pr
   switch (resolution.outcome) {
     case "document":
       renderDiscovery(resolution.provenance, resolution.redirects);
+      // Only when the document was fetched: a pasted one has no transport,
+      // and an empty "how it is served" panel would imply it was checked.
+      if (resolution.transport) {
+        renderTransport(resolution.transport, resolution.bytes);
+      }
       // A fresh document gets a fresh detection: the previous document's kind
       // — and the previous document's hand-picked version — must not leak
       // into this one.
