@@ -108,6 +108,40 @@ its own "+" chip (a new event, or any field not part of the active
 profile's default set) — bitten by this with the description
 toolbar/expand button.
 
+## Adding a repeatable field: two tables, and one of them is not the form
+
+A repeatable field (`organizers`, `speakers`, `recordings`, `image`,
+`offers`, the multi-part `partOfOffers`) is declared in `REPEATER_SPECS`
+(`ui/form.ts`) and, separately, listed in `FIELD_REGISTRY` (`lib/presets.ts`)
+to appear in the form at all. The two are not the same list on purpose:
+`alternates` lives only in `REPEATER_SPECS`, because it is a FEED field
+(`feed.alternates` in ote.config.json, rendered by the Feed settings view)
+and no event carries it — putting it in `FIELD_REGISTRY` would offer it as
+an event field and list it in the custom-profile checklist.
+
+`renderChippableSection` dispatches on `REPEATER_KEYS.has(id)`, not on an
+enumerated `id === "organizers" || id === "image"`. It used to enumerate,
+which meant a newly-registered repeater rendered as a plain field (and
+crashed on `FIELD_SPECS[id].label`) until all four call sites were found.
+If you add a key, the membership test already covers it — don't reintroduce
+a hardcoded pair.
+
+Serialization is the other half, and it is easy to do three-quarters of:
+`emptyFormState`, `toEventJson` AND `fromEventJson` (`lib/event-json.ts`)
+all need the field, plus `STRUCTURAL_FIELDS` (`lib/series.ts`, or bulk edit
+reports the array as always-changed), `PATH_TO_FIELD` (`lib/validation.ts`,
+or its schema errors land on no field at all), `extraFieldsFor`
+(`main.ts`, the "never drop data" rule for a profile that hides it) and
+`missingFormFields` (`lib/import.ts`). A field missing only from
+`fromEventJson` is the quiet one: the form writes it correctly and silently
+drops it on load — which is exactly how the JSON-LD importer's `speakers`
+and `recordings` were being thrown away before #104.
+
+`PATH_TO_FIELD` is ordered, first match wins — so a nested field that has
+its own form field (`partOf.offers` → `partOfOffers`) must be listed BEFORE
+its parent (`partOf`), or every error on it is reported against the parent,
+in a different section of the form.
+
 ## Keep CHANGELOG.md current
 
 `apps/editor/CHANGELOG.md` tracks notable changes to this app, dated

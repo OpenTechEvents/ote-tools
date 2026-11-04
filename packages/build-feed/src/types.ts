@@ -40,6 +40,13 @@ export interface OteImageEntry {
 }
 
 export interface OteOffer {
+  /**
+   * What this offer means relative to the set's shared admission
+   * (`partOf.offers`), OTE 0.5+. Only meaningful in a document that has
+   * `partOf`; an absent scope reads as "admission". "add-on" additionally
+   * requires `partOf.offers` to be present in the same document.
+   */
+  scope?: "admission" | "add-on";
   name?: string;
   price?: number;
   currency?: string;
@@ -75,6 +82,16 @@ export interface OtePartOf {
   type?: "series" | "multipart";
   /** The series' display name in other languages, keyed by BCP 47 tag. */
   translations?: Record<string, { name: string }>;
+  /**
+   * The SHARED admission of a multi-part event (OTE 0.5+) — the price of
+   * attending the whole set, written identically on every part that carries
+   * it, so a consumer holding one part can price it without resolving the
+   * parent. Across the parts of one set (same `partOf.id`) these blocks
+   * must be equal by value. A part that omits its own `offers` in a
+   * document carrying this one is covered by this admission — the one place
+   * an absent `offers` list means something other than unknown.
+   */
+  offers?: OteOffer[];
 }
 
 export type OteEventStatus =
@@ -137,6 +154,8 @@ export interface OteSpeaker {
 export interface OteRecordingEntry {
   url: string;
   title?: string;
+  /** This recording's title in other languages, keyed by BCP 47 tag. */
+  translations?: Record<string, { title: string }>;
 }
 
 export interface OteFeed {

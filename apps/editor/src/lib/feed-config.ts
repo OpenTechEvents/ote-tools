@@ -9,6 +9,13 @@ export interface CustomProfileRow {
   fields: string[];
 }
 
+/** One row of the feed's `alternates` repeater — the same collection
+ * published in another format. "" means "not filled in". */
+export interface AlternateRow {
+  mediaType: string;
+  url: string;
+}
+
 /**
  * Flat, all-string form model for ote.config.json — same "" = unset
  * convention as FormState. `feed`'s own sub-fields plus, at the top level,
@@ -30,6 +37,14 @@ export interface FeedConfigState {
   profile: string;
   /** Named custom profiles, in display order. */
   customProfiles: CustomProfileRow[];
+  /** Where to report or propose a data fix; inherited by every event that doesn't declare its own. */
+  contributing: string;
+  /** First day the feed claims completeness for ("" = unbounded into the past). */
+  coversFrom: string;
+  /** Last day the feed claims completeness for, inclusive ("" = unbounded into the future). */
+  coversTo: string;
+  /** The same collection in other formats (RSS, iCalendar, JSON-LD). */
+  alternates: AlternateRow[];
 }
 
 /** A fresh, empty settings draft — used when a repo has no ote.config.json yet. */
@@ -45,6 +60,10 @@ export function emptyFeedConfigState(): FeedConfigState {
     translations: {},
     profile: "",
     customProfiles: [],
+    contributing: "",
+    coversFrom: "",
+    coversTo: "",
+    alternates: [],
   };
 }
 
@@ -80,6 +99,13 @@ export function fromOteConfig(config: OteConfig | null): FeedConfigState {
       name,
       fields: [...fields],
     })),
+    contributing: feed?.contributing ?? "",
+    coversFrom: feed?.covers?.from ?? "",
+    coversTo: feed?.covers?.to ?? "",
+    alternates: (feed?.alternates ?? []).map((a) => ({
+      mediaType: a.mediaType ?? "",
+      url: a.url ?? "",
+    })),
   };
 }
 
@@ -110,6 +136,20 @@ export function toOteConfigJson(
   set("license", state.license);
   set("licenseUrl", state.licenseUrl);
   set("textLanguage", state.textLanguage);
+  set("contributing", state.contributing);
+
+  // An empty `covers` object is invalid (minProperties: 1) and, worse, would
+  // be a completeness claim with no window — so clearing both bounds removes
+  // the whole block rather than leaving {} behind.
+  const covers: Record<string, string> = {};
+  if (state.coversFrom !== "") covers.from = state.coversFrom;
+  if (state.coversTo !== "") covers.to = state.coversTo;
+  if (Object.keys(covers).length > 0) feed.covers = covers;
+  else delete feed.covers;
+
+  const alternates = state.alternates.filter((row) => !isRowEmpty(row)).map(cleanRow);
+  if (alternates.length > 0) feed.alternates = alternates;
+  else delete feed.alternates;
 
   const organizers = state.organizers.filter((row) => !isRowEmpty(row)).map(cleanRow);
   if (organizers.length > 0) feed.organizers = organizers;

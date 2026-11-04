@@ -22,6 +22,12 @@ export interface OteConfig {
     organizers?: OrganizerRow[];
     /** Translates feed title/description only — never edited by this app, but kept on the type so it round-trips untouched. */
     translations?: Record<string, { title?: string; description?: string }>;
+    /** Where to report or propose a data fix. Inherited feed→event like `license`: an event that declares its own replaces this one. */
+    contributing?: string;
+    /** The date window this feed claims to be COMPLETE for. Feed-only — events never carry it. */
+    covers?: { from?: string; to?: string };
+    /** The same collection published in other formats. Feed-only, informational. */
+    alternates?: { mediaType?: string; url?: string }[];
   };
   profile?: string;
   /** @deprecated read-only synonym for customProfiles.custom; new saves write customProfiles instead. */
@@ -55,10 +61,43 @@ export interface ImageRow {
 }
 
 /**
+ * One row of the `speakers` repeater. "" means "not filled in".
+ * `affiliation` is a bare display string, never an object — the whole point
+ * of the field is that the company does NOT end up inside `name`, where it
+ * would stop matching that person anywhere else. `sameAs` is a
+ * comma-separated list of other profile URLs for the SAME person, same
+ * convention as `tags`/`languages` on FormState.
+ */
+export interface SpeakerRow {
+  name: string;
+  affiliation: string;
+  url: string;
+  sameAs: string;
+  type: string;
+}
+
+/**
+ * One row of the `recordings` repeater. "" means "not filled in".
+ * `translations` is keyed by BCP 47 tag → this recording's `title` in that
+ * language; only meaningful once `title` itself is set (schema:
+ * dependentRequired).
+ */
+export interface RecordingRow {
+  url: string;
+  title: string;
+  translations: Record<string, string>;
+}
+
+/**
  * One row of the `offers` repeater. "" means "not filled in". `translations`
- * is keyed by BCP 47 tag → this offer's `name` in that language.
+ * is keyed by BCP 47 tag → this offer's `name` in that language. `scope`
+ * is only meaningful in a document that has `partOf`: it says whether this
+ * offer is a complete way to attend ("admission", what an absent scope is
+ * read as) or an extra charge on top of the set's shared admission
+ * ("add-on", which additionally requires `partOf.offers`).
  */
 export interface OfferRow {
+  scope: string;
   name: string;
   price: string;
   currency: string;
@@ -74,8 +113,9 @@ export interface OfferRow {
  * Mostly a flat, all-string form model: "" means "not filled in" and is
  * omitted from the generated event JSON. Dates and times are kept apart so
  * the form can use native date/time inputs; tags and languages are
- * comma-separated. Exceptions: the three genuinely-repeatable spec fields
- * (organizers/image/offers) are arrays of row objects, and `translations`/
+ * comma-separated. Exceptions: the genuinely-repeatable spec fields
+ * (organizers/speakers/recordings/image/offers, plus the shared
+ * partOfOffers) are arrays of row objects, and `translations`/
  * `eligibilityNoteTranslations`/`partOfNameTranslations` are language-keyed
  * maps — both still "" = unset at the leaf, coerced in toEventJson like
  * every other field.
@@ -108,8 +148,12 @@ export interface FormState {
   updatedAt: string;
   textLanguage: string;
   organizers: OrganizerRow[];
+  speakers: SpeakerRow[];
+  recordings: RecordingRow[];
   image: ImageRow[];
   offers: OfferRow[];
+  /** Where to report or propose a fix to THIS event's data; an HTTP(S) URL or a `mailto:`. Inherited from the feed's own `contributing` when left empty. */
+  contributing: string;
   cfpUrl: string;
   cfpOpensAt: string;
   cfpClosesAt: string;
@@ -122,6 +166,8 @@ export interface FormState {
   partOfName: string;
   partOfUrl: string;
   partOfType: string;
+  /** The shared admission of a multi-part event (`partOf.offers`) — same row shape as `offers`, repeated identically on every part of the set. */
+  partOfOffers: OfferRow[];
   /** BCP 47 tag → { name?, description? } in that language. */
   translations: Record<string, { name: string; description: string }>;
   /** BCP 47 tag → eligibility.note in that language. */

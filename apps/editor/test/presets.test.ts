@@ -104,6 +104,21 @@ describe("resolveProfile", () => {
     }
   });
 
+  it("speakers and recordings show under every preset — a meetup has talks and records them too", () => {
+    for (const profile of ["meetup", "conference", "all"]) {
+      const resolved = resolveProfile({ profile });
+      expect(resolved.fields.has("speakers")).toBe(true);
+      expect(resolved.fields.has("recordings")).toBe(true);
+      expect(resolved.fields.has("contributing")).toBe(profile !== "meetup");
+    }
+  });
+
+  it("the shared multi-part admission is hidden for meetups: one document, no set of parts to price", () => {
+    expect(resolveProfile({ profile: "meetup" }).fields.has("partOfOffers")).toBe(false);
+    expect(resolveProfile({ profile: "conference" }).fields.has("partOfOffers")).toBe(true);
+    expect(resolveProfile({ profile: "all" }).fields.has("partOfOffers")).toBe(true);
+  });
+
   it("translations is present and collapsed under every preset, including custom", () => {
     for (const profile of ["meetup", "conference", "all"]) {
       const resolved = resolveProfile({ profile });

@@ -1,6 +1,6 @@
 import { htmlToMarkdown, looksLikeHtml } from "@opentechevents/import-ics";
 
-import type { FormState, OteConfig, OteEvent } from "./types.js";
+import type { FormState, OfferRow, OteConfig, OteEvent } from "./types.js";
 
 /** Converts to Markdown only when the value actually looks like HTML — a
  * safety net for a description read from a file written before this
@@ -40,8 +40,11 @@ export function emptyFormState(timezone = ""): FormState {
     updatedAt: "",
     textLanguage: "",
     organizers: [],
+    speakers: [],
+    recordings: [],
     image: [],
     offers: [],
+    contributing: "",
     cfpUrl: "",
     cfpOpensAt: "",
     cfpClosesAt: "",
@@ -54,6 +57,7 @@ export function emptyFormState(timezone = ""): FormState {
     partOfName: "",
     partOfUrl: "",
     partOfType: "",
+    partOfOffers: [],
     translations: {},
     eligibilityNoteTranslations: {},
     partOfNameTranslations: {},
@@ -62,7 +66,7 @@ export function emptyFormState(timezone = ""): FormState {
 
 /**
  * A repeater row where every field is still "" — `translations` (present on
- * image/offer rows) counts as empty when it has no language keys, since it's
+ * image/recording/offer rows) counts as empty when it has no language keys, since it's
  * a map, not a string.
  */
 export function isRowEmpty(row: object): boolean {
@@ -151,6 +155,26 @@ function numberOrRaw(value: string): number | string {
 }
 
 /**
+ * Offer rows → the wire shape of an `offers` array: empty rows dropped,
+ * price coerced to a number, the lang → string translations map wrapped.
+ * Shared by the event's own `offers` and the multi-part shared admission
+ * (`partOf.offers`), which is the same array shape by definition — the
+ * validator compares the two blocks across parts by value, so they must
+ * serialize identically.
+ */
+function cleanOfferRows(rows: readonly OfferRow[]): Record<string, unknown>[] {
+  return rows
+    .filter((row) => !isRowEmpty(row))
+    .map((row) => {
+      const offer = cleanRow(row);
+      if (row.price !== "") offer.price = numberOrRaw(row.price);
+      const translations = wrapTranslations(row.translations, "name");
+      if (translations) offer.translations = translations;
+      return offer;
+    });
+}
+
+/**
  * Form state → event file JSON (the shape stored in events/<slug>.json).
  * Empty inputs are omitted, never defaulted — absent means absent. No
  * specVersion and no license unless the user set one: event files inherit
@@ -209,6 +233,34 @@ export function toEventJson(state: FormState): OteEvent {
     .map((row) => cleanRow(row));
   if (organizers.length > 0) event.organizers = organizers;
 
+  const speakers = state.speakers
+    .filter((row) => !isRowEmpty(row))
+    .map((row) => {
+      const speaker = cleanRow(row);
+      // One profile URL per speaker lives in `url`; the rest are a list.
+      const sameAs = splitList(row.sameAs);
+      if (sameAs.length > 0) speaker.sameAs = sameAs;
+      else delete speaker.sameAs;
+      return speaker;
+    });
+  if (speakers.length > 0) event.speakers = speakers;
+
+  // Same two shapes as image: a bare URL, or an object once a title (or a
+  // translation of one) earns its keep.
+  const recordings = state.recordings
+    .filter((row) => !isRowEmpty(row))
+    .map((row) => {
+      const translations = wrapTranslations(row.translations, "title");
+      if (!row.title && !translations) return row.url;
+      const entry: Record<string, unknown> = { url: row.url };
+      if (row.title) entry.title = row.title;
+      if (translations) entry.translations = translations;
+      return entry;
+    });
+  if (recordings.length > 0) event.recordings = recordings;
+
+  set("contributing", state.contributing);
+
   // Bare URL when there's no alt text and nothing translating it (the common
   // case, and what every 0.2 document already looks like); an object once
   // alt or a translation of it earns its keep.
@@ -224,15 +276,7 @@ export function toEventJson(state: FormState): OteEvent {
     });
   if (image.length > 0) event.image = image;
 
-  const offers = state.offers
-    .filter((row) => !isRowEmpty(row))
-    .map((row) => {
-      const offer = cleanRow(row);
-      if (row.price !== "") offer.price = numberOrRaw(row.price);
-      const translations = wrapTranslations(row.translations, "name");
-      if (translations) offer.translations = translations;
-      return offer;
-    });
+  const offers = cleanOfferRows(state.offers);
   if (offers.length > 0) event.offers = offers;
 
   const cfp: Record<string, unknown> = {};
@@ -263,6 +307,12 @@ export function toEventJson(state: FormState): OteEvent {
   if (state.partOfType) partOf.type = state.partOfType;
   const partOfTranslations = wrapTranslations(state.partOfNameTranslations, "name");
   if (partOfTranslations) partOf.translations = partOfTranslations;
+  // The set's SHARED admission, written identically on every part. Emitted
+  // even when nothing else of partOf is filled in, so the schema flags the
+  // missing partOf.id rather than the editor silently dropping a priced
+  // block the organizer typed.
+  const sharedOffers = cleanOfferRows(state.partOfOffers);
+  if (sharedOffers.length > 0) partOf.offers = sharedOffers;
   if (Object.keys(partOf).length > 0) event.partOf = partOf;
 
   const translations: Record<string, unknown> = {};
@@ -289,6 +339,23 @@ export function splitWallClock(value: string | undefined): {
   const [date, time = ""] = value.split("T");
   // Native <input type="time"> wants HH:MM; drop the seconds.
   return { date, time: time.replace(/^(\d{2}:\d{2}):\d{2}$/, "$1") };
+}
+
+/** One wire `offers` entry → its form row. Inverse of `cleanOfferRows`,
+ * shared by the event's own offers and the multi-part shared admission. */
+function offerRowOf(offer: NonNullable<OteEvent["offers"]>[number]): OfferRow {
+  return {
+    scope: offer.scope ?? "",
+    name: offer.name ?? "",
+    price: offer.price !== undefined ? String(offer.price) : "",
+    currency: offer.currency ?? "",
+    url: offer.url ?? "",
+    availability: offer.availability ?? "",
+    waitlistUrl: offer.waitlistUrl ?? "",
+    opensAt: offer.opensAt ?? "",
+    closesAt: offer.closesAt ?? "",
+    translations: unwrapTranslations(offer.translations, "name"),
+  };
 }
 
 /**
@@ -331,6 +398,23 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
       email: o.email ?? "",
       type: o.type ?? "",
     })),
+    speakers: (json.speakers ?? []).map((speaker) => ({
+      name: speaker.name ?? "",
+      affiliation: speaker.affiliation ?? "",
+      url: speaker.url ?? "",
+      sameAs: (speaker.sameAs ?? []).join(", "),
+      type: speaker.type ?? "",
+    })),
+    recordings: (json.recordings ?? []).map((entry) =>
+      typeof entry === "string"
+        ? { url: entry, title: "", translations: {} }
+        : {
+            url: entry.url,
+            title: entry.title ?? "",
+            translations: unwrapTranslations(entry.translations, "title"),
+          },
+    ),
+    contributing: json.contributing ?? "",
     image: (json.image ?? []).map((entry) =>
       typeof entry === "string"
         ? { url: entry, alt: "", saveLocally: "", translations: {} }
@@ -341,17 +425,7 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
             translations: unwrapTranslations(entry.translations, "alt"),
           },
     ),
-    offers: (json.offers ?? []).map((o) => ({
-      name: o.name ?? "",
-      price: o.price !== undefined ? String(o.price) : "",
-      currency: o.currency ?? "",
-      url: o.url ?? "",
-      availability: o.availability ?? "",
-      waitlistUrl: o.waitlistUrl ?? "",
-      opensAt: o.opensAt ?? "",
-      closesAt: o.closesAt ?? "",
-      translations: unwrapTranslations(o.translations, "name"),
-    })),
+    offers: (json.offers ?? []).map(offerRowOf),
     cfpUrl: json.cfp?.url ?? "",
     cfpOpensAt: json.cfp?.opensAt ?? "",
     cfpClosesAt: json.cfp?.closesAt ?? "",
@@ -364,6 +438,7 @@ export function fromEventJson(json: OteEvent, slug: string): FormState {
     partOfName: json.partOf?.name ?? "",
     partOfUrl: json.partOf?.url ?? "",
     partOfType: json.partOf?.type ?? "",
+    partOfOffers: (json.partOf?.offers ?? []).map(offerRowOf),
     translations: Object.fromEntries(
       Object.entries(json.translations ?? {}).map(([lang, entry]) => [
         lang,

@@ -42,6 +42,10 @@ describe("emptyFeedConfigState", () => {
       translations: {},
       profile: "",
       customProfiles: [],
+      contributing: "",
+      coversFrom: "",
+      coversTo: "",
+      alternates: [],
     });
   });
 });
@@ -327,5 +331,82 @@ describe("likelyAggregatorFeed", () => {
     ];
     // Only 2 distinct sets ({Alice,Bob} and {Carol}) once order is ignored.
     expect(likelyAggregatorFeed(events)).toBe(false);
+  });
+});
+
+describe("contributing / covers / alternates", () => {
+  it("reads all three out of the feed block", () => {
+    const state = fromOteConfig({
+      feed: {
+        title: "T",
+        contributing: "mailto:hola@dev.events",
+        covers: { from: "2026-01-01", to: "2027-12-31" },
+        alternates: [{ mediaType: "application/rss+xml", url: "https://x.example/events.rss" }],
+      },
+    } as OteConfig);
+    expect(state.contributing).toBe("mailto:hola@dev.events");
+    expect(state.coversFrom).toBe("2026-01-01");
+    expect(state.coversTo).toBe("2027-12-31");
+    expect(state.alternates).toEqual([
+      { mediaType: "application/rss+xml", url: "https://x.example/events.rss" },
+    ]);
+  });
+
+  it("writes them back under feed, dropping an alternate row nobody filled in", () => {
+    const state = emptyFeedConfigState();
+    state.title = "T";
+    state.contributing = "https://github.com/o/r/issues/new";
+    state.coversFrom = "2026-01-01";
+    state.alternates = [
+      { mediaType: "text/calendar", url: "https://x.example/events.ics" },
+      { mediaType: "", url: "" },
+    ];
+    const feed = toOteConfigJson(state, null).feed as Record<string, unknown>;
+    expect(feed.contributing).toBe("https://github.com/o/r/issues/new");
+    expect(feed.covers).toEqual({ from: "2026-01-01" });
+    expect(feed.alternates).toEqual([
+      { mediaType: "text/calendar", url: "https://x.example/events.ics" },
+    ]);
+  });
+
+  // An empty `covers` is invalid (minProperties: 1) and would be a
+  // completeness claim with no window — clearing both bounds has to remove
+  // the block, not leave {} behind.
+  it("clearing both bounds removes `covers` entirely rather than leaving {}", () => {
+    const state = fromOteConfig({
+      feed: { title: "T", covers: { from: "2026-01-01" } },
+    } as OteConfig);
+    state.coversFrom = "";
+    const feed = toOteConfigJson(state, {
+      feed: { title: "T", covers: { from: "2026-01-01" } },
+    }).feed as Record<string, unknown>;
+    expect("covers" in feed).toBe(false);
+  });
+
+  it("clearing contributing and alternates removes them too", () => {
+    const raw = {
+      feed: {
+        title: "T",
+        contributing: "mailto:hola@dev.events",
+        alternates: [{ mediaType: "text/calendar", url: "https://x.example/events.ics" }],
+      },
+    };
+    const state = fromOteConfig(raw as OteConfig);
+    state.contributing = "";
+    state.alternates = [];
+    const feed = toOteConfigJson(state, raw).feed as Record<string, unknown>;
+    expect("contributing" in feed).toBe(false);
+    expect("alternates" in feed).toBe(false);
+  });
+
+  it("round-trips through the realish config without touching anything else", () => {
+    const state = fromOteConfig(realish as unknown as OteConfig);
+    state.coversFrom = "2024-01-01";
+    const result = toOteConfigJson(state, realish as unknown as Record<string, unknown>);
+    expect(result._comment).toBe("Your community's configuration.");
+    expect(result.profile).toBe("all");
+    const feed = result.feed as Record<string, unknown>;
+    expect(feed.covers).toEqual({ from: "2024-01-01" });
+    expect(feed.organizers).toEqual(realish.feed.organizers);
   });
 });

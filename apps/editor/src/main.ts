@@ -58,6 +58,7 @@ import {
   fromOteConfig,
   likelyAggregatorFeed,
   toOteConfigJson,
+  type AlternateRow,
 } from "./lib/feed-config.js";
 import {
   directCreateUrl,
@@ -213,8 +214,12 @@ function extraFieldsFor(event: OteEvent, profile: ResolvedProfile): Set<string> 
   add("languages", event.languages);
   add("attendanceMode", event.attendanceMode);
   add("organizers", event.organizers);
+  add("speakers", event.speakers);
+  add("recordings", event.recordings);
+  add("contributing", event.contributing);
   add("image", event.image);
   add("offers", event.offers);
+  add("partOfOffers", event.partOf?.offers);
   add("cfp", event.cfp);
   add("eligibility", event.eligibility);
   add("partOf", event.partOf);
@@ -584,8 +589,12 @@ async function startEditor(repo: string | null): Promise<void> {
     const feedLicenseInput = el<HTMLInputElement>("feed-license");
     const feedLicenseUrlInput = el<HTMLInputElement>("feed-license-url");
     const feedTextLanguageInput = el<HTMLInputElement>("feed-text-language");
+    const feedContributingInput = el<HTMLInputElement>("feed-contributing");
+    const feedCoversFromInput = el<HTMLInputElement>("feed-covers-from");
+    const feedCoversToInput = el<HTMLInputElement>("feed-covers-to");
     const feedOrganizersSlot = el<HTMLDivElement>("feed-organizers-slot");
     const feedTranslationsSlot = el<HTMLDivElement>("feed-translations-slot");
+    const feedAlternatesSlot = el<HTMLDivElement>("feed-alternates-slot");
 
     // Info tooltips, same widget every other field in the app uses — added
     // once here (these labels are static, never re-rendered) rather than
@@ -708,6 +717,23 @@ async function startEditor(repo: string | null): Promise<void> {
       }
 
       feedOrganizersSlot.append(rendered);
+    }
+
+    // `alternates` is feed-only — no event carries it, so unlike organizers
+    // this repeater has no event-form counterpart whose wording needs
+    // correcting here.
+    function renderFeedAlternates(): void {
+      feedAlternatesSlot.textContent = "";
+      feedAlternatesSlot.append(
+        renderRepeaterField(
+          "alternates",
+          feedState.alternates as unknown as Record<string, string>[],
+          (_key, items) => {
+            feedState.alternates = items as unknown as AlternateRow[];
+          },
+          () => "",
+        ),
+      );
     }
 
     function renderFeedTranslationsUI(): void {
@@ -850,8 +876,12 @@ async function startEditor(repo: string | null): Promise<void> {
       feedLicenseInput.value = feedState.license;
       feedLicenseUrlInput.value = feedState.licenseUrl;
       feedTextLanguageInput.value = feedState.textLanguage;
+      feedContributingInput.value = feedState.contributing;
+      feedCoversFromInput.value = feedState.coversFrom;
+      feedCoversToInput.value = feedState.coversTo;
       renderFeedOrganizers();
       renderFeedTranslationsUI();
+      renderFeedAlternates();
       renderFeedProfileToggle();
       view = "settings";
       showView();
@@ -871,6 +901,18 @@ async function startEditor(repo: string | null): Promise<void> {
     feedTextLanguageInput.addEventListener(
       "input",
       () => (feedState.textLanguage = feedTextLanguageInput.value),
+    );
+    feedContributingInput.addEventListener(
+      "input",
+      () => (feedState.contributing = feedContributingInput.value),
+    );
+    feedCoversFromInput.addEventListener(
+      "input",
+      () => (feedState.coversFrom = feedCoversFromInput.value),
+    );
+    feedCoversToInput.addEventListener(
+      "input",
+      () => (feedState.coversTo = feedCoversToInput.value),
     );
 
     el<HTMLButtonElement>("feed-settings-save").addEventListener("click", () => {
@@ -1076,9 +1118,12 @@ async function startEditor(repo: string | null): Promise<void> {
     touched.add(key);
     if (importMissing?.delete(key)) markImportGaps(form, importMissing);
     (state as unknown as Record<string, unknown>)[key] = items;
-    // Image alts / offer names are also what a translation card shows as
-    // "the original text" — an added/removed/edited row changes its slots.
-    if (key === "image" || key === "offers") refreshTranslations();
+    // Image alts / recording titles / offer names are also what a
+    // translation card shows as "the original text" — an added/removed/
+    // edited row changes its slots.
+    if (key === "image" || key === "recordings" || key === "offers" || key === "partOfOffers") {
+      refreshTranslations();
+    }
     refresh();
     saveCurrentItem();
   }
