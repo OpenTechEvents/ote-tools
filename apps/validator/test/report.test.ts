@@ -5,7 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { LATEST_VERSION } from "@opentechevents/validate";
 
-import { buildReport, MAX_DEPTH, maxDepth, type Report } from "../src/lib/report.js";
+import {
+  buildReport,
+  MAX_DEPTH,
+  maxDepth,
+  recommendationsBlurb,
+  type Report,
+} from "../src/lib/report.js";
 
 /** Reuses packages/validate's fixtures: one corpus, one opinion of "valid". */
 function fixture(name: string): string {
@@ -213,5 +219,44 @@ describe("buildReport — spec versions", () => {
     const report = validated(await buildReport(fixture("versioned/feed-0.1.0.json")));
     expect(report.recommendedProfileChecked).toBe(false);
     expect(report.recommendations).toEqual([]);
+  });
+});
+
+// D042: a 1.0 freezes validity, not the recommended profiles. Anything that
+// scores or badges on this list has to know which version produced it.
+describe("recommendationsBlurb", () => {
+  it("names the version whose profile produced the list", () => {
+    expect(recommendationsBlurb("0.6.0")).toContain("OTE 0.6.0's recommended profile");
+  });
+
+  it("warns that the list is not frozen the way validity is", () => {
+    const blurb = recommendationsBlurb("0.6.0");
+    expect(blurb).toContain("not frozen");
+    expect(blurb).toMatch(/add or drop recommendations/);
+  });
+
+  // The recommendations are still SHOULD-level, and saying so is what keeps
+  // them from reading as errors.
+  it("keeps the SHOULD framing and the reassurance that the document is valid", () => {
+    const blurb = recommendationsBlurb("0.6.0");
+    expect(blurb).toContain("(SHOULD)");
+    expect(blurb).toContain("still valid");
+  });
+
+  // Unreachable through the UI — no version checked means no recommendations,
+  // and the box stays hidden — but the sentence must not read "OTE null's".
+  it("does not invent a version when none was applied", () => {
+    const blurb = recommendationsBlurb(null);
+    expect(blurb).not.toContain("null");
+    expect(blurb).toContain("the recommended profile");
+  });
+
+  // The version shown is the one actually checked, which is not always the
+  // one the document declares — a hand-picked version has to win here too.
+  it("reports whichever version was checked", async () => {
+    const report = validated(
+      await buildReport(fixture("versioned/event-0.3.0.json"), { version: LATEST_VERSION }),
+    );
+    expect(recommendationsBlurb(report.specVersion)).toContain(`OTE ${LATEST_VERSION}`);
   });
 });
