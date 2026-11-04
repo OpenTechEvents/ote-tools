@@ -114,8 +114,29 @@ export interface OteEvent {
   eligibility?: OteEligibility;
   partOf?: OtePartOf;
   updatedAt?: string;
+  /** Who gives the talk(s) (OTE 0.5+). */
+  speakers?: OteSpeaker[];
+  /** Published recordings, linked after the event (OTE 0.5+). */
+  recordings?: (string | OteRecordingEntry)[];
+  /** Where to report or propose a data fix (OTE 0.5+). Inherited from the feed. */
+  contributing?: string;
   /** This event's own free text (name/description) in other languages, keyed by BCP 47 tag. */
   translations?: Record<string, { name?: string; description?: string }>;
+}
+
+/** A speaker (OTE 0.5+). `affiliation` is a bare display string, never an object. */
+export interface OteSpeaker {
+  name: string;
+  affiliation?: string;
+  url?: string;
+  sameAs?: string[];
+  type?: "organization" | "person";
+}
+
+/** A published recording (OTE 0.5+): a bare URL, or one with a title. */
+export interface OteRecordingEntry {
+  url: string;
+  title?: string;
 }
 
 export interface OteFeed {
@@ -130,6 +151,12 @@ export interface OteFeed {
   organizers?: OteOrganizer[];
   /** Translates feed title/description only — never inherited by events. */
   translations?: Record<string, { title?: string; description?: string }>;
+  /** Inherited feed→event like license (OTE 0.5+). */
+  contributing?: string;
+  /** The date window this feed claims to be COMPLETE for (OTE 0.5+). Feed-only. */
+  covers?: { from?: string; to?: string };
+  /** The same collection in other formats (OTE 0.5+). Feed-only, informational. */
+  alternates?: { mediaType: string; url: string }[];
   updatedAt: string;
   events: OteEvent[];
 }
@@ -147,4 +174,20 @@ export interface OteFeedConfig {
   organizers?: OteOrganizer[];
   /** Translates feed title/description only — never inherited by events. */
   translations?: Record<string, { title?: string; description?: string }>;
+  /**
+   * Where to report or propose a data fix (OTE 0.5+). Inherited feed→event
+   * like `license`, so setting it here covers every event.
+   */
+  contributing?: string;
+  /**
+   * The date window this feed claims to be COMPLETE for (OTE 0.5+). Inside
+   * it, a missing event is not happening; outside it the feed asserts
+   * nothing. Omitting it keeps the previous meaning exactly.
+   */
+  covers?: { from?: string; to?: string };
+  /**
+   * Where the same collection is published in other formats (OTE 0.5+).
+   * Informational: no sync guarantee.
+   */
+  alternates?: { mediaType: string; url: string }[];
 }

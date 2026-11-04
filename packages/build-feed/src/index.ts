@@ -64,6 +64,9 @@ const STRING_FEED_CONFIG_FIELDS = [
   "license",
   "licenseUrl",
   "textLanguage",
+  // OTE 0.5+. Inherited feed→event like license, so one line in the config
+  // gives every event a place to report a data fix.
+  "contributing",
 ] as const;
 
 /**
@@ -77,6 +80,10 @@ const FEED_CONFIG_FIELDS = [
   ...STRING_FEED_CONFIG_FIELDS,
   "organizers",
   "translations",
+  // OTE 0.5+, both feed-only: `covers` is the completeness window, and
+  // `alternates` lists the same collection in other formats.
+  "covers",
+  "alternates",
 ] as const;
 
 // Only `title` is unconditionally required: `license` is optional since D029
@@ -163,6 +170,24 @@ function readFeedConfig(
         path: "feed.translations",
         message: "must be an object",
       });
+    }
+  }
+  // Shape only, as everywhere above: `covers` needing at least one of
+  // from/to, `to` not preceding `from` (the orderedCoverage keyword), and
+  // each alternate's mediaType/url are the feed schema's job once the feed
+  // is assembled, and duplicating them here is how the two drift apart.
+  if (feed.covers !== undefined) {
+    if (isObject(feed.covers)) {
+      out.covers = feed.covers as OteFeedConfig["covers"];
+    } else {
+      problems.push({ file: CONFIG_FILE, path: "feed.covers", message: "must be an object" });
+    }
+  }
+  if (feed.alternates !== undefined) {
+    if (Array.isArray(feed.alternates)) {
+      out.alternates = feed.alternates as OteFeedConfig["alternates"];
+    } else {
+      problems.push({ file: CONFIG_FILE, path: "feed.alternates", message: "must be an array" });
     }
   }
   return out;
@@ -281,6 +306,11 @@ export function buildFeed(input: BuildFeedInput): BuildFeedResult {
     ...(feedConfig.translations !== undefined && {
       translations: feedConfig.translations,
     }),
+    ...(feedConfig.contributing !== undefined && {
+      contributing: feedConfig.contributing,
+    }),
+    ...(feedConfig.covers !== undefined && { covers: feedConfig.covers }),
+    ...(feedConfig.alternates !== undefined && { alternates: feedConfig.alternates }),
     updatedAt: input.now,
     events: entries.map((e) => e.event),
   };
@@ -323,6 +353,10 @@ export function resolveEventInheritance(feed: OteFeed): OteFeed {
       organizers: event.organizers ?? feed.organizers,
       textLanguage: event.textLanguage ?? feed.textLanguage,
       license: event.license ?? feed.license,
+      // OTE 0.5+, inherited feed→event exactly like license. `covers` and
+      // `alternates` are deliberately absent here: both describe the
+      // collection, not an event in it, so there is nothing to push down.
+      contributing: event.contributing ?? feed.contributing,
     })),
   };
 }

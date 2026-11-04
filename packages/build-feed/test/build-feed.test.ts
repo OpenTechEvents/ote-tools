@@ -328,3 +328,51 @@ describe("resolveEventInheritance", () => {
     expect(feed.events[0]!.organizers).toBeUndefined();
   });
 });
+
+describe("resolveEventInheritance — contributing (OTE 0.5+)", () => {
+  const feed = (extra: Record<string, unknown>, event: Record<string, unknown> = {}) =>
+    ({
+      specVersion: "0.6.0",
+      title: "T",
+      updatedAt: "2026-01-01T00:00:00Z",
+      ...extra,
+      events: [
+        {
+          id: "https://c.example/1",
+          name: "E",
+          startDate: "2026-06-11T18:30",
+          timezone: "Europe/Madrid",
+          ...event,
+        },
+      ],
+    }) as never;
+
+  it("pushes the feed's contributing down to an event that has none", () => {
+    // Exporters read each event's fields directly and know nothing about
+    // feed-level inheritance, so anything inheritable has to be resolved here
+    // or it never reaches them.
+    const resolved = resolveEventInheritance(feed({ contributing: "mailto:fix@c.example" }));
+    expect(resolved.events[0]!.contributing).toBe("mailto:fix@c.example");
+  });
+
+  it("an event's own contributing wins, like every other inherited field", () => {
+    const resolved = resolveEventInheritance(
+      feed({ contributing: "mailto:feed@c.example" }, { contributing: "mailto:own@c.example" }),
+    );
+    expect(resolved.events[0]!.contributing).toBe("mailto:own@c.example");
+  });
+
+  it("does not push covers or alternates onto events", () => {
+    // Both describe the collection, not an event in it — an event carrying
+    // the feed's completeness window would be claiming something it cannot.
+    const resolved = resolveEventInheritance(
+      feed({
+        covers: { from: "2026-01-01" },
+        alternates: [{ mediaType: "text/calendar", url: "https://c.example/f.ics" }],
+      }),
+    );
+    expect(resolved.events[0]).not.toHaveProperty("covers");
+    expect(resolved.events[0]).not.toHaveProperty("alternates");
+  });
+});
+

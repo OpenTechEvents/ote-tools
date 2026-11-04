@@ -28,7 +28,8 @@ becomes the feed's `updatedAt`). The CLI does the I/O.
 
 1. Reads the `feed` block of `ote.config.json`: `title` is required;
    `description`, `url`, `license`, `licenseUrl`, `textLanguage`,
-   `organizers`, `translations` are optional. Other config keys (`profile`,
+   `organizers`, `translations`, `contributing`, `covers` and `alternates`
+   are optional (the last three are OTE 0.5+). Other config keys (`profile`,
    `publish`…) are ignored here — they belong to other tools.
    - `license` is optional per D029: a feed may omit it as long as every
      event declares its own instead. This isn't checked here — the
@@ -51,10 +52,32 @@ becomes the feed's `updatedAt`). The CLI does the I/O.
 An invalid event fails the whole build; the report names the file and the
 field (e.g. `events/2026-06.json — startDate: must be a date…`).
 
+### The feed-root rules come free with step 3
+
+Four of the spec's custom keywords can only be broken by a whole assembled
+feed, and all four run as part of that single `validateFeed` call — they are
+compiled into the validators, so there is nothing to opt into:
+
+| keyword | what it catches |
+| --- | --- |
+| `uniqueEventIds` | two events sharing one `id` |
+| `sharedOffersConsistent` | parts of one multi-part set (same `partOf.id`) whose `partOf.offers` disagree by value (D032) |
+| `eventsNotNewerThanFeed` | an event `updatedAt` later than the feed's own |
+| `eventsRespectInheritedTextLanguage` | a `translations` map duplicating the effective `textLanguage` |
+| `orderedCoverage` | a `covers` window whose `to` precedes its `from` |
+
+`sharedOffersConsistent` is the one worth knowing about: keeping
+`partOf.offers` identical by hand across every part of a conference is what
+drifts, and `--check` catches it for nothing.
+
+`covers` is additive on purpose. Omitting it means the feed claims no
+completeness window, which is exactly what every pre-0.5 feed already said —
+so adding the field changes no existing feed's meaning.
+
 ## Feed-level inheritance: `resolveEventInheritance`
 
-`organizers`, `textLanguage` and `license` can be set once on the feed and
-left off every event (replacement semantics: an event that *does* declare
+`organizers`, `textLanguage`, `license` and `contributing` can be set once
+on the feed and left off every event (replacement semantics: an event that *does* declare
 its own value overrides the feed's entirely — never merged). `feed.json`
 itself keeps that inheritance implicit (it's schema-valid either way, and
 materializing it onto every event would just be noise) — but
