@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/OpenTechEvents/ote-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenTechEvents/ote-tools/actions/workflows/ci.yml)
 [![Deploy tools site](https://github.com/OpenTechEvents/ote-tools/actions/workflows/deploy-tools.yml/badge.svg)](https://github.com/OpenTechEvents/ote-tools/actions/workflows/deploy-tools.yml)
-![OTE spec](https://img.shields.io/badge/OTE%20spec-v0.4-2563eb)
+![OTE spec](https://img.shields.io/badge/OTE%20spec-v0.6-2563eb)
 ![Node](https://img.shields.io/badge/node-%3E%3D22-339933)
 ![pnpm](https://img.shields.io/badge/pnpm-11.13.1-f69220)
 
@@ -28,8 +28,8 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 All connectors are pure functions with a thin CLI on top. They never invent
 data: a field absent in the input stays absent in the output.
 
-Most packages follow the OTE spec minor they implement (`0.4.x` speaks OTE
-spec v0.4). `migrate` is the exception and is versioned on its own: it spans
+Most packages follow the OTE spec minor they implement (`0.6.x` speaks OTE
+spec v0.6). `migrate` is the exception and is versioned on its own: it spans
 versions rather than implementing one. Each package also has its own
 changelog so fixes and improvements can be traced package by package.
 
