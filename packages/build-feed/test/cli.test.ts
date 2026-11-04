@@ -168,11 +168,22 @@ describe("ote-build-feed — OTE 0.5+ feed fields", () => {
     return root;
   }
 
-  const buildFeed = (root: string, io: CliIO): { code: number; feed: any } => {
+  /**
+   * Builds and reads back feed.json. `feed` is `{}` when the build wrote
+   * nothing, so the assertions below read as "absent" rather than having to
+   * guard a null on every line — a failed build is asserted on `code`.
+   */
+  const buildFeed = (
+    root: string,
+    io: CliIO,
+  ): { code: number; feed: Record<string, unknown> } => {
     const out = join(tempDir(), "dist");
     const code = runCli([root, "--out", out], io);
     const path = join(out, "feed.json");
-    return { code, feed: existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null };
+    return {
+      code,
+      feed: existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {},
+    };
   };
 
   it("carries contributing, covers and alternates into the feed", () => {

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { validateFeed } from "@opentechevents/validate";
+import { validateDocument } from "@opentechevents/validate";
 
 import { feedToItemList, feedToJsonLd, toJsonLdScript } from "./index.js";
 import type { OteFeed } from "./types.js";
@@ -23,13 +23,13 @@ const USAGE =
  * a `@graph` of events. `--json` emits the bare JSON-LD document instead of
  * a pasteable `<script type="application/ld+json">` block.
  */
-export function runCli(
+export async function runCli(
   argv: string[],
   io: CliIO = {
     out: (text) => console.log(text),
     err: (line) => console.error(line),
   },
-): number {
+): Promise<number> {
   const itemList = argv.includes("--item-list");
   const bare = argv.includes("--json");
   const positional = argv.filter((arg) => !arg.startsWith("--"));
@@ -58,14 +58,19 @@ export function runCli(
     return 1;
   }
 
-  const result = validateFeed(json);
-  if (!result.valid) {
+  // Measured against the version the feed declares, not the newest one. This
+  // reads a document somebody else published: judging a perfectly good 0.4
+  // feed by 0.6's rules produces one meaningless specVersion error and calls
+  // it broken — the exact bug ote-validate was fixed for (#69).
+  const report = await validateDocument(json, { kind: "feed" });
+  if (!report.valid) {
     io.err(`✗ ${input} — not a valid OTE feed`);
-    for (const error of result.errors) {
+    for (const error of report.errors) {
       io.err(`    ${error.path}: ${error.message}`);
     }
     return 1;
   }
+  for (const notice of report.notices) io.err(`    note: ${notice.message}`);
 
   const feed = json as OteFeed;
   const document = itemList ? feedToItemList(feed) : feedToJsonLd(feed);

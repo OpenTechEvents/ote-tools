@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { validateFeed } from "@opentechevents/validate";
+import { validateDocument } from "@opentechevents/validate";
 
 import { feedToIcs } from "./index.js";
 import type { OteFeed } from "./types.js";
@@ -18,13 +18,13 @@ const USAGE = "Usage: ote-export-ics <feed.json> [output.ics]";
  * the given output path (or stdout when omitted). Returns the exit code:
  * 0 = exported · 1 = invalid JSON or invalid feed · 2 = usage or I/O error.
  */
-export function runCli(
+export async function runCli(
   argv: string[],
   io: CliIO = {
     out: (text) => console.log(text),
     err: (line) => console.error(line),
   },
-): number {
+): Promise<number> {
   const [input, output, ...rest] = argv;
   if (!input || rest.length > 0) {
     io.err(USAGE);
@@ -47,14 +47,19 @@ export function runCli(
     return 1;
   }
 
-  const result = validateFeed(json);
-  if (!result.valid) {
+  // Measured against the version the feed declares, not the newest one. This
+  // reads a document somebody else published: judging a perfectly good 0.4
+  // feed by 0.6's rules produces one meaningless specVersion error and calls
+  // it broken — the exact bug ote-validate was fixed for (#69).
+  const report = await validateDocument(json, { kind: "feed" });
+  if (!report.valid) {
     io.err(`✗ ${input} — not a valid OTE feed`);
-    for (const error of result.errors) {
+    for (const error of report.errors) {
       io.err(`    ${error.path}: ${error.message}`);
     }
     return 1;
   }
+  for (const notice of report.notices) io.err(`    note: ${notice.message}`);
 
   const feed = json as OteFeed;
   const ics = feedToIcs(feed);

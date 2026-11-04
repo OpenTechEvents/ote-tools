@@ -21,48 +21,79 @@ function makeIO(): CliIO & { outLines: string[]; errLines: string[] } {
 }
 
 describe("ote-export-rss CLI", () => {
-  it("valid feed without output path → RSS on stdout, exit 0", () => {
+  it("valid feed without output path → RSS on stdout, exit 0", async () => {
     const io = makeIO();
-    expect(runCli([fixture], io)).toBe(0);
+    expect(await runCli([fixture], io)).toBe(0);
     expect(io.errLines).toEqual([]);
     expect(io.outLines[0]).toContain('<rss version="2.0"');
     expect(io.outLines[0]).toContain("</rss>");
   });
 
-  it("valid feed with output path → writes the file, exit 0", () => {
+  it("valid feed with output path → writes the file, exit 0", async () => {
     const io = makeIO();
     const out = join(mkdtempSync(join(tmpdir(), "ote-export-rss-")), "feed.xml");
-    expect(runCli([fixture, out], io)).toBe(0);
+    expect(await runCli([fixture, out], io)).toBe(0);
     expect(readFileSync(out, "utf8")).toContain('<rss version="2.0"');
     expect(io.outLines[0]).toContain("8 events");
   });
 
-  it("invalid feed → exit 1 with validation errors", () => {
+  it("invalid feed → exit 1 with validation errors", async () => {
     const io = makeIO();
     const dir = mkdtempSync(join(tmpdir(), "ote-export-rss-bad-"));
     const file = join(dir, "not-a-feed.json");
     writeFileSync(file, JSON.stringify({ events: [] }), "utf8");
-    expect(runCli([file], io)).toBe(1);
+    expect(await runCli([file], io)).toBe(1);
     expect(io.errLines[0]).toContain("not a valid OTE feed");
   });
 
-  it("malformed JSON → exit 1 with parse message", () => {
+  it("malformed JSON → exit 1 with parse message", async () => {
     const io = makeIO();
     const dir = mkdtempSync(join(tmpdir(), "ote-export-rss-json-"));
     const file = join(dir, "broken.json");
     writeFileSync(file, "{ not json", "utf8");
-    expect(runCli([file], io)).toBe(1);
+    expect(await runCli([file], io)).toBe(1);
     expect(io.errLines[0]).toContain("invalid JSON");
   });
 
-  it("no arguments → exit 2 with usage", () => {
+  it("no arguments → exit 2 with usage", async () => {
     const io = makeIO();
-    expect(runCli([], io)).toBe(2);
+    expect(await runCli([], io)).toBe(2);
     expect(io.errLines[0]).toContain("Usage:");
   });
 
-  it("nonexistent input → exit 2", () => {
+  it("nonexistent input → exit 2", async () => {
     const io = makeIO();
-    expect(runCli(["/no/such.json"], io)).toBe(2);
+    expect(await runCli(["/no/such.json"], io)).toBe(2);
+  });
+  it("accepts a feed that declares an older but supported version", async () => {
+    // #69, and the bug the 0.6 pin turned from latent into live: these CLIs
+    // read documents they did not write, so judging one by the newest rules
+    // rejects a feed `ote-validate` calls valid. Measured against what it
+    // declares, with the version note on stderr rather than as an error.
+    const io = makeIO();
+    const dir = mkdtempSync(join(tmpdir(), "ote-export-older-"));
+    const file = join(dir, "feed-0.4.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        specVersion: "0.4.0",
+        title: "PyAlmería",
+        license: "CC-BY-4.0",
+        updatedAt: "2026-01-01T00:00:00Z",
+        events: [
+          {
+            id: "https://pyalmeria.example/e/1",
+            name: "Async",
+            startDate: "2026-06-11T18:30",
+            timezone: "Europe/Madrid",
+            location: { venue: "Sala" },
+          },
+        ],
+      }),
+      "utf8",
+    );
+    expect(await runCli([file], io)).toBe(0);
+    expect(io.errLines.join(" ")).toContain("supported release");
   });
 });
+
