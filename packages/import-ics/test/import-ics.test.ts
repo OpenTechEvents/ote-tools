@@ -330,3 +330,138 @@ describe("icsToEvents · non-ASCII IRI", () => {
     expect(events[0].name).toBe("PyCamp España — edición de otoño");
   });
 });
+
+describe("the id it mints (spec D040)", () => {
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "X-WR-TIMEZONE:Europe/Madrid",
+    "BEGIN:VEVENT",
+    "UID:a1b2c3d4-uid-from-the-ics",
+    "DTSTART;TZID=Europe/Madrid:20260626T190000",
+    "DTEND;TZID=Europe/Madrid:20260626T210000",
+    "SUMMARY:Rust Madrid — June meetup",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  it("rule 1: a domain the community controls wins", () => {
+    const { events } = icsToEvents(ics, { idBase: "https://rustmadrid.example/events" });
+    expect(events[0].id).toBe(
+      "https://rustmadrid.example/events/2026-06-26-rust-madrid-june-meetup",
+    );
+  });
+
+  it("rule 1 beats rule 2 when both are available", () => {
+    const { events } = icsToEvents(ics, {
+      idBase: "https://rustmadrid.example/events",
+      sourceUrl: "https://calendar.example/ics/rust-madrid",
+    });
+    expect(events[0].id).toContain("rustmadrid.example");
+  });
+
+  it("rule 2: <sourceUrl>#<UID> only when there is no such domain", () => {
+    // Byte for byte what spec/v0.6/examples/event-from-ics.json carries.
+    const { events } = icsToEvents(ics, {
+      sourceUrl: "https://calendar.example/ics/rust-madrid",
+    });
+    expect(events[0].id).toBe(
+      "https://calendar.example/ics/rust-madrid#a1b2c3d4-uid-from-the-ics",
+    );
+  });
+
+  it("rule 3: neither given means no id, and a warning naming both routes", () => {
+    const { events, warnings } = icsToEvents(ics);
+    expect(events[0].id).toBeUndefined();
+    const warning = warnings.find((w) => w.field === "id");
+    expect(warning?.message).toContain("--id-base");
+    expect(warning?.message).toContain("--source-url");
+  });
+
+  it("every minted id says it is permanent", () => {
+    // The whole hazard of D040: re-minting gives every consumer that stored
+    // the old id a second copy, with no way to relate the two and no
+    // migration path. The warning is the only moment to say so.
+    for (const options of [
+      { idBase: "https://rustmadrid.example/events" },
+      { sourceUrl: "https://calendar.example/ics/rust-madrid" },
+    ]) {
+      const { warnings } = icsToEvents(ics, options);
+      expect(warnings.find((w) => w.field === "id")?.message).toMatch(
+        /PERMANENT|permanent/,
+      );
+    }
+  });
+
+  it("the slug folds accents instead of stripping them", () => {
+    const almeria = ics.replace("Rust Madrid — June meetup", "PyAlmería en junio");
+    const { events } = icsToEvents(almeria, { idBase: "https://py.example/e" });
+    // "almera" would be the wrong word.
+    expect(events[0].id).toBe("https://py.example/e/2026-06-26-pyalmeria-en-junio");
+  });
+
+  it("a trailing slash on idBase does not double up", () => {
+    const { events } = icsToEvents(ics, { idBase: "https://rustmadrid.example/events/" });
+    expect(events[0].id).not.toContain("//2026");
+  });
+});
+
+describe("a link rescued from an HTML DESCRIPTION (spec #18)", () => {
+  const withDescription = (description: string, extra = ""): string =>
+    [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:u1",
+      "DTSTART;TZID=Europe/Madrid:20260626T190000",
+      "SUMMARY:Meetup",
+      extra,
+      `DESCRIPTION:${description}`,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ]
+      .filter(Boolean)
+      .join("\r\n");
+
+  it("promotes the first off-host link when there is no URL property", () => {
+    // Not one event in the 871-event Google Calendar export had a URL
+    // property, so this is the normal case rather than the exotic one.
+    const { events, warnings } = icsToEvents(
+      withDescription('Ven a <a href="https://rustmadrid.example/junio">la web</a>'),
+    );
+    expect(events[0].url).toBe("https://rustmadrid.example/junio");
+    expect(warnings.some((w) => w.field === "url")).toBe(true);
+  });
+
+  it("never lets that link become the id", () => {
+    // A wrong url is corrected by the next import; a wrong id is a duplicate
+    // forever. The two must not share a source.
+    const { events } = icsToEvents(
+      withDescription('<a href="https://rustmadrid.example/junio">la web</a>'),
+    );
+    expect(events[0].id).toBeUndefined();
+  });
+
+  it("a real URL property always wins over the description", () => {
+    const { events } = icsToEvents(
+      withDescription('<a href="https://sponsor.example">patrocinador</a>', "URL:https://real.example/e"),
+    );
+    expect(events[0].url).toBe("https://real.example/e");
+  });
+
+  it("skips links back to the calendar's own host", () => {
+    const { events } = icsToEvents(
+      withDescription(
+        '<a href="https://calendar.example/help">ayuda</a> y <a href="https://rustmadrid.example/junio">la web</a>',
+      ),
+      { sourceUrl: "https://calendar.example/ics/rust-madrid" },
+    );
+    expect(events[0].url).toBe("https://rustmadrid.example/junio");
+  });
+
+  it("a plain-text description promotes nothing", () => {
+    const { events } = icsToEvents(withDescription("Just text, no markup at all"));
+    expect(events[0].url).toBeUndefined();
+  });
+});
+

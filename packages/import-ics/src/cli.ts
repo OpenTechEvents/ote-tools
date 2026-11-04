@@ -9,10 +9,14 @@ export interface CliIO {
 }
 
 const USAGE =
-  "Usage: ote-import-ics [--tz <IANA zone>] [--public] <calendar.ics|->\n" +
+  "Usage: ote-import-ics [--tz <zone>] [--public] [--id-base <url>] [--source-url <url>] <calendar.ics|->\n" +
   "  -            read the calendar from stdin\n" +
   "  --tz <zone>  timezone for all-day events, which iCalendar cannot carry\n" +
   "               (default: the calendar's X-WR-TIMEZONE, else UTC)\n" +
+  "  --id-base <url>     mint each id as <url>/<date>-<slug> on a domain the\n" +
+  "                      community controls (spec D040). PERMANENT once published.\n" +
+  "  --source-url <url>  where this .ics came from; used for source, and for the\n" +
+  "                      <url>#<UID> id fallback when --id-base is absent\n" +
   "  --public     this .ics is itself publicly published, so ORGANIZER's\n" +
   "               email may be imported. Omit it for anything shared by link,\n" +
   "               a company calendar or a private export.";
@@ -45,6 +49,21 @@ export function runCli(
   const isPublic = publicIndex !== -1;
   if (isPublic) rest.splice(publicIndex, 1);
 
+  const takeValue = (flag: string): string | undefined | null => {
+    const index = rest.indexOf(flag);
+    if (index === -1) return undefined;
+    const value = rest[index + 1];
+    if (!value || value.startsWith("-")) return null;
+    rest.splice(index, 2);
+    return value;
+  };
+  const idBase = takeValue("--id-base");
+  const sourceUrl = takeValue("--source-url");
+  if (idBase === null || sourceUrl === null) {
+    io.err(USAGE);
+    return 2;
+  }
+
   const tzIndex = rest.indexOf("--tz");
   let timezone: string | undefined;
   if (tzIndex !== -1) {
@@ -74,6 +93,8 @@ export function runCli(
   const result = icsToEvents(ics, {
     ...(timezone ? { allDayTimezonePolicy: timezone } : {}),
     ...(isPublic ? { sourceVisibility: "public" as const } : {}),
+    ...(idBase ? { idBase } : {}),
+    ...(sourceUrl ? { sourceUrl } : {}),
   });
   io.out(JSON.stringify(result, null, 2));
   return result.events.length > 0 ? 0 : 1;

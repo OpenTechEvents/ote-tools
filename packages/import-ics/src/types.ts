@@ -98,4 +98,24 @@ export interface IcsToEventsOptions {
    * from a private or link-shared calendar. Default: "unknown" (no email).
    */
   sourceVisibility?: "public" | "private" | "unknown";
+  /**
+   * Base URI on a domain the community controls, used to mint each event's
+   * `id` as `<idBase>/<YYYY-MM-DD>-<slug of name>` (spec D040, rule 1).
+   *
+   * **An id minted here is permanent.** It is the whole mechanism by which a
+   * consumer updates an event instead of duplicating it, and there is no
+   * migration path: re-minting gives every consumer that stored the old one a
+   * second copy with no way to relate them. The slug is derived from the
+   * event's name, so renaming the event later and re-importing would produce
+   * a *different* id — keep the first one. Every minted id carries a warning
+   * saying so.
+   */
+  idBase?: string;
+  /**
+   * Where this `.ics` was fetched from. Used for `source.url`, and — only
+   * when `idBase` is absent — to mint `id` as `<sourceUrl>#<UID>`, D040's
+   * rule 2 fallback. That form is stable by construction: an iCalendar `UID`
+   * does not change, so unlike the `idBase` slug it cannot drift.
+   */
+  sourceUrl?: string;
 }

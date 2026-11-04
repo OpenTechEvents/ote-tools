@@ -172,11 +172,6 @@ interface EventWarning {
 /** Fields ICS structurally cannot carry: warned about on every event. */
 const UNMODELED: ReadonlyArray<EventWarning> = [
   {
-    field: "id",
-    message:
-      "not imported: an ICS UID is not an OTE id — mint a stable URI under your domain",
-  },
-  {
     field: "attendanceMode",
     message: "iCalendar does not model attendance mode; set it if known",
   },
@@ -185,6 +180,118 @@ const UNMODELED: ReadonlyArray<EventWarning> = [
     message: "iCalendar does not model event languages; set them if known",
   },
 ];
+
+/**
+ * `"Rust Madrid — June meetup"` → `"rust-madrid-june-meetup"`.
+ *
+ * Accents are folded rather than stripped, so "Almería" stays "almeria" and
+ * not "almera". Anything that is not a letter or digit becomes a separator.
+ */
+function slugify(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * The `id` for an imported event, following spec D040's order.
+ *
+ * 1. `idBase` — a domain the community controls — plus the date and a slug
+ *    of the name.
+ * 2. `<sourceUrl>#<UID>`, only when there is no such domain.
+ * 3. Nothing, and a warning: there is no third source that is not a guess.
+ *
+ * Returns the warning alongside, because **both minted forms are permanent**
+ * and the caller has to be told once, at the moment it happens, rather than
+ * discovering it when a rename silently duplicates every event.
+ */
+function mintId(
+  name: string | undefined,
+  startDate: string | undefined,
+  uid: string | undefined,
+  options: { idBase?: string; sourceUrl?: string },
+): { id?: string; warning: EventWarning } {
+  if (options.idBase !== undefined && name && startDate) {
+    const base = options.idBase.replace(/\/+$/, "");
+    const day = startDate.slice(0, 10);
+    const id = `${base}/${day}-${slugify(name)}`;
+    return {
+      id,
+      warning: {
+        field: "id",
+        message:
+          `minted "${id}" under the domain you gave (spec D040). This id is now ` +
+          `PERMANENT: it is how a consumer updates this event instead of duplicating ` +
+          `it, and there is no migration path. The slug comes from the event's name, ` +
+          `so if the name changes later, keep this id — do not re-import and adopt a new one`,
+      },
+    };
+  }
+  if (options.sourceUrl !== undefined && uid) {
+    const id = `${options.sourceUrl}#${uid}`;
+    return {
+      id,
+      warning: {
+        field: "id",
+        message:
+          `minted "${id}" from the calendar URL and the event's UID, D040's fallback ` +
+          `for when there is no domain the community controls. Stable, because a UID ` +
+          `does not change — but if the community does have its own domain, pass it ` +
+          `instead: this id is permanent either way and cannot be swapped later`,
+      },
+    };
+  }
+  return {
+    warning: {
+      field: "id",
+      message:
+        "not imported: an ICS UID is not an OTE id. Mint a stable URI under a domain " +
+        "the community controls (pass idBase / --id-base), or failing that pass the " +
+        "calendar's URL (--source-url) for the <url>#<UID> fallback. Whatever is " +
+        "chosen is permanent — re-minting duplicates the event for every consumer",
+    },
+  };
+}
+
+/**
+ * The first off-host HTTP(S) link inside an HTML `DESCRIPTION`.
+ *
+ * With no `URL` property — which is every Google Calendar export checked —
+ * the event's real page is usually the first link in the description.
+ * Spec #18 says it **MAY** be promoted to `url`, and never to `id`: a wrong
+ * `url` is corrected by the next import, a wrong `id` is a duplicate forever.
+ *
+ * "Off-host" is relative to the calendar's own URL when one is known, so a
+ * link back to the calendar provider is not mistaken for the event's page.
+ */
+function firstOffHostLink(html: string, sourceUrl: string | undefined): string | undefined {
+  let host: string | undefined;
+  if (sourceUrl !== undefined) {
+    try {
+      host = new URL(sourceUrl).host;
+    } catch {
+      // Not a parseable URL: treat every link as off-host rather than none.
+    }
+  }
+  const re = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const href = match[1]!.trim();
+    if (!/^https?:\/\//i.test(href)) continue;
+    if (host !== undefined) {
+      try {
+        if (new URL(href).host === host) continue;
+      } catch {
+        continue;
+      }
+    }
+    return href;
+  }
+  return undefined;
+}
 
 interface AllDayTimezone {
   timezone: string;
@@ -196,6 +303,7 @@ function convertVevent(
   vevent: IcsComponent,
   allDayTimezone: AllDayTimezone,
   sourceVisibility: "public" | "private" | "unknown",
+  idOptions: { idBase?: string; sourceUrl?: string },
 ): {
   event: PartialOteEvent;
   warnings: EventWarning[];
@@ -212,6 +320,8 @@ function convertVevent(
     warnings.push({ field: "name", message: "the VEVENT has no SUMMARY" });
   }
 
+  /** Kept when DESCRIPTION was HTML, so a link can be rescued from it below. */
+  let descriptionHtml: string | undefined;
   const description = first(vevent, "DESCRIPTION");
   if (description && description.value !== "") {
     const unescaped = unescapeText(description.value);
@@ -225,6 +335,7 @@ function convertVevent(
         message:
           "DESCRIPTION contained HTML and was converted to Markdown — review the result",
       });
+      descriptionHtml = unescaped;
     } else {
       event.description = unescaped;
     }
@@ -337,7 +448,22 @@ function convertVevent(
   if (Object.keys(location).length > 0) event.location = location;
 
   const url = first(vevent, "URL");
-  if (url && url.value !== "") event.url = url.value;
+  if (url && url.value !== "") {
+    event.url = url.value;
+  } else if (descriptionHtml !== undefined) {
+    // No URL property — the normal case for a Google Calendar export, where
+    // not one event in an 871-event sample had one. Spec #18 allows rescuing
+    // the first off-host link from the description before the tags are
+    // dropped. Never the id: a wrong url is fixed by the next import.
+    const link = firstOffHostLink(descriptionHtml, idOptions.sourceUrl);
+    if (link !== undefined) {
+      event.url = link;
+      warnings.push({
+        field: "url",
+        message: `the calendar carries no URL property, so "${link}" was taken from the first link in DESCRIPTION — check it is the event's page and not a sponsor or a map`,
+      });
+    }
+  }
 
   const tags = all(vevent, "CATEGORIES")
     .flatMap((p) => (p.values.length > 1 ? p.values : splitEscaped(p.value, ",")))
@@ -409,6 +535,13 @@ function convertVevent(
     });
   }
 
+  // Minted last, so the name and startDate it derives from are whatever the
+  // rest of this function settled on rather than the raw property values.
+  const uid = first(vevent, "UID")?.value;
+  const minted = mintId(event.name, event.startDate, uid, idOptions);
+  if (minted.id !== undefined) event.id = minted.id;
+  warnings.push(minted.warning);
+
   return { event, warnings };
 }
 
@@ -473,6 +606,7 @@ export function icsToEvents(
       vevent,
       allDayTimezone,
       sourceVisibility,
+      { idBase: options.idBase, sourceUrl: options.sourceUrl },
     );
     const eventIndex = events.length;
     events.push(event);

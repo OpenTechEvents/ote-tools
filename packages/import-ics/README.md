@@ -87,6 +87,31 @@ count as absent. iCalendar has no equivalent at all for `cfp`, `eligibility`,
 `offers` or `partOf` — these are never set, and no warning is emitted (there's
 nothing to warn about; the source format simply cannot express them).
 
+## The `id` it mints (spec D040)
+
+`.ics` has no `URL` property in practice — in an 871-event Google Calendar
+export, not one event had one — so the `id` has to be minted, and **that
+choice is permanent**. It is the whole mechanism by which a consumer updates
+an event instead of acquiring a second copy of it, and there is no migration
+path. The order:
+
+| | |
+| --- | --- |
+| `--id-base <url>` / `idBase` | `<base>/<YYYY-MM-DD>-<slug of name>`, on a domain the community controls |
+| `--source-url <url>` / `sourceUrl` | `<url>#<UID>`, only when there is no such domain |
+| neither | no `id`, and a warning naming both routes |
+
+**Re-minting is the failure to avoid.** An importer that minted from the
+calendar URL and later learns the community's domain must *keep the first
+id*: every consumer holding the old one gets a duplicate with no way to
+relate the two. Both minted forms carry a warning saying so, at the moment it
+happens rather than when it bites.
+
+The two differ in how they can drift. `<url>#<UID>` is stable by
+construction — an iCalendar `UID` does not change. The `idBase` form derives
+its slug from the event's **name**, so renaming the event and re-importing
+would produce a different id; keep the first one.
+
 ## Decisions worth knowing
 
 - **Dates.** Timed values keep their wall clock, truncated to `HH:MM` — OTE's
