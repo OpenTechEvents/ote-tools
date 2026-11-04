@@ -585,6 +585,19 @@ const FIELD_SPECS: Record<string, FieldSpec> = {
       },
     ],
   },
+  contributing: {
+    label: "Report a data problem",
+    note: "Usually left empty: the event inherits the feed's own address.",
+    info: "Where someone who spots a wrong date or a dead link should say so — an issue tracker, a form, or a mailto: role address (hello@, corrections@ — never a personal mailbox). Set it in Feed settings once and every event inherits it; filling it in here overrides that for this event only, which is what an aggregated event pointing at its own upstream needs.",
+    controls: [
+      {
+        key: "contributing",
+        label: "",
+        kind: "text",
+        placeholder: "https://github.com/…/issues/new  ·  mailto:hello@…",
+      },
+    ],
+  },
   updatedAt: {
     label: "Updated at",
     note: "Instant the event's data last changed (ISO-8601 with offset).",
@@ -1290,7 +1303,16 @@ interface RepeaterSpec {
   itemFields: readonly RepeaterItemField[];
 }
 
-export type RepeaterKey = "organizers" | "image" | "offers";
+export type RepeaterKey =
+  | "organizers"
+  | "speakers"
+  | "recordings"
+  | "image"
+  | "offers"
+  /** The multi-part shared admission (`partOf.offers`) — same row shape as `offers`. */
+  | "partOfOffers"
+  /** Feed-level only (`feed.alternates` in ote.config.json), rendered by the Feed settings view — deliberately absent from FIELD_REGISTRY, since no event carries it. */
+  | "alternates";
 
 const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
   organizers: {
@@ -1353,6 +1375,14 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
     info: "One entry per ticket tier — a free event is a single offer with price 0. Absent means unknown, never free: price 0 is the only way to say \"free\".",
     itemFields: [
       {
+        key: "scope",
+        label: "Scope",
+        kind: "select",
+        size: "s",
+        options: ["", "admission", "add-on"],
+        info: "Only meaningful for one part of a multi-part event. admission (what an empty value means): a complete way to attend this part. add-on: an EXTRA charge on top of the set's shared admission — which has to be filled in under Shared admission below, in this same document.",
+      },
+      {
         key: "name",
         label: "Name",
         kind: "text",
@@ -1412,6 +1442,177 @@ const REPEATER_SPECS: Record<RepeaterKey, RepeaterSpec> = {
         kind: "instant",
         size: "l",
         info: "When this tier stops being available (sale ends) — not the event's own end.",
+      },
+    ],
+  },
+  speakers: {
+    label: "Speakers",
+    addLabel: "+ Add speaker",
+    note: "Name and affiliation are two fields on purpose — never one.",
+    info: "Who gives the talk(s). Deliberately small, like Organizers: a name, where they are there as, and where to find them.",
+    itemFields: [
+      {
+        key: "name",
+        label: "Name",
+        kind: "text",
+        size: "l",
+        placeholder: "Ada Lovelace",
+        info: "The PERSON, and nothing else — no employer, no job title. A name carrying its company (\"Ada Lovelace, Igalia\") stops matching the same person anywhere else; the company goes in Affiliation, next to it.",
+      },
+      {
+        key: "affiliation",
+        label: "Affiliation",
+        kind: "text",
+        size: "l",
+        placeholder: "Igalia",
+        info: "The organisation this speaker is there as, as an agenda would print it. One display name, not a second organisation to describe — if it needs a URL of its own it's probably an organizer or a sponsor. Ignored for type \"organization\", where the name already IS the organisation.",
+      },
+      {
+        key: "url",
+        label: "URL",
+        kind: "url",
+        placeholder: "https://…",
+        size: "l",
+        info: "Their canonical page — own site, or main profile. Other profiles go in Other profiles below.",
+      },
+      {
+        key: "type",
+        label: "Type",
+        kind: "select",
+        size: "s",
+        options: ["", "person", "organization"],
+        info: "Person or organisation; defaults to person, which is the tolerant choice for a speaker.",
+      },
+      {
+        key: "sameAs",
+        label: "Other profiles",
+        kind: "text",
+        size: "full",
+        placeholder: "https://fosstodon.org/@ada, https://www.linkedin.com/in/ada",
+        info: "Other profile pages for this SAME person — Mastodon, LinkedIn, GitHub — separated by commas. HTTP(S) pages only: a handle or a DID is an identifier, not a page.",
+      },
+    ],
+  },
+  recordings: {
+    label: "Recordings",
+    addLabel: "+ Add recording",
+    note: "Added after the event: same event, same id — just bump Updated at.",
+    info: "Where the event can be watched now that it happened. Not the live joining link (that's Online URL) and not the poster (that's Images). A list, since a talk may be on more than one platform or split into parts. Titles are only worth writing once there's more than one.",
+    itemFields: [
+      {
+        key: "url",
+        label: "URL",
+        kind: "url",
+        placeholder: "https://…",
+        size: "l",
+        info: "Where the recording can be watched. Unlike an image, a watch page (YouTube, PeerTube) is fine here — it needn't be the media file itself.",
+      },
+      {
+        key: "title",
+        label: "Title",
+        kind: "text",
+        size: "l",
+        placeholder: "Full session",
+        info: "What this particular recording is — \"Q&A\", \"Full session\", \"Lightning talks\". Noise when the list has only one entry.",
+      },
+    ],
+  },
+  partOfOffers: {
+    label: "Shared admission (multi-part)",
+    addLabel: "+ Add shared tier",
+    note: "The price of attending the WHOLE set — repeat it identically on every part.",
+    info: "One admission covering every part of a multi-part event (a conference's talks, a study jam's sessions), so a consumer holding a single part can price it without resolving the parent. Needs Part of (series) filled in above. The parts of one set must carry byte-identical blocks here — the validator compares them by value — and a part with no offers of its own is then read as covered by this admission.",
+    itemFields: [
+      {
+        key: "name",
+        label: "Name",
+        kind: "text",
+        placeholder: "General admission",
+        size: "l",
+        info: "What this tier is called — \"General admission\", \"Early bird\", \"Student\"…",
+      },
+      {
+        key: "price",
+        label: "Price",
+        kind: "number",
+        placeholder: "0",
+        size: "s",
+        info: "0 means free. Leave empty only when the price itself is unknown — that's not the same as free.",
+      },
+      {
+        key: "currency",
+        label: "Currency",
+        kind: "select",
+        size: "s",
+        options: ["", ...CURRENCY_CODES],
+        info: "ISO 4217 code — expected alongside a non-zero price.",
+      },
+      {
+        key: "url",
+        label: "URL",
+        kind: "url",
+        size: "full",
+        info: "Where to buy or register for this specific tier.",
+      },
+      {
+        key: "availability",
+        label: "Availability",
+        kind: "select",
+        size: "s",
+        options: ["", "in-stock", "sold-out"],
+        info: "sold-out reveals a Waitlist URL below. Leave empty when unknown.",
+      },
+      {
+        key: "waitlistUrl",
+        label: "Waitlist URL",
+        kind: "url",
+        size: "l",
+        visibleWhen: { key: "availability", values: ["sold-out"] },
+        info: "Where interested people can join the waitlist once this tier sells out.",
+      },
+      {
+        key: "opensAt",
+        label: "Opens at",
+        kind: "instant",
+        size: "l",
+        info: "When this tier becomes available for purchase — not the event's own start.",
+      },
+      {
+        key: "closesAt",
+        label: "Closes at",
+        kind: "instant",
+        size: "l",
+        info: "When this tier stops being available (sale ends) — not the event's own end.",
+      },
+    ],
+  },
+  alternates: {
+    label: "Other formats",
+    addLabel: "+ Add format",
+    info: "Where this same collection is published in other formats — RSS, iCalendar, schema.org JSON-LD. Informational: OTE promises nothing about them being in sync, only that they're meant to describe the same collection.",
+    itemFields: [
+      {
+        key: "mediaType",
+        label: "Media type",
+        kind: "select",
+        size: "l",
+        options: [
+          "",
+          "application/rss+xml",
+          "application/atom+xml",
+          "application/feed+json",
+          "text/calendar",
+          "application/ld+json",
+        ],
+        info: "IANA media type of that representation. No parameters — \"application/rss+xml\", never \"application/rss+xml; charset=utf-8\". A client renders \"RSS\"/\"iCalendar\" in the reader's own language from this, which is why there's no title to write.",
+      },
+      {
+        key: "url",
+        label: "URL",
+        kind: "url",
+        size: "l",
+        placeholder: "https://…/events.rss",
+        info: "Absolute URL of that representation.",
       },
     ],
   },
@@ -2395,7 +2596,9 @@ export type TranslationsPatch = Partial<
     FormState,
     | "translations"
     | "image"
+    | "recordings"
     | "offers"
+    | "partOfOffers"
     | "eligibilityNoteTranslations"
     | "partOfNameTranslations"
   >
@@ -2414,7 +2617,13 @@ function translationLanguages(state: FormState): string[] {
   for (const row of state.image) {
     for (const lang of Object.keys(row.translations)) langs.add(lang);
   }
+  for (const row of state.recordings) {
+    for (const lang of Object.keys(row.translations)) langs.add(lang);
+  }
   for (const row of state.offers) {
+    for (const lang of Object.keys(row.translations)) langs.add(lang);
+  }
+  for (const row of state.partOfOffers) {
     for (const lang of Object.keys(row.translations)) langs.add(lang);
   }
   for (const lang of Object.keys(state.eligibilityNoteTranslations)) langs.add(lang);
@@ -2792,6 +3001,52 @@ function renderLanguageCard(
     );
   });
 
+  state.recordings.forEach((row, i) => {
+    if (!row.title) return;
+    fields.append(
+      renderTranslationSlot(
+        t("ui.translations.slot.recordingTitle", "Recording {n} title").replace(
+          "{n}",
+          String(i + 1),
+        ),
+        row.title,
+        row.translations[lang] ?? "",
+        false,
+        (v) => {
+          onCommit({
+            recordings: state.recordings.map((r, j) =>
+              j === i ? { ...r, translations: { ...r.translations, [lang]: v } } : r,
+            ),
+          });
+        },
+        describedBy,
+      ),
+    );
+  });
+
+  state.partOfOffers.forEach((row, i) => {
+    if (!row.name) return;
+    fields.append(
+      renderTranslationSlot(
+        t("ui.translations.slot.sharedOfferName", "Shared tier {n} name").replace(
+          "{n}",
+          String(i + 1),
+        ),
+        row.name,
+        row.translations[lang] ?? "",
+        false,
+        (v) => {
+          onCommit({
+            partOfOffers: state.partOfOffers.map((r, j) =>
+              j === i ? { ...r, translations: { ...r.translations, [lang]: v } } : r,
+            ),
+          });
+        },
+        describedBy,
+      ),
+    );
+  });
+
   state.offers.forEach((row, i) => {
     if (!row.name) return;
     fields.append(
@@ -2852,7 +3107,7 @@ function renderLanguageCard(
     empty.className = "note";
     empty.textContent = t(
       "ui.translations.empty",
-      "Nothing to translate yet — fill in the event's name (or any image, offer, eligibility note or series name you want translated) first.",
+      "Nothing to translate yet — fill in the event's name (or any image, recording, offer, eligibility note or series name you want translated) first.",
     );
     fields.append(empty);
   }
@@ -2869,7 +3124,8 @@ function renderLanguageCard(
  * empty just-added language has no data of its own to be discovered from),
  * commits edits via onCommit, and exposes refresh() so main.ts can ask it
  * to re-derive its slot list after an edit made elsewhere in the form (an
- * image alt, an offer name, eligibility note, part-of name) — renderForm
+ * image alt, a recording title, an offer name, eligibility note, part-of
+ * name) — renderForm
  * isn't re-run on every keystroke, so this can't rely on being remounted.
  */
 function renderTranslationsSection(
@@ -3358,6 +3614,12 @@ function fieldHasData(id: string, state: FormState): boolean {
       return state.organizers.length > 0;
     case "image":
       return state.image.length > 0;
+    case "speakers":
+      return state.speakers.length > 0;
+    case "recordings":
+      return state.recordings.length > 0;
+    case "partOfOffers":
+      return state.partOfOffers.length > 0;
     case "eligibility":
       return !!(state.eligibilityType || state.eligibilityNote || state.eligibilityUrl);
     case "partOf":
@@ -3374,10 +3636,9 @@ function fieldHasData(id: string, state: FormState): boolean {
 }
 
 function fieldLabel(id: string): string {
-  const fallback =
-    id === "organizers" || id === "image"
-      ? REPEATER_SPECS[id as RepeaterKey].label
-      : FIELD_SPECS[id].label;
+  const fallback = REPEATER_KEYS.has(id)
+    ? REPEATER_SPECS[id as RepeaterKey].label
+    : FIELD_SPECS[id].label;
   return t(`field.${id}.label`, fallback);
 }
 
@@ -3514,10 +3775,10 @@ function renderChippableSection(
 
   function renderOne(id: string): HTMLElement {
     let inner: HTMLElement;
-    if (id === "organizers" || id === "image") {
+    if (REPEATER_KEYS.has(id)) {
       inner = renderRepeaterField(
-        id,
-        state[id] as unknown as Record<string, string>[],
+        id as RepeaterKey,
+        state[id as StateKey] as unknown as Record<string, string>[],
         onArrayInput,
         () => state.timezone,
       );
@@ -3550,7 +3811,7 @@ function renderChippableSection(
 
     return wrapRemovable(inner, fieldLabel(id), () => {
       active.delete(id);
-      if (id === "organizers" || id === "image") onArrayInput(id as RepeaterKey, []);
+      if (REPEATER_KEYS.has(id)) onArrayInput(id as RepeaterKey, []);
       else clearField(id, onInput);
       renderBlocks();
       renderPicker();
@@ -3589,7 +3850,7 @@ function renderChippableSection(
         // `active`'s seeding above) — seed one row so the organizer can
         // start typing immediately instead of finding an empty block with
         // its own separate "+ Add" button to click first.
-        if (id === "organizers" || id === "image") {
+        if (REPEATER_KEYS.has(id)) {
           onArrayInput(id as RepeaterKey, [emptyRepeaterRow(id as RepeaterKey)]);
         }
         renderBlocks();
@@ -3614,7 +3875,7 @@ function renderChippableSection(
           for (const id of notActive) {
             active.add(id);
             autoAdded.add(id);
-            if (id === "organizers" || id === "image") {
+            if (REPEATER_KEYS.has(id)) {
               onArrayInput(id as RepeaterKey, [emptyRepeaterRow(id as RepeaterKey)]);
             }
           }
@@ -3764,14 +4025,59 @@ export function renderForm(
       // its own "×" already, so removing every offer needs no extra
       // block-level control (unlike cfp below, which has no rows of its
       // own to remove).
-      details.append(
-        renderRepeaterField(
-          "offers",
-          state.offers as unknown as Record<string, string>[],
-          onArrayInput,
-          () => state.timezone,
-        ),
-      );
+      if (fieldIds.includes("offers")) {
+        details.append(
+          renderRepeaterField(
+            "offers",
+            state.offers as unknown as Record<string, string>[],
+            onArrayInput,
+            () => state.timezone,
+          ),
+        );
+      }
+      // The set's shared admission, on the other hand, applies to a small
+      // minority of documents (one part of a multi-part event), so it stays
+      // behind a chip even inside an opened Tickets section — otherwise
+      // every conference event would show two ticket repeaters and invite
+      // filling in the wrong one. Same chip-then-removable-block shape
+      // renderChippableSection gives the other optional fields, hand-rolled
+      // here because this section renders its repeaters directly.
+      if (fieldIds.includes("partOfOffers")) {
+        const sharedRoot = document.createElement("div");
+        const renderShared = (): void => {
+          sharedRoot.textContent = "";
+          const label = fieldLabel("partOfOffers");
+          if (state.partOfOffers.length === 0) {
+            const add = document.createElement("button");
+            add.type = "button";
+            add.className = "repeater-add";
+            add.textContent = `+ ${label}`;
+            add.addEventListener("click", () => {
+              onArrayInput("partOfOffers", [emptyRepeaterRow("partOfOffers")]);
+              renderShared();
+            });
+            sharedRoot.append(add);
+            return;
+          }
+          sharedRoot.append(
+            wrapRemovable(
+              renderRepeaterField(
+                "partOfOffers",
+                state.partOfOffers as unknown as Record<string, string>[],
+                onArrayInput,
+                () => state.timezone,
+              ),
+              label,
+              () => {
+                onArrayInput("partOfOffers", []);
+                renderShared();
+              },
+            ),
+          );
+        };
+        renderShared();
+        details.append(sharedRoot);
+      }
     } else if (section === "cfp") {
       const cfpRoot = document.createElement("div");
       const renderCfp = () => {

@@ -34,6 +34,7 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
   { id: "tags", section: "what" },
   { id: "languages", section: "what" },
   { id: "image", section: "what" },
+  { id: "recordings", section: "what" },
   { id: "partOf", section: "what" },
   { id: "allDay", section: "when" },
   { id: "startDate", section: "when", required: true },
@@ -45,8 +46,10 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
   { id: "geo", section: "where" },
   { id: "onlineUrl", section: "where" },
   { id: "organizers", section: "who" },
+  { id: "speakers", section: "who" },
   { id: "eligibility", section: "who" },
   { id: "offers", section: "tickets" },
+  { id: "partOfOffers", section: "tickets" },
   { id: "cfp", section: "cfp" },
   // Not excluded by any preset (see PRESET_EXCLUSIONS below): translating an
   // event is an optional pass any organizer might want, not a preset concern.
@@ -55,6 +58,7 @@ export const FIELD_REGISTRY: readonly FieldDef[] = [
   { id: "slug", section: "metadata", required: true },
   { id: "id", section: "metadata", required: true },
   { id: "license", section: "metadata" },
+  { id: "contributing", section: "metadata" },
   { id: "source", section: "metadata" },
   { id: "updatedAt", section: "metadata" },
 ] as const;
@@ -78,10 +82,25 @@ const PRESET_EXCLUSIONS: Record<string, ReadonlySet<string>> = {
   // Meetups: recurring, simple events — no cancellation workflow, no
   // data-provenance metadata, no call-for-proposals workflow (that's a
   // conference thing; DESIGN.md: "un organizador de meetups no necesita
-  // ver campos de CFP").
-  meetup: new Set(["status", "license", "source", "updatedAt", "cfp"]),
-  // Conferences add status (cancelled/postponed matters) and cfp, but still
-  // hide the provenance metadata.
+  // ver campos de CFP"), and no shared multi-part admission: a meetup is
+  // one document, so there is no set of parts to price together.
+  // `contributing` is hidden for the same reason as `license`: it is
+  // inherited from the feed, and a meetup organizer sets it once in Feed
+  // settings rather than overriding it per event (an override is what an
+  // aggregated event pointing upstream needs, not a community's own
+  // monthly meetup).
+  meetup: new Set([
+    "status",
+    "license",
+    "source",
+    "updatedAt",
+    "cfp",
+    "contributing",
+    "partOfOffers",
+  ]),
+  // Conferences add status (cancelled/postponed matters), cfp and the
+  // shared admission of a multi-part event, but still hide the provenance
+  // metadata.
   conference: new Set(["license", "source", "updatedAt"]),
   all: new Set(),
 };

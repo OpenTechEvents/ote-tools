@@ -9,7 +9,7 @@ import {
   suggestSlug,
   toEventJson,
 } from "../src/lib/event-json.js";
-import type { OteEvent } from "../src/lib/types.js";
+import type { FormState, OteEvent } from "../src/lib/types.js";
 
 describe("toEventJson", () => {
   it("empty inputs are omitted, never defaulted", () => {
@@ -174,6 +174,7 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
     ]);
     expect(state.offers).toEqual([
       {
+        scope: "",
         name: "",
         price: "0",
         currency: "EUR",
@@ -238,6 +239,7 @@ describe("toEventJson / fromEventJson — v0.3 fields", () => {
     state.name = "X";
     state.offers = [
       {
+        scope: "",
         name: "Free",
         price: "0",
         currency: "EUR",
@@ -451,5 +453,203 @@ describe("suggestPartOfId", () => {
 
   it("returns '' when the name has no kebab-able characters", () => {
     expect(suggestPartOfId(null, "o/r", "¡¡¡")).toBe("");
+  });
+});
+
+describe("toEventJson / fromEventJson — the v0.5 fields (speakers, recordings, contributing)", () => {
+  function speakerRow(over: Partial<FormState["speakers"][number]> = {}) {
+    return { name: "", affiliation: "", url: "", sameAs: "", type: "", ...over };
+  }
+
+  it("keeps the person in `name` and the company in `affiliation` — never merged", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.speakers = [speakerRow({ name: "Martí Cristobal", affiliation: "Bettatech" })];
+    expect(toEventJson(state).speakers).toEqual([
+      { name: "Martí Cristobal", affiliation: "Bettatech" },
+    ]);
+  });
+
+  it("splits `sameAs` on commas and omits it when empty", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.speakers = [
+      speakerRow({
+        name: "Ada",
+        sameAs: " https://fosstodon.org/@ada , https://www.linkedin.com/in/ada ",
+      }),
+      speakerRow({ name: "Grace", sameAs: "" }),
+    ];
+    expect(toEventJson(state).speakers).toEqual([
+      {
+        name: "Ada",
+        sameAs: ["https://fosstodon.org/@ada", "https://www.linkedin.com/in/ada"],
+      },
+      { name: "Grace" },
+    ]);
+  });
+
+  it("round-trips a speaker's profile list back to a comma-separated field", () => {
+    const state = fromEventJson(
+      {
+        name: "x",
+        speakers: [{ name: "Ada", sameAs: ["https://a.example", "https://b.example"] }],
+      } as unknown as OteEvent,
+      "s",
+    );
+    expect(state.speakers).toEqual([
+      speakerRow({ name: "Ada", sameAs: "https://a.example, https://b.example" }),
+    ]);
+  });
+
+  it("drops a speaker row nobody filled in", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.speakers = [speakerRow()];
+    expect(toEventJson(state).speakers).toBeUndefined();
+  });
+
+  it("writes a recording as a bare URL until a title earns the object form", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.recordings = [
+      { url: "https://x.example/watch", title: "", translations: {} },
+      { url: "https://x.example/qa", title: "Q&A", translations: {} },
+    ];
+    expect(toEventJson(state).recordings).toEqual([
+      "https://x.example/watch",
+      { url: "https://x.example/qa", title: "Q&A" },
+    ]);
+  });
+
+  it("a translated recording title keeps the object form and wraps its translations", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.recordings = [
+      { url: "https://x.example/qa", title: "Q&A", translations: { es: "Preguntas" } },
+    ];
+    expect(toEventJson(state).recordings).toEqual([
+      {
+        url: "https://x.example/qa",
+        title: "Q&A",
+        translations: { es: { title: "Preguntas" } },
+      },
+    ]);
+  });
+
+  it("reads both recording forms back into rows", () => {
+    const state = fromEventJson(
+      {
+        name: "x",
+        recordings: [
+          "https://x.example/watch",
+          {
+            url: "https://x.example/qa",
+            title: "Q&A",
+            translations: { es: { title: "Preguntas" } },
+          },
+        ],
+      } as unknown as OteEvent,
+      "s",
+    );
+    expect(state.recordings).toEqual([
+      { url: "https://x.example/watch", title: "", translations: {} },
+      { url: "https://x.example/qa", title: "Q&A", translations: { es: "Preguntas" } },
+    ]);
+  });
+
+  it("round-trips `contributing`, including a mailto:", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.contributing = "mailto:hola@dev.events";
+    expect(toEventJson(state).contributing).toBe("mailto:hola@dev.events");
+    expect(
+      fromEventJson({ name: "x", contributing: "https://x.example/issues" } as unknown as OteEvent, "s")
+        .contributing,
+    ).toBe("https://x.example/issues");
+  });
+});
+
+describe("toEventJson / fromEventJson — multi-part pricing", () => {
+  function offerRow(over: Partial<FormState["offers"][number]> = {}) {
+    return {
+      scope: "",
+      name: "",
+      price: "",
+      currency: "",
+      url: "",
+      availability: "",
+      waitlistUrl: "",
+      opensAt: "",
+      closesAt: "",
+      translations: {},
+      ...over,
+    };
+  }
+
+  it("writes the shared admission under partOf.offers, beside the part's own offers", () => {
+    const state = emptyFormState();
+    state.name = "A talk";
+    state.partOfId = "https://trgcon.example/2026";
+    state.partOfType = "multipart";
+    state.partOfOffers = [offerRow({ name: "General", price: "240", currency: "EUR" })];
+    state.offers = [
+      offerRow({ scope: "add-on", name: "Workshop", price: "40", currency: "EUR" }),
+    ];
+    const event = toEventJson(state);
+    expect(event.partOf).toEqual({
+      id: "https://trgcon.example/2026",
+      type: "multipart",
+      offers: [{ name: "General", price: 240, currency: "EUR" }],
+    });
+    expect(event.offers).toEqual([
+      { scope: "add-on", name: "Workshop", price: 40, currency: "EUR" },
+    ]);
+  });
+
+  it("emits the shared block even with no partOf.id, so the schema flags the gap rather than the editor dropping it", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.partOfOffers = [offerRow({ name: "General", price: "240", currency: "EUR" })];
+    expect(toEventJson(state).partOf).toEqual({
+      offers: [{ name: "General", price: 240, currency: "EUR" }],
+    });
+  });
+
+  it("an all-empty shared row leaves partOf untouched", () => {
+    const state = emptyFormState();
+    state.name = "x";
+    state.partOfId = "https://trgcon.example/2026";
+    state.partOfOffers = [offerRow()];
+    expect(toEventJson(state).partOf).toEqual({ id: "https://trgcon.example/2026" });
+  });
+
+  it("reads partOf.offers back into its own rows, leaving the part's offers alone", () => {
+    const state = fromEventJson(
+      {
+        name: "x",
+        offers: [{ scope: "add-on", price: 40, currency: "EUR" }],
+        partOf: {
+          id: "https://trgcon.example/2026",
+          offers: [{ name: "General", price: 240, currency: "EUR" }],
+        },
+      } as unknown as OteEvent,
+      "s",
+    );
+    expect(state.partOfOffers).toEqual([
+      offerRow({ name: "General", price: "240", currency: "EUR" }),
+    ]);
+    expect(state.offers).toEqual([offerRow({ scope: "add-on", price: "40", currency: "EUR" })]);
+  });
+
+  it("the two blocks serialize identically from identical rows — the validator compares them by value", () => {
+    const row = offerRow({ name: "General", price: "240", currency: "EUR" });
+    const state = emptyFormState();
+    state.name = "x";
+    state.partOfId = "https://trgcon.example/2026";
+    state.offers = [{ ...row }];
+    state.partOfOffers = [{ ...row }];
+    const event = toEventJson(state);
+    expect(JSON.stringify(event.partOf?.offers)).toBe(JSON.stringify(event.offers));
   });
 });

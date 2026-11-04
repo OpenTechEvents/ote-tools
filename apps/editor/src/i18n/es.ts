@@ -76,6 +76,17 @@ export const es: Record<string, string> = {
     "Enlace al texto completo de la licencia, si la licencia en sí necesita explicación.",
   "dialog.feedSettings.textLanguageInfo":
     "El idioma en el que están escritos el título/descripción de tu feed (y el nombre/descripción de tus eventos). Solo hace falta si usas traducciones.",
+  "dialog.feedSettings.contributingLabel": "Avisar de un problema en los datos",
+  "dialog.feedSettings.contributingNote":
+    "Dónde avisar si alguien detecta una fecha incorrecta o un enlace roto — un gestor de incidencias, un formulario o una dirección mailto: de rol (hola@, correcciones@), nunca un buzón personal. Configúralo una vez aquí y todos los eventos lo heredan.",
+  "dialog.feedSettings.claimsGroup": "Qué afirma este feed",
+  "dialog.feedSettings.claimsGroupNote":
+    "Una ventana de completitud es lo que hace honesto borrar eventos antiguos. Dentro de la ventana, un evento ausente no se celebra, y un consumidor puede descartar lo que ya no encuentra; fuera de ella, el feed no afirma nada. Déjala vacía y el feed no hace ninguna afirmación — lo que también significa que una comunidad que borra 2023 está afirmando que esos eventos nunca existieron.",
+  "dialog.feedSettings.coversFromLabel": "Completo desde",
+  "dialog.feedSettings.coversFromNote": "Vacío = sin límite hacia el pasado.",
+  "dialog.feedSettings.coversToLabel": "Completo hasta",
+  "dialog.feedSettings.coversToNote":
+    "Inclusive. Vacío = sin límite hacia el futuro, que es lo habitual.",
   "dialog.feedSettings.organizersInfo":
     "Quién organiza tu comunidad, por defecto. Cada evento hereda esta lista salvo que declare sus propios organizadores, que entonces la REEMPLAZAN, no se combinan con ella.",
   "dialog.feedSettings.organizersNote":
@@ -510,6 +521,14 @@ export const es: Record<string, string> = {
     "La licencia bajo la que se publicaron los datos de ORIGEN, si se indica — no la licencia propia de este archivo (ver Licencia arriba).",
 
   // --- field: updatedAt -----------------------------------------------------------
+  // --- field: contributing -----------------------------------------------------------
+  "field.contributing.label": "Avisar de un problema en los datos",
+  "field.contributing.note":
+    "Normalmente se deja vacío: el evento hereda la dirección del propio feed.",
+  "field.contributing.info":
+    "Dónde avisar si alguien detecta una fecha incorrecta o un enlace roto — un gestor de incidencias, un formulario o una dirección mailto: de rol (hola@, correcciones@ — nunca un buzón personal). Configúralo una vez en la configuración del feed y todos los eventos lo heredan; rellenarlo aquí lo sustituye solo para este evento, que es lo que necesita un evento agregado que apunta a su propia fuente.",
+  "field.contributing.placeholder": "https://github.com/…/issues/new  ·  mailto:hola@…",
+
   "field.updatedAt.label": "Actualizado el",
   "field.updatedAt.note":
     "Instante en que los datos del evento cambiaron por última vez (ISO-8601 con desfase).",
@@ -546,6 +565,9 @@ export const es: Record<string, string> = {
   "field.offers.addLabel": "+ Añadir entrada",
   "field.offers.info":
     "Una entrada por cada tipo de ticket — un evento gratuito es una única oferta con precio 0. Ausente significa desconocido, nunca gratis: el precio 0 es la única forma de decir \"gratis\".",
+  "field.offers.scope.label": "Alcance",
+  "field.offers.scope.info":
+    "Solo tiene sentido en una parte de un evento multiparte. admission (lo que significa dejarlo vacío): una forma completa de asistir a esta parte. add-on: un cargo ADICIONAL sobre la entrada compartida del conjunto — que hay que rellenar abajo, en \"Entrada compartida\", en este mismo documento.",
   "field.offers.name.label": "Nombre",
   "field.offers.name.info":
     "Cómo se llama este tipo de entrada — \"Entrada general\", \"Early bird\", \"Estudiante\"…",
@@ -568,6 +590,84 @@ export const es: Record<string, string> = {
   "field.offers.closesAt.label": "Se cierra el",
   "field.offers.closesAt.info":
     "Cuándo deja de estar disponible este tipo de entrada (termina la venta) — no el final del propio evento.",
+
+  // --- repeater: speakers -----------------------------------------------------------
+  "field.speakers.label": "Ponentes",
+  "field.speakers.addLabel": "+ Añadir ponente",
+  "field.speakers.note": "Nombre y afiliación son dos campos a propósito — nunca uno.",
+  "field.speakers.info":
+    "Quién da la charla (o las charlas). Deliberadamente pequeño, como Organizadores: un nombre, en representación de quién viene, y dónde encontrarle.",
+  "field.speakers.name.label": "Nombre",
+  "field.speakers.name.info":
+    "La PERSONA, y nada más — sin empresa, sin cargo. Un nombre que arrastra su empresa (\"Ada Lovelace, Igalia\") deja de coincidir con esa misma persona en cualquier otro sitio; la empresa va en Afiliación, al lado.",
+  "field.speakers.affiliation.label": "Afiliación",
+  "field.speakers.affiliation.info":
+    "La organización en representación de la cual viene este ponente, tal y como lo escribiría una agenda. Un nombre para mostrar, no una segunda organización que describir — si necesita URL propia, probablemente sea un organizador o un patrocinador. Se ignora con el tipo \"organization\", donde el nombre YA es la organización.",
+  "field.speakers.url.label": "URL",
+  "field.speakers.url.info":
+    "Su página canónica — su propio sitio, o su perfil principal. Los demás perfiles van en Otros perfiles, abajo.",
+  "field.speakers.type.label": "Tipo",
+  "field.speakers.type.info":
+    "Persona u organización; por defecto, persona, que es la opción tolerante para un ponente.",
+  "field.speakers.sameAs.label": "Otros perfiles",
+  "field.speakers.sameAs.info":
+    "Otras páginas de perfil de esta MISMA persona — Mastodon, LinkedIn, GitHub — separadas por comas. Solo páginas HTTP(S): un identificador o un handle no es una página.",
+
+  // --- repeater: recordings -----------------------------------------------------------
+  "field.recordings.label": "Grabaciones",
+  "field.recordings.addLabel": "+ Añadir grabación",
+  "field.recordings.note":
+    "Se añaden después del evento: mismo evento, mismo id — solo hay que actualizar \"Actualizado el\".",
+  "field.recordings.info":
+    "Dónde se puede ver el evento ahora que ya ha pasado. No es el enlace para asistir en directo (eso es la URL online) ni el cartel (eso son las imágenes). Es una lista, porque una charla puede estar en varias plataformas o partida en trozos. Los títulos solo merecen la pena cuando hay más de una.",
+  "field.recordings.url.label": "URL",
+  "field.recordings.url.info":
+    "Dónde se puede ver la grabación. A diferencia de una imagen, aquí vale una página de reproducción (YouTube, PeerTube) — no tiene que ser el fichero de vídeo.",
+  "field.recordings.title.label": "Título",
+  "field.recordings.title.info":
+    "Qué es esta grabación concreta — \"Preguntas y respuestas\", \"Sesión completa\", \"Charlas rápidas\". Es ruido cuando la lista solo tiene una.",
+
+  // --- repeater: partOfOffers (shared admission of a multi-part event) --------------
+  "field.partOfOffers.label": "Entrada compartida (multiparte)",
+  "field.partOfOffers.addLabel": "+ Añadir entrada compartida",
+  "field.partOfOffers.note":
+    "El precio de asistir al conjunto COMPLETO — repítelo idéntico en todas las partes.",
+  "field.partOfOffers.info":
+    "Una entrada que cubre todas las partes de un evento multiparte (las charlas de una conferencia, las sesiones de un study jam), para que quien tenga una sola parte pueda saber su precio sin resolver el documento padre. Necesita \"Parte de (serie)\" rellenado arriba. Las partes de un mismo conjunto deben llevar aquí bloques idénticos — el validador los compara por valor — y una parte sin entradas propias se lee entonces como cubierta por esta entrada.",
+  "field.partOfOffers.name.label": "Nombre",
+  "field.partOfOffers.name.info":
+    "Cómo se llama este tipo de entrada — \"Entrada general\", \"Early bird\", \"Estudiante\"…",
+  "field.partOfOffers.price.label": "Precio",
+  "field.partOfOffers.price.info":
+    "0 significa gratis. Déjalo vacío solo cuando el precio en sí se desconozca — eso no es lo mismo que gratis.",
+  "field.partOfOffers.currency.label": "Moneda",
+  "field.partOfOffers.currency.info":
+    "Código ISO 4217 (EUR, USD…) — se espera junto a un precio distinto de cero.",
+  "field.partOfOffers.url.label": "URL",
+  "field.partOfOffers.url.info": "Dónde comprar o registrarse para esta entrada del conjunto.",
+  "field.partOfOffers.availability.label": "Disponibilidad",
+  "field.partOfOffers.availability.info":
+    "sold-out revela una URL de lista de espera abajo. Déjalo vacío si no se sabe.",
+  "field.partOfOffers.waitlistUrl.label": "URL de lista de espera",
+  "field.partOfOffers.waitlistUrl.info":
+    "Dónde pueden apuntarse las personas interesadas a la lista de espera cuando se agote esta entrada.",
+  "field.partOfOffers.opensAt.label": "Se abre el",
+  "field.partOfOffers.opensAt.info":
+    "Cuándo empieza a estar disponible esta entrada — no el inicio del propio evento.",
+  "field.partOfOffers.closesAt.label": "Se cierra el",
+  "field.partOfOffers.closesAt.info":
+    "Cuándo deja de estar disponible esta entrada (termina la venta) — no el final del propio evento.",
+
+  // --- repeater: alternates (feed-level only) ---------------------------------------
+  "field.alternates.label": "Otros formatos",
+  "field.alternates.addLabel": "+ Añadir formato",
+  "field.alternates.info":
+    "Dónde se publica esta misma colección en otros formatos — RSS, iCalendar, JSON-LD de schema.org. Es informativo: OTE no promete que estén sincronizados, solo que pretenden describir la misma colección.",
+  "field.alternates.mediaType.label": "Tipo de medio",
+  "field.alternates.mediaType.info":
+    "Tipo de medio IANA de esa representación. Sin parámetros — \"application/rss+xml\", nunca \"application/rss+xml; charset=utf-8\". Un cliente muestra \"RSS\"/\"iCalendar\" en el idioma de quien lee a partir de esto, y por eso no hay título que escribir.",
+  "field.alternates.url.label": "URL",
+  "field.alternates.url.info": "URL absoluta de esa representación.",
 
   // --- events list view -----------------------------------------------------------
   "ui.eventCard.noDate": "Sin fecha",
@@ -611,10 +711,12 @@ export const es: Record<string, string> = {
   "ui.translations.slot.name": "Nombre",
   "ui.translations.slot.description": "Descripción",
   "ui.translations.slot.imageAlt": "Alt de la imagen {n}",
+  "ui.translations.slot.recordingTitle": "Título de la grabación {n}",
   "ui.translations.slot.offerName": "Nombre de la entrada {n}",
+  "ui.translations.slot.sharedOfferName": "Nombre de la entrada compartida {n}",
   "ui.translations.slot.eligibilityNote": "Nota de elegibilidad",
   "ui.translations.slot.partOfName": "Nombre de la serie",
   "ui.translations.original": "Original",
   "ui.translations.empty":
-    "Todavía no hay nada que traducir — primero rellena el nombre del evento (o cualquier imagen, entrada, nota de elegibilidad o nombre de serie que quieras traducir).",
+    "Todavía no hay nada que traducir — primero rellena el nombre del evento (o cualquier imagen, grabación, entrada, nota de elegibilidad o nombre de serie que quieras traducir).",
 };

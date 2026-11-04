@@ -248,8 +248,51 @@
           <input id="feed-text-language" type="text" list="feed-language-suggestions" placeholder="en" />
           <datalist id="feed-language-suggestions"></datalist>
         </div>
+        <div class="field">
+          <label for="feed-contributing" data-i18n="dialog.feedSettings.contributingLabel">
+            Report a data problem
+          </label>
+          <input id="feed-contributing" type="text" placeholder="https://github.com/…/issues/new" />
+          <p class="note" data-i18n="dialog.feedSettings.contributingNote">
+            Where someone who spots a wrong date or a dead link should say so —
+            an issue tracker, a form, or a mailto: role address (hello@,
+            corrections@), never a personal mailbox. Set it once here and every
+            event inherits it.
+          </p>
+        </div>
         <div id="feed-organizers-slot"></div>
         <div id="feed-translations-slot"></div>
+
+        <h3 data-i18n="dialog.feedSettings.claimsGroup">What this feed claims</h3>
+        <p class="hint" data-i18n="dialog.feedSettings.claimsGroupNote">
+          A completeness window is what makes deleting old events honest.
+          Inside it, an event that is absent is not happening, and a consumer
+          may drop what it no longer finds; outside it the feed asserts
+          nothing. Leave it empty and the feed makes no claim at all — which
+          also means a community that prunes 2023 is asserting those events
+          never existed.
+        </p>
+        <div class="field pair">
+          <div>
+            <label for="feed-covers-from" data-i18n="dialog.feedSettings.coversFromLabel">
+              Complete from
+            </label>
+            <input id="feed-covers-from" type="date" />
+            <p class="note" data-i18n="dialog.feedSettings.coversFromNote">
+              Empty = unbounded into the past.
+            </p>
+          </div>
+          <div>
+            <label for="feed-covers-to" data-i18n="dialog.feedSettings.coversToLabel">
+              Complete until
+            </label>
+            <input id="feed-covers-to" type="date" />
+            <p class="note" data-i18n="dialog.feedSettings.coversToNote">
+              Inclusive. Empty = unbounded into the future, the usual case.
+            </p>
+          </div>
+        </div>
+        <div id="feed-alternates-slot"></div>
 
         <h3 data-i18n="dialog.feedSettings.editorGroup">Editor setup</h3>
         <p class="hint" data-i18n="dialog.feedSettings.editorGroupNote">

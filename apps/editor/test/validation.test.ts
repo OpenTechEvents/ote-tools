@@ -140,6 +140,43 @@ describe("validateDraft", () => {
     expect(result.fieldErrors.has("offers")).toBe(true);
   });
 
+  it("speakers/recordings/contributing errors map to their form fields", () => {
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        speakers: [{ affiliation: "Bettatech" }], // missing required name
+        recordings: ["not-a-url"],
+        contributing: "ftp://x.example", // neither http(s) nor mailto:
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors.has("speakers")).toBe(true);
+    expect(result.fieldErrors.has("recordings")).toBe(true);
+    expect(result.fieldErrors.has("contributing")).toBe(true);
+  });
+
+  // partOf.offers is its own form field, so it must not land on partOf's
+  // error list — the two are edited in different sections.
+  it("a partOf.offers error maps to partOfOffers, not to partOf", () => {
+    const result = validateDraft(
+      config,
+      {
+        ...validEvent,
+        partOf: {
+          id: "https://trgcon.example/2026",
+          type: "multipart",
+          offers: [{ price: 240 }], // non-zero price with no currency
+        },
+      } as unknown as OteEvent,
+      NOW,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.fieldErrors.has("partOfOffers")).toBe(true);
+    expect(result.fieldErrors.has("partOf")).toBe(false);
+  });
+
   it("a translation entry with neither name nor description maps to translations", () => {
     const result = validateDraft(
       config,

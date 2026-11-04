@@ -4,6 +4,54 @@ All notable changes to the OTE event editor are documented here as they
 land. This app isn't published to npm, so entries are dated rather than
 tied to semver releases.
 
+## 2026-11-04
+
+- **The six 0.5/0.6 fields the editor had no form for** (#104). Until now the
+  editor could neither write nor edit them, which for most adopters made them
+  fields that did not exist — and the JSON-LD importer already produced two of
+  them (`speakers`, `recordings`), so an import silently dropped them. Each one
+  now round-trips: a loaded event keeps what the form didn't previously model.
+  - **Speakers** (Who): `name` and `affiliation` are two separate inputs, on
+    purpose and prominently — an agenda writes "Martí Cristobal, Bettatech",
+    and with one field the company ends up inside `name`, where that person
+    stops matching themselves anywhere else. Plus `url`, `type`, and
+    comma-separated "Other profiles" (`sameAs`).
+  - **Recordings** (What): URL plus an optional title, written as a bare URL
+    until a title (or a translation of one) earns the object form, same as
+    images. Added after the event happened — same `id`, new `updatedAt` — so
+    it is an "edit a past event" flow, and its note says so.
+  - **Report a data problem** (`contributing`): primarily in **Feed settings**,
+    where setting it once covers every event through feed→event inheritance.
+    Also an optional per-event field, for an aggregated event that needs to
+    point at its own upstream instead. Accepts an HTTP(S) URL or a `mailto:`
+    role address. Hidden by the meetup profile for the same reason `license`
+    is: it is inherited, not per-event, work.
+  - **Other formats** (`feed.alternates`, Feed settings): the same collection
+    published as RSS/iCalendar/JSON-LD. Media type is a picker, since a
+    client renders "RSS"/"iCalendar" from it in the reader's own language.
+  - **Completeness window** (`feed.covers`, Feed settings): "Complete from" /
+    "Complete until". The hint that matters is the one the form now carries:
+    this is what makes *deleting old events* honest — without it, absence
+    means "this event is not happening", so a community that prunes 2023 is
+    asserting those events never existed. Clearing both bounds removes the
+    block rather than leaving an empty, meaningless claim behind.
+  - **Multi-part pricing**: a **Shared admission (multi-part)** block in
+    Tickets writes `partOf.offers` — one admission for the whole set, which
+    the parts must repeat identically (the validator compares them by value)
+    — and each of the event's own offers gains a **Scope** select
+    (`admission` / `add-on`) for a per-workshop surcharge on top of it. It
+    stays behind a "+" chip even in an opened Tickets section, so a
+    conference event doesn't show two ticket repeaters and invite filling in
+    the wrong one; the meetup profile hides it entirely, since a meetup is
+    one document with no set of parts to price. Recording titles and shared
+    tier names both appear in the Translations section alongside image alts
+    and offer names.
+
+  Not in this change: the "conference mode" sketched at the end of #104 — a
+  flow that writes the shared `partOf`/`offers` block once and then only asks
+  for per-talk fields. That is a submission flow, not a field, and keeps its
+  own issue.
+
 ## 2026-08-28
 
 - **OTE Spec 0.4.0**: the editor validates against 0.4.0, which only relaxes

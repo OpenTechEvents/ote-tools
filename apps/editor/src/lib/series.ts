@@ -90,8 +90,11 @@ export const BULK_EDIT_EXCLUDED_FIELDS: ReadonlySet<keyof FormState> = new Set([
  * already JSON-serializable form data, no functions/dates/cycles. */
 export const STRUCTURAL_FIELDS: ReadonlySet<keyof FormState> = new Set([
   "organizers",
+  "speakers",
+  "recordings",
   "image",
   "offers",
+  "partOfOffers",
   "translations",
   "eligibilityNoteTranslations",
   "partOfNameTranslations",

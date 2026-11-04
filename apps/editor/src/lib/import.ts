@@ -33,6 +33,9 @@ export interface ImportedEvent {
   // Spec fields the connectors can carry; the form has real UI for these now
   // (see FIELD_REGISTRY / missingFormFields below).
   organizers?: unknown[];
+  speakers?: unknown[];
+  recordings?: unknown[];
+  contributing?: string;
   image?: unknown[];
   offers?: unknown[];
   partOf?: unknown;
@@ -86,6 +89,9 @@ export function missingFormFields(event: ImportedEvent): Set<string> {
   has("languages", event.languages);
   has("updatedAt", event.updatedAt);
   has("organizers", event.organizers);
+  has("speakers", event.speakers);
+  has("recordings", event.recordings);
+  has("contributing", event.contributing);
   has("image", event.image);
   has("offers", event.offers);
   has("partOf", event.partOf);
