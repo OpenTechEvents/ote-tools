@@ -2,7 +2,41 @@
 
 All notable changes to `@opentechevents/validate` are documented here.
 
-## Unreleased
+## 0.6.0
+
+- **Implements OTE Spec 0.6.0**, embedding every published version
+  (`src/generated/v0.1/` … `v0.6/`). 0.5.0 is the one with content — eight new
+  fields (`speakers` with `affiliation`, `recordings`, `contributing`,
+  `feed.covers`, `feed.alternates`, `partOf.offers`, `offers[].scope`) and the
+  multi-part pricing model where a part omitting `offers` under a
+  `partOf.offers` is covered by the set admission. 0.6.0 changes no schema at
+  all; it carries four decisions (D039–D042).
+- Two new custom keywords ship with it, `orderedCoverage` and
+  `sharedOffersConsistent`, both reachable from the compiled validators
+  without a hand edit.
+- **The support window moved to {0.4, 0.5, 0.6}.** It is computed from the
+  published list, so releasing two minors in one day slid it by itself. 0.3 is
+  now out of window: still measured against its own schemas, with migration
+  asked for separately.
+- **CLI: `ote-validate` dispatches on the declared `specVersion`.** It used to
+  call the latest-only API, so a document from any other release came back
+  with findings measured against rules it never claimed.
+  - **New exit code `3`**: "this release cannot judge that version", distinct
+    from `1` "the document is invalid". Conflating the two is what reported a
+    healthy feed as broken, and neither CI nor an agent could tell a version
+    pin from a defect. `1` still wins when both occur.
+  - Every verdict line names the version whose rules produced it, and flags a
+    version with no recommended profile — a `✓` that does not say what it
+    checked is worth less than it looks.
+  - New flags: `--versions` (what this release can judge, for asking before
+    submitting) and `--spec-version <x.y.z>` (the migration rehearsal).
+  - `runCli` is async, because loading a version's validators is.
+- Ajv's options come from `@opentechevents/schema`'s `ajvOptions` export
+  instead of being copied into the codegen script.
+
+Everything below was written against an unreleased 0.5.0 that never shipped —
+`validate` on npm was 0.4.0 until now, so none of it has ever reached a
+consumer. It is part of this release:
 
 - **A document is now validated against the spec version it declares.** Every
   published version's schemas are embedded (`src/generated/<vX.Y>/`), not just
