@@ -71,8 +71,24 @@ when omitted). `--item-list` emits an `ItemList` instead of a `@graph`;
 | `organizers` | `organizer` → `Organization` (or `Person` when `type: "person"`) |
 | `image` | `image`; `image[].alt` → `ImageObject.caption` |
 | `offers` | `offers` → `Offer` (`price`, `priceCurrency`, `url`, `availability`, `validFrom`/`validThrough`) |
-| `partOf` | `superEvent` |
-| `cfp`, `eligibility`, `license`, `source`, `updatedAt`, `textLanguage` | **not emitted** (see below) |
+| `partOf` | `superEvent`; `partOf.offers` → `superEvent.offers` |
+| `speakers` | `performer` → `Person` (or `Organization` when `type: "organization"`); `affiliation` → `Person.affiliation` as an `Organization` node; `sameAs` passes through |
+| `recordings` | `recordedIn` → `VideoObject { url, name? }` |
+| `offers[].scope` | see **add-on offers** below — an `add-on` deliberately emits **no** price |
+| `cfp`, `eligibility`, `license`, `source`, `updatedAt`, `textLanguage`, `contributing` | **not emitted** (see below) |
+
+### Add-on offers never carry a price
+
+`offers[].scope: "add-on"` means the real total is `partOf.offers` **plus**
+this offer. schema.org has no way to express "in addition to the parent's
+price", so emitting this offer's number alone would state a price that is
+**wrong**, not merely incomplete — the one case where the usual "absent means
+unknown" rule would actively mislead.
+
+So an `add-on` `Offer` carries its `name` and `url` but no `price` or
+`priceCurrency`, and an unnamed one is labelled *"Additional charge on top of
+admission"*. The figures stay reachable: `superEvent.offers` carries the
+admission, and the offer's `url` leads to the real checkout.
 
 Decisions worth knowing:
 

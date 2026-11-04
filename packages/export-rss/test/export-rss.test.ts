@@ -206,3 +206,80 @@ describe("feedToRss", () => {
     expect(withoutLicense).not.toContain("<copyright>");
   });
 });
+
+
+describe("the fields OTE 0.5 added", () => {
+  const feedWith = (event: Record<string, unknown>, extra: Record<string, unknown> = {}): OteFeed =>
+    ({
+      specVersion: "0.6.0",
+      title: "C",
+      license: "CC0-1.0",
+      updatedAt: "2026-11-01T00:00:00Z",
+      ...extra,
+      events: [
+        {
+          id: "https://c.example/t1",
+          name: "Async",
+          startDate: "2026-11-07T10:00",
+          timezone: "Europe/Madrid",
+          location: { venue: "FYCMA" },
+          ...event,
+        },
+      ],
+    }) as OteFeed;
+
+  it("speakers go in the item body, with affiliation attached to the name", () => {
+    const out = feedToRss(
+      feedWith({ speakers: [{ name: "Martí Cristobal", affiliation: "Bettatech" }] }),
+    );
+    expect(out).toContain("Speakers: Martí Cristobal, Bettatech");
+  });
+
+  it("a recording is media:player, never media:content or enclosure", () => {
+    // A watch page is not a media file: media:content and enclosure both
+    // promise a fetchable resource, and a reader would try to play HTML.
+    const out = feedToRss(
+      feedWith({ recordings: [{ url: "https://youtube.com/watch?v=a", title: "Parte 1" }] }),
+    );
+    expect(out).toContain('<media:player url="https://youtube.com/watch?v=a"/>');
+    expect(out).not.toContain("<media:content");
+    expect(out).not.toContain("<enclosure");
+  });
+
+  it("an add-on offer says what it is instead of printing a wrong total", () => {
+    const out = feedToRss(
+      feedWith({
+        partOf: { id: "https://c.example/2026", name: "Conf", offers: [{ price: 16, currency: "EUR" }] },
+        offers: [{ name: "Taller", price: 20, currency: "EUR", scope: "add-on" }],
+      }),
+    );
+    expect(out).toContain("additional charge on top of admission");
+    expect(out).not.toContain("20 EUR");
+    // …and the admission it is on top of is printed next to the parent, so a
+    // reader can reach the real total.
+    expect(out).toContain("admission 16 EUR");
+  });
+
+  it("an ordinary offer still prints its price", () => {
+    const out = feedToRss(feedWith({ offers: [{ name: "Entrada", price: 16, currency: "EUR" }] }));
+    expect(out).toContain("16 EUR");
+  });
+
+  it("feed.alternates become atom:link rel=alternate", () => {
+    const out = feedToRss(
+      feedWith({}, { alternates: [{ mediaType: "text/calendar", url: "https://c.example/f.ics" }] }),
+    );
+    expect(out).toContain('xmlns:atom="http://www.w3.org/2005/Atom"');
+    expect(out).toContain(
+      '<atom:link rel="alternate" type="text/calendar" href="https://c.example/f.ics"/>',
+    );
+  });
+
+  it("feed.covers and contributing have no RSS term and are not invented", () => {
+    const out = feedToRss(
+      feedWith({}, { covers: { from: "2026-01-01" }, contributing: "mailto:fix@c.example" }),
+    );
+    expect(out).not.toContain("2026-01-01");
+    expect(out).not.toContain("fix@c.example");
+  });
+});

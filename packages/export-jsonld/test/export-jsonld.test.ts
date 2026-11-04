@@ -370,3 +370,128 @@ describe("markdownToPlainText", () => {
     );
   });
 });
+
+describe("the fields OTE 0.5 added", () => {
+  const base: OteEvent = {
+    id: "https://c.example/2026/t1",
+    name: "Async en Python",
+    startDate: "2026-11-07T10:00",
+    timezone: "Europe/Madrid",
+    location: { venue: "FYCMA" },
+  };
+
+  it("speakers become performer, with affiliation as an Organization", () => {
+    // OTE keeps affiliation a bare string so this is the single place the
+    // shape decision gets made; schema.org's Person.affiliation wants a node.
+    const out = eventToJsonLd({
+      ...base,
+      speakers: [
+        {
+          name: "Martí Cristobal",
+          affiliation: "Bettatech",
+          type: "person",
+          url: "https://marti.example",
+          sameAs: ["https://github.com/marti"],
+        },
+      ],
+    });
+    expect(out.performer).toEqual({
+      "@type": "Person",
+      name: "Martí Cristobal",
+      url: "https://marti.example",
+      sameAs: "https://github.com/marti",
+      affiliation: { "@type": "Organization", name: "Bettatech" },
+    });
+  });
+
+  it("an organization speaker is an Organization, and drops affiliation", () => {
+    const out = eventToJsonLd({
+      ...base,
+      speakers: [{ name: "GDG Málaga", type: "organization", affiliation: "Google" }],
+    });
+    expect(out.performer).toEqual({ "@type": "Organization", name: "GDG Málaga" });
+  });
+
+  it("several speakers become an array", () => {
+    const out = eventToJsonLd({ ...base, speakers: [{ name: "A" }, { name: "B" }] });
+    expect(Array.isArray(out.performer)).toBe(true);
+    expect((out.performer as JsonLdNode[]).length).toBe(2);
+  });
+
+  it("recordings become recordedIn VideoObjects", () => {
+    const out = eventToJsonLd({
+      ...base,
+      recordings: [{ url: "https://youtube.com/watch?v=a", title: "Parte 1" }, "https://p.example/b"],
+    });
+    expect(out.recordedIn).toEqual([
+      { "@type": "VideoObject", url: "https://youtube.com/watch?v=a", name: "Parte 1" },
+      { "@type": "VideoObject", url: "https://p.example/b" },
+    ]);
+  });
+
+  it("partOf.offers travels on superEvent, not folded into the part's own", () => {
+    const out = eventToJsonLd({
+      ...base,
+      partOf: {
+        id: "https://c.example/2026",
+        name: "BiznagaFest 2026",
+        offers: [{ price: 16, currency: "EUR" }],
+      },
+    });
+    expect(out.superEvent).toMatchObject({
+      "@id": "https://c.example/2026",
+      offers: { "@type": "Offer", price: 16, priceCurrency: "EUR" },
+    });
+  });
+
+  it("an add-on offer never states a bare price", () => {
+    // The one case where emitting the number would be WRONG rather than
+    // incomplete: the real total is partOf.offers + this. schema.org cannot
+    // say "in addition to the parent", so the figure is withheld and the
+    // name says what it is. The number stays reachable via superEvent.offers
+    // and the offer's own url.
+    const out = eventToJsonLd({
+      ...base,
+      partOf: { id: "https://c.example/2026", offers: [{ price: 16, currency: "EUR" }] },
+      offers: [
+        {
+          name: "Taller extra",
+          price: 20,
+          currency: "EUR",
+          scope: "add-on",
+          url: "https://tickets.example/taller",
+        },
+      ],
+    });
+    expect(out.offers).toEqual({
+      "@type": "Offer",
+      name: "Taller extra",
+      url: "https://tickets.example/taller",
+    });
+    expect(out.offers).not.toHaveProperty("price");
+    expect(out.offers).not.toHaveProperty("priceCurrency");
+  });
+
+  it("an unnamed add-on still says what it is", () => {
+    const out = eventToJsonLd({
+      ...base,
+      offers: [{ price: 20, currency: "EUR", scope: "add-on" }],
+    });
+    expect((out.offers as JsonLdNode).name).toBe("Additional charge on top of admission");
+    expect(out.offers).not.toHaveProperty("price");
+  });
+
+  it("an admission-scoped offer prices normally", () => {
+    const out = eventToJsonLd({
+      ...base,
+      offers: [{ price: 16, currency: "EUR", scope: "admission" }],
+    });
+    expect(out.offers).toMatchObject({ price: 16, priceCurrency: "EUR" });
+  });
+
+  it("contributing and covers have no schema.org term and are not invented", () => {
+    const out = eventToJsonLd({ ...base, contributing: "mailto:hola@c.example" });
+    expect(JSON.stringify(out)).not.toContain("hola@c.example");
+  });
+});
+

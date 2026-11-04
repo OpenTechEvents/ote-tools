@@ -37,7 +37,11 @@ usage or I/O error.
 | `status` | `STATUS` (`scheduled`→`CONFIRMED`, `tentative`→`TENTATIVE`, `cancelled`→`CANCELLED`, `postponed`/`rescheduled`→`TENTATIVE`, `moved-online`→`CONFIRMED` + a DESCRIPTION note) |
 | `organizers` | `ORGANIZER;CN=<name>:mailto:<email>` for the first organizer **with an email**; the rest degrade to `X-OTE-ORGANIZER:<name>` (RFC 5545 permits only one `ORGANIZER`) |
 | `image` | `IMAGE;VALUE=URI;DISPLAY=BADGE:<url>` (RFC 7986) — first image only, `alt` has no home in iCalendar |
-| `partOf` | `RELATED-TO;RELTYPE=PARENT:<partOf.id>` |
+| `partOf` | `RELATED-TO;RELTYPE=PARENT:<partOf.id>`; `partOf.offers` → an *"Admission (whole event)"* line in `DESCRIPTION` |
+| `speakers` | `X-OTE-SPEAKER:<name, affiliation>` plus a `DESCRIPTION` line. **Never `ATTENDEE`** — that means somebody *invited* to the event, and clients act on it (RSVP prompts, participant lists). RFC 9073's `PARTICIPANT;PARTICIPANT-TYPE=SPEAKER` is the correct structured home, but it is a sub-component older clients mishandle |
+| `recordings` | `X-OTE-RECORDING:<url>` plus a `DESCRIPTION` line |
+| `offers[].scope` | `X-OTE-OFFER-SCOPE`; an `add-on` emits **no** `X-OTE-OFFER-PRICE`/`-CURRENCY` and reads *"additional charge on top of admission"* in `DESCRIPTION`, because its number is not the price of anything on its own |
+| `contributing` | **not emitted** — iCalendar has no term for it |
 | `offers` / `cfp` / `eligibility` | No iCalendar structure exists for any of these (accepted total loss, per the spec's own mapping tables) — degraded to readable text appended to `DESCRIPTION`, plus `X-OTE-CFP-URL` / `X-OTE-ELIGIBILITY-TYPE` / `X-OTE-OFFER-URL` / `X-OTE-OFFER-PRICE` / `X-OTE-OFFER-CURRENCY` extension properties (only the first offer becomes an `X-OTE-OFFER-*` line) |
 | `updatedAt` | `LAST-MODIFIED` |
 | feed `updatedAt` | `DTSTAMP` on every VEVENT (keeps the function pure) |

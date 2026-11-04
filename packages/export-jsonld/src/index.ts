@@ -7,6 +7,8 @@ import type {
   OteFeed,
   OteImageEntry,
   OteOffer,
+  OteRecordingEntry,
+  OteSpeaker,
   OteOrganizer,
 } from "./types.js";
 
@@ -94,17 +96,70 @@ function imageNode(image: string | OteImageEntry): string | JsonLdNode {
   return { "@type": "ImageObject", url: image.url, caption: image.alt };
 }
 
+/**
+ * OTE `offers[]` → schema.org `Offer`.
+ *
+ * **An `add-on` offer never emits a bare price.** `scope: "add-on"` means the
+ * real total is `partOf.offers` *plus* this offer, so publishing this number
+ * alone states a price that is wrong rather than merely incomplete — which
+ * inverts the spec's standing rule that absence means unknown and never
+ * misleads. schema.org has no way to say "in addition to the parent's
+ * price", so the number is withheld and the name says what it is. The
+ * figure is still reachable: `superEvent.offers` carries the admission, and
+ * this offer's `url` leads to the real checkout.
+ */
 function offerNode(offer: OteOffer): JsonLdNode {
   const node: JsonLdNode = { "@type": "Offer" };
+  const isAddOn = offer.scope === "add-on";
   if (offer.name) node.name = offer.name;
-  if (offer.price !== undefined) node.price = offer.price;
-  if (offer.currency) node.priceCurrency = offer.currency;
+  else if (isAddOn) node.name = "Additional charge on top of admission";
+  if (offer.price !== undefined && !isAddOn) node.price = offer.price;
+  if (offer.currency && !isAddOn) node.priceCurrency = offer.currency;
   if (offer.url) node.url = offer.url;
   if (offer.availability) node.availability = AVAILABILITY_MAP[offer.availability];
   // OTE's opensAt/closesAt are instants (they already carry an offset), so
   // they map straight onto validFrom/validThrough.
   if (offer.opensAt) node.validFrom = offer.opensAt;
   if (offer.closesAt) node.validThrough = offer.closesAt;
+  return node;
+}
+
+/**
+ * OTE `speakers[]` → schema.org `performer[]`.
+ *
+ * `affiliation` becomes an `Organization` node, which is what schema.org's
+ * `Person.affiliation` expects — OTE keeps it a bare string precisely so this
+ * is the only place that shape decision has to be made.
+ */
+function speakerNode(speaker: OteSpeaker): JsonLdNode {
+  const node: JsonLdNode = {
+    "@type": speaker.type === "organization" ? "Organization" : "Person",
+    name: speaker.name,
+  };
+  if (speaker.url) node.url = speaker.url;
+  if (speaker.sameAs && speaker.sameAs.length > 0) {
+    node.sameAs = speaker.sameAs.length === 1 ? speaker.sameAs[0] : speaker.sameAs;
+  }
+  // Ignored on an organization, as in the schema: an organisation is not
+  // "there as" another organisation.
+  if (speaker.affiliation && speaker.type !== "organization") {
+    node.affiliation = { "@type": "Organization", name: speaker.affiliation };
+  }
+  return node;
+}
+
+/**
+ * OTE `recordings[]` → schema.org `recordedIn` as `VideoObject`.
+ *
+ * A watch page is legitimate here (unlike `image`, which must be the file),
+ * so the URL goes on `url` and the title, when there is one, on `name`.
+ */
+function recordingNode(recording: string | OteRecordingEntry): JsonLdNode {
+  if (typeof recording === "string") {
+    return { "@type": "VideoObject", url: recording };
+  }
+  const node: JsonLdNode = { "@type": "VideoObject", url: recording.url };
+  if (recording.title) node.name = recording.title;
   return node;
 }
 
@@ -211,10 +266,25 @@ function eventNode(
     const offers = event.offers.map(offerNode);
     node.offers = offers.length === 1 ? offers[0] : offers;
   }
+  if (event.speakers && event.speakers.length > 0) {
+    const performers = event.speakers.map(speakerNode);
+    node.performer = performers.length === 1 ? performers[0] : performers;
+  }
+  if (event.recordings && event.recordings.length > 0) {
+    const recordings = event.recordings.map(recordingNode);
+    node.recordedIn = recordings.length === 1 ? recordings[0] : recordings;
+  }
   if (event.partOf) {
     const superEvent: JsonLdNode = { "@type": "Event", "@id": event.partOf.id };
     if (event.partOf.name) superEvent.name = event.partOf.name;
     if (event.partOf.url) superEvent.url = event.partOf.url;
+    // The set admission belongs to the parent, so it travels on superEvent
+    // rather than being folded into this part's own offers — a consumer
+    // adding the two together is the whole point of the distinction.
+    if (event.partOf.offers && event.partOf.offers.length > 0) {
+      const shared = event.partOf.offers.map(offerNode);
+      superEvent.offers = shared.length === 1 ? shared[0] : shared;
+    }
     node.superEvent = superEvent;
   }
   // `cfp`, `eligibility`, `license`, `source` and `updatedAt` have no

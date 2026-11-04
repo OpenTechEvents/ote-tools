@@ -270,3 +270,68 @@ describe("feedToIcs", () => {
     }
   });
 });
+
+
+describe("the fields OTE 0.5 added", () => {
+  const icsFor = (event: Record<string, unknown>): string =>
+    feedToIcs({
+      specVersion: "0.6.0",
+      title: "C",
+      license: "CC0-1.0",
+      updatedAt: "2026-11-01T00:00:00Z",
+      events: [
+        {
+          id: "https://c.example/t1",
+          name: "Async",
+          startDate: "2026-11-07T10:00",
+          timezone: "Europe/Madrid",
+          location: { venue: "FYCMA" },
+          ...event,
+        },
+      ],
+    } as OteFeed).replace(/\r\n[ \t]/g, "");
+
+  it("a speaker is X-OTE-SPEAKER and never ATTENDEE", () => {
+    // ATTENDEE means somebody invited to the event. A speaker is not an
+    // invitee, and clients act on ATTENDEE (RSVP prompts, participant lists).
+    const out = icsFor({ speakers: [{ name: "Martí Cristobal", affiliation: "Bettatech" }] });
+    expect(out).toContain("X-OTE-SPEAKER:Martí Cristobal\\, Bettatech");
+    expect(out).not.toContain("ATTENDEE");
+  });
+
+  it("the speaker also reaches a human through DESCRIPTION", () => {
+    const out = icsFor({ speakers: [{ name: "Ada" }] });
+    expect(out).toContain("Speakers: Ada");
+  });
+
+  it("a recording is X-OTE-RECORDING", () => {
+    const out = icsFor({
+      recordings: [{ url: "https://youtube.com/watch?v=a", title: "Parte 1" }],
+    });
+    expect(out).toContain("X-OTE-RECORDING:https://youtube.com/watch?v=a");
+    expect(out).toContain("Parte 1 — https://youtube.com/watch?v=a");
+  });
+
+  it("an add-on publishes no price, and says why", () => {
+    const out = icsFor({
+      partOf: { id: "https://c.example/2026", offers: [{ price: 16, currency: "EUR" }] },
+      offers: [{ name: "Taller", price: 20, currency: "EUR", scope: "add-on" }],
+    });
+    expect(out).toContain("X-OTE-OFFER-SCOPE:add-on");
+    expect(out).not.toContain("X-OTE-OFFER-PRICE");
+    expect(out).toContain("additional charge on top of admission");
+    // The admission it sits on top of is stated, so the total is reachable.
+    expect(out).toContain("Admission (whole event): 16 EUR");
+  });
+
+  it("an ordinary offer keeps its price properties", () => {
+    const out = icsFor({ offers: [{ name: "Entrada", price: 16, currency: "EUR" }] });
+    expect(out).toContain("X-OTE-OFFER-PRICE:16");
+    expect(out).toContain("X-OTE-OFFER-CURRENCY:EUR");
+  });
+
+  it("contributing has no iCalendar term and is not invented", () => {
+    const out = icsFor({ contributing: "mailto:fix@c.example" });
+    expect(out).not.toContain("fix@c.example");
+  });
+});

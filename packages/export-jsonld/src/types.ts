@@ -45,6 +45,12 @@ export interface OteOffer {
   waitlistUrl?: string;
   opensAt?: string;
   closesAt?: string;
+  /**
+   * What this offer means relative to `partOf.offers` (OTE 0.5+).
+   * `add-on` means its price is **in addition to** the set admission, so
+   * emitting it alone states a total that is wrong, not merely incomplete.
+   */
+  scope?: "admission" | "add-on";
 }
 
 export interface OteCfp {
@@ -66,6 +72,23 @@ export interface OtePartOf {
   name?: string;
   url?: string;
   type?: "series" | "multipart";
+  /** The shared admission of a multi-part event (OTE 0.5+). */
+  offers?: OteOffer[];
+}
+
+/** A speaker (OTE 0.5+). `affiliation` is a display string, never an object. */
+export interface OteSpeaker {
+  name: string;
+  affiliation?: string;
+  url?: string;
+  sameAs?: string[];
+  type?: "organization" | "person";
+}
+
+/** A published recording (OTE 0.5+): a bare URL, or one with a title. */
+export interface OteRecordingEntry {
+  url: string;
+  title?: string;
 }
 
 export type OteEventStatus =
@@ -104,6 +127,12 @@ export interface OteEvent {
   cfp?: OteCfp;
   eligibility?: OteEligibility;
   partOf?: OtePartOf;
+  /** Who gives the talk(s) (OTE 0.5+). */
+  speakers?: OteSpeaker[];
+  /** Published recordings, linked after the event (OTE 0.5+). */
+  recordings?: (string | OteRecordingEntry)[];
+  /** Where to report a data fix (OTE 0.5+). No schema.org term; not emitted. */
+  contributing?: string;
   updatedAt?: string;
 }
 

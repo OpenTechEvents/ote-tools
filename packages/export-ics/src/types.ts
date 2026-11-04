@@ -45,6 +45,23 @@ export interface OteOffer {
   waitlistUrl?: string;
   opensAt?: string;
   closesAt?: string;
+  /** `add-on` means this price is ON TOP OF partOf.offers (OTE 0.5+). */
+  scope?: "admission" | "add-on";
+}
+
+/** A speaker (OTE 0.5+). */
+export interface OteSpeaker {
+  name: string;
+  affiliation?: string;
+  url?: string;
+  sameAs?: string[];
+  type?: "organization" | "person";
+}
+
+/** A published recording (OTE 0.5+). */
+export interface OteRecordingEntry {
+  url: string;
+  title?: string;
 }
 
 export interface OteCfp {
@@ -66,6 +83,8 @@ export interface OtePartOf {
   name?: string;
   url?: string;
   type?: "series" | "multipart";
+  /** The shared admission of a multi-part event (OTE 0.5+). */
+  offers?: OteOffer[];
 }
 
 export type OteEventStatus =
@@ -104,6 +123,12 @@ export interface OteEvent {
   cfp?: OteCfp;
   eligibility?: OteEligibility;
   partOf?: OtePartOf;
+  /** Who gives the talk(s) (OTE 0.5+). */
+  speakers?: OteSpeaker[];
+  /** Published recordings (OTE 0.5+). */
+  recordings?: (string | OteRecordingEntry)[];
+  /** Where to report a data fix (OTE 0.5+). No iCalendar term. */
+  contributing?: string;
   updatedAt?: string;
 }
 

@@ -123,16 +123,49 @@ function itemHtml(event: OteEvent): string {
     const note = event.eligibility.note ? ` — ${escapeXml(event.eligibility.note)}` : "";
     parts.push(`<p>Eligibility: ${escapeXml(event.eligibility.type)}${note}</p>`);
   }
+  if (event.speakers && event.speakers.length > 0) {
+    const names = event.speakers.map((s) =>
+      escapeXml(s.affiliation ? `${s.name}, ${s.affiliation}` : s.name),
+    );
+    parts.push(`<p>Speakers: ${names.join(", ")}</p>`);
+  }
+  if (event.recordings && event.recordings.length > 0) {
+    const links = event.recordings.map((r) => {
+      const url = escapeXml(typeof r === "string" ? r : r.url);
+      const label = typeof r === "string" ? url : escapeXml(r.title ?? r.url);
+      return `<a href="${url}">${label}</a>`;
+    });
+    parts.push(`<p>Recording:<br/>${links.join("<br/>")}</p>`);
+  }
   if (event.offers && event.offers.length > 0) {
     const offerLines = event.offers.map((o) => {
+      // An add-on's price is ON TOP OF partOf.offers, and RSS has no way to
+      // express that relationship — printing the bare number states a total
+      // that is wrong, not merely incomplete. Say what it is instead.
       const price =
-        o.price === 0 ? "Free" : o.price !== undefined && o.currency ? `${o.price} ${o.currency}` : undefined;
+        o.scope === "add-on"
+          ? "additional charge on top of admission"
+          : o.price === 0
+            ? "Free"
+            : o.price !== undefined && o.currency
+              ? `${o.price} ${o.currency}`
+              : undefined;
       return escapeXml([o.name, price, o.url].filter((part): part is string => Boolean(part)).join(" — "));
     });
     parts.push(`<p>Tickets:<br/>${offerLines.join("<br/>")}</p>`);
   }
   if (event.partOf) {
-    parts.push(`<p>Part of: ${escapeXml(event.partOf.name ?? event.partOf.id)}</p>`);
+    const shared = event.partOf.offers?.find(
+      (o) => o.price !== undefined && o.currency !== undefined,
+    );
+    // The set admission is what makes an add-on readable at all, so it is
+    // printed next to the parent it belongs to.
+    const admission = shared
+      ? ` (admission ${shared.price === 0 ? "free" : `${shared.price} ${shared.currency}`})`
+      : "";
+    parts.push(
+      `<p>Part of: ${escapeXml(event.partOf.name ?? event.partOf.id)}${escapeXml(admission)}</p>`,
+    );
   }
   return parts.join("\n");
 }
@@ -158,6 +191,13 @@ function item(event: OteEvent): string[] {
     );
   } else if (event.organizers && event.organizers.length > 0) {
     lines.push(`      <dc:creator>${escapeXml(event.organizers[0]!.name)}</dc:creator>`);
+  }
+  // A recording is a WATCH PAGE, not a media file, so it is <media:player>.
+  // <media:content> and <enclosure> both promise a fetchable media resource
+  // and would have readers try to download an HTML page as a video.
+  for (const recording of event.recordings ?? []) {
+    const url = escapeXml(typeof recording === "string" ? recording : recording.url);
+    lines.push(`      <media:player url="${url}"/>`);
   }
   if (event.image && event.image.length > 0) {
     // media RSS module: first image only, chosen specifically over <enclosure>
@@ -192,7 +232,9 @@ function item(event: OteEvent): string[] {
 export function feedToRss(feed: OteFeed): string {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/">',
+    '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" ' +
+      'xmlns:dc="http://purl.org/dc/elements/1.1/" ' +
+      'xmlns:atom="http://www.w3.org/2005/Atom">',
     "  <channel>",
     `    <title>${escapeXml(feed.title)}</title>`,
   ];
@@ -210,6 +252,18 @@ export function feedToRss(feed: OteFeed): string {
     const copyright = feed.licenseUrl ? `${feed.license} (${feed.licenseUrl})` : feed.license;
     lines.push(`    <copyright>${escapeXml(copyright)}</copyright>`);
   }
+  // feed.alternates → the JSON form of an HTML <link rel="alternate">, which
+  // in RSS is atom:link. Informational: the spec promises no sync between
+  // the formats, so nothing here claims one.
+  for (const alternate of feed.alternates ?? []) {
+    lines.push(
+      `    <atom:link rel="alternate" type="${escapeXml(alternate.mediaType)}" ` +
+        `href="${escapeXml(alternate.url)}"/>`,
+    );
+  }
+  // feed.covers has no RSS equivalent and is deliberately not emitted: there
+  // is no element that means "this feed is complete for this window", and
+  // inventing one would make a promise no reader could interpret.
   lines.push(`    <lastBuildDate>${rfc822(feed.updatedAt)}</lastBuildDate>`);
   lines.push("    <generator>@opentechevents/export-rss</generator>");
   for (const event of feed.events) {

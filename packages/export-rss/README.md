@@ -38,6 +38,11 @@ usage or I/O error.
 | `organizers` | `author` (`email (name)`) for the first organizer **with an email**; otherwise `dc:creator` (name only) for the first organizer |
 | `image` | `media:content`/`media:description` (first image only) — chosen over `<enclosure>` specifically because it can carry `image[].alt` without needing to infer a MIME type or byte length (both required by `<enclosure>`, neither modeled by OTE) |
 | `offers` / `cfp` / `eligibility` / `partOf` | item `description` body, as unlabeled paragraphs (see below) |
+| `speakers` | item `description` body — `name, affiliation` |
+| `recordings` | `media:player url=…`, plus links in the `description` body. **Not** `media:content` and **not** `<enclosure>`: a watch page is not a media file, and both of those promise a fetchable resource |
+| `feed.alternates` | `atom:link rel="alternate" type=… href=…` on the channel |
+| `feed.covers`, `contributing` | **not emitted** — RSS has no element that means either, and inventing one would make a promise no reader could interpret |
+| `offers[].scope` | an `add-on` prints *"additional charge on top of admission"* instead of its figure; the set admission is printed next to `Part of:` so the total is reachable |
 | everything else | item `description` body (see below) |
 
 Emitting `media:`/`dc:` content declares both namespaces (`xmlns:media`,

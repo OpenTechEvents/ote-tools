@@ -216,14 +216,53 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
       `<p>Eligibility: ${escapeHtml(event.eligibility.type)}${escapeHtml(note)}</p>`,
     );
   }
+  if (event.speakers && event.speakers.length > 0) {
+    const names = event.speakers.map((s) =>
+      s.affiliation ? `${s.name}, ${s.affiliation}` : s.name,
+    );
+    descriptionParts.push(`Speakers: ${names.join(", ")}`);
+    htmlParts.push(`<p>Speakers: ${names.map(escapeHtml).join(", ")}</p>`);
+  }
+  if (event.recordings && event.recordings.length > 0) {
+    const urls = event.recordings.map((r) => (typeof r === "string" ? r : r.url));
+    const labels = event.recordings.map((r) =>
+      typeof r === "string" ? r : (r.title ? `${r.title} — ${r.url}` : r.url),
+    );
+    descriptionParts.push(`Recording:\n${labels.join("\n")}`);
+    htmlParts.push(
+      `<p>Recording:<br/>${urls
+        .map((url) => `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`)
+        .join("<br/>")}</p>`,
+    );
+  }
   if (event.offers && event.offers.length > 0) {
     const offerLines = event.offers.map((o) => {
+      // An add-on costs partOf.offers PLUS this, and iCalendar has nowhere to
+      // say so. Printing the bare number would state a total that is wrong
+      // rather than incomplete, so the words go in instead of the figure.
       const price =
-        o.price === 0 ? "Free" : o.price !== undefined && o.currency ? `${o.price} ${o.currency}` : undefined;
+        o.scope === "add-on"
+          ? "additional charge on top of admission"
+          : o.price === 0
+            ? "Free"
+            : o.price !== undefined && o.currency
+              ? `${o.price} ${o.currency}`
+              : undefined;
       return [o.name, price, o.url].filter((part): part is string => Boolean(part)).join(" — ");
     });
     descriptionParts.push(`Tickets:\n${offerLines.join("\n")}`);
     htmlParts.push(`<p>Tickets:<br/>${offerLines.map(escapeHtml).join("<br/>")}</p>`);
+  }
+  if (event.partOf?.offers && event.partOf.offers.length > 0) {
+    const shared = event.partOf.offers.find(
+      (o) => o.price !== undefined && o.currency !== undefined,
+    );
+    if (shared) {
+      const amount = shared.price === 0 ? "free" : `${shared.price} ${shared.currency}`;
+      const label = `Admission (whole event): ${amount}`;
+      descriptionParts.push(label);
+      htmlParts.push(`<p>${escapeHtml(label)}</p>`);
+    }
   }
   if (descriptionParts.length > 0) {
     lines.push(
@@ -283,13 +322,32 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
   if (event.eligibility) {
     lines.push(...prop("X-OTE-ELIGIBILITY-TYPE", event.eligibility.type));
   }
+  // Never ATTENDEE: in iCalendar that means somebody invited to the event, and
+  // a speaker is not an invitee. RFC 9073's PARTICIPANT with
+  // PARTICIPANT-TYPE:SPEAKER is the correct structured home, but it is a
+  // VEVENT sub-component that older clients mishandle, so the conservative
+  // X-OTE-SPEAKER carries it alongside the DESCRIPTION line.
+  for (const speaker of event.speakers ?? []) {
+    const value = speaker.affiliation ? `${speaker.name}, ${speaker.affiliation}` : speaker.name;
+    lines.push(...prop("X-OTE-SPEAKER", escapeText(value)));
+  }
+  for (const recording of event.recordings ?? []) {
+    const url = typeof recording === "string" ? recording : recording.url;
+    lines.push(...prop("X-OTE-RECORDING", url));
+  }
   if (event.offers && event.offers.length > 0) {
     const primary = event.offers[0]!;
     if (primary.url) lines.push(...prop("X-OTE-OFFER-URL", primary.url));
-    if (primary.price !== undefined) {
+    // Same rule as the DESCRIPTION line: an add-on's number is not the price
+    // of anything on its own, so it is not published as one. X-OTE-OFFER-SCOPE
+    // says why the figure is missing rather than leaving it unexplained.
+    if (primary.scope) lines.push(...prop("X-OTE-OFFER-SCOPE", primary.scope));
+    if (primary.price !== undefined && primary.scope !== "add-on") {
       lines.push(...prop("X-OTE-OFFER-PRICE", String(primary.price)));
     }
-    if (primary.currency) lines.push(...prop("X-OTE-OFFER-CURRENCY", primary.currency));
+    if (primary.currency && primary.scope !== "add-on") {
+      lines.push(...prop("X-OTE-OFFER-CURRENCY", primary.currency));
+    }
   }
 
   // Emitted only when the field is present: absent stays absent.

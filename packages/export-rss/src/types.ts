@@ -45,6 +45,23 @@ export interface OteOffer {
   waitlistUrl?: string;
   opensAt?: string;
   closesAt?: string;
+  /** `add-on` means this price is ON TOP OF partOf.offers (OTE 0.5+). */
+  scope?: "admission" | "add-on";
+}
+
+/** A speaker (OTE 0.5+). */
+export interface OteSpeaker {
+  name: string;
+  affiliation?: string;
+  url?: string;
+  sameAs?: string[];
+  type?: "organization" | "person";
+}
+
+/** A published recording (OTE 0.5+). */
+export interface OteRecordingEntry {
+  url: string;
+  title?: string;
 }
 
 export interface OteCfp {
@@ -66,6 +83,8 @@ export interface OtePartOf {
   name?: string;
   url?: string;
   type?: "series" | "multipart";
+  /** The shared admission of a multi-part event (OTE 0.5+). */
+  offers?: OteOffer[];
 }
 
 export type OteEventStatus =
@@ -104,6 +123,12 @@ export interface OteEvent {
   cfp?: OteCfp;
   eligibility?: OteEligibility;
   partOf?: OtePartOf;
+  /** Who gives the talk(s) (OTE 0.5+). */
+  speakers?: OteSpeaker[];
+  /** Published recordings (OTE 0.5+). */
+  recordings?: (string | OteRecordingEntry)[];
+  /** Where to report a data fix (OTE 0.5+). No RSS term; not emitted. */
+  contributing?: string;
   updatedAt?: string;
 }
 
@@ -112,6 +137,12 @@ export interface OteFeed {
   title: string;
   description?: string;
   url?: string;
+  /** The same collection in other formats (OTE 0.5+) → atom:link rel=alternate. */
+  alternates?: { mediaType: string; url: string }[];
+  /** The completeness window (OTE 0.5+). No RSS equivalent; carried nowhere. */
+  covers?: { from?: string; to?: string };
+  /** Where to report a data fix (OTE 0.5+). No RSS term. */
+  contributing?: string;
   /** Optional per D029: if absent, every event must declare its own license. */
   license?: string;
   licenseUrl?: string;
