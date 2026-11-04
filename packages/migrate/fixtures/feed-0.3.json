@@ -1,0 +1,305 @@
+{
+  "specVersion": "0.3.0",
+  "title": "Eventos de CoruñaJUG",
+  "description": "Charlas y meetups de la comunidad Coruña Java User Group.",
+  "url": "https://www.corunajug.org",
+  "textLanguage": "es",
+  "organizers": [
+    {
+      "name": "Coruña JUG",
+      "url": "https://corunajug.org"
+    }
+  ],
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "updatedAt": "2026-08-28T00:00:00Z",
+  "events": [
+    {
+      "id": "https://www.corunajug.org/events/ddd-jvm-e-ia-modelizando-value-objects-con-el-minimo-esfuerzo-y-el-maximo-2025-09-24",
+      "url": "https://www.eventbrite.es/e/entradas-ddd-jvm-e-ia-modelizando-value-objects-con-el-minimo-esfuerzo-y-el-maximo-1684478674059",
+      "name": "DDD, JVM e IA: modelizando Value Objects con el mínimo esfuerzo y el máximo",
+      "image": [
+        "https://corunajug.org/img/talks/ddd-vo.jpg"
+      ],
+      "startDate": "2025-09-24T19:30",
+      "endDate": "2025-09-24T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Sngular",
+        "address": {
+          "street": "Rúa Sor Joaquina, 6",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15011",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "ddd",
+        "java",
+        "ia"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-28T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/mama-quiero-ser-ingeniero-agentico-estrategias-atemporales-para-sobrevivir-en-un-mundo-ia-centrico-2025-10-16",
+      "url": "https://www.eventbrite.es/e/mama-quiero-ser-ingeniero-agentico-tickets-1766491978059",
+      "name": "Mamá, quiero ser ingeniero agéntico, estrategias atemporales para sobrevivir en un mundo IA-céntrico",
+      "image": [
+        "https://corunajug.org/img/talks/ing-ai.png"
+      ],
+      "startDate": "2025-10-16T19:30",
+      "endDate": "2025-10-16T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "ia",
+        "agentes"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/full-stack-open-space-2025-12-11",
+      "url": "https://www.eventbrite.es/e/entradas-full-stack-open-space-1974513421797",
+      "name": "Full Stack Open Space",
+      "image": [
+        "https://corunajug.org/img/talks/full-stack-open-space.jpg"
+      ],
+      "startDate": "2025-12-11T19:30",
+      "endDate": "2025-12-11T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "full-stack",
+        "open-space"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/ddd-by-a-dummy-2026-01-29",
+      "url": "https://www.eventbrite.es/e/dddd-ddd-by-a-dummy-tickets-1980026497555",
+      "name": "DDD by a Dummy",
+      "image": [
+        "https://corunajug.org/img/talks/DDD-Dummy.jpg"
+      ],
+      "startDate": "2026-01-29T19:30",
+      "endDate": "2026-01-29T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "ddd"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/novedades-en-java-26-2026-03-25",
+      "url": "https://www.eventbrite.es/e/novedades-en-java-26-tickets-1984159965870",
+      "name": "Novedades en java 26",
+      "image": [
+        "https://corunajug.org/img/talks/java26.png"
+      ],
+      "startDate": "2026-03-25T19:30",
+      "endDate": "2026-03-25T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "java"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/kotlin-para-desarrolladores-java-lo-que-te-estas-perdiendo-2026-04-22",
+      "url": "https://www.eventbrite.es/e/novedades-en-java-26-tickets-1984159965870",
+      "name": "Kotlin para desarrolladores Java: lo que te estás perdiendo",
+      "image": [
+        "https://corunajug.org/img/talks/kotlin-para-java.jpeg"
+      ],
+      "startDate": "2026-04-22T19:30",
+      "endDate": "2026-04-22T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "kotlin",
+        "java"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/evolucion-scala-2026-05-21",
+      "url": "https://www.eventbrite.es/e/entradas-evolucion-de-scala-java-haskel-y-rust-1988869469121",
+      "name": "Evolución de Scala: Java, Haskel y Rust",
+      "image": [
+        "https://corunajug.org/img/talks/evolucion-scala.png"
+      ],
+      "startDate": "2026-05-21T19:30",
+      "endDate": "2026-05-21T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "scala",
+        "java",
+        "rust",
+        "haskell"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/mesa-final-temporada",
+      "url": "https://www.eventbrite.es/e/mesa-redonda-de-comunidades-tickets-1991005340570",
+      "name": "Mesa redonda de comunidades",
+      "image": [
+        "https://corunajug.org/img/talks/mesa-final-temporada.png"
+      ],
+      "organizers": [
+        {
+          "name": "Comunidades tech de A Coruña"
+        }
+      ],
+      "startDate": "2026-07-02T19:00",
+      "endDate": "2026-07-02T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC. Oficinas Odeene",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "Coruna_tech"
+      ],
+      "languages": [
+        "es"
+      ],
+      "updatedAt": "2026-08-22T00:00:00Z"
+    },
+    {
+      "id": "https://www.corunajug.org/events/bienvenida-curso-26-27-2026-09-17",
+      "url": "https://www.eventbrite.es/e/comezamos-o-curso-2627-tickets-1998924147936",
+      "name": "Comezamos o curso 26/27",
+      "description": "Arrincamos o novo curso do Coruña JUG cunha xuntanza de benvida, xunto con Cascarilla Tech.",
+      "image": [
+        "https://corunajug.org/img/talks/comezamos-o-curso-26-27.png"
+      ],
+      "organizers": [
+        {
+          "name": "Coruña JUG",
+          "url": "https://www.corunajug.org"
+        },
+        {
+          "name": "Cascarilla Tech",
+          "url": "https://www.cascarillatech.org"
+        }
+      ],
+      "startDate": "2026-09-24T19:30",
+      "endDate": "2026-09-24T21:30",
+      "timezone": "Europe/Madrid",
+      "attendanceMode": "in-person",
+      "location": {
+        "venue": "Cidade das TIC",
+        "address": {
+          "street": "Av. de Pedralonga",
+          "locality": "A Coruña",
+          "region": "Galicia",
+          "postalCode": "15009",
+          "country": "ES"
+        }
+      },
+      "tags": [
+        "java",
+        "coruña jug",
+        "cascarilla tech"
+      ],
+      "languages": [
+        "gl"
+      ],
+      "updatedAt": "2026-08-28T00:00:00Z"
+    }
+  ]
+}

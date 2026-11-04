@@ -26,6 +26,7 @@ that depends on another. Build first and it goes away — nothing is broken.
 | Path | What | How it's tested |
 | --- | --- | --- |
 | `packages/validate` | Event/Feed validation against the OTE JSON Schema | vitest + fixtures |
+| `packages/migrate` | Moves a document to a newer spec version + D032 warnings | vitest + fixtures |
 | `packages/build-feed` | Assembles `events/*.json` + `ote.config.json` → `feed.json` | vitest + fixtures |
 | `packages/export-ics` / `export-rss` / `export-jsonld` | `feed.json` → ICS / RSS / schema.org JSON-LD | vitest + fixtures |
 | `apps/editor` | Static web editor (form → event JSON → issue/PR links) | vitest for `src/lib/`; UI by hand |
