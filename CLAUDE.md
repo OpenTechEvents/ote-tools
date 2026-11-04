@@ -21,9 +21,11 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   Never fetch the schema at runtime.
 - **Every published spec version is embedded, and a document is judged against
   the version it declares.** Each release pins its own `specVersion` with a
-  `const`, so checking a valid 0.3 feed against the 0.4 schemas produces one
-  meaningless error and calls a healthy feed broken — three tools in the
-  ecosystem shipped exactly that. `validateDocument()` picks the version;
+  `const`, so checking a feed that is valid at one version against another
+  version's schemas produces one meaningless error and calls a healthy feed
+  broken — four tools in the ecosystem shipped exactly that, the most recent
+  being the exporters, where bumping the pin to 0.6 turned a latent copy of
+  this bug into a live one. `validateDocument()` picks the version;
   `validateEvent`/`validateFeed` stay synchronous and latest-only, which is
   right for documents this kit *writes* and wrong for documents it *judges*.
   The support policy (last three minors; older means migrate; unpublished means
@@ -31,6 +33,12 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   in `packages/validate/src/versions.ts` — do not reinvent it here. Being on a
   supported-but-older release is a notice, never a defect, and no message in
   this kit blames a publisher for a legitimate choice.
+
+  **The window is computed, not listed, so a release can move it without
+  anyone deciding to.** Publishing 0.5.0 and 0.6.0 on the same day slid it
+  from {0.2, 0.3, 0.4} to {0.4, 0.5, 0.6} and dropped 0.3 out — and a
+  registered adopter was on 0.3. That is the policy working, but check who it
+  affects before announcing a release rather than after.
 - **Check the pinned spec version before any schema-shaped work** — validation
   rules, error messages, connectors, fixtures, anything that asks "is this
   document valid". The spec moves on its own repo and its own schedule, so the
@@ -51,6 +59,16 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   pnpm --filter @opentechevents/validate gen   # re-embeds AND re-compiles
   pnpm build && pnpm test                      # guard tests catch a missed gen
   ```
+
+  Two things that bite here. pnpm re-adds a `minimumReleaseAgeExclude` entry
+  to `pnpm-workspace.yaml`, because the spec is pinned the same day it is
+  published — annotate it with a dated `TODO` and keep the list one line.
+  And **`packages/validate/fixtures/` must be re-copied from the spec repo at
+  the matching tag, not version-bumped in place**: the npm tarball ships
+  schemas only, no examples, and the new version's examples are the only
+  thing that exercises its new fields. `fixtures/README.md` has the procedure,
+  including verifying the schemas at that tag are byte-identical to the
+  installed package first.
 
   Then read the spec's own CHANGES.log for what actually moved, and follow it
   through this repo rather than stopping at green tests: a rule that changed
