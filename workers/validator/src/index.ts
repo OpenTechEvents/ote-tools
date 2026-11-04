@@ -27,6 +27,7 @@ import { badgeTtlSeconds, renderBadge, resolveBadge } from "./badge.js";
 import { checkUrls, DEFAULT_CHECK_LIMITS } from "./check-urls.js";
 import { dohResolver } from "./dns.js";
 import { DEFAULT_LIMITS, fetchDocument, type FetchResult } from "./fetch-document.js";
+import type { TcpProbe } from "./tcp-probe.js";
 
 export interface Env {
   /**
@@ -120,6 +121,11 @@ export interface BadgeCache {
 export interface Deps {
   fetchImpl: typeof fetch;
   resolve: (hostname: string) => Promise<string[]>;
+  /**
+   * The connect check (`tcp-probe.ts`). Optional because the tests run under
+   * plain vitest, where `cloudflare:sockets` does not exist; see `lazyProbe`.
+   */
+  probe?: TcpProbe;
   /** Absent in tests that do not care about caching, and in `wrangler dev`. */
   cache?: BadgeCache;
 }
@@ -184,7 +190,11 @@ async function handleBadge(
     );
   }
 
-  const verdict = await resolveBadge(target, { fetchImpl: deps.fetchImpl, resolve: deps.resolve });
+  const verdict = await resolveBadge(target, {
+    fetchImpl: deps.fetchImpl,
+    resolve: deps.resolve,
+    probe: deps.probe,
+  });
   const ttl = badgeTtlSeconds(verdict.state);
   const response = new Response(renderBadge(verdict.state), {
     status: 200,
@@ -319,7 +329,11 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
     );
   }
 
-  const result = await fetchDocument(target, { fetchImpl: deps.fetchImpl, resolve: deps.resolve });
+  const result = await fetchDocument(target, {
+    fetchImpl: deps.fetchImpl,
+    resolve: deps.resolve,
+    probe: deps.probe,
+  });
   return json(toResponseBody(result), result.ok ? 200 : result.status, cors);
 }
 
@@ -335,11 +349,29 @@ export async function handleRequest(request: Request, env: Env, deps: Deps): Pro
  */
 const boundFetch: typeof fetch = (input, init) => fetch(input, init);
 
+/**
+ * The connect check, imported at first use rather than at module load.
+ *
+ * `cloudflare:sockets` exists only inside the Workers runtime, and this
+ * module is imported directly by the test suite, which runs on Node. A static
+ * import would make every test in `handler.test.ts` fail to load — so the
+ * import happens inside the call, which only ever happens in production.
+ *
+ * It is exported so a test can assert the wiring is here without evaluating
+ * it: a preflight that silently stopped being passed to `fetchDocument` would
+ * cost a visitor 52 extra seconds on a dead host and break no test.
+ */
+export const lazyProbe: TcpProbe = async (hostname, port, budgetMs) => {
+  const { tcpProbe } = await import("./tcp-probe.js");
+  return tcpProbe(hostname, port, budgetMs);
+};
+
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     return handleRequest(request, env, {
       fetchImpl: boundFetch,
       resolve: dohResolver(boundFetch),
+      probe: lazyProbe,
       cache: caches.default,
     });
   },

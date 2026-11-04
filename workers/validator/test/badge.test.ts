@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { renderBadge, resolveBadge, type BadgeState } from "../src/badge.js";
+import { badgeTtlSeconds, renderBadge, resolveBadge, type BadgeState } from "../src/badge.js";
 import { handleRequest, type BadgeCache } from "../src/index.js";
 
 /**
@@ -75,6 +75,18 @@ function network(pages: Record<string, { body: string; contentType: string }>): 
       headers: { "content-type": page.contentType },
     });
   }) as unknown as typeof fetch;
+}
+
+/** A host that accepts the request and then says nothing until aborted. */
+function neverAnswers(): typeof fetch {
+  return (async (_input: unknown, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        const error = new Error("timed out");
+        error.name = "TimeoutError";
+        reject(error);
+      });
+    })) as unknown as typeof fetch;
 }
 
 const json = (body: string) => ({ body, contentType: "application/ote+json" });
@@ -159,6 +171,48 @@ describe("resolveBadge", () => {
     expect(verdict.state).toBe("unreachable");
   });
 
+  it("says slow, not unreachable, when the origin is merely late", async () => {
+    // The visible half of #70: this badge sat on a registered adopter's
+    // README reading "OTE feed: unreachable" over a feed that answers 200.
+    const verdict = await resolveBadge("https://comunidad.example/feed.json", {
+      fetchImpl: neverAnswers(),
+      resolve,
+      limits: { hopTimeoutMs: 50, totalTimeoutMs: 50 },
+    });
+    expect(verdict.state).toBe("slow");
+    expect(badgeTtlSeconds("slow")).toBeLessThanOrEqual(300);
+  });
+
+  it("keeps its two fetches inside one budget, not one each", async () => {
+    // A page that declares a feed costs two fetches. With a budget apiece, a
+    // single badge request could hold a reader's connection for 120 s.
+    const page = html(
+      '<html><head><link rel="alternate" type="application/ote+json" href="/feed.json">' +
+        "</head></html>",
+    );
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input.toString() === "https://comunidad.example/") {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        return new Response(page.body, {
+          status: 200,
+          headers: { "content-type": page.contentType },
+        });
+      }
+      return neverAnswers()(input, init);
+    }) as unknown as typeof fetch;
+
+    const started = Date.now();
+    const verdict = await resolveBadge("https://comunidad.example/", {
+      fetchImpl,
+      resolve,
+      limits: { hopTimeoutMs: 120, totalTimeoutMs: 120 },
+    });
+    expect(verdict.state).toBe("slow");
+    // 80 ms of the 120 went on the page, so the feed fetch had ~40 left. With
+    // a budget apiece this takes 80 + 120; sharing one, it ends at 120.
+    expect(Date.now() - started).toBeLessThan(160);
+  });
+
   it("applies the same SSRF rules as /fetch", async () => {
     const verdict = await resolveBadge("http://169.254.169.254/latest/meta-data/", {
       fetchImpl: network({}),
@@ -176,6 +230,7 @@ describe("renderBadge", () => {
     "not-discovered",
     "ambiguous",
     "unreachable",
+    "slow",
   ];
 
   it("draws only its own constants, never anything fetched", () => {

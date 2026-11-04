@@ -106,9 +106,28 @@ URL check.
 It runs the same two steps the page does, and keeps them apart for the same
 reason: **`no feed found` is not `invalid`**. The states are `valid`,
 `invalid`, `no feed found`, `several feeds` (the page declares more than one
-and the badge refuses to pick, exactly as the UI does) and `unreachable`. The
-state also travels as `x-ote-badge-state`, from that fixed vocabulary, so it
-can be read with `curl` without parsing an image.
+and the badge refuses to pick, exactly as the UI does), `unreachable` and
+`slow`. The state also travels as `x-ote-badge-state`, from that fixed
+vocabulary, so it can be read with `curl` without parsing an image.
+
+`slow` and `unreachable` are kept apart for the reason in #70: this image
+lives in a publisher's README, and a feed that answers `200` in 51 s is not a
+feed nobody can reach. Only the clock running out produces `slow`; a name that
+does not resolve, nothing listening, or a 500 is `unreachable`, because there
+is nothing at the other end to be slow. A feed that *is* valid and slow badges
+`valid` — performance is not validity, and the page is where the seconds are
+reported. Measured against the four cases that matter:
+
+| Feed | Badge | Time |
+| --- | --- | --- |
+| Valid, slow origin (the adopter feed in #70) | `valid` | 23.7 s |
+| Nothing listening on the port | `unreachable` | 8.1 s |
+| Hostname does not resolve | `unreachable` | 0.1 s |
+| Answers nothing at all past 60 s | `slow` | 60 s |
+
+Resolving a badge can cost two fetches (a page, then the feed it declares), so
+they share **one** 60 s budget rather than taking one each: a README reader's
+connection must not be held for twice the ceiling this service advertises.
 
 Two properties make this endpoint different from `/fetch`:
 
@@ -151,6 +170,12 @@ default, a proxy into whatever the server can reach. Every rule below lives in
 - **Non-HTTP ports** an HTTP client can still reach (25, 6379, 3306, …) are
   refused.
 
+- **The connect probe runs after those checks, never instead of them**, and
+  connects by hostname because the runtime will not usefully connect to an IP
+  literal (above). It therefore learns exactly what the `fetch` on the next
+  line would learn — whether something accepts a connection — and adds no
+  reach the fetch does not already have.
+
 **Known residual risk — DNS rebinding.** A Worker has no socket-level API to
 pin the connection to the address it just validated, so a resolver answer that
 changes between check and connect is not fully excluded. What is left is
@@ -165,12 +190,73 @@ the runtime reduces the impact of a mistake, not the need to write them.
   cap without being buffered (there is a test for exactly that).
 - The cap counts **decompressed** bytes, which is what a decompression bomb
   inflates.
-- **Timeouts**: 5 s per hop, 10 s for the whole chain. Deliberately shorter
-  than a feed reader's (those poll in the background and can wait 30 s); here
-  somebody is watching the page. The timeout message therefore names the limit
-  it hit **and** points at the file and paste modes, which validate the same
-  document in the browser without this service — a slow origin is the one
-  failure here that is nobody's bug to fix from this side.
+- **Timeouts: 60 s, for the hop and for the whole chain alike.** Not a number
+  chosen here — it is the one the rest of the ecosystem already settled on.
+  The spec repo's daily health check and its adopter-registration bot both
+  fetch with 60 s and retries, each after this same false negative was removed
+  from it (spec PRs #43 and #46). At the previous 5 s/10 s this endpoint
+  answered `unreachable` for `https://eventos.wiki/events.json` — a registered
+  adopter's feed that answers `200` with ~554 KB in 23.6–51 s, consistently —
+  while the bot that links here told that publisher their feed was valid
+  (#70). Three tools, one feed, two answers.
+
+  The hop and the chain carry the **same** budget deliberately. The normal
+  case is a single hop and it has to be able to spend all 60 s, since that is
+  what the measured feed needs; a redirect chain still cannot multiply the
+  wait, because each hop takes only what the chain has left.
+
+- **8 s to accept a connection, which is a different question from answering
+  one.** A long download deadline must not become a long *connect* deadline,
+  and `fetch` cannot tell the two apart: one `AbortSignal` covers the
+  handshake, the origin thinking and the bytes moving alike. Measured against
+  the runtime: a live host with a filtered port (`example.com:81`) spent the
+  entire 60 s and came back reading **slow** — the mirror image of the false
+  negative this issue is about, and a worse wait than the 10 s it replaced.
+
+  So every hop opens a bare TCP connection first, under its own budget
+  (`src/tcp-probe.ts`, one extra subrequest per hop). The discrimination is
+  stark: the adopter feed accepts a connection in **0.1 s** and answers in
+  23.6 s, while nothing-is-listening is established in 8. A host that proves
+  something is listening earns the long clock; one that does not gets
+  `no-connection` — and *not* the word "slow", because there is nothing there
+  to be slow. Measured end to end: 60.0 s → **8.2 s**.
+
+  Two things the runtime decided for us, both found by probing it rather than
+  reading about it. **The probe connects to the hostname, not to the address
+  the SSRF check validated**: `connect()` to an IP literal does not behave —
+  `93.184.215.14:443` timed out at 6 s where `example.com:443` opened in 25
+  ms, and an IPv6 literal is refused outright. And **`close()` is never
+  awaited** on a socket that never opened, because it may not settle, which
+  would hang the request past the very budget the probe exists to impose.
+
+  **The probe fails open.** Anything other than a clean "nothing accepted a
+  connection in time" is treated as inconclusive and the fetch proceeds as if
+  no probe had run. It may shorten a hopeless wait; it must never be able to
+  invent a failure for a feed that would have loaded.
+
+- **One retry, and never for a timeout.** A reset connection, or a 502 from a
+  shared host, is not a verdict about a feed, so a hop gets a second attempt
+  (`maxAttempts: 2`) after a transport error or a 429/5xx — failures that
+  arrive *fast*. 4xx is deterministic and is not asked twice. The retry is
+  narrower than the health check's and the bot's on purpose: those run
+  unattended on a schedule, whereas here somebody is watching a spinner, and
+  having waited the full 60 s once, waiting it again turns a 60 s answer into
+  a 120 s one that still says "slow" at the end.
+
+- **The wording is part of the fix.** "Unreachable" is the wrong word for
+  "did not finish inside our budget": to a publisher whose feed is valid and
+  merely slow to generate it reads as an accusation. The timeout message names
+  the budget, says plainly that this makes the *origin* slow and not the
+  *feed* invalid, and points at the file and paste modes, which validate the
+  same document in the browser without this service.
+
+  And raising the clock is not the whole fix — a feed that takes 23.6 s to
+  start answering still has something worth fixing. That is what the page's
+  "How this was served" section reports (`apps/validator/src/lib/transport.ts`,
+  #105): the gap between time-to-first-byte and total tells a publisher
+  whether the cost is the origin thinking or the bytes moving. A slow feed now
+  validates *and* is told it is slow; a dead one is still reported as dead.
+  The two must not end up telling the same story.
 - **Rate limiting per IP** via the optional `RATE_LIMITER` binding
   (`wrangler.jsonc`). The Worker runs without it — production should not.
 
