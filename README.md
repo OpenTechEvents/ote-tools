@@ -24,14 +24,27 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 | [`@opentechevents/import-ics`](packages/import-ics/) | iCalendar (`.ics`) → partial OTE event documents (review-and-complete). |
 | [`@opentechevents/import-jsonld`](packages/import-jsonld/) | schema.org Event JSON-LD in an HTML page → partial OTE event documents. |
 | [`@opentechevents/build-feed`](packages/build-feed/) | `events/*.json` + `ote.config.json` → validated `feed.json` + `feed.ics` + `feed.xml`. |
-| [`@opentechevents/discover-feed`](packages/discover-feed/) | Reference implementation of feed discovery: response bytes + content-type + URL → candidate feed URLs. No network. |
 
 All connectors are pure functions with a thin CLI on top. They never invent
 data: a field absent in the input stays absent in the output.
 
-Published packages follow the OTE spec minor they implement (`0.4.x` speaks
-OTE spec v0.4). Each package also has its own changelog so fixes and
-improvements can be traced package by package.
+Most packages follow the OTE spec minor they implement (`0.4.x` speaks OTE
+spec v0.4). `migrate` is the exception and is versioned on its own: it spans
+versions rather than implementing one. Each package also has its own
+changelog so fixes and improvements can be traced package by package.
+
+### Workspace-internal packages
+
+These are **not published to npm** (`"private": true`). They exist because
+two apps in this repo needed the same logic and a second copy would have
+drifted — not as libraries for outside use, so they carry no compatibility
+promise and can change shape whenever their callers do.
+
+| Package | What it does | Used by |
+| --- | --- | --- |
+| [`@opentechevents/discover-feed`](packages/discover-feed/) | Reference implementation of feed discovery: response bytes + content-type + URL → candidate feed URLs. No network. | `apps/validator`, `workers/validator` |
+| [`@opentechevents/feed-urls`](packages/feed-urls/) | `?repo=owner/name` → the URLs a browser can actually fetch a fork's published files from, including the custom-domain cases. | `apps/publish`, `apps/preview`, `apps/editor` |
+| [`@opentechevents/preview-feed`](packages/preview-feed/) | Normalizes the three export formats (JSON, ICS, RSS) into one `PreviewFeed`/`PreviewEvent` shape for display. | `apps/embed`, `apps/preview`, `apps/editor` |
 
 ## Apps
 
