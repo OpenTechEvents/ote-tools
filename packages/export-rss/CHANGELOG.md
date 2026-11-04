@@ -2,6 +2,23 @@
 
 All notable changes to `@opentechevents/export-rss` are documented here.
 
+## 0.6.0
+
+- **Implements OTE Spec 0.6.0.**
+- **A feed is judged by the version it declares** (`validateDocument`), not by
+  the newest release — see export-ics 0.6.0 for why. `runCli` is async.
+- `speakers` → the item body, as `name, affiliation`.
+- `recordings` → `media:player`. Deliberately **not** `media:content` and
+  **not** `<enclosure>`: both promise a fetchable media resource, and a
+  recording is a watch page, so a reader would try to play HTML.
+- `feed.alternates` → `atom:link rel="alternate"` on the channel (the `atom`
+  namespace is declared for it).
+- `offers[].scope`: an `add-on` prints "additional charge on top of admission"
+  instead of its figure, and the set admission is printed next to `Part of:`
+  so the total stays reachable.
+- `feed.covers` and `contributing` are not emitted: RSS has no element that
+  means either, and inventing one would make a promise no reader could read.
+
 ## 0.4.0
 
 - Tracks **OTE Spec 0.4.0**; no behavioural change in this package. A feed with

@@ -2,6 +2,24 @@
 
 All notable changes to `@opentechevents/export-jsonld` are documented here.
 
+## 0.6.0
+
+- **Implements OTE Spec 0.6.0.**
+- **A feed is judged by the version it declares** (`validateDocument`), not by
+  the newest release — see export-ics 0.6.0 for why. `runCli` is async.
+- `speakers` → `performer`, `Person` or `Organization` by `type`, with
+  `affiliation` as an `Organization` node (schema.org's `Person.affiliation`
+  wants a node; OTE keeps it a string so this is the only place that shape
+  decision is made). `sameAs` passes through.
+- `recordings` → `recordedIn` as `VideoObject { url, name? }`.
+- `partOf.offers` → `superEvent.offers`, so a consumer can add the two.
+- `offers[].scope`: an **`add-on` carries no `price` or `priceCurrency`**.
+  schema.org cannot express "in addition to the parent's price", so the number
+  alone would state a total that is wrong rather than incomplete. An unnamed
+  add-on is labelled "Additional charge on top of admission"; the figures stay
+  reachable through `superEvent.offers` and the offer's `url`.
+- `contributing` is not emitted: schema.org has no term for it.
+
 ## 0.4.0
 
 - Tracks **OTE Spec 0.4.0**; no behavioural change in this package. A feed with
