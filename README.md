@@ -16,7 +16,8 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 
 | Package | What it does |
 | --- | --- |
-| [`@opentechevents/validate`](packages/validate/) | Validates OTE Event/Feed documents against the vendored v0.4 JSON Schema. |
+| [`@opentechevents/validate`](packages/validate/) | Validates OTE Event/Feed documents against the version each one declares. Every published spec version is embedded. |
+| [`@opentechevents/migrate`](packages/migrate/) | Moves a document to a newer spec version, and warns where D032's multi-part pricing change silently altered what it means. |
 | [`@opentechevents/export-ics`](packages/export-ics/) | Valid OTE Feed → iCalendar (RFC 5545). |
 | [`@opentechevents/export-rss`](packages/export-rss/) | Valid OTE Feed → RSS 2.0. |
 | [`@opentechevents/export-jsonld`](packages/export-jsonld/) | Valid OTE Feed/Event → schema.org `Event` JSON-LD (SEO structured data). |

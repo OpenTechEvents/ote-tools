@@ -1,0 +1,42 @@
+{
+  "name": "@opentechevents/migrate",
+  "version": "0.1.0",
+  "description": "Moves an OTE document to a newer spec version, and says what a find-and-replace would have got wrong",
+  "license": "MIT",
+  "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/migrate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenTechEvents/ote-tools.git",
+    "directory": "packages/migrate"
+  },
+  "bugs": "https://github.com/OpenTechEvents/ote-tools/issues",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "ote-migrate": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentechevents/validate": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
