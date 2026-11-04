@@ -1,5 +1,5 @@
 import { type OteFeed } from "@opentechevents/export-jsonld";
-import { validateFeed } from "@opentechevents/validate";
+import { validateDocument, type SpecVersionNotice } from "@opentechevents/validate";
 
 import { feedUrls, parseFeedSource, type FeedSource } from "./lib/feed-source.js";
 import { DEFAULT_EMBED_OPTIONS } from "./lib/site-snippets.js";
@@ -11,7 +11,7 @@ import {
 } from "./lib/store.js";
 import { renderAppBar, setFeedLabel, wireBrand, wireEventChip, wireTheme } from "./ui/app-bar.js";
 import type { AppContext, State } from "./ui/context.js";
-import { el } from "./ui/dom.js";
+import { el, link, sentence } from "./ui/dom.js";
 import { renderDestination, wireDestinationChrome } from "./ui/destination.js";
 import { wireEventPicker } from "./ui/event-picker.js";
 import { renderHome } from "./ui/home.js";
@@ -24,6 +24,26 @@ const destinationView = document.querySelector<HTMLElement>("#destination-view")
 function showMessage(heading: string, body: string, isError: boolean): void {
   message.className = isError ? "panel error" : "panel";
   message.replaceChildren(el("h2", undefined, heading), el("p", undefined, body));
+  message.hidden = false;
+}
+
+/**
+ * Version notices, which are news rather than findings. The feed broadcasts
+ * either way, so this never returns early on the caller's behalf, and it
+ * renders above `#main` instead of in place of it.
+ *
+ * A notice keeps its `links` out of its sentence so a page can render them as
+ * links; this one does, rather than printing a bare URL mid-paragraph.
+ */
+function showNotices(notices: SpecVersionNotice[]): void {
+  if (notices.length === 0) return;
+  message.className = "panel";
+  message.replaceChildren(el("h2", undefined, "Worth knowing about this feed"));
+  for (const notice of notices) {
+    const parts: (string | Node)[] = [notice.message];
+    for (const target of notice.links) parts.push(" ", link(target.href, target.label));
+    message.append(sentence(...parts));
+  }
   message.hidden = false;
 }
 
@@ -104,8 +124,14 @@ async function boot(): Promise<void> {
   // Every destination maps the feed's own fields onto someone else's format;
   // none of them validates. An invalid feed would be broadcast, errors and
   // all, to every destination at once — so it stops here.
-  const validation = validateFeed(json);
-  if (!validation.valid) {
+  //
+  // `validateDocument`, not `validateFeed`: this is a feed somebody else
+  // published, so it is judged against the version it declares. Against
+  // "latest" a valid 0.4 feed came back broken over its `specVersion` alone
+  // and Broadcast refused to publish it — being behind is a notice, never a
+  // defect (#69).
+  const report = await validateDocument(json, { kind: "feed" });
+  if (!report.valid) {
     message.className = "panel error";
     message.replaceChildren(
       el("h2", undefined, "This feed is not valid OTE"),
@@ -116,7 +142,7 @@ async function boot(): Promise<void> {
       ),
     );
     const list = el("ul");
-    for (const error of validation.errors) {
+    for (const error of report.errors) {
       const item = el("li");
       item.append(el("code", undefined, error.path), document.createTextNode(` — ${error.message}`));
       list.append(item);
@@ -125,6 +151,10 @@ async function boot(): Promise<void> {
     message.hidden = false;
     return;
   }
+
+  // Said, but not in the way of anything: a supported-but-older release is a
+  // legitimate choice, so this sits above the app instead of replacing it.
+  showNotices(report.notices);
 
   const feed = json as OteFeed;
   setFeedLabel(

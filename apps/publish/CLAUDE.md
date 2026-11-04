@@ -205,10 +205,19 @@ CFP row is left out entirely where the destination would never ask.
 
 ## An invalid feed stops everything, before any destination
 
-`main.ts` runs `validateFeed` first and shows the errors *instead of* the
-console. Destinations are pure mappings, not validators: broadcasting from a
-broken feed would carry the same errors to every destination at once. Don't
+`main.ts` validates first and shows the errors *instead of* the console.
+Destinations are pure mappings, not validators: broadcasting from a broken
+feed would carry the same errors to every destination at once. Don't
 "improve" this into best-effort output with a warning.
+
+It validates with **`validateDocument`, not `validateFeed`** — this feed is
+one somebody else published, so it is judged against the version it declares.
+`validateFeed` is latest-only by design, and under it a perfectly valid 0.4
+feed came back invalid over its `specVersion` alone, so Broadcast refused to
+publish a healthy feed (#69). Being behind inside the support window is a
+**notice**, never a defect: `showNotices` puts those above `#main` and the
+feed still broadcasts. Never let a version notice take the early return the
+error path takes.
 
 ## Online-only events are not eligible for Google rich results — say so
 

@@ -10,13 +10,24 @@ const serve = process.argv.includes("--serve");
 // it here means the snippet can never drift from the deployed assets.
 const embedVersion = JSON.parse(readFileSync("../embed/package.json", "utf8")).version;
 
+// `splitting` with an outdir instead of a single outfile, the same shape and
+// for the same reason as apps/validator: validating a feed against the
+// version it declares (#69) means @opentechevents/validate can reach any
+// published version's compiled validators, and each one is a few hundred
+// kilobytes. They sit behind a dynamic import there, so esbuild gives each
+// its own chunk — without `splitting` they are all inlined and `main.js`
+// goes from 464 KB to 1.3 MB for versions this page will usually never meet.
 const options = {
   entryPoints: ["src/main.ts"],
   bundle: true,
+  splitting: true,
   format: "esm",
   platform: "browser",
   target: "es2022",
-  outfile: "dist/main.js",
+  outdir: "dist",
+  // The page loads ./main.js by name; only the shared chunks get hashes.
+  entryNames: "[name]",
+  chunkNames: "chunks/[name]-[hash]",
   sourcemap: true,
   minify: !serve,
   logLevel: "info",
