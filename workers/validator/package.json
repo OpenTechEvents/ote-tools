@@ -17,9 +17,9 @@
     "@opentechevents/validate": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260823.1",
+    "@cloudflare/workers-types": "^5.20261102.1",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.156.2"
   }
 }
