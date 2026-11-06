@@ -1,6 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+import { validateDocument, type DocumentKind } from "@opentechevents/validate";
 
 import {
   bashCommands,
@@ -40,24 +41,47 @@ export function ranImporter(run: Run): Check {
 /**
  * Ground truth, independent of anything the agent said: validate the file it
  * actually left on disk.
+ *
+ * This calls the workspace's own validator rather than an `npx` pin, for the
+ * reason the pin itself demonstrated: it fetched the validate package on the
+ * 0.4 line, which measures a document against the newest release instead of
+ * the version it declares — the bug this kit fixed in 0.6 — so the instrument
+ * reported a correct 0.5 or 0.6 document as broken, and a green run meant
+ * nothing. An unpinned import cannot drift: it is the code under review.
+ *
+ * The agent-facing pins are a different thing and stay literal in the skill:
+ * they say which published release the instructions were tested with. The
+ * guard in `test/version-pins.test.ts` is what keeps those honest.
  */
-export function fileIsValid(run: Run, relativePath: string): Check {
+export async function fileIsValid(run: Run, relativePath: string): Promise<Check> {
   const target = resolve(run.dir, relativePath);
+  const name = "the file on disk is valid";
+
+  let json: unknown;
   try {
-    const output = execFileSync(
-      "npx",
-      ["-y", "-p", "@opentechevents/validate@0.4", "ote-validate", target],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
-    return check("the file on disk is valid", true, output.trim());
+    json = JSON.parse(readFileSync(target, "utf8"));
   } catch (e) {
-    const err = e as { stdout?: string; stderr?: string; status?: number };
-    return check(
-      "the file on disk is valid",
-      false,
-      `exit ${err.status ?? "?"}: ${(err.stdout ?? "") + (err.stderr ?? "")}`.trim(),
-    );
+    return check(name, false, `${relativePath}: ${(e as Error).message}`);
   }
+
+  const kind: DocumentKind =
+    typeof json === "object" && json !== null && Array.isArray((json as Record<string, unknown>).events)
+      ? "feed"
+      : "event";
+  const report = await validateDocument(json, { kind });
+
+  // `checkedVersion === null` is not a verdict on the document: nothing was
+  // measured. Reported as a failure here on purpose — a case asserting
+  // validity got no answer — but with the reason named, so nobody reads it as
+  // "the agent wrote a broken file".
+  if (report.checkedVersion === null) {
+    return check(name, false, `not judged: ${report.errors.map((e) => e.message).join(" ")}`);
+  }
+
+  const detail = report.valid
+    ? `valid against OTE ${report.checkedVersion}`
+    : report.errors.map((e) => `${e.path}: ${e.message}`).join("; ");
+  return check(name, report.valid, detail);
 }
 
 /**

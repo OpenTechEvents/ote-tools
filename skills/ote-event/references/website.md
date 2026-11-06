@@ -35,9 +35,9 @@ Two cautions:
 - The media type is **not settled** in the spec
   ([spec#33](https://github.com/OpenTechEvents/opentechevents-spec/issues/33)):
   `application/ote+json` vs. reusing `application/feed+json`. Write
-  `application/ote+json` — what v0.4 documents — and mention in one line that it may
-  change, so the organizer is not surprised later. When *reading* someone's site,
-  accept all the spellings.
+  `application/ote+json` — what the spec documents today — and mention in one line
+  that it may change, so the organizer is not surprised later. When *reading*
+  someone's site, accept all the spellings.
 - `/.well-known/ote-feed` is a complement, only for organizers who control their
   domain apex, and also unsettled. Do not set it up unprompted.
 
@@ -71,8 +71,8 @@ This is usually what the organizer cares about most, and they rarely know to ask
 Generate it from the feed rather than hand-writing it:
 
 ```sh
-npx -y -p @opentechevents/export-jsonld@0.4 ote-export-jsonld feed.json           # <script> block, @graph of events
-npx -y -p @opentechevents/export-jsonld@0.4 ote-export-jsonld --item-list feed.json  # for a listing page
+npx -y -p @opentechevents/export-jsonld@0.6 ote-export-jsonld feed.json           # <script> block, @graph of events
+npx -y -p @opentechevents/export-jsonld@0.6 ote-export-jsonld --item-list feed.json  # for a listing page
 ```
 
 A `@graph` of events suits a page about those events; `--item-list` suits an index.
@@ -89,7 +89,7 @@ stale when events change.
 Two of them, and organizers want different ones. To **render** the events on the page:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.7.0/ote-events.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.8.2/ote-events.js"></script>
 <ote-events feed="https://yourcommunity.dev/events.json"></ote-events>
 ```
 
@@ -100,7 +100,7 @@ To offer a **subscribe** button instead — Google Calendar / `webcal:` / ICS, R
 and the OTE feed:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.7.0/ote-subscribe.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.8.2/ote-subscribe.js"></script>
 <ote-subscribe feed-ics="https://yourcommunity.dev/feed.ics"
                feed-rss="https://yourcommunity.dev/feed.xml"
                feed-json="https://yourcommunity.dev/events.json"></ote-subscribe>

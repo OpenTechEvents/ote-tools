@@ -403,6 +403,9 @@ importers:
 
   skills/evals:
     devDependencies:
+      '@opentechevents/validate':
+        specifier: workspace:*
+        version: link:../../packages/validate
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.5

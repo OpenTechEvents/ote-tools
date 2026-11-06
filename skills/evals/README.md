@@ -17,7 +17,15 @@ decide how everything here is built:
 | **Activation** (`cases/activation.json`) | Does the skill fire on what organizers type, and stay quiet otherwise? | Cheap — the run stops as soon as the agent says which skills it loaded | Every PR that touches a `description` |
 | **Behavior** (`cases/behavior.json`) | Once it fired, did the agent hold the invariants? | Expensive — full conversations | Every PR that touches a `SKILL.md` or a `references/` file |
 
-Keeping them apart is the point. Activation is a **recall problem** solved by
+A third thing lives here and is not an eval: `test/version-pins.test.ts`, a plain
+unit test over the skills' **version literals** — the `npx` pins, the embed URL,
+the `specVersion` in examples, and the spec version each fixture is stamped at.
+No agent, no API key, runs in CI with everything else. It is here rather than in
+`packages/` because what it guards is prose, and because the fixtures it checks
+are these fixtures. See the root `CLAUDE.md` for what it holds and why each rule
+is there.
+
+Keeping the two evals apart is the point. Activation is a **recall problem** solved by
 rewriting one sentence of frontmatter; behavior is a **prompt problem** solved by
 rewriting the body. A single blended score tells you neither.
 

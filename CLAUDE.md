@@ -80,6 +80,45 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   in `packages/validate/src/errors.ts` are keyed to specific rules; a rule that
   moved leaves a message that lies. Say in the PR which spec version the repo
   now implements.
+- **`skills/` moves with the version, and a test says where.** A skill is prose
+  carrying version literals nothing else checks — `npx -p
+  @opentechevents/import-ics@<minor>` lines, a pinned embed URL, a
+  `specVersion` in an example an agent will copy — and each one is an
+  instruction a real organizer follows. They went stale exactly as you would
+  expect: `references/website.md` sat two minors behind `SKILL.md`, because the
+  rule asking for the pins to move lived in a different file from the pins, and
+  the evals measured "ground truth" with the release whose version bug this kit
+  exists to have fixed.
+
+  So do not audit the prose. Run it:
+
+  ```sh
+  pnpm --filter @opentechevents/skill-evals test   # skills/evals/test/version-pins.test.ts
+  ```
+
+  It derives everything from the workspace's own `package.json` versions and
+  from `packages/validate`'s support policy, and fails with the file, the line
+  and the value to write. What it holds: npm pins name a package this repo
+  ships, on the line it ships; a pinned `embed/v<x.y.z>` URL matches
+  `apps/embed` **and** has a committed snapshot behind it; a `specVersion` in
+  anything `skills/ote-event/` tells an organizer to write is the latest
+  published version; and no `.md` names a bare spec minor in prose, because
+  "what v0.4 documents" is read as current by whoever reads it.
+
+  The one that is invisible without it: **eval fixtures pinned to a spec
+  version change meaning when the support window moves.**
+  `corunajug-feed.json` was stamped at an older-but-supported release to be the
+  "a notice, never a defect" case; the 0.5.0/0.6.0 day slid the window past it
+  and it became a *migration* case still asserting the old thing. Fixtures
+  declare a **role** (`latest` / `older-supported` / `none`) and the test
+  resolves it against the live policy, so a window move tells you which file to
+  re-stamp. Re-stamp the fixture — never move the bar.
+
+  Keep the escape hatch closed: there is no per-line ignore, on purpose. A
+  comment that needs to discuss an old pin spells it in words ("the 0.4 line"),
+  which reads better anyway. And when the harness needs a verdict, it imports
+  `validateDocument` from the workspace instead of pinning a published release
+  — an instrument must be the code under review, not a copy of it from npm.
 - Tests: `pnpm test` at the root. Every new package ships fixtures and tests.
 - Build before type-checking a fresh clone or worktree: packages depend on each
   other through `dist/*.d.ts`, so `pnpm typecheck` (and any single-package
