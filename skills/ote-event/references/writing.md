@@ -7,7 +7,7 @@ cannot catch and that silently break the people consuming the feed.
 
 ```json
 {
-  "specVersion": "0.4.0",
+  "specVersion": "0.6.0",
   "id": "https://pyalmeria.example/eventos/2026-06-async",
   "name": "PyAlmería — Introducción a async/await",
   "startDate": "2026-06-11T18:30",
@@ -15,6 +15,12 @@ cannot catch and that silently break the people consuming the feed.
   "license": "CC-BY-4.0"
 }
 ```
+
+**`specVersion` comes from the tool, not from this example.** Run
+`ote-validate --versions` and write the `latest` it names — the number above is what
+this release of the skill ships with, and a document minted two minors behind falls
+out of the support window on a release nobody here will be around for. If the two
+disagree, the tool wins and the skill is stale: say so.
 
 Inside an organizer-kit fork you write **less** than that: an event in `events/*.json`
 inherits `specVersion` from the assembled feed, and may inherit `license`,

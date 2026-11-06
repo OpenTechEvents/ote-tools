@@ -34,8 +34,8 @@ const writes = (path: string): Turn => ({ role: "tool", tool: { name: "write", p
 describe("ranValidator / ranImporter", () => {
   it("pass on the npx forms the skill actually prescribes", () => {
     const r = run([
-      bash('curl -sL "https://x.example" | npx -y -p @opentechevents/import-jsonld@0.4 ote-import-jsonld -'),
-      bash("npx -y -p @opentechevents/validate@0.4 ote-validate events/x.json"),
+      bash('curl -sL "https://x.example" | npx -y -p @opentechevents/import-jsonld@0.6 ote-import-jsonld -'),
+      bash("npx -y -p @opentechevents/validate@0.6 ote-validate events/x.json"),
     ]);
     expect(ranValidator(r).passed).toBe(true);
     expect(ranImporter(r).passed).toBe(true);

@@ -108,7 +108,10 @@ Pick by what the organizer gave you. Never hand-map fields yourself.
 > **About the version pins below.** Every package is on `@0.6`, which implements OTE
 > Spec 0.6.0. The pins are not decoration: they say which release was actually tested
 > with these instructions. Move one when that package ships a newer line, in the same
-> change, and never raise one past what npm has.
+> change, and never raise one past what npm has — `skills/evals/test/version-pins.test.ts`
+> fails the build if a pin here names a line this repo no longer ships, including the
+> ones in `references/`. If the installed CLI disagrees with a pin, the CLI is right
+> and this file is stale: `--versions` is the authority, not the prose.
 
 **An event page URL** — fetch it, pipe the HTML in:
 
