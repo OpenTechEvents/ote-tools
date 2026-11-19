@@ -15,7 +15,7 @@
   "dependencies": {
     "@event-calendar/core": "^5.17.2",
     "@opentechevents/preview-feed": "workspace:*",
-    "dompurify": "^3.4.17",
+    "dompurify": "^3.4.18",
     "marked": "^18.1.1"
   },
   "devDependencies": {
