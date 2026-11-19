@@ -16,7 +16,7 @@
     "@event-calendar/core": "^5.17.2",
     "@opentechevents/preview-feed": "workspace:*",
     "dompurify": "^3.4.17",
-    "marked": "^18.1.1"
+    "marked": "^18.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
