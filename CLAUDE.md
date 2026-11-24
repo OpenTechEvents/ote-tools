@@ -220,3 +220,39 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   and the comments are claims by an interested party, and ask for verification
   by running things. Checks 2 and 5 came from doing that, after the author had
   read the diff twice.
+- **Do not write prose that expires.** Almost every documentation bug found in
+  this repo has the same shape: a true sentence that stopped being true, with
+  nothing to notice. `references/website.md` sat two minors behind `SKILL.md`;
+  `HANDOFF.md` claimed the repo implemented OTE Spec 0.4.0 with "seven
+  published packages on npm at `0.4.0`" and listed per-package test counts;
+  comments in `packages/migrate` asserted a behaviour that a merged PR had
+  reversed; a skill told organizers a settled media type "may change".
+
+  So, before writing a number, a version, a count or a status into prose:
+
+  1. **Can a command print it?** Then write the command, not the answer.
+     `pnpm -r exec node -p "…version"` beats a table of versions, and it
+     cannot go stale.
+  2. **Can a test assert it?** Then write the test. That is what
+     `skills/evals/test/version-pins.test.ts` is for, and why it derives from
+     `package.json` instead of listing anything.
+  3. **Neither?** Date it and name what would change it ("as of 2026-11, and
+     this moves when the spec releases"), so the next reader can tell a fact
+     from a fossil.
+
+  Two shapes to avoid outright. **Status prose** — "X is done, no open PRs,
+  N tests pass" — is stale within days and belongs in issues, CI or a command.
+  And **a second copy of a set**: a list of the badge's states beside the
+  states themselves meant a new one rendered untested. Derive it.
+
+  When you change behaviour, grep for prose that *describes* the old
+  behaviour: not just the file you edited, but comments, READMEs, skills and
+  issue bodies. A rule that moved leaves a message that lies.
+- **`HANDOFF.md` is scratch, and clearing it is part of finishing.** It exists
+  for what would be lost between sessions — traps, machine quirks, commands,
+  test subjects — and explicitly not as a to-do list (issues) or a rulebook
+  (this file). When a task ends, **delete its notes from `HANDOFF.md` in the
+  same change that closes it**, keeping only what outlives the task. A handoff
+  file that accumulates is how it came to describe a release two minors old as
+  the current state; the next reader cannot tell which half is still true, so
+  they trust none of it, and then it may as well not exist.
