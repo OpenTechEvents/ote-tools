@@ -1,7 +1,14 @@
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   absentField,
+  appendedEvent,
+  idFollowsSiblings,
+  wroteNoSecondFeed,
   claimedValidityWithoutProof,
   commandLacks,
   groupedQuestions,
@@ -14,6 +21,7 @@ import {
   slugUnchanged,
   wroteNoEventFile,
 } from "../src/assertions.js";
+import { fixturesDir } from "../src/setup.js";
 import type { Run, Turn } from "../src/transcript.js";
 
 /**
@@ -166,5 +174,247 @@ describe("wroteNoEventFile", () => {
 
   it("ignores writes that are not event documents", () => {
     expect(wroteNoEventFile(run([writes("src/layouts/Base.astro")])).passed).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The branch #120 was about: the feed exists, this event is not in it.
+// `wroteNoEventFile` above is the other half, and the two must not both pass
+// on the same run.
+// ---------------------------------------------------------------------------
+
+const feed = (events: Record<string, unknown>[]) => ({ specVersion: "0.6.0", events });
+const entry = (id: string, name: string, startDate = "2026-11-19T19:15") => ({ id, name, startDate });
+
+describe("appendedEvent", () => {
+  const before = feed([entry("https://x.example/events/a-2026-01-10", "Talk A")]);
+
+  it("passes when the feed gained exactly the event asked for", () => {
+    const after = feed([...before.events, entry("https://x.example/events/b-2026-11-19", "AI-Assisted DDD")]);
+    expect(appendedEvent(before, after, "AI-Assisted").passed).toBe(true);
+  });
+
+  it("fails when nothing was appended — the Step 6 dead-end this case exists for", () => {
+    const c = appendedEvent(before, before, "AI-Assisted");
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("(none)");
+  });
+
+  it("fails when it appended more than the one event", () => {
+    const after = feed([
+      ...before.events,
+      entry("https://x.example/events/b-2026-11-19", "AI-Assisted DDD"),
+      entry("https://x.example/events/c-2026-12-01", "Something else"),
+    ]);
+    expect(appendedEvent(before, after, "AI-Assisted").passed).toBe(false);
+  });
+
+  it("fails when the appended event is not the one asked for", () => {
+    const after = feed([...before.events, entry("https://x.example/events/b-2026-11-19", "Kotlin básico")]);
+    expect(appendedEvent(before, after, "AI-Assisted").passed).toBe(false);
+  });
+
+  it("fails when adding one event dropped another — the count is +1 either way", () => {
+    const start = feed([
+      entry("https://x.example/events/a-2026-01-10", "Talk A"),
+      entry("https://x.example/events/b-2026-02-10", "Talk B"),
+    ]);
+    const after = feed([start.events[0], entry("https://x.example/events/c-2026-11-19", "AI-Assisted DDD")]);
+    const c = appendedEvent(start, after, "AI-Assisted");
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("dropped: Talk B");
+  });
+
+  it("fails when the append stripped the id off a published entry", () => {
+    const start = feed([entry("https://x.example/events/a-2026-01-10", "Talk A")]);
+    const idless = { ...start.events[0] } as Record<string, unknown>;
+    delete idless.id;
+    const after = feed([idless, entry("https://x.example/events/c-2026-11-19", "AI-Assisted DDD")]);
+    const c = appendedEvent(start, after, "AI-Assisted");
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("dropped: Talk A");
+  });
+
+  it("fails when two published entries traded ids — nothing added, nothing dropped", () => {
+    const start = feed([
+      entry("https://x.example/events/a-2026-01-10", "Talk A", "2026-01-10T19:00"),
+      entry("https://x.example/events/b-2026-02-10", "Talk B", "2026-02-10T19:00"),
+    ]);
+    const after = feed([
+      { ...start.events[0], id: "https://x.example/events/b-2026-02-10" },
+      { ...start.events[1], id: "https://x.example/events/a-2026-01-10" },
+      entry("https://x.example/events/c-2026-11-19", "AI-Assisted DDD"),
+    ]);
+    const c = appendedEvent(start, after, "AI-Assisted");
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("re-identified");
+  });
+
+  it("matches on id, so re-serializing the existing entries is not an append", () => {
+    const after = feed([{ ...before.events[0], name: "Talk A (recording up)" }]);
+    expect(appendedEvent(before, after, "Talk A").passed).toBe(false);
+  });
+});
+
+describe("idFollowsSiblings", () => {
+  const siblings = feed([
+    entry("https://www.corunajug.org/events/ddd-by-a-dummy-2026-01-29", "DDD by a Dummy"),
+    entry("https://www.corunajug.org/events/novedades-en-java-26-2026-03-25", "Novedades en Java 26"),
+  ]);
+  const withMinted = (id: string) => feed([...siblings.events, entry(id, "AI-Assisted DDD")]);
+
+  it("accepts an id spelled like the entries already there", () => {
+    const c = idFollowsSiblings(
+      siblings,
+      withMinted("https://www.corunajug.org/events/ai-assisted-domain-driven-development-2026-11-19"),
+    );
+    expect(c.passed).toBe(true);
+  });
+
+  it("rejects a different host, www included", () => {
+    const c = idFollowsSiblings(siblings, withMinted("https://corunajug.org/events/ai-assisted-ddd-2026-11-19"));
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("is not under");
+  });
+
+  it("rejects the kit's date-first default when every sibling trails its date", () => {
+    const c = idFollowsSiblings(siblings, withMinted("https://www.corunajug.org/events/2026-11-19-ai-assisted-ddd"));
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("mid-id");
+  });
+
+  it("derives the pattern, so a feed with no dates in its ids is held to the prefix only", () => {
+    const dateless = feed([
+      entry("https://gdgmalaga.dev/events/biznagafest", "BiznagaFest"),
+      entry("https://gdgmalaga.dev/events/devfest", "DevFest"),
+    ]);
+    const after = feed([...dateless.events, entry("https://gdgmalaga.dev/events/2026-11-19-charla", "Charla")]);
+    expect(idFollowsSiblings(dateless, after).passed).toBe(true);
+  });
+
+  it("tolerates one undated sibling, which real feeds have", () => {
+    const mixed = feed([...siblings.events, entry("https://www.corunajug.org/events/mesa-final-temporada", "Mesa")]);
+    const after = feed([...mixed.events, entry("https://www.corunajug.org/events/charla-2026-12-10", "Charla")]);
+    expect(idFollowsSiblings(mixed, after).passed).toBe(true);
+  });
+
+  it("rejects an id that is the prefix itself, or that nests a new path segment", () => {
+    const bare = idFollowsSiblings(siblings, withMinted("https://www.corunajug.org/events/"));
+    expect(bare.passed).toBe(false);
+    expect(bare.detail).toContain("the prefix itself");
+
+    const nested = idFollowsSiblings(siblings, withMinted("https://www.corunajug.org/events/2026/ai-2026-11-19"));
+    expect(nested.passed).toBe(false);
+    expect(nested.detail).toContain("nests a path");
+  });
+
+  it("fails rather than passes when the siblings themselves share no pattern", () => {
+    const twoHosts = feed([
+      entry("https://a.example/events/x-2026-01-01", "X"),
+      entry("https://b.example/ev/y-2026-02-01", "Y"),
+    ]);
+    const elsewhere = feed([...twoHosts.events, entry("https://eventbrite.es/e/z-tickets-1", "Z")]);
+    const c = idFollowsSiblings(twoHosts, elsewhere);
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("share no pattern");
+
+    const urns = feed([entry("urn:ote:a:1", "A"), entry("urn:ote:b:2", "B")]);
+    const afterUrns = feed([...urns.events, entry("https://eventbrite.es/e/z", "Z")]);
+    expect(idFollowsSiblings(urns, afterUrns).passed).toBe(false);
+  });
+
+  it("says so rather than passing when there is nothing to derive from", () => {
+    expect(idFollowsSiblings(feed([]), feed([entry("https://x.example/events/a", "A")])).passed).toBe(false);
+    expect(idFollowsSiblings(siblings, siblings).passed).toBe(false);
+  });
+
+  /**
+   * Calibrated against reality, not against the rule: the ids are the frozen
+   * CoruñaJUG capture, and the minted id is the one that community's own feed
+   * actually carries for the event the new eval case asks about. If this ever
+   * disagrees, the derived rule is wrong, not the feed.
+   */
+  it("accepts what the real feed really minted, over the real fixture", () => {
+    const fixture = JSON.parse(readFileSync(resolve(fixturesDir, "corunajug-feed.json"), "utf8"));
+    const after = { ...fixture, events: [...fixture.events, entry(
+      "https://www.corunajug.org/events/ai-assisted-domain-driven-development-2026-11-19",
+      "AI-Assisted Domain-Driven Development",
+    )] };
+    expect(idFollowsSiblings(fixture, after).passed).toBe(true);
+    expect(appendedEvent(fixture, after, "AI-Assisted Domain-Driven Development").passed).toBe(true);
+  });
+});
+
+describe("wroteNoSecondFeed", () => {
+  const dirWith = (files: Record<string, string>): string => {
+    const dir = mkdtempSync(join(tmpdir(), "ote-assert-"));
+    for (const [name, body] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, name)), { recursive: true });
+      writeFileSync(join(dir, name), body);
+    }
+    return dir;
+  };
+  const runIn = (dir: string, turns: Turn[]): Run => ({ skillsLoaded: ["ote-event"], turns, dir });
+
+  it("passes when the only feed touched is the one that already existed", () => {
+    const dir = dirWith({ "feed.json": JSON.stringify(feed([entry("https://x.example/events/a", "A")])) });
+    expect(wroteNoSecondFeed(runIn(dir, [writes("feed.json")]), ["feed.json"]).passed).toBe(true);
+  });
+
+  it("passes on a fixture repo that ships a feed and a run that added none", () => {
+    const dir = dirWith({ "events.json": JSON.stringify(feed([])), "README.md": "# site" });
+    expect(wroteNoSecondFeed(runIn(dir, []), ["events.json"]).passed).toBe(true);
+  });
+
+  it("catches a second feed written under a name the scan could have missed", () => {
+    const dir = dirWith({
+      "feed.json": JSON.stringify(feed([])),
+      "events.jsonld": JSON.stringify(feed([entry("https://x.example/events/a", "A")])),
+    });
+    const c = wroteNoSecondFeed(runIn(dir, []), ["feed.json"]);
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("events.jsonld");
+  });
+
+  it("catches a second feed the transcript never recorded as a write", () => {
+    const dir = dirWith({
+      "feed.json": JSON.stringify(feed([])),
+      "public/events.json": JSON.stringify(feed([entry("https://x.example/events/a", "A")])),
+    });
+    const c = wroteNoSecondFeed(runIn(dir, [bash("cat > public/events.json <<EOF")]), ["feed.json"]);
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("public/events.json");
+  });
+
+  it("does not count the harness's own scaffolding as the run's work", () => {
+    const dir = dirWith({
+      "feed.json": JSON.stringify(feed([])),
+      ".eval-bin/https%3A%2F%2Fx.example%2Ffeed.json": JSON.stringify(feed([entry("https://x.example/events/a", "A")])),
+      ".agents/skills/ote-event/example.json": JSON.stringify(feed([])),
+    });
+    expect(wroteNoSecondFeed(runIn(dir, []), ["feed.json"]).passed).toBe(true);
+  });
+
+  it("fails on a second feed under any name", () => {
+    const dir = dirWith({
+      "feed.json": JSON.stringify(feed([])),
+      "events.json": JSON.stringify(feed([entry("https://x.example/events/a", "A")])),
+    });
+    const c = wroteNoSecondFeed(runIn(dir, [writes("events.json")]), ["feed.json"]);
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("events.json");
+  });
+
+  it("does not count an event document as a feed", () => {
+    const dir = dirWith({
+      "feed.json": JSON.stringify(feed([])),
+      "events/charla.json": JSON.stringify(entry("https://x.example/events/charla", "Charla")),
+    });
+    expect(wroteNoSecondFeed(runIn(dir, [writes("events/charla.json")]), ["feed.json"]).passed).toBe(true);
+  });
+
+  it("treats an unreadable write as not a feed rather than as a verdict", () => {
+    const dir = dirWith({ "notes.json": "{ this is not json" });
+    expect(wroteNoSecondFeed(runIn(dir, [writes("notes.json")]), ["feed.json"]).passed).toBe(true);
   });
 });

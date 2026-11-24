@@ -71,9 +71,34 @@ never the identity and never the authority.**
    noise (biznagafest.com does), and plenty of real ones point at an RSS feed for a
    blog. Require an `href`, and fetch it before believing it.
 
-   - Found, on the organizer's own domain → the authoritative document already
-     exists. Do not create a second one. Go to Step 6 and stop.
-   - Not found → the organizer does not publish OTE yet. Continue.
+   - **Not found** → the organizer does not publish OTE yet. Continue.
+   - **Found, on the organizer's own domain** → that feed is the authoritative
+     document, and there is never a second one. **Fetch it**, and then decide the
+     step on the *event*, not on the feed: is **this event** already in there? Match
+     on `id` first; failing that, on `startDate` plus `name` — the same talk often
+     carries a different title on a directory than in the feed.
+
+     - **It is in the feed** → it is already published. Show them the entry as it
+       stands, do not rewrite it, and write nothing new. If they asked for the
+       website side too, Step 6 is what is left.
+     - **It is not in the feed** → the task is **adding an event to a feed that
+       already exists**. Steps 1–5, written into the repo that builds that feed,
+       with the `id` minted under the same domain and following the convention of
+       the entries already in it — see *"Appending to a feed that already exists"*
+       in `references/writing.md`. Never a second feed.
+
+     **When they named no event at all** — *"I want to publish CoruñaJUG's events in
+     OTE"* — the feed *is* the answer: show it, create nothing, and offer Step 6. The
+     question only arises once there is a specific event to look for.
+
+     "The organizer already has a feed" and "this event is already published" are
+     different facts, and only the second one ends the work. A returning adopter
+     asking you to add a meetup is the most common request this skill gets; answering
+     it with a badge is a failure, not caution.
+
+     If you can find the feed but not the repo that builds it, that is the one thing
+     to ask: *"which repo publishes `<feed url>`?"* Do not write into a different
+     repo, and do not publish a second document to work around not knowing.
 
 3. **Then, and only then, look at the directories** — they can save the organizer
    retyping. `https://opentechevents.org/data/adopters.json` lists who has declared
@@ -206,6 +231,10 @@ In an organizer repo that follows the kit, events live at `events/<slug>.json`;
 otherwise ask where. See `references/writing.md` for the `id`, slug and `source` rules —
 **read it before writing**, those three are the ones that silently break consumers.
 
+If Step 0 found an existing feed and this event was not in it, the layout and the `id`
+shape come from the entries already there, not from the defaults — *"Appending to a
+feed that already exists"* in that file is the part to read.
+
 The short form, which you must never violate:
 
 - An `id` already published **never changes**, for any reason.
@@ -270,6 +299,9 @@ Steps 0–5 **and** Step 6. Do not stop after the JSON.
 - Treat a directory's listing as the authority on an event it did not organize, or
   mint an `id` under a directory's domain.
 - Merge two sources that disagree without showing the organizer the disagreement.
+- Write a second feed for an organizer who already has one, under any name.
+- End the work at the website step because a feed exists, when what they asked for is
+  an event that feed does not contain.
 
 ## Language
 
