@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/validate` are documented here.
 
-## Unreleased
+## 0.6.1
 
 **Support is no longer validity.** Two breaking changes to `DocumentReport`,
 both of which exist because six consumers read the support window as a defect
@@ -23,10 +23,18 @@ in somebody's feed (#124):
   The type makes that choice unavoidable instead of letting a falsy check
   decide it silently.
 
-Both are breaking for consumers of `DocumentReport`, so this lands as a minor
-(0.7.0) when it is released — the bump is its own `release(validate)` commit,
-because publishing is a decision and not a side effect of merging, and the
-`skills/` pins move in that same commit (never before npm has the version).
+Both are breaking for consumers of `DocumentReport`, and this still ships as a
+**patch**. In this repo the minor names the spec version a release implements
+(0.1.0, 0.3.0, 0.4.0, 0.6.0 — the gaps are spec versions that got no
+implementation), so spending a minor on a fix would announce an OTE Spec 0.7.0
+that does not exist. It costs nothing to do it this way and buys the thing the
+fix is for: the `@0.6` pins in `skills/` are minor pins, so npm resolves them
+to this patch and **every already-copied skill gets the fix without an edit**.
+A minor would have stranded them all on 0.6.0.
+
+The breaking half has no known external cost — the adopter registry lists no
+live consumers of OTE documents, so nothing outside this monorepo reads
+`DocumentReport`.
 
 Migrating: anywhere you read `report.valid`, handle `null` first.
 `if (!report.valid)` now treats "could not be judged" as "invalid", which is

@@ -92,6 +92,18 @@ function scan(pattern: RegExp): Hit[] {
 
 const at = (hit: Hit): string => `${hit.file}:${hit.line}`;
 
+/** The whole line a hit sits on, for deciding whether it is a command. */
+const sourceLine = (hit: Hit): string =>
+  readFileSync(join(repoRoot, hit.file), "utf8").split("\n")[hit.line - 1] ?? "";
+
+/**
+ * Whether this line tells someone to run something, as opposed to mentioning
+ * a version in a sentence. An executable pin is an instruction an organizer
+ * follows; a prose mention is a fact about when behaviour changed, and the two
+ * must not be held to the same rule.
+ */
+const runsSomething = (line: string): boolean => /\b(?:npx|npm\s+(?:i|install|exec))\b/.test(line);
+
 describe("npm pins in the skills", () => {
   const versions = workspaceVersions();
 
@@ -110,15 +122,52 @@ describe("npm pins in the skills", () => {
    * this repo no longer ships: an organizer running `@0.4` gets tools that
    * implement a spec the kit has moved past, and the skill's own instructions
    * stop matching their output.
+   *
+   * **Only lines that run something are checked**, and this restriction is
+   * the whole reason the test is usable. Prose mentions a version to state a
+   * fact about the past — `SKILL.md` says the CLI judges by the declared
+   * version "(since `@opentechevents/validate@0.6.0`)", which is true and
+   * must not move. An earlier version of this scan matched every occurrence,
+   * so the first patch release would have demanded that sentence be rewritten
+   * to `@0.6.1` — turning a correct statement into a false one, with no
+   * per-line ignore to escape through. A guard that can only be satisfied by
+   * writing something untrue is worse than no guard.
+   *
+   * A minor pin needs no release-day edit at all: npm resolves `@0.6` to the
+   * newest `0.6.x`, so publishing a patch reaches every already-copied skill
+   * without touching a file. Which is also why the published minor matters
+   * more than the patch — in this repo the minor names the spec version a
+   * release implements (see the release note in `packages/validate`).
    */
+  /**
+   * The rule above has no per-line ignore, on purpose, so the line that
+   * decides what it applies to is load-bearing and gets its own assertion.
+   */
+  it("tells a command from a sentence", () => {
+    const commands = [
+      "curl -sL url | npx -y -p @opentechevents/import-jsonld@0.6 ote-import-jsonld -",
+      "npx -y -p @opentechevents/validate@0.6 ote-validate <file|dir>",
+      "npm install @opentechevents/validate@0.6",
+    ];
+    const prose = [
+      "declares (since `@opentechevents/validate@0.6.0`). A healthy feed on an older release",
+      "the behaviour arrived in @opentechevents/validate@0.6.0 and has not changed since",
+    ];
+    for (const line of commands) expect(runsSomething(line), line).toBe(true);
+    for (const line of prose) expect(runsSomething(line), line).toBe(false);
+  });
+
   it("match the version the workspace ships", () => {
-    const stale = scan(/@opentechevents\/[a-z-]+@[\d.]+/g).flatMap((hit) => {
-      const [name, pinned] = [hit.text.slice(0, hit.text.lastIndexOf("@")), hit.text.slice(hit.text.lastIndexOf("@") + 1)];
-      const shipped = versions.get(name);
-      if (!shipped) return [];
-      const ok = shipped === pinned || shipped.startsWith(`${pinned}.`);
-      return ok ? [] : [`${at(hit)} pins ${name}@${pinned}, workspace ships ${shipped}`];
-    });
+    const stale = scan(/@opentechevents\/[a-z-]+@[\d.]+/g)
+      .filter((hit) => runsSomething(sourceLine(hit)))
+      .flatMap((hit) => {
+        const at_ = hit.text.lastIndexOf("@");
+        const [name, pinned] = [hit.text.slice(0, at_), hit.text.slice(at_ + 1)];
+        const shipped = versions.get(name);
+        if (!shipped) return [];
+        const ok = shipped === pinned || shipped.startsWith(`${pinned}.`);
+        return ok ? [] : [`${at(hit)} pins ${name}@${pinned}, workspace ships ${shipped}`];
+      });
     expect(stale).toEqual([]);
   });
 });

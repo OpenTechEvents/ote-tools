@@ -114,22 +114,37 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   resolves it against the live policy, so a window move tells you which file to
   re-stamp. Re-stamp the fixture — never move the bar.
 
-  Keep the escape hatch closed: there is no per-line ignore, on purpose. A
-  comment that needs to discuss an old pin spells it in words ("the 0.4 line"),
-  which reads better anyway. And when the harness needs a verdict, it imports
-  `validateDocument` from the workspace instead of pinning a published release
-  — an instrument must be the code under review, not a copy of it from npm.
+  There is no per-line ignore, on purpose — so **the scan only looks at lines
+  that run something** (`npx`, `npm install`). That boundary is what makes a
+  hatch-free guard survivable: prose names a version to state a fact about the
+  past, and `SKILL.md` says the CLI judges by the declared version "(since
+  `@opentechevents/validate@0.6.0`)", which is true and must not move. The
+  first draft matched every occurrence, so the first patch release would have
+  demanded that sentence be rewritten to `@0.6.1` — a guard satisfiable only
+  by writing something false is worse than no guard. When the harness needs a
+  verdict it imports `validateDocument` from the workspace rather than pinning
+  a published release: an instrument must be the code under review, not a copy
+  from npm.
 
-  **One ordering this imposes, and it is the right one.** Bumping a package's
-  version makes the guard fail until the `skills/` pins naming that package
-  move with it — while the skill must never name a line npm does not have yet.
-  Both hold because a version bump is its own `release(<pkg>): <version>`
-  commit (see `.github/workflows/publish.yml`: publishing is a manual decision,
-  not a side effect of merging), and the pins move **in that commit**, with
-  `pnpm publish` run right after. So: a feature PR changes behaviour and leaves
-  the version alone, writing its entry under `## Unreleased`; the release
-  commit moves the version and the pins together. The guard failing on a bump
-  is not noise — it is the reminder that the skills are about to lie.
+  **Which release moves the pins, and which does not.** In this repo the
+  **minor names the spec version a release implements** — the published lines
+  are 0.1.0, 0.3.0, 0.4.0, 0.6.0, skipping the spec versions that got no
+  implementation. So:
+
+  - **A fix release is a patch** (`0.6.0 → 0.6.1`; precedent:
+    `import-ics@0.4.1`). The `@0.6` pins in `skills/` are *minor* pins, which
+    npm resolves to the newest `0.6.x`, so **a patch reaches every
+    already-copied skill with no edit at all.** Do not touch them, and do not
+    spend a minor on a fix: that announces a spec version that does not exist
+    and strands every copied skill on the broken line forever.
+  - **A minor is for implementing a new spec version**, and there the pins
+    *do* move — in the same `release(<pkg>): <version>` commit, which is also
+    the only moment they may name a line npm does not have yet, with
+    `pnpm publish` run right after (`.github/workflows/publish.yml`:
+    publishing is a manual decision, not a side effect of merging).
+
+  Either way a feature PR changes behaviour and leaves the version alone,
+  writing its entry under `## Unreleased`.
 - Tests: `pnpm test` at the root. Every new package ships fixtures and tests.
 - Build before type-checking a fresh clone or worktree: packages depend on each
   other through `dist/*.d.ts`, so `pnpm typecheck` (and any single-package
