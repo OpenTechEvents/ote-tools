@@ -173,6 +173,47 @@ describe("ote-validate CLI", () => {
     expect(said).toContain("come from the feed");
     expect(said).toContain("Do not add them here");
     expect(said).not.toContain("Set it to one of the published versions");
+    // And the summary — the last line a non-technical organizer reads — must
+    // name the same reason as the note above it. Saying "a spec version this
+    // release cannot check against" over a file that declares no version is
+    // the #117 failure one line further down, and the skill's own exit-code
+    // table now documents the two reasons as distinct.
+    const summary = io.outLines.join(" ");
+    expect(summary).toContain("organizer-kit feed members");
+    expect(summary).toContain("ote-build-feed . --check");
+    expect(summary).not.toContain("a spec version this release cannot check against");
+  });
+
+  it("names both reasons when a run has a feed member and an unjudgeable version", async () => {
+    const io = makeIO();
+    const dir = mkdtempSync(join(tmpdir(), "ote-validate-fork-mixed-"));
+    mkdirSync(join(dir, "events"));
+    writeFileSync(
+      join(dir, "ote.config.json"),
+      JSON.stringify({ feed: { title: "T", url: "https://t.example/f.json", license: "CC-BY-4.0" } }),
+      "utf8",
+    );
+    writeFileSync(
+      join(dir, "events", "talk.json"),
+      JSON.stringify({
+        id: "https://t.example/events/2026-11-07-talk",
+        name: "Talk",
+        startDate: "2026-11-07T10:00",
+        timezone: "Europe/Madrid",
+      }),
+      "utf8",
+    );
+    writeFileSync(
+      join(dir, "events", "future.json"),
+      JSON.stringify({ specVersion: "0.9.0", name: "x" }),
+      "utf8",
+    );
+
+    expect(await runCli([join(dir, "events")], io)).toBe(3);
+    expect(io.outLines.some((l) => l.includes("1/2 not judged: organizer-kit feed members"))).toBe(true);
+    expect(
+      io.outLines.some((l) => l.includes("1/2 not judged: a spec version this release cannot")),
+    ).toBe(true);
   });
 
   it("a version this release cannot judge → exit 3, not 1", async () => {

@@ -17,8 +17,10 @@ asked — linked from their website.
 npx -y -p @opentechevents/validate@0.6 ote-validate <file|dir>
 ```
 
-Exit `0` = valid · `1` = invalid · `2` = usage or I/O problem · `3` = **this release
-cannot judge that `specVersion`** — not a defect in the document. Show its output as it
+Exit `0` = valid · `1` = invalid · `2` = usage or I/O problem · `3` = **not judged** —
+either the document declares a `specVersion` this release has no rules for, or it
+declares none at all — and when it is a kit-fork feed member, the CLI says so and names
+the gate that does judge it (Step 4). None of the three is a defect in the document. Show its output as it
 came. If you cannot run it, say so and stop at that step — do not substitute your own
 reading of the schema. The same holds for extraction: the importers below own the
 mapping, you do not re-derive it.
@@ -245,11 +247,36 @@ The short form, which you must never violate:
 
 ## Step 4 — Gate 2: validate
 
-Run the validator on what you wrote and paste its output. If the repo is a kit fork,
-also check the feed assembles:
+Which command *is* the gate depends on what you wrote. Run the right one and paste its
+output.
+
+**In a kit fork** — an `ote.config.json` with `events/*.json` beside it — the gate is:
 
 ```sh
 npx -y -p @opentechevents/build-feed@0.6 ote-build-feed . --check
+```
+
+That is the whole gate: **do not run `ote-validate` on `events/`.** Those files are
+*feed members*. They carry no `specVersion`, and often no `license`, because both are
+inherited when the feed is assembled — `references/writing.md` forbids writing them by
+hand. A member judged on its own is not judged at all, so the validator correctly
+answers `? … — not checked` and exits `3`, saying why and pointing at the command
+above. Running it anyway puts a failure-shaped output in front of the organizer for a
+healthy file, and then you are explaining away a red — which is a habit worth not
+having, because the next red may be real. The kit's own CI made this choice already:
+`.github/workflows/validate.yml` runs `ote-build-feed . --check` and never calls
+`ote-validate`.
+
+So when someone asks *"is this event file valid?"* about a file in `events/`, the
+answer is not yes or no: **it is a feed member, so it is judged assembled** — and that
+command is what judges it.
+
+**A standalone document** is `ote-validate`'s job: one event or a whole feed that
+carries its own `specVersion`, including somebody else's published feed you are
+checking for them.
+
+```sh
+npx -y -p @opentechevents/validate@0.6 ote-validate <file|dir>
 ```
 
 Mention failures of the **recommended** profile once, as warnings, and move on: a valid

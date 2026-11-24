@@ -2,6 +2,18 @@
 
 All notable changes to `@opentechevents/validate` are documented here.
 
+## Unreleased
+
+- **The not-judged summary names its reason.** A kit fork's `events/*.json`
+  were already reported per file as organizer-kit members, with the right
+  command to judge them — and then the closing count said *"a spec version
+  this release cannot check against (supported: …)"*, which for a file that
+  declares no version describes something that never happened. It is the
+  last line a non-technical organizer reads, so it is the one that decided
+  what they thought was wrong. The summary now reports members and
+  unjudgeable versions as separate counts, and a run with both says both.
+  Exit codes are unchanged (#119).
+
 ## 0.6.1
 
 **Support is no longer validity.** Two breaking changes to `DocumentReport`,

@@ -35,7 +35,7 @@ const USAGE = [
  * Folding the window into the outcome is what made a healthy 0.5 feed read as
  * "0/18 valid" (#95) and a healthy kit fork read as "0/3 valid" (#117).
  */
-type Outcome = "valid" | "invalid" | "not-judged";
+type Outcome = "valid" | "invalid" | "not-judged" | "not-judged-member";
 
 /** Collects .json files recursively, skipping node_modules and hidden entries. */
 function collectJsonFiles(dir: string): string[] {
@@ -139,7 +139,9 @@ async function validateFile(
           `Check it with \`ote-build-feed . --check\`, which validates the ` +
           `assembled feed.`,
       );
-    } else if (support) {
+      return "not-judged-member";
+    }
+    if (support) {
       io.err(`    specVersion: ${support}`);
     }
     return "not-judged";
@@ -268,11 +270,15 @@ export async function runCli(
   let valid = 0;
   let invalid = 0;
   let notJudged = 0;
+  let members = 0;
   for (const file of files) {
     const outcome = await validateFile(file, cwd, io, args.specVersion);
     if (outcome === "valid") valid++;
     else if (outcome === "invalid") invalid++;
-    else notJudged++;
+    else {
+      notJudged++;
+      if (outcome === "not-judged-member") members++;
+    }
   }
 
   // Three counts, never collapsed into one fraction. `0/3 valid` over three
@@ -285,10 +291,22 @@ export async function runCli(
   // answer, and the line below says what actually happened.
   if (judged > 0) io.out(`${valid}/${judged} judged valid`);
   if (invalid > 0) io.out(`${invalid}/${total} invalid`);
-  if (notJudged > 0) {
+  // The summary has to name the reason each file was not judged, because for
+  // a kit fork the version sentence is false: a feed member declares no
+  // version, so "a spec version this release cannot check against" and the
+  // supported list describe something that never happened — and that line is
+  // the last thing a non-technical organizer reads. Reporting it was the same
+  // failure mode one line further down from #117's.
+  if (members > 0) {
     io.out(
-      `${notJudged}/${total} not judged: a spec version this release cannot ` +
-        `check against (supported: ${SUPPORTED_VERSIONS.join(", ")})`,
+      `${members}/${total} not judged: organizer-kit feed members, which are ` +
+        `judged when the feed is assembled (\`ote-build-feed . --check\`)`,
+    );
+  }
+  if (notJudged - members > 0) {
+    io.out(
+      `${notJudged - members}/${total} not judged: a spec version this ` +
+        `release cannot check against (supported: ${SUPPORTED_VERSIONS.join(", ")})`,
     );
   }
 
