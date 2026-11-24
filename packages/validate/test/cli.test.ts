@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,19 +37,22 @@ describe("ote-validate CLI", () => {
     expect(await runCli([join(fixturesDir, "valid")], io)).toBe(0);
     expect(io.errLines).toEqual([]);
     const n = fixtureCount("valid");
-    expect(io.outLines.at(-1)).toBe(`${n}/${n} valid`);
+    expect(io.outLines.at(-1)).toBe(`${n}/${n} judged valid`);
   });
 
   it("directory of invalid fixtures → exit 1 with per-file errors", async () => {
     const io = makeIO();
     expect(await runCli([join(fixturesDir, "invalid")], io)).toBe(1);
     const n = fixtureCount("invalid");
-    expect(io.outLines).toContain(`0/${n} valid`);
+    // The denominator is what was measured, not how many files there were.
+    // `0/93 valid` over 92 defects and one unjudgeable file reported a count
+    // nobody could act on — see #117.
+    expect(io.outLines).toContain(`0/${n - 1} judged valid`);
     expect(io.errLines.some((l) => l.startsWith("✗"))).toBe(true);
     expect(io.errLines.some((l) => l.includes("license"))).toBe(true);
-    // One of the 87 (event-future-specversion.json, 0.9.0) is not a defect
-    // but a version this release cannot judge, and the summary says so
-    // separately. The run still exits 1: the other 86 are real defects.
+    // One of them (event-future-specversion.json, 0.9.0) is not a defect but
+    // a version this release cannot judge, and the summary says so
+    // separately. The run still exits 1: the rest are real defects.
     expect(io.outLines.at(-1)).toContain(`1/${n} not judged`);
   });
 
@@ -92,6 +95,54 @@ describe("ote-validate CLI", () => {
     expect(await runCli([file], io)).toBe(1);
     expect(io.errLines[0]).toContain("invalid JSON");
   });
+  it("an out-of-window document exits 0: it was measured against its own schemas", async () => {
+    const io = makeIO();
+    // #124/#117 together. This used to print `0/1 valid` and exit 3 — a
+    // registered adopter's feed, 25 valid events, reported as nothing valid.
+    expect(await runCli([join(fixturesDir, "versioned", "feed-corunajug-0.3.0.json")], io)).toBe(0);
+    expect(io.outLines.some((l) => l.startsWith("✓"))).toBe(true);
+    expect(io.outLines).toContain("1/1 judged valid");
+    // The migration ask rides along as a note, next to the ✓, and nothing
+    // about it is phrased as a finding.
+    expect(io.outLines.some((l) => l.includes("note:") && l.includes("support window"))).toBe(
+      true,
+    );
+    expect(io.errLines).toEqual([]);
+  });
+
+  it("a kit fork's feed members are named as such, not told to add specVersion", async () => {
+    const io = makeIO();
+    const dir = mkdtempSync(join(tmpdir(), "ote-validate-fork-"));
+    mkdirSync(join(dir, "events"));
+    writeFileSync(
+      join(dir, "ote.config.json"),
+      JSON.stringify({ feed: { title: "T", url: "https://t.example/f.json", license: "CC-BY-4.0" } }),
+      "utf8",
+    );
+    writeFileSync(
+      join(dir, "events", "talk.json"),
+      JSON.stringify({
+        id: "https://t.example/events/2026-11-07-talk",
+        name: "Talk",
+        startDate: "2026-11-07T10:00",
+        timezone: "Europe/Madrid",
+      }),
+      "utf8",
+    );
+
+    // Still exit 3: a feed member genuinely cannot be judged on its own until
+    // a validator can recognise the class (#119, spec#55). What this asserts
+    // is that the *advice* stops contradicting the kit — the generic "set
+    // specVersion to one of the published versions" is the one thing an
+    // organizer must not do in a fork.
+    expect(await runCli([join(dir, "events")], io)).toBe(3);
+    const said = io.errLines.join(" ");
+    expect(said).toContain("ote-build-feed . --check");
+    expect(said).toContain("come from the feed");
+    expect(said).toContain("Do not add them here");
+    expect(said).not.toContain("Set it to one of the published versions");
+  });
+
   it("a version this release cannot judge → exit 3, not 1", async () => {
     const io = makeIO();
     const dir = mkdtempSync(join(tmpdir(), "ote-validate-future-"));
@@ -105,7 +156,9 @@ describe("ote-validate CLI", () => {
     expect(await runCli([file], io)).toBe(3);
     expect(io.errLines[0]).toMatch(/^\? .*future\.json \(event\) — not checked/);
     expect(io.errLines.some((l) => l.includes("not a published OTE Spec version"))).toBe(true);
-    expect(io.outLines).toContain("0/1 valid");
+    // No fraction at all: nothing was judged, so "0/0 valid" would be
+    // arithmetic rather than an answer.
+    expect(io.outLines.some((l) => l.includes("judged valid"))).toBe(false);
     expect(io.outLines.some((l) => l.includes("not judged"))).toBe(true);
   });
 

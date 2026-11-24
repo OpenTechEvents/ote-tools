@@ -131,6 +131,28 @@ async function boot(): Promise<void> {
   // and Broadcast refused to publish it — being behind is a notice, never a
   // defect (#69).
   const report = await validateDocument(json, { kind: "feed" });
+
+  // `valid === null` is not a defect either: the feed declares a spec version
+  // that was never published, so nothing was measured. Broadcasting it would
+  // mean mapping fields whose rules this release does not have — so it stops
+  // here too, but it is told as "could not be checked", not as "your feed is
+  // broken". Out-of-window is the opposite case and now passes: the schemas
+  // exist, the feed was measured against them (#124).
+  if (report.valid === null) {
+    message.className = "panel error";
+    message.replaceChildren(
+      el("h2", undefined, "This feed could not be checked"),
+      el("p", undefined, report.support.message ?? "Its spec version was never published."),
+      el(
+        "p",
+        undefined,
+        "Nothing is wrong with the feed as far as this tool can tell — it has no rules for that version, so it will not guess at how to map it.",
+      ),
+    );
+    message.hidden = false;
+    return;
+  }
+
   if (!report.valid) {
     message.className = "panel error";
     message.replaceChildren(
@@ -154,7 +176,11 @@ async function boot(): Promise<void> {
 
   // Said, but not in the way of anything: a supported-but-older release is a
   // legitimate choice, so this sits above the app instead of replacing it.
-  showNotices(report.notices);
+  showNotices(
+    report.support.message
+      ? [{ message: report.support.message, links: report.support.links }, ...report.notices]
+      : report.notices,
+  );
 
   const feed = json as OteFeed;
   setFeedLabel(

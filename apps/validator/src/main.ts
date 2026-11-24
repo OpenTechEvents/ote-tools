@@ -377,14 +377,26 @@ function renderVerdict(report: Extract<Report, { status: "validated" }>, label: 
   verdictBox.hidden = false;
 
   const heading = element("h2", undefined, "Validation");
-  const badge = element(
-    "p",
-    report.valid ? "badge ok" : "badge bad",
-    report.valid ? "Valid OTE document" : "Invalid OTE document",
-  );
-  const counts = report.valid
-    ? `${report.recommendations.length} recommendation(s) unmet.`
-    : `${report.errors.length} error(s) must be fixed.`;
+  // Three states, not two, and the third is not a softer kind of invalid:
+  // `valid === null` means the declared version was never published, so
+  // nothing was measured and there is no verdict to give. Rendering it as
+  // "invalid" is what told a publisher on 0.3.0 that their healthy feed was
+  // broken (#124). A falsy check would do exactly that, which is why the
+  // library makes this null rather than false.
+  const badge =
+    report.valid === null
+      ? element("p", "badge unknown", "Not checked")
+      : element(
+          "p",
+          report.valid ? "badge ok" : "badge bad",
+          report.valid ? "Valid OTE document" : "Invalid OTE document",
+        );
+  const counts =
+    report.valid === null
+      ? ""
+      : report.valid
+        ? `${report.recommendations.length} recommendation(s) unmet.`
+        : `${report.errors.length} error(s) must be fixed.`;
   const summary = element("p", "muted", `${versionSentence(report)} ${counts}`);
   verdictBox.append(heading, badge, summary, element("p", "muted", label));
 
@@ -492,6 +504,13 @@ function renderReport(report: Report, label: string): void {
       versionRow.hidden = false;
       renderVerdict(report, label);
       renderNotices([
+        // The support sentence arrives in its own channel now and is rendered
+        // here, among the things that are true and are not defects. It must
+        // never reach renderFindings: a publisher on an older release has
+        // nothing in their document to fix.
+        ...(report.support.message
+          ? [{ message: report.support.message, links: report.support.links }]
+          : []),
         ...report.notices,
         // Said rather than left as an empty list: "no recommendations" would
         // read as "nothing to improve", when the profile did not exist yet.

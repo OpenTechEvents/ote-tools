@@ -17,9 +17,11 @@
  *     is validated against the version it declares and is *valid*. Being on
  *     an older-but-supported release is not a defect and never degrades the
  *     verdict — at most it earns a notice saying a newer release exists.
- *   - **Outside the window**, migration is required: an error, naming the
- *     version to move to, and linking the schemas of the declared version,
- *     which stay published forever.
+ *   - **Outside the window**, migration is asked for — but the document is
+ *     still measured against its own schemas and its verdict stands on them.
+ *     This is a statement about what *this release* keeps a code path for,
+ *     not a defect in somebody's feed, so it never reaches an error list or a
+ *     validity verdict (see `SupportStatus` in index.ts, and #124).
  *   - **Missing, or a version never published**, is an error too, for a
  *     different reason: there are no rules to judge the document by. The
  *     message lists the versions that do exist.
@@ -165,9 +167,9 @@ export function describeSpecVersion(
         message:
           `OTE Spec ${verdict.version} is outside the support window, which covers the last ` +
           `${SUPPORT_WINDOW_MINORS} releases (${list(SUPPORTED_VERSIONS)}). This document was ` +
-          `still checked against its own ${verdict.version} schemas, so the findings below ` +
-          `are real, but a consumer built for the supported window cannot read it: migrate ` +
-          `to ${LATEST_VERSION}.`,
+          `checked against its own ${verdict.version} schemas and its verdict stands on them, ` +
+          `so being here is not a defect — but a consumer built for the supported window ` +
+          `cannot read it: migrate to ${LATEST_VERSION} when you can.`,
         links: [
           changelog,
           {

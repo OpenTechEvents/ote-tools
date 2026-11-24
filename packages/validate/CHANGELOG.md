@@ -2,6 +2,51 @@
 
 All notable changes to `@opentechevents/validate` are documented here.
 
+## Unreleased
+
+**Support is no longer validity.** Two breaking changes to `DocumentReport`,
+both of which exist because six consumers read the support window as a defect
+in somebody's feed (#124):
+
+- **`DocumentReport.support`** is new: a typed `SupportStatus` carrying the
+  policy's reading of the declared version (`status`), what a caller must do
+  with it (`action`: `none` / `inform` / `migrate` / `cannot-judge`), the
+  sentence, and its links. **The policy message is no longer pushed into
+  `errors`.** A document outside the support window with no schema violations
+  is now `valid: true` — it was measured against its own schemas and it
+  passed. Being outside the window is a fact about which releases this build
+  keeps a code path for, not a finding about the document.
+- **`DocumentReport.valid` is now `boolean | null`.** Null when nothing was
+  measured, because the declared version was never published. It is not
+  `false`: a document declaring `0.9.9` is an unanswerable question, not an
+  invalid document, and the two call for opposite behaviour from a consumer.
+  The type makes that choice unavoidable instead of letting a falsy check
+  decide it silently.
+
+Both are breaking for consumers of `DocumentReport`, so this lands as a minor
+(0.7.0) when it is released — the bump is its own `release(validate)` commit,
+because publishing is a decision and not a side effect of merging, and the
+`skills/` pins move in that same commit (never before npm has the version).
+
+Migrating: anywhere you read `report.valid`, handle `null` first.
+`if (!report.valid)` now treats "could not be judged" as "invalid", which is
+the bug this release fixes.
+
+The CLI changes with it (#117):
+
+- The summary no longer collapses into one fraction. `N/M judged valid` counts
+  only what was measured, and unjudged files get their own line — `0/3 valid`
+  over three files nobody judged read as "three bad files".
+- **Exit `0` now includes an out-of-window document.** `3` is reserved for
+  "nothing could be judged at all". A run that judged some files and found no
+  defect exits `0` even if others could not be judged.
+- The exit-code table in the README is now stated as a contract: a code's
+  meaning is never redefined.
+- A document with no `specVersion` under an `ote.config.json` is named as an
+  organizer-kit feed member, and pointed at `ote-build-feed . --check`,
+  instead of being told to add a `specVersion` the kit forbids writing by hand.
+  Detection is for the message only — it never changes a verdict.
+
 ## 0.6.0
 
 - **Implements OTE Spec 0.6.0**, embedding every published version

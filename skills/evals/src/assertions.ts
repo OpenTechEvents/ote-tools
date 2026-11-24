@@ -70,16 +70,20 @@ export async function fileIsValid(run: Run, relativePath: string): Promise<Check
       : "event";
   const report = await validateDocument(json, { kind });
 
-  // `checkedVersion === null` is not a verdict on the document: nothing was
-  // measured. Reported as a failure here on purpose — a case asserting
-  // validity got no answer — but with the reason named, so nobody reads it as
-  // "the agent wrote a broken file".
-  if (report.checkedVersion === null) {
-    return check(name, false, `not judged: ${report.errors.map((e) => e.message).join(" ")}`);
+  // `valid === null` is not a verdict on the document: nothing was measured,
+  // because the declared version was never published. Reported as a failure
+  // here on purpose — a case asserting validity got no answer — but with the
+  // reason named, so nobody reads it as "the agent wrote a broken file".
+  if (report.valid === null) {
+    return check(name, false, `not judged: ${report.support.message ?? "unknown spec version"}`);
   }
 
+  // Out-of-window is NOT a failure here: the document was measured against
+  // its own schemas and passed. The support sentence rides along in the
+  // detail so a reader of a green check still learns about it.
+  const support = report.support.message ? ` (${report.support.message})` : "";
   const detail = report.valid
-    ? `valid against OTE ${report.checkedVersion}`
+    ? `valid against OTE ${report.checkedVersion}${support}`
     : report.errors.map((e) => `${e.path}: ${e.message}`).join("; ");
   return check(name, report.valid, detail);
 }

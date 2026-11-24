@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 
 import {
   validateDocument,
@@ -7,7 +7,6 @@ import {
   PUBLISHED_VERSIONS,
   SUPPORTED_VERSIONS,
   VERSIONS_WITH_RECOMMENDED,
-  describeSpecVersion,
   type DocumentKind,
   type DocumentReport,
 } from "./index.js";
@@ -23,13 +22,20 @@ const USAGE = [
 ].join("\n");
 
 /**
- * Why a document did not pass, kept apart because the two mean opposite
- * things to whoever reads the exit code: `invalid` is a defect in the
- * document, `unsupported` is this release being unable to judge it at all.
- * Collapsing them into one code is what made a healthy 0.5 feed read as
- * "0/18 valid" — see the module comment on runCli for the exit codes.
+ * What happened to one file. Three outcomes, because two of them are not
+ * verdicts about the document at all:
+ *
+ *   - `valid` / `invalid` — measured against the version it declares.
+ *   - `not-judged` — the declared version was never published, so there are
+ *     no rules. Nothing was measured; this is not a defect and not a pass.
+ *
+ * Being outside the support window is deliberately none of these: those
+ * schemas exist, the document was measured against them, and the verdict is
+ * whatever that measurement said. The support sentence is printed next to it.
+ * Folding the window into the outcome is what made a healthy 0.5 feed read as
+ * "0/18 valid" (#95) and a healthy kit fork read as "0/3 valid" (#117).
  */
-type Outcome = "valid" | "invalid" | "unsupported";
+type Outcome = "valid" | "invalid" | "not-judged";
 
 /** Collects .json files recursively, skipping node_modules and hidden entries. */
 function collectJsonFiles(dir: string): string[] {
@@ -56,31 +62,6 @@ function classify(json: unknown): DocumentKind {
 }
 
 /**
- * The version complaint among a report's errors, if the policy raised one.
- *
- * validateDocument puts it in `errors` alongside the schema findings, which
- * is right for a reader but wrong for an exit code: this CLI has to answer
- * "pin or defect?", so it pulls the version error back out. Identified by its
- * message, which the library builds from this very function's output — not by
- * its path, because `specVersion` is also a path a schema error can carry.
- */
-function splitVersionError(report: DocumentReport): {
-  versionError: string | null;
-  schemaErrors: DocumentReport["errors"];
-} {
-  const description = report.overridden ? null : describeSpecVersion(report.verdict);
-  if (description?.severity !== "error") {
-    return { versionError: null, schemaErrors: report.errors };
-  }
-  const index = report.errors.findIndex((e) => e.message === description.message);
-  if (index === -1) return { versionError: null, schemaErrors: report.errors };
-  return {
-    versionError: description.message,
-    schemaErrors: report.errors.filter((_, i) => i !== index),
-  };
-}
-
-/**
  * What a `✓` is worth: the version whose rules were applied, and a warning
  * when that version has no recommended profile to apply. A green that does
  * not say what it checked is the failure mode this line exists to prevent.
@@ -90,6 +71,35 @@ function checkedAgainst(report: DocumentReport): string {
     ? ""
     : " — no recommended profile in this version";
   return `OTE ${report.checkedVersion}${profile}`;
+}
+
+/**
+ * Whether this file looks like a member of an organizer-kit feed, by looking
+ * for the `ote.config.json` that would supply its `specVersion`.
+ *
+ * Used for the **message only, never for the verdict**. Applying inheritance
+ * here would mean either duplicating `resolveEventInheritance` (which lives in
+ * `@opentechevents/build-feed`, a package that depends on this one) or
+ * inverting that dependency, and neither works in a browser bundle where
+ * there is no filesystem at all. So this adds a sentence and changes nothing
+ * about what was measured.
+ *
+ * The real fix is for a feed member to be a document class a validator can
+ * recognise — tracked in #119 and OpenTechEvents/opentechevents-spec#55. Until
+ * then the honest output is "I cannot judge this alone, and here is the
+ * command that can".
+ */
+function looksLikeFeedMember(file: string): boolean {
+  let dir = dirname(resolve(file));
+  // Four levels is `events/<slug>.json` with room to spare; walking to the
+  // filesystem root would start finding other people's repositories.
+  for (let depth = 0; depth < 4; depth++) {
+    if (existsSync(join(dir, "ote.config.json"))) return true;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
 }
 
 async function validateFile(
@@ -109,31 +119,46 @@ async function validateFile(
 
   const kind = classify(json);
   const report = await validateDocument(json, { kind, version: override });
-  const { versionError, schemaErrors } = splitVersionError(report);
+  const support = report.support.message;
 
-  // A version this release cannot check against: nothing was measured, so
-  // there is no verdict on the document itself to report.
-  if (report.checkedVersion === null) {
+  // Nothing was measured: the declared version was never published, so there
+  // is no verdict on the document to report. Printed to stderr with a `?`
+  // rather than a `✗` — the file is not a failure, the question is.
+  if (report.valid === null) {
     io.err(`? ${rel} (${kind}) — not checked`);
-    if (versionError) io.err(`    specVersion: ${versionError}`);
-    return "unsupported";
+    // In a kit fork the policy's generic advice ("set specVersion to one of
+    // the published versions") is the opposite of what the organizer should
+    // do — a feed member inherits it, and writing one by hand is what
+    // skills/ote-event forbids. So it is replaced, not accompanied: two
+    // sentences telling the reader to do opposite things is worse than
+    // either one alone.
+    if (report.declaredVersion === null && looksLikeFeedMember(file)) {
+      io.err(
+        `    specVersion: absent, and an ote.config.json sits above this file — ` +
+          `so this looks like an organizer-kit event, whose specVersion and ` +
+          `license come from the feed. Do not add them here. Check it with ` +
+          `\`ote-build-feed . --check\`, which validates the assembled feed.`,
+      );
+    } else if (support) {
+      io.err(`    specVersion: ${support}`);
+    }
+    return "not-judged";
   }
 
-  if (schemaErrors.length === 0 && versionError === null) {
+  if (report.valid) {
     io.out(`✓ ${rel} (${kind}) — ${checkedAgainst(report)}`);
+    // Including the support sentence, which does not change the ✓. A feed
+    // outside the window is valid against its own schemas, and the publisher
+    // needs to hear "migrate when you can", not "your feed is broken".
+    if (support) io.out(`    note: ${support}`);
     for (const notice of report.notices) io.out(`    note: ${notice.message}`);
     return "valid";
   }
 
-  // Out of the support window: the document *was* checked against its own
-  // schemas, so any finding below is real, but migration is what a consumer
-  // needs — that is a version matter, not a defect, unless there are also
-  // schema errors.
-  const outcome: Outcome = schemaErrors.length > 0 ? "invalid" : "unsupported";
   io.err(`✗ ${rel} (${kind}) — ${checkedAgainst(report)}`);
-  if (versionError) io.err(`    specVersion: ${versionError}`);
-  for (const error of schemaErrors) io.err(`    ${error.path}: ${error.message}`);
-  return outcome;
+  if (support) io.err(`    note: ${support}`);
+  for (const error of report.errors) io.err(`    ${error.path}: ${error.message}`);
+  return "invalid";
 }
 
 /** `--versions`: what this release can judge, asked before submitting to it. */
@@ -176,17 +201,23 @@ function parseArgs(argv: string[]): Args {
 /**
  * Runs the CLI. Returns the exit code:
  *
- *   0 — every document valid.
+ *   0 — nothing was invalid, and at least one document was measured. This
+ *       includes a document outside the support window: its schemas exist,
+ *       it was measured against them, and it passed. The support sentence is
+ *       printed next to the ✓ and changes nothing else.
  *   1 — a document is invalid: a real defect, measured against the version
  *       the document itself declares.
  *   2 — usage or I/O error.
- *   3 — no defect found, but a document declares a spec version this release
- *       cannot judge it against (unpublished, or outside the support window).
- *       Distinct from 1 on purpose: CI and agents need to tell a version pin
- *       from a broken feed, and 1 for both says the publisher is at fault
- *       when they are not.
+ *   3 — nothing could be judged at all: every document declares a spec
+ *       version that was never published, so there are no rules and no
+ *       verdict. Distinct from 1 on purpose — CI and agents need to tell "I
+ *       cannot answer" from "your feed is broken", and 1 for both says the
+ *       publisher is at fault when they are not.
  *
  * 1 wins over 3 when both occur — a real defect is the more urgent answer.
+ * And a run where some files were judged and none was invalid is a 0 even if
+ * others could not be judged: a fork whose events are fine must not fail its
+ * own PR check (#117).
  */
 export async function runCli(
   argv: string[],
@@ -234,23 +265,36 @@ export async function runCli(
     return 2;
   }
 
+  let valid = 0;
   let invalid = 0;
-  let unsupported = 0;
+  let notJudged = 0;
   for (const file of files) {
     const outcome = await validateFile(file, cwd, io, args.specVersion);
-    if (outcome === "invalid") invalid++;
-    else if (outcome === "unsupported") unsupported++;
+    if (outcome === "valid") valid++;
+    else if (outcome === "invalid") invalid++;
+    else notJudged++;
   }
 
+  // Three counts, never collapsed into one fraction. `0/3 valid` over three
+  // files nobody judged reads as "three bad files", and that is how a healthy
+  // kit fork was reported (#117): the denominator has to be what was actually
+  // measured, and anything else gets its own line.
   const total = files.length;
-  io.out(`${total - invalid - unsupported}/${total} valid`);
-  if (unsupported > 0) {
+  const judged = valid + invalid;
+  // No fraction when nothing was judged: "0/0 valid" is arithmetic, not an
+  // answer, and the line below says what actually happened.
+  if (judged > 0) io.out(`${valid}/${judged} judged valid`);
+  if (invalid > 0) io.out(`${invalid}/${total} invalid`);
+  if (notJudged > 0) {
     io.out(
-      `${unsupported}/${total} not judged: a spec version this release cannot ` +
+      `${notJudged}/${total} not judged: a spec version this release cannot ` +
         `check against (supported: ${SUPPORTED_VERSIONS.join(", ")})`,
     );
   }
 
+  // Only a defect fails. "Not judged" with nothing invalid is still a 3 — the
+  // caller asked for a verdict and got none on every file — but a run that
+  // measured something and found no defect exits 0, whatever the window says.
   if (invalid > 0) return 1;
-  return unsupported > 0 ? 3 : 0;
+  return valid === 0 && notJudged > 0 ? 3 : 0;
 }
