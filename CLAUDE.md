@@ -186,3 +186,37 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   rule, the generated/guided/planned ladder that lets its destination
   catalogue be wide without becoming a wall of promises, and the
   generated-not-fetched icon set. Read it before publish work.
+- **Verifying a fix: five checks, each one from a bug that green tests missed
+  here.** They are cheap, mechanical, and in rough order of what they catch.
+
+  1. **The test lives in the package whose behaviour the PR claims.**
+     `report.valid` was fixed across seven call sites; `packages/validate`'s
+     own tests caught the revert, and all 71 of `apps/publish`'s passed with
+     the fix removed — the surface the PR headlined. Revert the fix at the
+     headlined surface once and watch it fail; if it passes, the coverage is
+     in the wrong package.
+  2. **A comment asserting why a branch is safe needs a test asserting that
+     branch.** An exit rule shipped with a rationale beside it that the same
+     PR body contradicted two sections down, and let a `specVersion` typed
+     `"0.6"` pass CI next to a healthy feed.
+  3. **Construct the input your rule claims to handle.** That typo was found
+     by running the tool on a crafted bad file, not by reading the diff.
+  4. **Enumerate the consumers from the code, not from the issue.** The issue
+     named three affected surfaces; `grep` found seven, and the four it missed
+     refused to export and refused to broadcast rather than mislabelling.
+     Changing a type so the compiler forces every call site to decide
+     (`valid: boolean | null`) is what surfaced them.
+  5. **A fix is not shipped until the published artifact shows it.**
+     `workspace:*` publishes as an *exact* pin, so a dependent keeps the old
+     library until it is republished too — and `skills/` sends organizers to
+     the published line, not to this checkout.
+
+  If evidence is the argument, print the N and name the source: a measurement
+  quoted to the spec repo covered 4 of 7 registered feeds, because
+  `adopters.json` was parsed without checking the shape of the file.
+
+  And when a change carries a lot of prose justifying it, **have it reviewed
+  with no context**: hand over the branch and the issues, say the description
+  and the comments are claims by an interested party, and ask for verification
+  by running things. Checks 2 and 5 came from doing that, after the author had
+  read the diff twice.
