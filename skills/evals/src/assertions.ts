@@ -24,11 +24,96 @@ const check = (name: string, passed: boolean, detail?: string): Check => ({
 });
 
 /**
- * The invariant the whole design rests on: the agent did not decide validity
- * on its own, it ran the validator.
+ * What the gate is depends on the repo, so this check takes which one applies.
+ *
+ * The invariant is the same either way — the agent did not decide validity on
+ * its own, a program did. But in a kit fork the program is
+ * `ote-build-feed . --check`, not `ote-validate`: `events/*.json` are feed
+ * members with no `specVersion` of their own, so the validator answers
+ * `? — not checked` and exits 3 on a perfectly healthy file. The eval used to
+ * *require* `ote-validate` on the fork fixture, which rewarded running the
+ * tool that cannot judge those files, in front of an organizer. An agent
+ * trained to explain away a red will explain away a real one.
+ *
+ * `fork` therefore also fails a run that reached for `ote-validate` on the
+ * members anyway: the skill now tells it not to, and a rule nothing measures
+ * is a rule that drifts back.
  */
-export function ranValidator(run: Run): Check {
-  const hit = bashCommands(run).find((c) => /ote-validate|@opentechevents\/validate/.test(c));
+export type Gate = "standalone" | "fork";
+
+/**
+ * Whether an `ote-validate` command, inside a kit fork, is pointed at the
+ * feed members.
+ *
+ * Read **per invocation**, not over the whole line: the arguments are the
+ * text from `ote-validate` up to the next `|`, `&`, `;` or `#`. A draft that
+ * scanned the line instead failed `cat events/x.json && ote-validate
+ * events.json` — read a member, then judge the assembled feed, which is a
+ * correct sequence in a fork — and anything with the word in a trailing
+ * comment.
+ *
+ * Inside those arguments, three spellings reach the members, and a draft that
+ * caught only the first was one character from useless: `events/`, the same
+ * path with no trailing slash, and the fork root (`.`), which walks into
+ * `events/` anyway — with or without flags before it, since
+ * `ote-validate --spec-version 0.6.0 .` is the same command. A `cd events`
+ * first reaches them too.
+ *
+ * What must not match is a path that merely contains the word: `events.json`
+ * is the *assembled* feed and a fine thing to validate, and so are
+ * `my-events/` and `public/events/feed.json`.
+ *
+ * The documented limit: the boundary is the start of the arguments, a space
+ * or a quote, so an absolute path into a fork (`/tmp/fork/events/x.json`) is
+ * not matched. It cannot be told from `public/events/feed.json` by text
+ * alone, and the spellings an agent actually types are fork-relative — so the
+ * default is to pass rather than to fail a legitimate run.
+ */
+const validateArguments = (command: string): string[] =>
+  [...command.matchAll(/ote-validate\b([^|&;#]*)/g)].map((match) => match[1]);
+
+const TARGETS_MEMBERS = /(^|[\s"'])\.?\/?events(\/\S*)?(?=[\s"']|$)/;
+
+const judgesMembers = (command: string): boolean => {
+  if (/\bcd\s+\.?\/?events\b/.test(command)) return true;
+
+  // A pipeline that *ends* in the validator is fed its paths by what came
+  // before it: `find events -name '*.json' | xargs ote-validate` judges the
+  // members with no path of its own. Only the last stage counts — with
+  // `ote-validate feed.json | grep -c events/` the word is in the grep.
+  const stages = command.split("|");
+  if (stages.length > 1 && /ote-validate/.test(stages[stages.length - 1])) {
+    if (stages.slice(0, -1).some((stage) => TARGETS_MEMBERS.test(stage))) return true;
+  }
+
+  return validateArguments(command).some((args) => {
+    // `for f in events/*.json; do ote-validate $f; done` — when the argument
+    // is a shell variable the path was decided elsewhere on the line, so the
+    // line is what has to be read. Same reasoning as the pipeline above.
+    if (/\$\{?\w/.test(args)) return TARGETS_MEMBERS.test(command);
+    return TARGETS_MEMBERS.test(args) || /(^|\s)\.\/?(?=[\s"']|$)/.test(args);
+  });
+};
+
+export function ranValidator(run: Run, gate: Gate = "standalone"): Check {
+  const commands = bashCommands(run);
+
+  if (gate === "fork") {
+    const assembled = commands.find(
+      (c) => /ote-build-feed|@opentechevents\/build-feed/.test(c) && /--check\b/.test(c),
+    );
+    const onMembers = commands.find((c) => /ote-validate/.test(c) && judgesMembers(c));
+    if (onMembers) {
+      return check("ran the gate a kit fork is judged by", false, `judged feed members standalone: ${onMembers}`);
+    }
+    return check(
+      "ran the gate a kit fork is judged by",
+      !!assembled,
+      assembled ?? "no `ote-build-feed . --check` in the transcript",
+    );
+  }
+
+  const hit = commands.find((c) => /ote-validate|@opentechevents\/validate/.test(c));
   return check("ran the validator", !!hit, hit ?? "no validator invocation in the transcript");
 }
 

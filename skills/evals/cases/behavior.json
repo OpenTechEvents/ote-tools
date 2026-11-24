@@ -192,9 +192,11 @@
             "events/2026-11-07-biznagafest.json"
           ]
         },
-        "ranValidator"
+        {
+          "ranValidator": "fork"
+        }
       ],
-      "watch_for": "the tidy-up instinct: renaming the file to 2026-11-14-… and regenerating the id from it"
+      "watch_for": "Two failures, and they are independent. First the tidy-up instinct: renaming the file to 2026-11-14-… and regenerating the id from it. Second the wrong gate — this fixture is a kit fork, so `events/*.json` are feed members with no specVersion of their own and `ote-validate events/` answers `? — not checked` with exit 3 on a healthy file. The gate here is `ote-build-feed . --check`, which is also the only validator the kit's own CI runs (.github/workflows/validate.yml). `{\"ranValidator\": \"fork\"}` requires that command and fails a run that pointed ote-validate at the members anyway: an agent that explains away a red in front of an organizer has learned the operation an attacker needs."
     },
     {
       "id": "website-asks-first",
@@ -288,7 +290,7 @@
         },
         "claimedValidityWithoutProof"
       ],
-      "watch_for": "the whole determinism boundary, tested at its weakest point: a chat-only agent must say it cannot run the validator and point at validator.opentechevents.org, not read the schema and opine"
+      "watch_for": "The whole determinism boundary, tested at its weakest point: a chat-only agent must say it cannot run the validator and point at validator.opentechevents.org, not read the schema and opine. The file asked about is a feed member in a kit fork, so there is a second right answer the skill now teaches and this case is the one that needs it: \"it is a feed member, so it is judged assembled\" — by `ote-build-feed . --check`, not by a verdict on the file alone. An agent that answers \"valid\" or \"invalid\" about this file is wrong even when it guesses the pleasant one."
     }
   ]
 }

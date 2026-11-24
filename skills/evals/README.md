@@ -47,7 +47,7 @@ transcript and the files the run left behind — see `src/assertions.ts`:
 
 | Check | What it catches |
 | --- | --- |
-| `ranValidator` / `ranImporter` | the agent deciding validity or mapping on its own |
+| `ranValidator` / `ranImporter` | the agent deciding validity or mapping on its own. `{ "ranValidator": "fork" }` is the same invariant where the program is different: in a kit fork the gate is `ote-build-feed . --check`, and pointing `ote-validate` at the members is itself the failure |
 | `fileIsValid` | ground truth: the validator run by the harness, over what is on disk |
 | `claimedValidityWithoutProof` | "this looks valid" arriving before the evidence |
 | `noInventedFields` | every field must trace to the source or to something the organizer said |

@@ -49,6 +49,78 @@ describe("ranValidator / ranImporter", () => {
     expect(ranImporter(r).passed).toBe(true);
   });
 
+  it("require the fork's own gate when the repo is a kit fork", () => {
+    const built = run([bash("npx -y -p @opentechevents/build-feed@0.6 ote-build-feed . --check")]);
+    expect(ranValidator(built, "fork").passed).toBe(true);
+    // The command without --check builds the feed; it does not judge it.
+    expect(ranValidator(run([bash("ote-build-feed .")]), "fork").passed).toBe(false);
+    expect(ranValidator(run([bash("ote-validate events/")]), "fork").passed).toBe(false);
+  });
+
+  it("catch every spelling that reaches the members in a fork", () => {
+    const wrong = [
+      "ote-validate events/",
+      "ote-validate events",
+      "npx -y -p @opentechevents/validate@0.6 ote-validate ./events",
+      "ote-validate events/2026-11-07-biznagafest.json",
+      "ote-validate .",
+      "ote-validate --spec-version 0.6.0 .",
+      "cd events && ote-validate .",
+      "find events -name '*.json' | xargs ote-validate",
+      "ote-validate 'events'",
+      "ote-validate events/*.json",
+      "for f in events/*.json; do ote-validate $f; done",
+      "pushd events && ote-validate .",
+    ];
+    for (const command of wrong) {
+      const r = run([bash("ote-build-feed . --check"), bash(command)]);
+      expect(ranValidator(r, "fork").passed, command).toBe(false);
+    }
+  });
+
+  it("leave legitimate paths alone, even ones with the word in them", () => {
+    const fine = [
+      "ote-validate events.json",
+      "ote-validate my-events/",
+      "ote-validate /tmp/their-events/feed.json",
+      "ote-validate public/events/feed.json",
+      // Compound lines: the arguments of the invocation decide, not the rest
+      // of the shell. Reading a member and then judging the assembled feed is
+      // a correct sequence in a fork, and a draft that scanned the whole line
+      // called it the failure.
+      "cat events/x.json && ote-validate events.json",
+      "ote-validate events.json && ls events/",
+      "ote-validate events.json; ls -la events/",
+      "ote-validate feed.json | grep -c events/",
+      "ote-validate feed.json  # members live in events/",
+      "for f in feeds/*.json; do ote-validate $f; done",
+    ];
+    for (const command of fine) {
+      const r = run([bash("ote-build-feed . --check"), bash(command)]);
+      expect(ranValidator(r, "fork").passed, command).toBe(true);
+    }
+  });
+
+  it("fail a fork run that pointed the validator at the feed members anyway", () => {
+    const both = run([
+      bash("ote-validate events/2026-11-07-biznagafest.json"),
+      bash("ote-build-feed . --check"),
+    ]);
+    const c = ranValidator(both, "fork");
+    expect(c.passed).toBe(false);
+    expect(c.detail).toContain("judged feed members standalone");
+  });
+
+  it("still accept validating the assembled feed in a fork", () => {
+    const r = run([bash("ote-build-feed . --check"), bash("ote-validate events.json")]);
+    expect(ranValidator(r, "fork").passed).toBe(true);
+  });
+
+  it("keep meaning ote-validate for a standalone document", () => {
+    expect(ranValidator(run([bash("ote-validate feed.json")])).passed).toBe(true);
+    expect(ranValidator(run([bash("ote-build-feed . --check")])).passed).toBe(false);
+  });
+
   it("fail when the agent only talked about validating", () => {
     const r = run([says("I validated it against the schema and it is valid.")]);
     expect(ranValidator(r).passed).toBe(false);
