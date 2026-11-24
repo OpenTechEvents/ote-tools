@@ -52,6 +52,20 @@ export async function runCli(
   // feed by 0.6's rules produces one meaningless specVersion error and calls
   // it broken — the exact bug ote-validate was fixed for (#69).
   const report = await validateDocument(json, { kind: "feed" });
+  // Three outcomes, not two. `valid === null` means the feed declares a spec
+  // version that was never published, so nothing was measured — refusing is
+  // right there, because mapping a document whose rules are unknown would be
+  // inventing the mapping. Being merely *outside the support window* is not
+  // that: those schemas exist, the feed was measured against them, and a feed
+  // that passes exports (#124). This tool used to refuse it and tell the
+  // publisher their feed was "not a valid OTE feed".
+  if (report.valid === null) {
+    // `?`, not `✗`: the file is not a failure, the question is. Same mark
+    // ote-validate uses for this case.
+    io.err(`? ${input} — not checked: ${report.support.message ?? "no rules for its spec version"}`);
+    return 1;
+  }
+
   if (!report.valid) {
     io.err(`✗ ${input} — not a valid OTE feed`);
     for (const error of report.errors) {
@@ -59,6 +73,7 @@ export async function runCli(
     }
     return 1;
   }
+  if (report.support.message) io.err(`    note: ${report.support.message}`);
   for (const notice of report.notices) io.err(`    note: ${notice.message}`);
 
   const feed = json as OteFeed;

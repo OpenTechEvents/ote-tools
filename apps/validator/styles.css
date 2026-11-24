@@ -394,6 +394,18 @@ select {
   color: var(--bad);
 }
 
+/*
+ * No verdict, which is not a softer kind of "bad": the document declares a
+ * spec version that was never published, so nothing was measured. Neutral on
+ * purpose — the moment this borrows --bad or --warn, a publisher reads it as
+ * a defect in their document and goes looking for what to fix.
+ */
+.badge.unknown {
+  background: var(--bg-alt);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+}
+
 p.ok {
   color: var(--ok);
   font-weight: 600;

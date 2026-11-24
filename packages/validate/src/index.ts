@@ -122,6 +122,43 @@ export interface ValidateDocumentOptions {
   version?: string;
 }
 
+/**
+ * What the support policy says about this document, kept out of `errors` and
+ * out of `valid` on purpose.
+ *
+ * Support and validity are different questions, and collapsing them is the
+ * defect this kit has now shipped three times. A document on an
+ * older-but-still-published release is valid against the version it declares
+ * — that is what freezing a version guarantees — and whether this release
+ * still keeps a code path for it is a fact about *us*. Putting that fact in
+ * the error list made six surfaces call a healthy feed broken, and three of
+ * them refused to act on it: the exporters would not export, Broadcast would
+ * not broadcast, and the badge went red on a publisher's own README.
+ *
+ * `action` is what a caller must do with it, and it is deliberately not a
+ * severity scale: nothing here ever makes a document invalid.
+ */
+export interface SupportStatus {
+  /** The policy's reading of the declared version. */
+  status: SpecVersionVerdict["status"];
+  /**
+   * - `none` — nothing to say; the document is on the current release.
+   * - `inform` — say it where a reader will see it, and change nothing else.
+   * - `migrate` — the version is published but outside the window: a
+   *   consumer built for the window cannot read it, so say so prominently.
+   *   Still not a defect, and still not a reason to refuse a document whose
+   *   schemas this release has.
+   * - `cannot-judge` — the declared version was never published, so there
+   *   are no rules. Nothing was measured; `valid` is null. This is the one
+   *   case where refusing to act on the document is correct.
+   */
+  action: "none" | "inform" | "migrate" | "cannot-judge";
+  /** Null when `action` is `none`. */
+  message: string | null;
+  /** Somewhere worth going. Kept out of the sentence so a UI can link it. */
+  links: SpecVersionLink[];
+}
+
 /** A document's verdict, and which version's rules produced it. */
 export interface DocumentReport {
   kind: DocumentKind;
@@ -131,9 +168,14 @@ export interface DocumentReport {
   declaredVersion: string | null;
   /** What the support policy makes of the declared version. */
   verdict: SpecVersionVerdict;
+  /**
+   * Support, which is about this release rather than about the document.
+   * Never affects `valid`; see SupportStatus.
+   */
+  support: SupportStatus;
   /** True when `checkedVersion` came from the caller, not the document. */
   overridden: boolean;
-  /** MUST-level: schema violations, plus a version error where policy says so. */
+  /** MUST-level: schema violations against `checkedVersion`. Nothing else. */
   errors: ValidationError[];
   /** SHOULD-level: unmet recommendations. These never affect `valid`. */
   recommendations: ValidationError[];
@@ -152,8 +194,17 @@ export interface DocumentReport {
    * page can render them as links instead of printing a bare URL mid-text.
    */
   notices: SpecVersionNotice[];
-  /** True when nothing MUST-level failed. */
-  valid: boolean;
+  /**
+   * True when nothing MUST-level failed against `checkedVersion`.
+   *
+   * **Null when nothing was measured** — the declared version was never
+   * published, so there is no verdict to give. It is not `false`: a document
+   * declaring `0.9.9` is not an invalid document, it is an unanswerable
+   * question, and the two call for opposite behaviour from a consumer. The
+   * type makes that choice unavoidable rather than letting a falsy check
+   * decide it silently.
+   */
+  valid: boolean | null;
 }
 
 /** One thing worth saying about the version, with anywhere worth going. */
@@ -162,9 +213,43 @@ export interface SpecVersionNotice {
   links: SpecVersionLink[];
 }
 
-/** Where a version complaint points in the document. */
-const versionErrorPath = (declared: string | null): string =>
-  declared === null ? "(document)" : "specVersion";
+/**
+ * Turns the support policy's reading of a version into what a caller must do,
+ * which is a different question from how severe it sounds.
+ *
+ * The mapping is deliberately lossy in one direction: `outdated` and
+ * `out-of-window` differ in how loudly a UI should say it, and not at all in
+ * whether the document may be used. Only `unknown` — a version that was never
+ * published — withholds a verdict, because only there was nothing measured.
+ */
+function describeSupport(
+  verdict: SpecVersionVerdict,
+  checkedVersion: string | null,
+  overridden: boolean,
+): SupportStatus {
+  // A hand-picked version is a question about a version the document does not
+  // claim ("what would 0.4 break?"), so the policy's reading of the declared
+  // one says nothing a caller should act on. `describeOverride` carries that
+  // story in `notices` instead.
+  if (overridden) {
+    return { status: verdict.status, action: "none", message: null, links: [] };
+  }
+  const description = describeSpecVersion(verdict);
+  const action: SupportStatus["action"] =
+    verdict.status === "current"
+      ? "none"
+      : verdict.status === "outdated"
+        ? "inform"
+        : checkedVersion === null
+          ? "cannot-judge"
+          : "migrate";
+  return {
+    status: verdict.status,
+    action,
+    message: description?.message ?? null,
+    links: description?.links ?? [],
+  };
+}
 
 /**
  * Validates a document against the version it declares.
@@ -187,39 +272,34 @@ export async function validateDocument(
   const notices: SpecVersionNotice[] = [];
   const errors: ValidationError[] = [];
 
+  // The policy's own words about the declared version, in their own channel.
+  // They used to be pushed into `errors` when the policy called them an
+  // error, which is what made six consumers read "this release stopped
+  // keeping a code path for 0.3" as "this feed is broken" — see SupportStatus.
+  const support = describeSupport(verdict, checkedVersion, overridden);
+
   if (overridden) {
     const note = describeOverride(declared, options.version!);
     if (note) notices.push({ message: note, links: [] });
-  } else {
-    // The policy's own words about the declared version — a notice for a
-    // supported release, an error for one that is out of support or unknown.
-    const description = describeSpecVersion(verdict);
-    if (description?.severity === "notice") {
-      notices.push({ message: description.message, links: description.links });
-    }
-    if (description?.severity === "error") {
-      // The links go with the notice channel; an error carries its sentence,
-      // and the version selector above it is what the reader acts on.
-      errors.push({ path: versionErrorPath(declared), message: description.message });
-      notices.push({ message: "Where to go next:", links: description.links });
-    }
   }
 
   if (checkedVersion === null) {
-    // No published version to apply: the version error above is the whole
-    // report. Running some other version's schemas here would produce
-    // findings measured against rules this document never claimed.
+    // No published version to apply, so nothing was measured. There is no
+    // verdict on the document — not a negative one. Running some other
+    // version's schemas here would produce findings measured against rules
+    // this document never claimed.
     return {
       kind: options.kind,
       checkedVersion: null,
       declaredVersion: declared,
       verdict,
+      support,
       overridden,
       errors,
       recommendations: [],
       recommendedProfileChecked: false,
       notices,
-      valid: false,
+      valid: null,
     };
   }
 
@@ -239,6 +319,7 @@ export async function validateDocument(
     checkedVersion,
     declaredVersion: declared,
     verdict,
+    support,
     overridden,
     errors,
     recommendations: recommended?.errors ?? [],

@@ -119,6 +119,17 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   which reads better anyway. And when the harness needs a verdict, it imports
   `validateDocument` from the workspace instead of pinning a published release
   — an instrument must be the code under review, not a copy of it from npm.
+
+  **One ordering this imposes, and it is the right one.** Bumping a package's
+  version makes the guard fail until the `skills/` pins naming that package
+  move with it — while the skill must never name a line npm does not have yet.
+  Both hold because a version bump is its own `release(<pkg>): <version>`
+  commit (see `.github/workflows/publish.yml`: publishing is a manual decision,
+  not a side effect of merging), and the pins move **in that commit**, with
+  `pnpm publish` run right after. So: a feature PR changes behaviour and leaves
+  the version alone, writing its entry under `## Unreleased`; the release
+  commit moves the version and the pins together. The guard failing on a bump
+  is not noise — it is the reminder that the skills are about to lie.
 - Tests: `pnpm test` at the root. Every new package ships fixtures and tests.
 - Build before type-checking a fresh clone or worktree: packages depend on each
   other through `dist/*.d.ts`, so `pnpm typecheck` (and any single-package

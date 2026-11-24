@@ -177,10 +177,13 @@ describe("buildReport — spec versions", () => {
 
   it("puts the newer-release note in the notices, never in the errors", async () => {
     const report = validated(await buildReport(fixture("versioned/event-0.4.0.json")));
-    expect(report.notices).toHaveLength(1);
+    // It arrives in `support`, which main.ts renders into the notices panel.
+    // What matters here is that it is reachable without going through
+    // `errors`, because the page renders those as "must be fixed".
+    expect(report.support.action).toBe("inform");
     // The changelog travels as a link, not as a URL printed inside the text.
-    expect(report.notices[0]!.links[0]!.href).toContain("CHANGELOG.md");
-    expect(report.notices[0]!.message).not.toContain("http");
+    expect(report.support.links[0]!.href).toContain("CHANGELOG.md");
+    expect(report.support.message).not.toContain("http");
     expect(report.errors).toEqual([]);
     expect(report.valid).toBe(true);
   });
@@ -192,18 +195,24 @@ describe("buildReport — spec versions", () => {
 
   it("asks an out-of-window document to migrate", async () => {
     const report = validated(await buildReport(fixture("versioned/feed-0.1.0.json")));
-    expect(report.valid).toBe(false);
-    const versionError = report.errors.find((finding) => finding.path === "specVersion");
-    expect(versionError?.message).toContain("support window");
-    // And it points at the line, like every other finding.
-    expect(versionError?.position?.line).toBeGreaterThan(0);
+    // Valid: measured against its own 0.1 schemas and clean against them.
+    // The page's headline reads from this, and reading it as "Invalid OTE
+    // document" is what #124 was.
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+    // Migration is still asked for — in the channel the page renders as a
+    // notice, never as a finding with a line number to go fix.
+    expect(report.support.action).toBe("migrate");
+    expect(report.support.message).toContain("support window");
   });
 
   it("has nothing to check a version-less document against", async () => {
     const report = validated(await buildReport(fixture("versioned/feed-no-specversion.json")));
-    expect(report.valid).toBe(false);
+    // Null, not false: the page shows "Not checked", because nothing was.
+    expect(report.valid).toBeNull();
     expect(report.specVersion).toBeNull();
-    expect(report.errors).toHaveLength(1);
+    expect(report.errors).toEqual([]);
+    expect(report.support.action).toBe("cannot-judge");
   });
 
   it("honours a hand-picked version, and marks the answer as such", async () => {
