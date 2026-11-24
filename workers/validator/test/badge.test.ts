@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { badgeTtlSeconds, renderBadge, resolveBadge, type BadgeState } from "../src/badge.js";
+import {
+  badgeTtlSeconds,
+  renderBadge,
+  resolveBadge,
+  BADGE_STATES,
+} from "../src/badge.js";
 import { handleRequest, type BadgeCache } from "../src/index.js";
 
 /**
@@ -260,14 +265,9 @@ describe("resolveBadge", () => {
 });
 
 describe("renderBadge", () => {
-  const states: BadgeState[] = [
-    "valid",
-    "invalid",
-    "not-discovered",
-    "ambiguous",
-    "unreachable",
-    "slow",
-  ];
+  // Derived, not listed: a hand-kept copy of this meant a new state was
+  // untested the day it was added.
+  const states = BADGE_STATES;
 
   it("draws only its own constants, never anything fetched", () => {
     // The remote document's words are in `detail`, which the SVG must not

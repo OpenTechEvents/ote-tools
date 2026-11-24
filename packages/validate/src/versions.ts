@@ -168,8 +168,9 @@ export function describeSpecVersion(
           `OTE Spec ${verdict.version} is outside the support window, which covers the last ` +
           `${SUPPORT_WINDOW_MINORS} releases (${list(SUPPORTED_VERSIONS)}). This document was ` +
           `checked against its own ${verdict.version} schemas and its verdict stands on them, ` +
-          `so being here is not a defect — but a consumer built for the supported window ` +
-          `cannot read it: migrate to ${LATEST_VERSION} when you can.`,
+          `so being here is not a defect. What it costs is reach: tools built for the ` +
+          `supported window are not required to read it. Migrate to ${LATEST_VERSION} when ` +
+          `you can.`,
         links: [
           changelog,
           {

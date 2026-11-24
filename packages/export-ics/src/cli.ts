@@ -60,7 +60,9 @@ export async function runCli(
   // that passes exports (#124). This tool used to refuse it and tell the
   // publisher their feed was "not a valid OTE feed".
   if (report.valid === null) {
-    io.err(`✗ ${input} — not checked: ${report.support.message ?? "no rules for its spec version"}`);
+    // `?`, not `✗`: the file is not a failure, the question is. Same mark
+    // ote-validate uses for this case.
+    io.err(`? ${input} — not checked: ${report.support.message ?? "no rules for its spec version"}`);
     return 1;
   }
 

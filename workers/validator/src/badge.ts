@@ -92,6 +92,16 @@ const STATES: Record<BadgeState, StateStyle> = {
   slow: { text: "slow", color: "#b06d00", ttlSeconds: 300 },
 };
 
+/**
+ * Every state, derived from the style table rather than listed again.
+ *
+ * Exported for the tests, which have to draw each one and check the image is
+ * wide enough for its own word. That list used to be hand-kept beside them,
+ * so a new state was simply absent from it — silently untested, which is how
+ * `not-checked` arrived with no rendering coverage.
+ */
+export const BADGE_STATES = Object.keys(STATES) as BadgeState[];
+
 /** Cache lifetime for a verdict, in seconds. */
 export function badgeTtlSeconds(state: BadgeState): number {
   return STATES[state].ttlSeconds;

@@ -148,21 +148,34 @@ ote-validate --versions
 
 ### Exit codes
 
-**This table is a contract.** A code's meaning is never redefined; new
-behaviour gets a new code.
+**This table is a contract from here on.** A code's meaning is not redefined
+again; new behaviour gets a new code.
+
+One honest exception, which is this release: `3` **narrowed**. It used to also
+cover a document outside the support window; now that case is measured against
+its own schemas and lands in `0` or `1` like any other, and `3` means only
+"nothing could be judged". That is a behaviour change for anyone reading the
+code, which is why it ships as a minor and is written down here rather than
+left to be discovered.
 
 | code | meaning |
 | --- | --- |
-| `0` | nothing was invalid, and at least one document was measured |
+| `0` | every document was measured, and none was invalid |
 | `1` | a document is invalid — a real defect, against the rules it declared |
 | `2` | usage or I/O error |
-| `3` | nothing could be judged at all: every document declares a version that was never published, so there are no rules to apply |
+| `3` | nothing was invalid, but at least one document could not be judged: it declares a spec version that was never published, so there are no rules to apply |
 
 `0` **includes a document outside the support window.** Its schemas exist, it
 was measured against them, and it passed; the migration ask is printed as a
 note next to the `✓` and changes nothing else. Treating the window as a
 failure is what made `ote-export-ics` refuse a registered adopter's healthy
 0.3.0 feed and call it "not a valid OTE feed" (#124).
+
+`3` fires on **one** unjudgeable file, even when every other file in the run
+was fine. A looser rule was tried and is worse: exiting `0` whenever
+*something* had been measured let a typo'd `specVersion` (`"0.6"` for
+`"0.6.0"`) sit beside a valid feed and pass CI, because that file was never
+measured at all.
 
 `3` is distinct from `1` deliberately. CI and agents have to tell "I cannot
 answer" from "your feed is broken", and returning `1` for both says the

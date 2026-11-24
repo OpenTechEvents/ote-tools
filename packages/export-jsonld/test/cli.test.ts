@@ -72,6 +72,8 @@ describe("ote-export-jsonld CLI", () => {
     // feed, and the wording must not say it is (#124).
     expect(await runCli([file], io)).toBe(1);
     expect(io.errLines[0]).toContain("not checked");
+    // Marked with ? rather than ✗ — the file is not a failure, the question is.
+    expect(io.errLines[0]!.startsWith("?")).toBe(true);
     expect(io.errLines[0]).not.toContain("not a valid OTE feed");
   });
 

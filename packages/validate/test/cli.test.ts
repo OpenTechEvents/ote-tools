@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -108,6 +108,38 @@ describe("ote-validate CLI", () => {
       true,
     );
     expect(io.errLines).toEqual([]);
+  });
+
+  it("one unjudgeable file fails the run even when the rest is clean", async () => {
+    const io = makeIO();
+    const dir = mkdtempSync(join(tmpdir(), "ote-validate-mixed-"));
+    // A typo, not an exotic version: "0.6" where "0.6.0" was meant. This is
+    // the regression that an earlier exit rule let through — it exited 0
+    // because *something* in the directory had been measured, so a feed
+    // nobody checked shipped with a green CI.
+    writeFileSync(
+      join(dir, "typo.json"),
+      JSON.stringify({
+        specVersion: "0.6",
+        title: "x",
+        url: "https://x.example",
+        license: "CC-BY-4.0",
+        updatedAt: "2026-01-01T00:00:00Z",
+        events: [],
+      }),
+      "utf8",
+    );
+    writeFileSync(
+      join(dir, "good.json"),
+      readFileSync(join(fixturesDir, "versioned", "feed-corunajug-0.3.0.json"), "utf8"),
+      "utf8",
+    );
+
+    expect(await runCli([dir], io)).toBe(3);
+    // And the clean file is still reported as clean: the exit code is about
+    // the run, not a verdict re-applied to every file in it.
+    expect(io.outLines).toContain("1/1 judged valid");
+    expect(io.outLines.some((l) => l.includes("1/2 not judged"))).toBe(true);
   });
 
   it("a kit fork's feed members are named as such, not told to add specVersion", async () => {

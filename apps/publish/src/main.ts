@@ -1,6 +1,7 @@
 import { type OteFeed } from "@opentechevents/export-jsonld";
 import { validateDocument, type SpecVersionNotice } from "@opentechevents/validate";
 
+import { feedGate } from "./lib/feed-gate.js";
 import { feedUrls, parseFeedSource, type FeedSource } from "./lib/feed-source.js";
 import { DEFAULT_EMBED_OPTIONS } from "./lib/site-snippets.js";
 import {
@@ -131,18 +132,16 @@ async function boot(): Promise<void> {
   // and Broadcast refused to publish it — being behind is a notice, never a
   // defect (#69).
   const report = await validateDocument(json, { kind: "feed" });
+  // The three-way decision lives in `feedGate` so it can be tested: inside
+  // this function it could be broken without a single test failing, and the
+  // out-of-window case was broken for exactly that long (#124).
+  const gate = feedGate(report);
 
-  // `valid === null` is not a defect either: the feed declares a spec version
-  // that was never published, so nothing was measured. Broadcasting it would
-  // mean mapping fields whose rules this release does not have — so it stops
-  // here too, but it is told as "could not be checked", not as "your feed is
-  // broken". Out-of-window is the opposite case and now passes: the schemas
-  // exist, the feed was measured against them (#124).
-  if (report.valid === null) {
+  if (gate.action === "unchecked") {
     message.className = "panel error";
     message.replaceChildren(
       el("h2", undefined, "This feed could not be checked"),
-      el("p", undefined, report.support.message ?? "Its spec version was never published."),
+      el("p", undefined, gate.reason),
       el(
         "p",
         undefined,
@@ -153,7 +152,7 @@ async function boot(): Promise<void> {
     return;
   }
 
-  if (!report.valid) {
+  if (gate.action === "invalid") {
     message.className = "panel error";
     message.replaceChildren(
       el("h2", undefined, "This feed is not valid OTE"),
@@ -164,7 +163,7 @@ async function boot(): Promise<void> {
       ),
     );
     const list = el("ul");
-    for (const error of report.errors) {
+    for (const error of gate.errors) {
       const item = el("li");
       item.append(el("code", undefined, error.path), document.createTextNode(` — ${error.message}`));
       list.append(item);
@@ -177,8 +176,8 @@ async function boot(): Promise<void> {
   // Said, but not in the way of anything: a supported-but-older release is a
   // legitimate choice, so this sits above the app instead of replacing it.
   showNotices(
-    report.support.message
-      ? [{ message: report.support.message, links: report.support.links }, ...report.notices]
+    gate.support
+      ? [{ message: gate.support, links: report.support.links }, ...report.notices]
       : report.notices,
   );
 

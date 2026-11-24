@@ -364,7 +364,9 @@ function renderFindings(
  */
 function versionSentence(report: Extract<Report, { status: "validated" }>): string {
   if (report.specVersion === null) {
-    return `Checked as an OTE ${report.kind}. No spec version could be applied.`;
+    // Not "Checked as…": the badge above this says "Not checked", and a
+    // summary that opens with the opposite word makes the reader pick.
+    return `Read as an OTE ${report.kind}, but its spec version was never published, so no rules could be applied.`;
   }
   const against = report.overridden
     ? `against spec ${report.specVersion} (selected by hand)`
@@ -397,7 +399,11 @@ function renderVerdict(report: Extract<Report, { status: "validated" }>, label: 
       : report.valid
         ? `${report.recommendations.length} recommendation(s) unmet.`
         : `${report.errors.length} error(s) must be fixed.`;
-  const summary = element("p", "muted", `${versionSentence(report)} ${counts}`);
+  const summary = element(
+    "p",
+    "muted",
+    counts ? `${versionSentence(report)} ${counts}` : versionSentence(report),
+  );
   verdictBox.append(heading, badge, summary, element("p", "muted", label));
 
   kindSelect.value = report.kind;

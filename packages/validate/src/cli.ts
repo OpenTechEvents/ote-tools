@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 
 import {
   validateDocument,
@@ -74,32 +74,31 @@ function checkedAgainst(report: DocumentReport): string {
 }
 
 /**
- * Whether this file looks like a member of an organizer-kit feed, by looking
- * for the `ote.config.json` that would supply its `specVersion`.
+ * Whether this file is a member of an organizer-kit feed, by the kit's own
+ * layout: `<root>/events/<slug>.json` next to `<root>/ote.config.json`.
+ *
+ * Matched on the layout rather than by walking ancestors, because an ancestor
+ * walk gets this wrong in the direction that matters. A standalone document
+ * that happens to sit a few directories under somebody's unrelated
+ * `ote.config.json` was told "do not add specVersion here", which is the
+ * opposite of what it needs — and the advice flipped depending on how deep
+ * the file happened to be.
  *
  * Used for the **message only, never for the verdict**. Applying inheritance
- * here would mean either duplicating `resolveEventInheritance` (which lives in
- * `@opentechevents/build-feed`, a package that depends on this one) or
+ * here would mean either duplicating `resolveEventInheritance` (which lives
+ * in `@opentechevents/build-feed`, a package that depends on this one) or
  * inverting that dependency, and neither works in a browser bundle where
- * there is no filesystem at all. So this adds a sentence and changes nothing
- * about what was measured.
+ * there is no filesystem at all.
  *
  * The real fix is for a feed member to be a document class a validator can
- * recognise — tracked in #119 and OpenTechEvents/opentechevents-spec#55. Until
- * then the honest output is "I cannot judge this alone, and here is the
+ * recognise — tracked in #119 and OpenTechEvents/opentechevents-spec#55.
+ * Until then the honest output is "I cannot judge this alone, and here is the
  * command that can".
  */
 function looksLikeFeedMember(file: string): boolean {
-  let dir = dirname(resolve(file));
-  // Four levels is `events/<slug>.json` with room to spare; walking to the
-  // filesystem root would start finding other people's repositories.
-  for (let depth = 0; depth < 4; depth++) {
-    if (existsSync(join(dir, "ote.config.json"))) return true;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return false;
+  const eventsDir = dirname(resolve(file));
+  if (basename(eventsDir) !== "events") return false;
+  return existsSync(join(dirname(eventsDir), "ote.config.json"));
 }
 
 async function validateFile(
@@ -134,10 +133,11 @@ async function validateFile(
     // either one alone.
     if (report.declaredVersion === null && looksLikeFeedMember(file)) {
       io.err(
-        `    specVersion: absent, and an ote.config.json sits above this file — ` +
-          `so this looks like an organizer-kit event, whose specVersion and ` +
-          `license come from the feed. Do not add them here. Check it with ` +
-          `\`ote-build-feed . --check\`, which validates the assembled feed.`,
+        `    specVersion: absent, and this is an events/ file next to an ` +
+          `ote.config.json — so it is an organizer-kit event, whose ` +
+          `specVersion and license come from the feed. Do not add them here. ` +
+          `Check it with \`ote-build-feed . --check\`, which validates the ` +
+          `assembled feed.`,
       );
     } else if (support) {
       io.err(`    specVersion: ${support}`);
@@ -201,23 +201,23 @@ function parseArgs(argv: string[]): Args {
 /**
  * Runs the CLI. Returns the exit code:
  *
- *   0 — nothing was invalid, and at least one document was measured. This
- *       includes a document outside the support window: its schemas exist,
- *       it was measured against them, and it passed. The support sentence is
+ *   0 — every document was measured and none was invalid. This includes a
+ *       document outside the support window: its schemas exist, it was
+ *       measured against them, and it passed. The support sentence is
  *       printed next to the ✓ and changes nothing else.
  *   1 — a document is invalid: a real defect, measured against the version
  *       the document itself declares.
  *   2 — usage or I/O error.
- *   3 — nothing could be judged at all: every document declares a spec
- *       version that was never published, so there are no rules and no
- *       verdict. Distinct from 1 on purpose — CI and agents need to tell "I
- *       cannot answer" from "your feed is broken", and 1 for both says the
- *       publisher is at fault when they are not.
+ *   3 — nothing was invalid, but at least one document could not be judged:
+ *       it declares a spec version that was never published, so there are no
+ *       rules and no verdict. Distinct from 1 on purpose — CI and agents need
+ *       to tell "I cannot answer" from "your feed is broken", and 1 for both
+ *       says the publisher is at fault when they are not.
  *
  * 1 wins over 3 when both occur — a real defect is the more urgent answer.
- * And a run where some files were judged and none was invalid is a 0 even if
- * others could not be judged: a fork whose events are fine must not fail its
- * own PR check (#117).
+ * A single unjudgeable file is enough for a 3 even when the rest of the run
+ * was clean: it is the only signal that something went unmeasured, and a
+ * mistyped `specVersion` is exactly what it has to catch.
  */
 export async function runCli(
   argv: string[],
@@ -292,9 +292,16 @@ export async function runCli(
     );
   }
 
-  // Only a defect fails. "Not judged" with nothing invalid is still a 3 — the
-  // caller asked for a verdict and got none on every file — but a run that
-  // measured something and found no defect exits 0, whatever the window says.
+  // A file this release could not judge always reaches the exit code, even
+  // when other files in the same run were fine. The alternative was tried and
+  // is worse: exiting 0 whenever *something* was measured let a typo'd
+  // `specVersion` ("0.6" for "0.6.0") sit in a directory next to a valid feed
+  // and pass CI silently, because that file was never measured at all.
+  //
+  // This costs nothing that #117 asked for. An out-of-window document is no
+  // longer counted here — it is measured against its own schemas and lands in
+  // `valid` or `invalid` like any other — so a healthy feed on last season's
+  // release exits 0 through the line above, which is the whole point.
   if (invalid > 0) return 1;
-  return valid === 0 && notJudged > 0 ? 3 : 0;
+  return notJudged > 0 ? 3 : 0;
 }

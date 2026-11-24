@@ -106,8 +106,10 @@ URL check.
 It runs the same two steps the page does, and keeps them apart for the same
 reason: **`no feed found` is not `invalid`**. The states are `valid`,
 `invalid`, `no feed found`, `several feeds` (the page declares more than one
-and the badge refuses to pick, exactly as the UI does), `unreachable` and
-`slow`. The state also travels as `x-ote-badge-state`, from that fixed
+and the badge refuses to pick, exactly as the UI does), `not checked` (the
+document declares a spec version that was never published, so nothing was
+measured — kept out of `invalid` for the same reason as the rest),
+`unreachable` and `slow`. The state also travels as `x-ote-badge-state`, from that fixed
 vocabulary, so it can be read with `curl` without parsing an image.
 
 `slow` and `unreachable` are kept apart for the reason in #70: this image

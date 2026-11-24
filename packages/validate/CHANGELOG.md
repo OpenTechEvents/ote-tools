@@ -37,11 +37,13 @@ The CLI changes with it (#117):
 - The summary no longer collapses into one fraction. `N/M judged valid` counts
   only what was measured, and unjudged files get their own line — `0/3 valid`
   over three files nobody judged read as "three bad files".
-- **Exit `0` now includes an out-of-window document.** `3` is reserved for
-  "nothing could be judged at all". A run that judged some files and found no
-  defect exits `0` even if others could not be judged.
-- The exit-code table in the README is now stated as a contract: a code's
-  meaning is never redefined.
+- **Exit `0` now includes an out-of-window document**, and `3` narrows to
+  "something could not be judged at all" — one such file is enough, even when
+  the rest of the run was clean. That last part matters: a looser rule
+  (exiting `0` whenever anything had been measured) let a typo'd `specVersion`
+  pass CI next to a valid feed.
+- The exit-code table in the README notes this narrowing of `3` explicitly
+  rather than claiming the contract was never touched.
 - A document with no `specVersion` under an `ote.config.json` is named as an
   organizer-kit feed member, and pointed at `ote-build-feed . --check`,
   instead of being told to add a `specVersion` the kit forbids writing by hand.
