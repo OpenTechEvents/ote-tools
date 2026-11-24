@@ -1,74 +1,48 @@
-# Handoff — the OTE validator, and what is left around it
+# Handoff — traps, quirks and commands
 
 Working notes for picking this up in a fresh session. Not part of the
-published docs. It used to carry the pending list too; that list is now issues
-(see below), so what is left here is the knowledge that would be lost if the
-file went away — traps, machine quirks, commands, test subjects.
+published docs, and **not a to-do list**: what is pending lives in issues, and
+what is a rule lives in `CLAUDE.md`. What stays here is the knowledge that
+would be lost if the file went away — the traps that cost an afternoon, this
+machine's quirks, and the commands.
+
+**It is also scratch, so it gets cleared.** When a task ends, delete its notes
+from here in the change that closes it, and keep only what outlives the task.
+A section describing finished work is worse than no section — see the rule in
+`CLAUDE.md` for why.
 
 ## Where things stand
 
-Issue #60 is **done and live**, along with the `'unsafe-eval'` debt and the
-README badge (`/badge?doc=…` on the Worker — see
-`workers/validator/README.md`). `main` is green and deployed; no open PRs.
+Deliberately short, because every line of it expires. One command each:
 
-**The repo implements OTE Spec 0.4.0.** All seven published packages are on npm
-at `0.4.0`, the validator is deployed and reports it, and the migration that
-got there is finished — its per-session notes were deleted with the release
-commit, and every decision worth keeping is in this file, `CONTRIBUTING.md` or
-the package changelogs.
+```sh
+# Which spec version this repo implements — BOTH lines: the pin can be a
+# release behind what the spec has published. See the spec-pin bullet in CLAUDE.md.
+grep '"@opentechevents/schema"' packages/validate/package.json
+npm view @opentechevents/schema version
 
-| Thing | State |
-| --- | --- |
-| `apps/validator` | Built here, served by the Worker. Three modes: URL, file, paste. |
-| `packages/discover-feed` | Pure discovery, no network. 23 tests. |
-| `workers/validator` | Cloudflare Worker: the page, `/fetch` and `/badge` on one origin. 52 tests. |
-| `packages/validate` | Schemas embedded **and compiled** by `pnpm gen` (ajv standalone). No ajv at runtime, so the page's CSP is `script-src 'self'`. 141 tests. |
-| <https://validator.opentechevents.org/> | Live, deployed by `deploy-validator.yml` on push to main. |
-| `tools.opentechevents.org/validator/` | Redirect to the canonical URL. |
+# Published packages and their versions (skips the private ones).
+pnpm -r exec node -p \
+  "const p=require('./package.json'); p.private ? '' : p.name + ' ' + p.version"
 
-`opentechevents.org` now uses Cloudflare DNS (nameservers `hunts` /
+gh issue list -R OpenTechEvents/ote-tools   # what is open
+gh pr list -R OpenTechEvents/ote-tools      # including Dependabot's
+```
+
+`validator.opentechevents.org` serves the
+validator page, `/fetch` and `/badge` from one Worker;
+`tools.opentechevents.org/validator/` sends a browser there with a
+`<meta http-equiv="refresh">` page — it answers `200`, not a 3xx, which is
+worth knowing before debugging it with `curl`. Deploys are automatic
+on push (`deploy-validator.yml`, `deploy-tools.yml`); **npm publishing is
+manual** (`publish.yml`, `workflow_dispatch`).
+
+`opentechevents.org` uses Cloudflare DNS (nameservers `hunts` /
 `violet.ns.cloudflare.com`). All GitHub Pages records are DNS-only on purpose —
 proxying them breaks Pages' certificate issuance.
 
-Read before touching any of it: `apps/validator/README.md`,
+Read before touching the validator: `apps/validator/README.md`,
 `workers/validator/README.md`, and the validator bullet in `CLAUDE.md`.
-
-## What is still open — all of it is an issue now
-
-Nothing in this file is a to-do list any more. The three things that were
-pending have been filed, with their reasoning, so they can be picked up one at
-a time by whoever gets there:
-
-- **[ote-tools#66](https://github.com/OpenTechEvents/ote-tools/issues/66) — move
-  the `@v1` tag.** It still points at `305eda2` (2026-07-16), 164 commits back,
-  so every organizer fork runs July's tools rather than the 0.4.0 ones. The
-  spec side is already answered in the issue (0.4.0 only relaxes, and forks
-  never write `specVersion` — `buildFeed()` generates it). What blocks the move
-  is the rest of those six weeks: the fork-visible surface has to be diffed, or
-  a scratch fork pointed at `@main`, before the tag deploys it to everyone.
-- **[spec#33](https://github.com/OpenTechEvents/opentechevents-spec/issues/33) —
-  settle discovery.** `/.well-known/ote-feed`, the embedded
-  `<script type="application/ote+json">`, and `ote+json` vs. `feed+json`. Both
-  mechanisms are implemented in `packages/discover-feed` behind options that
-  default to off, and the media-type match is deliberately lax, until the spec
-  decides. This used to be tracked against spec#6, which is the umbrella Feed
-  Schema issue and was never about discovery — so nothing was tracking it.
-- **[ote-tools#67](https://github.com/OpenTechEvents/ote-tools/issues/67) —
-  `localhost` in the validator's `ALLOWED_ORIGINS`.** Production is same-origin
-  now, so the entries only let `pnpm dev` borrow the deployed fetcher, at the
-  cost of letting any localhost page drive a public outbound-request endpoint.
-
-Closed since the last pass: the `'unsafe-eval'` debt, the README badge, the
-dangling `fetch.opentechevents.org` DNS record, `export-jsonld`'s trusted
-publisher, and spec#31 / spec#32 — both of which shipped in OTE Spec 0.4.0.
-
-The validator UI has also been judged and needs nothing: at 375px in a real
-browser there is no horizontal overflow, the candidate picker holds up with
-five feeds and long titles, and the source panel already scrolls inside
-`max-height: 32rem`.
-
-What stays below is the part that does not belong in an issue tracker: the
-traps, the machine's quirks, and the commands.
 
 ## Traps that cost time — do not rediscover them
 
@@ -86,7 +60,8 @@ traps, the machine's quirks, and the commands.
 3. **Unit tests cannot see either of the above.** Load the page in a real
    browser before believing a green suite. Headless works: serve
    `apps/validator/dist` plus a stub `/fetch`, then
-   `Google\ Chrome --headless --dump-dom "http://localhost:PORT/?doc=…"` and
+   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless
+   --dump-dom "http://localhost:PORT/?doc=…"` (it is not on `PATH`) and
    look for the verdict in the dumped DOM. **But `--window-size` will not go
    below ~485 CSS px**: ask for 375 and the page still lays out at 485 while
    the screenshot is cropped to 375, which looks exactly like a page
@@ -103,7 +78,11 @@ traps, the machine's quirks, and the commands.
    Worker without an assets binding.
 7. **Dependabot PRs need `@dependabot rebase`, not a CI re-run**, to pick up a
    fix that landed on `main`: re-runs reuse the cached merge base.
-8. **Two different local failures look like "the fetcher is broken".** `pnpm
+8. **`refs/tags/v1` is what every organizer fork runs**, and it is pinned far
+   behind `main` (`git rev-list --count v1..main` says how far). Moving it
+   deploys to everyone at once, so it is its own decision — issue #66. Do not
+   move it as a side effect of anything else.
+9. **Two different local failures look like "the fetcher is broken".** `pnpm
    dev` serves static files only: without `OTE_FETCH_ENDPOINT` the relative
    `/fetch` hits esbuild's `404 - Not Found` in `text/plain` and the page
    reports a fetch-service error — it never reached the feed. And editing
@@ -113,11 +92,27 @@ traps, the machine's quirks, and the commands.
    blocks it with `form-action 'none'`). `build.mjs` now watches the static
    files too; the messages name both causes.
 
+## Verifying a release on npm — three things that will mislead you
+
+`CLAUDE.md` says a fix is not shipped until the published artifact shows it.
+Doing that check has its own traps:
+
+1. **The registry lags the workflow** (observed 2026-11-24). `pnpm publish` printed
+   `✅ Published …@0.6.1` for four packages and the registry listed none of
+   them for about three minutes. Concluding "the publish failed" in that window
+   is a false negative — wait and re-check before relaunching anything. The
+   workflow is idempotent, so a real partial failure is safe to re-run.
+2. **`npm view` serves you cache, and `--prefer-online` is not enough.** The
+   reliable read is the packument itself:
+   `curl -s https://registry.npmjs.org/@opentechevents%2Fexport-ics`.
+3. **`npx --ignore-existing` no longer exists** (removed from npm; checked
+   against npm 11.6.2, 2026-11). To make
+   sure you are not running a cached copy of the old version, use
+   `npm cache clean --force`, or name the exact version rather than the minor.
+
 ## Local environment
 
-`git` on this machine resolves to a broken Xcode shim — use
-`/usr/local/bin/git` (2.55.0), and put it on `PATH` before running `gh`, which
-shells out to git. Node/pnpm come from Volta: `export PATH="$HOME/.volta/bin:$PATH"`.
+Node and pnpm come from Volta: `export PATH="$HOME/.volta/bin:$PATH"`.
 
 `CLOUDFLARE_API_TOKEN` lives in the maintainer's shell profile and is **not**
 in a non-interactive shell's environment; `source ~/.zshrc` first to deploy by
@@ -125,11 +120,18 @@ hand. That local token is broad; CI uses a separate, narrower one stored as
 the `CLOUDFLARE_API_TOKEN` repository secret (Workers Scripts: Edit, Workers
 Routes: Edit, Account Settings: Read).
 
+Two workarounds that used to be needed here are **obsolete as of 2026-11** —
+do not reach for them: `git` in `PATH` was a broken Xcode shim (it now resolves to
+`/usr/local/bin/git` on its own), and `gh issue create`/`comment` used to die
+with a Projects-deprecation GraphQL error (fixed in the `gh` upgrade; the
+`gh api … --input body.json` route is still the fallback if it returns).
+
 ## Commands worth remembering
 
 ```sh
 # Local development. URL mode needs the deployed fetcher and PORT=8000,
-# which is the origin allowed in ALLOWED_ORIGINS.
+# which is the origin allowed in ALLOWED_ORIGINS (issue #67 proposes removing
+# those entries — if this stops working, read it before debugging CORS).
 OTE_FETCH_ENDPOINT=https://ote-validator.hhkaos.workers.dev PORT=8000 \
   pnpm --filter @opentechevents/validator dev
 
@@ -142,8 +144,22 @@ pnpm install --frozen-lockfile && pnpm lint && pnpm build && pnpm typecheck && p
 
 ## Useful test subjects
 
-- `https://communitybuilders.dev/` — real page declaring a feed as
-  `application/feed+json`; discovery finds it, 25 events, valid.
+- `https://communitybuilders.dev/events/feed.json` — a registered adopter's
+  real feed, declaring a spec version **outside the support window** (0.3.0 as
+  of 2026-11). The best single test for "support is not validity": it must
+  come back valid, export, and show a green badge, with migration asked for
+  separately. If they upgrade, the committed equivalent is
+  `packages/validate/fixtures/versioned/feed-corunajug-0.3.0.json` — but
+  re-stamp it per the support policy rather than assuming 0.3.0 stays the
+  out-of-window example.
+- `https://communitybuilders.dev/` — the page that declares that feed, as
+  `application/feed+json`; discovery finds it anyway, and says the type is
+  wrong.
 - `https://opentechevents.org/` — declares no feed (the `ote+json` string on
   it is inside a code sample). Must report "not discovered", never "invalid".
 - `packages/validate/fixtures/valid|invalid/` — the same corpus CI validates.
+- `packages/validate/fixtures/versioned/` — documents that exist to pin
+  *version handling* rather than spec rules: an absent `specVersion`, a
+  never-published one, and several older releases. `fixtures/README.md` says
+  what each is for; a document on the **latest** version lives in `valid/`,
+  not here. Faster than crafting them by hand.

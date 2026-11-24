@@ -220,3 +220,44 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   and the comments are claims by an interested party, and ask for verification
   by running things. Checks 2 and 5 came from doing that, after the author had
   read the diff twice.
+- **Do not write prose that expires.** Almost every documentation bug found in
+  this repo has the same shape: a true sentence that stopped being true, with
+  nothing to notice. `references/website.md` sat two minors behind `SKILL.md`;
+  `HANDOFF.md` claimed the repo implemented OTE Spec 0.4.0 with "seven
+  published packages on npm at `0.4.0`" and listed per-package test counts;
+  comments in `packages/migrate` asserted a behaviour that a merged PR had
+  reversed; a skill told organizers a settled media type "may change".
+
+  So, before writing a number, a version, a count or a status into prose:
+
+  1. **Can a command print it?** Then write the command, not the answer — and
+     check it prints what the sentence around it claims, which is where the
+     first draft of this rule got caught.
+  2. **Can a test assert it?** Then write the test — see the `skills/` bullet.
+  3. **Neither?** Date it and name what would change it ("0.3.0 as of
+     2026-11; re-check against the support policy"), so the next reader can
+     tell a fact from a fossil.
+
+  Two shapes to avoid outright. **Status prose** — "X is done, no open PRs,
+  N tests pass" — is stale within days and belongs in issues, CI or a command.
+  And **a second copy of a set**: a list of the badge's states beside the
+  states themselves meant a new one rendered untested. Derive it.
+
+  **"Put it in an issue" is not an escape.** Issue bodies rot the same way:
+  #66 still says the `v1` tag is "164 commits back" when it is past 220. An
+  issue is the right home for a *decision pending*, not for a number.
+
+  This rule arrived with about a dozen counterexamples still in the tree —
+  package READMEs and `CONTRIBUTING.md` describing a spec two minors old —
+  because the guard that enforces it only walks `skills/`. Widening it is
+  #135. Until that lands, the rule binds new prose and the old prose is a
+  known debt, which is worth saying out loud: a rule whose violations are one
+  `grep` away teaches the next reader that it is decorative.
+- **`HANDOFF.md` is scratch, and clearing it is part of finishing.** It exists
+  for what would be lost between sessions — traps, machine quirks, commands,
+  test subjects — and explicitly not as a to-do list (issues) or a rulebook
+  (this file). When a task ends, **delete its notes from `HANDOFF.md` in the
+  same change that closes it**, keeping only what outlives the task. A handoff
+  file that accumulates is how it came to describe a release two minors old as
+  the current state; the next reader cannot tell which half is still true, so
+  they trust none of it, and then it may as well not exist.

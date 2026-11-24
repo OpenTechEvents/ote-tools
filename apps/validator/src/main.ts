@@ -80,6 +80,12 @@ const urlForm = $<HTMLFormElement>("url-form");
 const urlInput = $<HTMLInputElement>("url-input");
 const fileInput = $<HTMLInputElement>("file-input");
 const pasteInput = $<HTMLTextAreaElement>("paste-input");
+// Derived, never written into the markup. This placeholder is copied by
+// organizers, and it sat two minors behind the spec on the deployed page —
+// handing out a stale `specVersion` from the one tool whose job is to judge
+// them. The HTML ships a `…` so a failed import cannot leave a wrong version
+// on screen either.
+pasteInput.placeholder = `{ "specVersion": "${LATEST_VERSION}", … }`;
 const pasteButton = $<HTMLButtonElement>("paste-validate");
 const statusBox = $("status");
 const discoveryBox = $("discovery");
