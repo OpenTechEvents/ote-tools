@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/validate` are documented here.
 
-## Unreleased
+## 0.6.2 — 2026-11-25
 
 - **`resolveEventInheritance(feed)` and `INHERITED_FIELDS`**: each event's
   effective `organizers`/`textLanguage`/`license`/`contributing`, with the

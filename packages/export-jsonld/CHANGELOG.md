@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/export-jsonld` are documented here.
 
-## Unreleased
+## 0.6.2 — 2026-11-25
 
 - **A feed's defaults now reach every node** (`organizers`, `textLanguage`,
   `license`, `contributing`). An event that inherited its organizer emitted
