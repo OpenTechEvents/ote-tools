@@ -4,6 +4,19 @@ All notable changes to the OTE event editor are documented here as they
 land. This app isn't published to npm, so entries are dated rather than
 tied to semver releases.
 
+## 2026-11-26
+
+- **"Edit directly" no longer opens a commit for an invalid draft** (#159).
+  "Propose" has always been gated on draft validity; the direct-commit path
+  was not, so an organizer with write access could commit an invalid event
+  straight to their fork — and a direct commit to the default branch never
+  runs `validate.yml`, which is what would otherwise catch it. On an empty
+  draft the button used to open GitHub's create-file page prefilled with
+  `events/.json` (no name, so no slug) containing just a `timezone`.
+  Only the new-event arm is gated: editing an existing event opens that
+  file on github.dev and carries no draft JSON, so the same check there
+  would block a legitimate edit for a reason that does not apply to it.
+
 ## 2026-11-04
 
 - **The six 0.5/0.6 fields the editor had no form for** (#104). Until now the

@@ -3182,6 +3182,14 @@ async function startEditor(repo: string | null): Promise<void> {
   editDirect.addEventListener("click", () => {
     if (repo === null) return;
     if (isNew) {
+      // A direct commit prefills GitHub's create-file page with this draft's
+      // JSON, so it must clear the same bar as "Propose" — a commit straight
+      // to the default branch never passes validate.yml, which is what would
+      // otherwise catch an invalid event. Only this arm carries draft JSON:
+      // the `!isNew` arm below opens an existing file on github.dev, so
+      // gating it would block a legitimate edit for a reason that does not
+      // apply to it.
+      if (!revealInvalidDraft()) return;
       follow(directCreateUrl(repo, state.slug, toEventJson(state), branch ?? "main"));
     } else if (editSlug !== null) {
       window.open(directEditUrl(repo, editSlug, branch), "_blank", "noopener");
