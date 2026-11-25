@@ -9,6 +9,17 @@
 #
 # The Cloudflare token must be able to deploy Workers; `production` also needs
 # it to manage the custom domain in the opentechevents.org zone.
+# How to run it (it has no other trigger):
+#
+#   gh workflow run deploy-convert.yml -R OpenTechEvents/ote-tools
+#   gh workflow run deploy-convert.yml -R OpenTechEvents/ote-tools -f target=production
+#
+# A new `workflow_dispatch` workflow is only dispatchable once Actions has
+# registered it from the default branch, and that registration arrives by
+# webhook: this one was merged during a GitHub webhook outage, the event was
+# dropped, and `gh workflow run` answered `404 not found on the default
+# branch` for a file that was plainly there. Editing the file on the default
+# branch is what re-registers it.
 name: Deploy converter
 
 on:
