@@ -2,6 +2,16 @@
 
 All notable changes to `@opentechevents/export-rss` are documented here.
 
+## Unreleased
+
+- **Items are ordered newest event first**, rather than in feed order. OTE has
+  no publication instant and RSS has nowhere else to express an ordering, so
+  the event date is what a reader of a feed of events is served by. The
+  caller's feed is never mutated, and ties keep input order.
+- **Changed output for existing callers**, including `@opentechevents/build-feed`:
+  a generated `feed.xml` will come out in a different order on the next build,
+  with no content change.
+
 ## 0.6.1
 
 - **An out-of-window feed exports instead of being refused.** This CLI read

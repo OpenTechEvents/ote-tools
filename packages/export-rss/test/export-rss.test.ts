@@ -46,6 +46,14 @@ describe("feedToRss", () => {
     expect(feedToRss(feed)).toBe(rss);
   });
 
+  it("orders items by event date descending without mutating the feed", () => {
+    const original = feed.events.map((event) => event.id);
+    const items = rss.split("<item>").slice(1);
+    const expected = [...feed.events].sort((a, b) => b.startDate.localeCompare(a.startDate));
+    expect(items.map((item) => item.match(/<guid isPermaLink="false">([^<]+)<\/guid>/)?.[1])).toEqual(expected.map((event) => event.id));
+    expect(feed.events.map((event) => event.id)).toEqual(original);
+  });
+
   it("emits no pubDate — OTE has no publication instant", () => {
     expect(rss).not.toContain("<pubDate>");
   });

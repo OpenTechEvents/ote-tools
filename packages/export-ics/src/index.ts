@@ -1,5 +1,7 @@
 import { marked, type Tokens } from "marked";
 
+import { markdownToCalendarText } from "./plain-text.js";
+
 import type { OteEvent, OteEventStatus, OteFeed, OteOrganizer } from "./types.js";
 
 export type {
@@ -185,13 +187,36 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
   const descriptionParts: string[] = [];
   const htmlParts: string[] = [];
   if (event.description) {
-    descriptionParts.push(event.description);
+    // Markdown source is what the publisher wrote; a reader looking at a
+    // calendar entry sees `**Bold**` and a link they cannot follow. The HTML
+    // alternative below is ignored by clients that have no renderer, so the
+    // plain-text one has to be readable on its own.
+    descriptionParts.push(markdownToCalendarText(event.description));
     htmlParts.push(descriptionToHtml(event.description));
   }
-  if (event.url && event.location?.onlineUrl) {
+  if (event.url) {
+    descriptionParts.push(`Event: ${event.url}`);
+    const eventUrl = escapeHtml(event.url);
+    htmlParts.push(`<p>Event: <a href="${eventUrl}">${eventUrl}</a></p>`);
+  }
+  if (event.location?.onlineUrl && event.location.onlineUrl !== event.url) {
     descriptionParts.push(`Online: ${event.location.onlineUrl}`);
     const onlineUrl = escapeHtml(event.location.onlineUrl);
     htmlParts.push(`<p>Online: <a href="${onlineUrl}">${onlineUrl}</a></p>`);
+  }
+  const address = event.location?.address;
+  if (address) {
+    const parts = [address.street, address.postalCode, address.locality, address.region, address.country].filter(Boolean);
+    if (parts.length) {
+      const line = `Address: ${parts.join(", ")}`;
+      descriptionParts.push(line);
+      htmlParts.push(`<p>${escapeHtml(line)}</p>`);
+    }
+  }
+  if (event.organizers?.length) {
+    const line = `Organizers: ${event.organizers.map((organizer) => organizer.name).join(", ")}`;
+    descriptionParts.push(line);
+    htmlParts.push(`<p>${escapeHtml(line)}</p>`);
   }
   if (event.status === "moved-online") {
     descriptionParts.push("This event has moved online.");

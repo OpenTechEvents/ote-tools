@@ -2,6 +2,24 @@
 
 All notable changes to `@opentechevents/export-ics` are documented here.
 
+## Unreleased
+
+- **`DESCRIPTION` is readable text rather than Markdown source.** A client
+  with no HTML renderer showed `**Bold**` and a `[label](url)` whose target
+  was unreachable; link targets are now kept in parentheses. `X-ALT-DESC` is
+  unchanged.
+- **The event page is always in `DESCRIPTION`**, as `Event: <url>`, not only
+  when an online link also exists. `URL` is where a client looks for it, and
+  the clients that do not read `URL` left a reader with no way back to the
+  page.
+- **`location.address` and `organizers` reach `DESCRIPTION`** as `Address:`
+  and `Organizers:` lines. Neither has an iCalendar property that can hold
+  them (`ORGANIZER` is structurally a `mailto:`), so the alternative was
+  dropping them.
+- **Changed output for existing callers.** No API changed, but the bytes did:
+  anything comparing `feedToIcs` output against a stored copy will see a
+  difference on the first run.
+
 ## 0.6.1
 
 - **An out-of-window feed exports instead of being refused.** This CLI read
