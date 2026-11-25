@@ -81,11 +81,11 @@ on the feed and left off every event (replacement semantics: an event that *does
 its own value overrides the feed's entirely — never merged). `feed.json`
 itself keeps that inheritance implicit (it's schema-valid either way, and
 materializing it onto every event would just be noise) — but
-`@opentechevents/export-ics` and `@opentechevents/export-rss` read each
-event's fields directly, with no notion of feed-level inheritance of their
-own. Call `resolveEventInheritance(feed)` before handing the feed to either
-— the CLI already does this for `feed.ics`/`feed.xml` while still writing
-the un-resolved feed to `feed.json`.
+the exporters resolve that inheritance themselves
+(`resolveEventInheritance`, now in `@opentechevents/validate` and re-exported
+here). The CLI still resolves before writing `feed.ics`/`feed.xml`, because
+the per-event validation it does needs the effective values too, and
+resolving twice is idempotent; `feed.json` keeps the un-resolved feed.
 
 ## CLI
 

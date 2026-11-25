@@ -332,31 +332,12 @@ export function buildFeed(input: BuildFeedInput): BuildFeedResult {
 }
 
 /**
- * Resolves each event's EFFECTIVE `organizers`/`textLanguage`/`license` —
- * falling back to the feed's own value only when an event doesn't declare
- * its own (replacement, never merge: a declared `organizers[]` fully
- * replaces the feed's, it never appends to it — this is naturally what a
- * plain `??` fallback per field already does, no merging ever happens).
- *
- * `feed.json` itself is written from the UN-resolved feed (see `buildFeed`):
- * the inheritance is schema-valid to leave implicit, and materializing it
- * onto every event would just be noise. But `@opentechevents/export-ics` and
- * `@opentechevents/export-rss` read each event's fields directly — they have
- * no notion of feed-level inheritance themselves — so call this first when
- * handing the feed to either of them (see the CLI for the exact pattern).
+ * Re-exported from `@opentechevents/validate`, where it now lives: the
+ * exporters need the same resolution and cannot depend on this package (it
+ * depends on them), so three published CLIs and Broadcast were each dropping
+ * inherited values while this CLI resolved them. Kept here because the name
+ * is part of this package's published API, and still called before writing
+ * `feed.ics`/`feed.xml` — resolving twice is idempotent — because the
+ * per-event validation this CLI does needs the effective values too.
  */
-export function resolveEventInheritance(feed: OteFeed): OteFeed {
-  return {
-    ...feed,
-    events: feed.events.map((event) => ({
-      ...event,
-      organizers: event.organizers ?? feed.organizers,
-      textLanguage: event.textLanguage ?? feed.textLanguage,
-      license: event.license ?? feed.license,
-      // OTE 0.5+, inherited feed→event exactly like license. `covers` and
-      // `alternates` are deliberately absent here: both describe the
-      // collection, not an event in it, so there is nothing to push down.
-      contributing: event.contributing ?? feed.contributing,
-    })),
-  };
-}
+export { resolveEventInheritance } from "@opentechevents/validate";
