@@ -55,6 +55,7 @@ export {
   SUPPORT_WINDOW_MINORS,
   VERSIONS_WITH_RECOMMENDED,
 } from "./versions.js";
+export { INHERITED_FIELDS, resolveEventInheritance } from "./inherit.js";
 export {
   eventSchema,
   eventRecommendedSchema,
