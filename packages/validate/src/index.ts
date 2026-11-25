@@ -56,6 +56,8 @@ export {
   VERSIONS_WITH_RECOMMENDED,
 } from "./versions.js";
 export { INHERITED_FIELDS, resolveEventInheritance } from "./inherit.js";
+export type { Labels } from "./labels.js";
+export { LABELS, LABEL_LOCALES, labelsFor, labelValue } from "./labels.js";
 export {
   eventSchema,
   eventRecommendedSchema,

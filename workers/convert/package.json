@@ -1,0 +1,23 @@
+{
+  "name": "@opentechevents/convert-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opentechevents/export-ics": "workspace:*",
+    "@opentechevents/export-rss": "workspace:*",
+    "@opentechevents/export-jsonld": "workspace:*",
+    "@opentechevents/validate": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261102.1",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.156.2"
+  }
+}
