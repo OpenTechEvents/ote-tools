@@ -2,6 +2,14 @@
 
 All notable changes to `@opentechevents/build-feed` are documented here.
 
+## Unreleased
+
+- `resolveEventInheritance` moved to `@opentechevents/validate` and is
+  re-exported here; this package's API is unchanged. The exporters resolve
+  inheritance themselves now, which is why it had to live somewhere they can
+  depend on. The CLI still resolves before validating per event, and
+  resolving twice is idempotent.
+
 ## 0.6.0
 
 - **Implements OTE Spec 0.6.0.**

@@ -4,6 +4,11 @@ All notable changes to `@opentechevents/export-rss` are documented here.
 
 ## Unreleased
 
+- **A feed's defaults now reach every item** (`organizers`, `textLanguage`,
+  `license`, `contributing`). Items whose event inherited its organizer had no
+  `<author>`/`<dc:creator>` at all; see `@opentechevents/export-ics` for the
+  measurement and the reasoning. Changes output for existing callers.
+
 - **Items are ordered newest event first**, rather than in feed order. OTE has
   no publication instant and RSS has nowhere else to express an ordering, so
   the event date is what a reader of a feed of events is served by. The

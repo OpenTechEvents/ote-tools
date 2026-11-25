@@ -1,3 +1,5 @@
+import { resolveEventInheritance } from "@opentechevents/validate";
+
 import { marked, type Tokens } from "marked";
 
 import type { OteEvent, OteEventStatus, OteFeed } from "./types.js";
@@ -230,6 +232,9 @@ function item(event: OteEvent): string[] {
  * never invents data. See the package README for the mapping.
  */
 export function feedToRss(feed: OteFeed): string {
+  // Effective values per event; see resolveEventInheritance. Without it a
+  // feed that declared its organizer once produced items with no author.
+  feed = resolveEventInheritance(feed);
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" ' +

@@ -4,6 +4,17 @@ All notable changes to `@opentechevents/validate` are documented here.
 
 ## Unreleased
 
+- **`resolveEventInheritance(feed)` and `INHERITED_FIELDS`**: each event's
+  effective `organizers`/`textLanguage`/`license`/`contributing`, with the
+  feed's defaults filled in. It used to live in
+  `@opentechevents/build-feed`, which the exporters cannot depend on (it
+  depends on them) — so `build-feed` and the hosted converter resolved
+  inheritance while three published CLIs and Broadcast silently did not.
+  `build-feed` re-exports it, so its API is unchanged. `INHERITED_FIELDS` is
+  checked against the schema's own `x-inheritsFrom` annotations by a test, so
+  a fifth inheritable field fails with its name rather than being dropped by
+  four consumers.
+
 - **The not-judged summary names its reason.** A kit fork's `events/*.json`
   were already reported per file as organizer-kit members, with the right
   command to judge them — and then the closing count said *"a spec version

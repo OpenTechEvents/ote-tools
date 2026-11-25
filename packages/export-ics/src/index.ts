@@ -1,3 +1,5 @@
+import { resolveEventInheritance } from "@opentechevents/validate";
+
 import { marked, type Tokens } from "marked";
 
 import { markdownToCalendarText } from "./plain-text.js";
@@ -396,6 +398,13 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
  * dropped outright. See the package README for the full mapping.
  */
 export function feedToIcs(feed: OteFeed): string {
+  // Each event's EFFECTIVE values. A feed may declare its organizers,
+  // language and licence once and let its events inherit them — the schemas
+  // say so in `x-inheritsFrom` and the feed schema validates against the
+  // effective value — so reading `event.organizers` without resolving meant
+  // half the events in a correctly written feed named nobody at all.
+  // Idempotent: a caller that already resolved loses nothing.
+  feed = resolveEventInheritance(feed);
   const dtstamp = icsUtc(feed.updatedAt);
   const lines = [
     "BEGIN:VCALENDAR",
