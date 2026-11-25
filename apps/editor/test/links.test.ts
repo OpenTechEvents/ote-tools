@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { submitGate } from "../src/lib/submit-gate.js";
+
 import {
   GITHUB_ISSUE_BODY_MAX_LENGTH,
   MAX_URL_LENGTH,
@@ -331,8 +333,21 @@ describe("directEditUrl", () => {
 });
 
 describe("directCreateUrl", () => {
+  // The clearance is minted by the gate, never hand-rolled here: the type
+  // exists so that no caller — including a test — can prefill a commit with
+  // draft JSON without a gate decision behind it (#159).
+  const clearance = (() => {
+    const decision = submitGate("commit-new", {
+      hasRepo: true,
+      draftValid: true,
+      editSlug: null,
+    });
+    if (decision.action !== "proceed") throw new Error("a valid draft must clear the gate");
+    return decision.clearance;
+  })();
+
   it("builds GitHub's prefilled new-file URL", () => {
-    const result = directCreateUrl("o/r", "2026-06-async", event, "main");
+    const result = directCreateUrl("o/r", "2026-06-async", event, clearance, "main");
     expect(result.kind).toBe("url");
     if (result.kind !== "url") return;
     const url = new URL(result.url);
@@ -343,7 +358,7 @@ describe("directCreateUrl", () => {
 
   it("falls back to filename-only + copy-paste above the URL limit", () => {
     const big = { ...event, description: "x".repeat(MAX_URL_LENGTH) };
-    const result = directCreateUrl("o/r", "s", big, "main");
+    const result = directCreateUrl("o/r", "s", big, clearance, "main");
     expect(result.kind).toBe("fallback");
     if (result.kind !== "fallback") return;
     expect(result.url).toContain("filename=s.json");

@@ -16,6 +16,11 @@ import { marked } from "marked";
 import { loadAdopters, type Adopter } from "./lib/adopters.js";
 import { findCollisions } from "./lib/collisions.js";
 import {
+  submitGate,
+  type SubmitContext,
+  type SubmitDecision,
+} from "./lib/submit-gate.js";
+import {
   compareByStartDateDesc,
   decodeImportQueue,
   encodeImportQueue,
@@ -3150,23 +3155,12 @@ async function startEditor(repo: string | null): Promise<void> {
   }
   badge.addEventListener("click", jumpToFirstError);
 
-  function revealInvalidDraft(): boolean {
-    if (!draftValid) {
-      // First invalid attempt reveals every error instead of blocking silently.
-      submitAttempted = true;
-      refresh();
-      jumpToFirstError();
-      return false;
-    }
-    return true;
-  }
-
   // A configured recurrence takes over both submit paths — the draft is a
   // template at that point (see the Start/End hide/sync above), so
   // "submit" means "generate every occurrence for review", not "submit
   // this one ambiguous draft". No separate "Generate" button needed.
   function proposeOrGenerate(): void {
-    if (!revealInvalidDraft()) return;
+    if (!actOnGate(submitGate("propose", gateContext()))) return;
     const series = getRecurrenceSeries();
     if (series.length > 0) {
       onGenerateRecurrenceSeries(series);
@@ -3179,24 +3173,45 @@ async function startEditor(repo: string | null): Promise<void> {
 
   el<HTMLButtonElement>("review-standalone").addEventListener("click", proposeOrGenerate);
 
+  /** The draft state every submit path is judged against. */
+  function gateContext(): SubmitContext {
+    return { hasRepo: repo !== null, draftValid, editSlug };
+  }
+
+  /**
+   * Applies a gate decision, returning whether the caller may proceed. The
+   * reveal is here rather than in `submitGate` because it touches the DOM:
+   * an invalid draft shows every error and scrolls to the first one instead
+   * of blocking silently.
+   */
+  function actOnGate(decision: SubmitDecision): boolean {
+    if (decision.action === "reveal-invalid-draft") {
+      submitAttempted = true;
+      refresh();
+      jumpToFirstError();
+      return false;
+    }
+    return decision.action === "proceed";
+  }
+
   editDirect.addEventListener("click", () => {
+    // Which path this is decides whether draft validity applies: "commit-new"
+    // prefills GitHub's create-file page with this draft's JSON, while
+    // "edit-existing" opens a file already in the repo and carries none. See
+    // lib/submit-gate.ts.
+    const decision = submitGate(isNew ? "commit-new" : "edit-existing", gateContext());
+    if (!actOnGate(decision) || decision.action !== "proceed") return;
     if (repo === null) return;
     if (isNew) {
-      // A direct commit prefills GitHub's create-file page with this draft's
-      // JSON, so it must clear the same bar as "Propose" — a commit straight
-      // to the default branch never passes validate.yml, which is what would
-      // otherwise catch an invalid event. Only this arm carries draft JSON:
-      // the `!isNew` arm below opens an existing file on github.dev, so
-      // gating it would block a legitimate edit for a reason that does not
-      // apply to it.
-      if (!revealInvalidDraft()) return;
-      follow(directCreateUrl(repo, state.slug, toEventJson(state), branch ?? "main"));
+      follow(
+        directCreateUrl(repo, state.slug, toEventJson(state), decision.clearance, branch ?? "main"),
+      );
     } else if (editSlug !== null) {
       window.open(directEditUrl(repo, editSlug, branch), "_blank", "noopener");
     }
   });
 
-  // Reachable only once the draft has already passed revealInvalidDraft() —
+  // Reachable only once the draft has already passed the submit gate —
   // that's what got the review dialog open in the first place.
   el<HTMLButtonElement>("review-copy").addEventListener("click", () => {
     void navigator.clipboard.writeText(eventJsonText(toEventJson(state)));
