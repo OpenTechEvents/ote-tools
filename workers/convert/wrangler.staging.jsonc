@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ote-convert-staging",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "cache": { "enabled": true },
+  "unsafe": {
+    "bindings": [{
+      "name": "RATE_LIMITER",
+      "type": "ratelimit",
+      "namespace_id": "1003",
+      "simple": { "limit": 30, "period": 60 }
+    }]
+  }
+}

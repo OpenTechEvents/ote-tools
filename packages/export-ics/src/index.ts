@@ -1,5 +1,8 @@
 import { marked, type Tokens } from "marked";
 
+import { wallClockToUtc } from "./wall-clock.js";
+import { markdownToCalendarText } from "./plain-text.js";
+
 import type { OteEvent, OteEventStatus, OteFeed, OteOrganizer } from "./types.js";
 
 export type {
@@ -96,12 +99,12 @@ const icsDate = (date: string): string => date.replaceAll("-", "");
 
 /**
  * `2026-06-26T19:00` → `20260626T190000`. OTE's dateTime is deliberately
- * seconds-less (a valid feed's wall clock is always `HH:MM`); iCalendar's
- * `DTSTART`/`DTEND` require `HHMMSS`, so `:00` seconds are always appended.
+ * often seconds-less; older valid documents may include seconds. iCalendar's
+ * `DTSTART`/`DTEND` require `HHMMSS`, so append seconds only when absent.
  */
 function icsDateTimeLocal(wallClock: string): string {
   const [date, time] = wallClock.split("T");
-  return `${icsDate(date)}T${time.replaceAll(":", "")}00`;
+  return `${icsDate(date)}T${time.replaceAll(":", "").padEnd(6, "0")}`;
 }
 
 /** Instant (with offset or Z) → UTC basic form `20260706T100000Z`. */
@@ -126,10 +129,12 @@ function dateProp(
   name: "DTSTART" | "DTEND",
   wallClock: string,
   timezone: string,
+  utcTimes = false,
 ): string[] {
   if (isDateOnly(wallClock)) {
     return prop(`${name};VALUE=DATE`, icsDate(wallClock));
   }
+  if (utcTimes) return prop(name, wallClockToUtc(wallClock, timezone));
   if (timezone === "UTC") {
     return prop(name, `${icsDateTimeLocal(wallClock)}Z`);
   }
@@ -161,18 +166,28 @@ function primaryOrganizer(organizers: OteOrganizer[]): OteOrganizer | undefined 
   return organizers.find((o) => o.email !== undefined);
 }
 
-function vevent(event: OteEvent, dtstamp: string): string[] {
+function vevent(event: OteEvent, dtstamp: string, locale?: string, utcTimes = false): string[] {
+  const es = /^es(?:-|$)/i.test(locale ?? "");
+  const t = (en: string, spanish: string) => es ? spanish : en;
   const lines = ["BEGIN:VEVENT"];
   lines.push(...prop("UID", escapeText(event.id)));
   lines.push(...prop("DTSTAMP", dtstamp));
   lines.push(...prop(withLanguage("SUMMARY", event.textLanguage), escapeText(event.name)));
-  lines.push(...dateProp("DTSTART", event.startDate, event.timezone));
+  const start = dateProp("DTSTART", event.startDate, event.timezone, utcTimes);
+  lines.push(...start);
+  if (utcTimes && !isDateOnly(event.startDate)) {
+    lines.push(...prop("X-OTE-TIMEZONE", escapeText(event.timezone)));
+  }
   if (event.endDate) {
     if (isDateOnly(event.endDate)) {
       // OTE endDate is the last day of the event; DTEND is exclusive.
       lines.push(...prop("DTEND;VALUE=DATE", nextDay(event.endDate)));
     } else {
-      lines.push(...dateProp("DTEND", event.endDate, event.timezone));
+      const end = dateProp("DTEND", event.endDate, event.timezone, utcTimes);
+      if (utcTimes && !isDateOnly(event.startDate) && end[0]!.slice(6) <= start[0]!.slice(8)) {
+        throw new Error("The event's end is not after its start when resolved in its time zone.");
+      }
+      lines.push(...end);
     }
   }
 
@@ -185,52 +200,73 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
   const descriptionParts: string[] = [];
   const htmlParts: string[] = [];
   if (event.description) {
-    descriptionParts.push(event.description);
+    descriptionParts.push(markdownToCalendarText(event.description));
     htmlParts.push(descriptionToHtml(event.description));
   }
-  if (event.url && event.location?.onlineUrl) {
-    descriptionParts.push(`Online: ${event.location.onlineUrl}`);
+  if (event.url) {
+    descriptionParts.push(`${t("Event", "Evento")}: ${event.url}`);
+    const eventUrl = escapeHtml(event.url);
+    htmlParts.push(`<p>${t("Event", "Evento")}: <a href="${eventUrl}">${eventUrl}</a></p>`);
+  }
+  if (event.location?.onlineUrl && event.location.onlineUrl !== event.url) {
+    descriptionParts.push(`${t("Online", "En línea")}: ${event.location.onlineUrl}`);
     const onlineUrl = escapeHtml(event.location.onlineUrl);
-    htmlParts.push(`<p>Online: <a href="${onlineUrl}">${onlineUrl}</a></p>`);
+    htmlParts.push(`<p>${t("Online", "En línea")}: <a href="${onlineUrl}">${onlineUrl}</a></p>`);
+  }
+  const address = event.location?.address;
+  if (address) {
+    const parts = [address.street, address.postalCode, address.locality, address.region, address.country].filter(Boolean);
+    if (parts.length) {
+      const label = `${t("Address", "Dirección")}: ${parts.join(", ")}`;
+      descriptionParts.push(label);
+      htmlParts.push(`<p>${escapeHtml(label)}</p>`);
+    }
+  }
+  if (event.organizers?.length) {
+    const label = `${t("Organizers", "Organizadores")}: ${event.organizers.map((organizer) => organizer.name).join(", ")}`;
+    descriptionParts.push(label);
+    htmlParts.push(`<p>${escapeHtml(label)}</p>`);
   }
   if (event.status === "moved-online") {
-    descriptionParts.push("This event has moved online.");
-    htmlParts.push("<p>This event has moved online.</p>");
+    descriptionParts.push(t("This event has moved online.", "Este evento se ha trasladado en línea."));
+    htmlParts.push(`<p>${t("This event has moved online.", "Este evento se ha trasladado en línea.")}</p>`);
   }
   // offers/cfp/eligibility have no iCalendar structure to hold them (accepted
   // total loss, per the spec's own mapping tables) — degraded to readable
   // DESCRIPTION text plus an X-OTE-* extension property below, so at least
   // the plain-text meaning and the primary URL survive.
   if (event.cfp) {
-    const window = event.cfp.closesAt ? ` (closes ${event.cfp.closesAt})` : "";
-    descriptionParts.push(`Call for proposals: ${event.cfp.url}${window}`);
+    const window = event.cfp.closesAt ? ` (${t("closes", "cierra")} ${event.cfp.closesAt})` : "";
+    descriptionParts.push(`${t("Call for proposals", "Convocatoria de ponencias")}: ${event.cfp.url}${window}`);
     const cfpUrl = escapeHtml(event.cfp.url);
     htmlParts.push(
-      `<p>Call for proposals: <a href="${cfpUrl}">${cfpUrl}</a>${escapeHtml(window)}</p>`,
+      `<p>${t("Call for proposals", "Convocatoria de ponencias")}: <a href="${cfpUrl}">${cfpUrl}</a>${escapeHtml(window)}</p>`,
     );
   }
   if (event.eligibility) {
     const note = event.eligibility.note ? ` — ${event.eligibility.note}` : "";
-    descriptionParts.push(`Eligibility: ${event.eligibility.type}${note}`);
+    const eligibility: Record<string, string> = { open: "abierto", "members-only": "solo para miembros", "approval-required": "requiere aprobación", restricted: "restringido" };
+    const type = es ? (eligibility[event.eligibility.type] ?? event.eligibility.type) : event.eligibility.type;
+    descriptionParts.push(`${t("Eligibility", "Requisitos")}: ${type}${note}`);
     htmlParts.push(
-      `<p>Eligibility: ${escapeHtml(event.eligibility.type)}${escapeHtml(note)}</p>`,
+      `<p>${t("Eligibility", "Requisitos")}: ${escapeHtml(type)}${escapeHtml(note)}</p>`,
     );
   }
   if (event.speakers && event.speakers.length > 0) {
     const names = event.speakers.map((s) =>
       s.affiliation ? `${s.name}, ${s.affiliation}` : s.name,
     );
-    descriptionParts.push(`Speakers: ${names.join(", ")}`);
-    htmlParts.push(`<p>Speakers: ${names.map(escapeHtml).join(", ")}</p>`);
+    descriptionParts.push(`${t("Speakers", "Ponentes")}: ${names.join(", ")}`);
+    htmlParts.push(`<p>${t("Speakers", "Ponentes")}: ${names.map(escapeHtml).join(", ")}</p>`);
   }
   if (event.recordings && event.recordings.length > 0) {
     const urls = event.recordings.map((r) => (typeof r === "string" ? r : r.url));
     const labels = event.recordings.map((r) =>
       typeof r === "string" ? r : (r.title ? `${r.title} — ${r.url}` : r.url),
     );
-    descriptionParts.push(`Recording:\n${labels.join("\n")}`);
+    descriptionParts.push(`${t("Recording", "Grabación")}:\n${labels.join("\n")}`);
     htmlParts.push(
-      `<p>Recording:<br/>${urls
+      `<p>${t("Recording", "Grabación")}:<br/>${urls
         .map((url) => `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`)
         .join("<br/>")}</p>`,
     );
@@ -242,24 +278,24 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
       // rather than incomplete, so the words go in instead of the figure.
       const price =
         o.scope === "add-on"
-          ? "additional charge on top of admission"
+          ? t("additional charge on top of admission", "cargo adicional a la entrada")
           : o.price === 0
-            ? "Free"
+            ? t("Free", "Gratis")
             : o.price !== undefined && o.currency
               ? `${o.price} ${o.currency}`
               : undefined;
       return [o.name, price, o.url].filter((part): part is string => Boolean(part)).join(" — ");
     });
-    descriptionParts.push(`Tickets:\n${offerLines.join("\n")}`);
-    htmlParts.push(`<p>Tickets:<br/>${offerLines.map(escapeHtml).join("<br/>")}</p>`);
+    descriptionParts.push(`${t("Tickets", "Entradas")}:\n${offerLines.join("\n")}`);
+    htmlParts.push(`<p>${t("Tickets", "Entradas")}:<br/>${offerLines.map(escapeHtml).join("<br/>")}</p>`);
   }
   if (event.partOf?.offers && event.partOf.offers.length > 0) {
     const shared = event.partOf.offers.find(
       (o) => o.price !== undefined && o.currency !== undefined,
     );
     if (shared) {
-      const amount = shared.price === 0 ? "free" : `${shared.price} ${shared.currency}`;
-      const label = `Admission (whole event): ${amount}`;
+      const amount = shared.price === 0 ? t("free", "gratis") : `${shared.price} ${shared.currency}`;
+      const label = `${t("Admission (whole event)", "Entrada (evento completo)")}: ${amount}`;
       descriptionParts.push(label);
       htmlParts.push(`<p>${escapeHtml(label)}</p>`);
     }
@@ -370,7 +406,7 @@ function vevent(event: OteEvent, dtstamp: string): string[] {
  * of structure, per the spec's own mapping tables) rather than being
  * dropped outright. See the package README for the full mapping.
  */
-export function feedToIcs(feed: OteFeed): string {
+export function feedToIcs(feed: OteFeed, options: { locale?: string; utcTimes?: boolean } = {}): string {
   const dtstamp = icsUtc(feed.updatedAt);
   const lines = [
     "BEGIN:VCALENDAR",
@@ -384,7 +420,7 @@ export function feedToIcs(feed: OteFeed): string {
     lines.push(...prop("X-WR-CALDESC", escapeText(feed.description)));
   }
   for (const event of feed.events) {
-    lines.push(...vevent(event, dtstamp));
+    lines.push(...vevent(event, dtstamp, options.locale, options.utcTimes));
   }
   lines.push("END:VCALENDAR");
   return lines.join(CRLF) + CRLF;

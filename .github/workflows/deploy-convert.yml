@@ -1,0 +1,54 @@
+# Deploy the converter on its own hostname, independently of the validator.
+# The Cloudflare token must be able to deploy Workers and manage the custom
+# domain in the opentechevents.org zone.
+name: Deploy converter
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/convert/**"
+      - "workers/validator/src/dns.ts"
+      - "workers/validator/src/fetch-document.ts"
+      - "workers/validator/src/ssrf.ts"
+      - "workers/validator/src/tcp-probe.ts"
+      - "packages/validate/**"
+      - "packages/export-ics/**"
+      - "packages/export-rss/**"
+      - "packages/export-jsonld/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-convert.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: converter
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @opentechevents/convert-service test
+      - name: Deploy
+        run: pnpm --filter @opentechevents/convert-service exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Smoke check
+        run: |
+          set -euo pipefail
+          base=https://convert.opentechevents.org
+          curl -fsS "$base/health" > /dev/null
+          for probe in "file:///etc/passwd" "http://169.254.169.254/"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base/ics?feed=$(printf %s "$probe" | jq -sRr @uri)")
+            test "$code" = "400" || { echo "SSRF probe $probe answered $code, expected 400"; exit 1; }
+          done

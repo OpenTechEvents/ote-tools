@@ -47,11 +47,11 @@ function parseItemDescription(html: string | undefined): {
     const label =
       block.tagName === "P" ? block.querySelector("strong")?.textContent?.trim() : undefined;
     const content = block.textContent
-      ?.replace(/^(Status|When|Where|Online|Attendance):\s*/i, "")
+      ?.replace(/^(Status|When|Where|Online|Attendance|Estado|Cuándo|Dónde|En línea|Modalidad):\s*/i, "")
       .trim();
     if (!content) continue;
-    if (label === "When:") when = content;
-    else if (label === "Where:" || label === "Online:") location = content;
+    if ((label === "When:" || label === "Cuándo:")) when = content;
+    else if (label === "Where:" || label === "Online:" || label === "Dónde:" || label === "En línea:") location = content;
     else if (!label) description.push(content);
   }
 

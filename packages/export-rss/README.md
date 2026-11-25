@@ -51,6 +51,11 @@ given feed actually uses them — simpler and harmless.
 
 Decisions worth knowing:
 
+- **Item order.** Events are emitted by their published local `startDate`, in
+  descending order, with input order retained for ties. This is event-date
+  order, not publication or modification order. RSS readers may apply their own
+  sorting, and future events farther in the future appear before earlier ones.
+
 - **RSS does not model events.** Dates, venue, online URL, attendance mode
   and non-scheduled status go in the item body as entity-encoded HTML,
   followed by the event's own description. `offers`/`cfp`/`eligibility`/
