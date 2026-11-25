@@ -96,3 +96,40 @@ describe("nothing is dropped silently", () => {
     expect(JSON.stringify(await response.json())).toContain(wanted);
   });
 });
+
+describe("a feed's defaults reach the hosted output", () => {
+  // The exporters resolve inheritance themselves now, but two paths here read
+  // event fields before any exporter does.
+  const inheriting = {
+    ...base,
+    textLanguage: "es",
+    organizers: [{ name: "Comunidad", email: "hola@example.org" }],
+    events: [{ ...(base.events[0] as Record<string, unknown>), organizers: undefined, textLanguage: undefined }],
+  };
+  const inheritingEvent = inheriting.events[0] as unknown as { id: string; name: string };
+
+  it("keeps the inherited organizer and language in the calendar", async () => {
+    const response = await handleRequest(request(`/ics?feed=${encodeURIComponent(target)}`), env, fetcher(inheriting));
+    const body = (await response.text()).replace(/\r\n[ \t]/g, "");
+    expect(body).toMatch(/^ORGANIZER/m);
+    expect(body).toContain("SUMMARY;LANGUAGE=es:");
+  });
+  it("keeps them for one event selected by id, which no exporter can resolve", async () => {
+    const event = inheritingEvent.id;
+    const response = await handleRequest(request(`/schema?feed=${encodeURIComponent(target)}&id=${encodeURIComponent(event)}&output=json`), env, fetcher(inheriting));
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(await response.json())).toContain("Comunidad");
+  });
+  it("cannot be handed an event whose translations repeat its inherited language", async () => {
+    // Which is why resolving inheritance before picking translations needs no
+    // defending: the one case where the two disagree is schema-invalid, and
+    // this service validates before it converts.
+    const repeats = {
+      ...inheriting,
+      events: [{ ...(inheriting.events[0] as Record<string, unknown>), translations: { es: { name: "Nombre traducido" } } }],
+    };
+    const response = await handleRequest(request(`/rss?feed=${encodeURIComponent(target)}&lang=es`), env, fetcher(repeats));
+    expect(response.status).toBe(422);
+    expect((await response.json() as { error: string }).error).toBe("invalid-ote");
+  });
+});

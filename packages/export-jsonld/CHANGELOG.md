@@ -2,6 +2,14 @@
 
 All notable changes to `@opentechevents/export-jsonld` are documented here.
 
+## Unreleased
+
+- **A feed's defaults now reach every node** (`organizers`, `textLanguage`,
+  `license`, `contributing`). An event that inherited its organizer emitted
+  no `organizer` — exactly the field a search engine reads, so the result was
+  wrong rather than sparse. See `@opentechevents/export-ics` for the
+  measurement. Changes output for existing callers.
+
 ## 0.6.1
 
 - **An out-of-window feed exports instead of being refused.** This CLI read

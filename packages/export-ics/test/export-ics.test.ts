@@ -91,6 +91,17 @@ describe("feedToIcs", () => {
     expect(vevent).not.toContain("LOCATION:");
   });
 
+  it("includes both the event page and the attendance link in the description", () => {
+    const hybrid = veventFor("https://rustmadrid.example/meetups/2026-06");
+    expect(hybrid).toContain("Event: https://rustmadrid.example/meetups/2026-06");
+    expect(hybrid).toContain("Online: https://meet.example/rust-madrid");
+    // Twice and no more: once in DESCRIPTION and once in the HTML
+    // alternative, which has to carry every fact DESCRIPTION does because
+    // Outlook ignores DESCRIPTION entirely when X-ALT-DESC is present.
+    const online = veventFor("https://pyalmeria.example/eventos/2026-06-async");
+    expect(online.match(/Online: /g) ?? []).toHaveLength(2);
+  });
+
   it("hybrid event: canonical url wins URL, attend link kept in DESCRIPTION", () => {
     const vevent = veventFor("https://rustmadrid.example/meetups/2026-06");
     expect(vevent).toContain("URL:https://rustmadrid.example/meetups/2026-06");
@@ -169,9 +180,10 @@ describe("feedToIcs", () => {
     expect(vevent).toContain("X-ALT-DESC;FMTTYPE=text/html:");
     expect(vevent).toContain("<strong>Bold</strong>");
     expect(vevent).toContain('<a href="https://example.org/info">link</a>');
-    // DESCRIPTION stays the literal Markdown source — the universal
-    // plain-text fallback for clients that don't read X-ALT-DESC.
-    expect(vevent).toContain("DESCRIPTION:**Bold** intro");
+    // Clients that ignore X-ALT-DESC get readable text, with link targets
+    // kept because a calendar entry is not a place you can click a label.
+    expect(vevent).toContain("DESCRIPTION:Bold intro");
+    expect(vevent).toContain("link (https://example.org/info)");
   });
 
   it("escapes raw HTML found inside a Markdown description instead of passing it through live", () => {

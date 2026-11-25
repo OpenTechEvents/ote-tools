@@ -1,3 +1,5 @@
+import { resolveEventInheritance } from "@opentechevents/validate";
+
 import { marked, type Tokens } from "marked";
 
 import { labelsFor, labelValue } from "@opentechevents/validate";
@@ -233,6 +235,9 @@ function item(event: OteEvent, locale?: string): string[] {
  * never invents data. See the package README for the mapping.
  */
 export function feedToRss(feed: OteFeed, options: { locale?: string } = {}): string {
+  // Effective values per event; see resolveEventInheritance. Without it a
+  // feed that declared its organizer once produced items with no author.
+  feed = resolveEventInheritance(feed);
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" ' +
@@ -269,7 +274,13 @@ export function feedToRss(feed: OteFeed, options: { locale?: string } = {}): str
   // inventing one would make a promise no reader could interpret.
   lines.push(`    <lastBuildDate>${rfc822(feed.updatedAt)}</lastBuildDate>`);
   lines.push("    <generator>@opentechevents/export-rss</generator>");
-  for (const event of feed.events) {
+  // Newer event dates first. This is not an assertion about publication or
+  // modification time — OTE has neither — it is the order a reader of a feed
+  // of events expects, and RSS has no other way to express it. Compares the
+  // published local dates, keeps input order for ties, and never mutates the
+  // caller's feed.
+  const events = [...feed.events].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  for (const event of events) {
     lines.push(...item(event, options.locale));
   }
   lines.push("  </channel>", "</rss>");

@@ -1,7 +1,7 @@
 import { feedToIcs, type OteFeed as IcsFeed } from "@opentechevents/export-ics";
 import { feedToRss, type OteFeed as RssFeed } from "@opentechevents/export-rss";
 import { eventToJsonLd, feedToJsonLd, toJsonLdScript, type OteEvent, type OteFeed } from "@opentechevents/export-jsonld";
-import { loadValidators, PUBLISHED_VERSIONS } from "@opentechevents/validate";
+import { loadValidators, resolveEventInheritance, PUBLISHED_VERSIONS } from "@opentechevents/validate";
 import { fetchDocument } from "../../validator/src/fetch-document.js";
 import { dohResolver } from "../../validator/src/dns.js";
 import { adoptersScript } from "./adopters.js";
@@ -126,6 +126,16 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
   const validation = feeds.length ? validators.validateFeed(document) : validators.validateEvent(document);
   if (!validation.valid) return fail(422, "invalid-ote", "The source does not validate against its declared OTE version. Check it with validator.opentechevents.org.");
   document = normalizeLegacy(document as Record<string, unknown>, feeds.length ? "feed" : "event", version);
+  // The exporters resolve this themselves now; what they cannot resolve is
+  // `/schema?feed=…&id=…`, which lifts one event out of the feed and hands it
+  // to `eventToJsonLd` — no feed left to inherit from, and `organizer` is
+  // exactly the field that page exists to produce.
+  //
+  // Translation picking also reads each event's effective `textLanguage`, but
+  // that is not what this call is for: a document whose `translations` repeat
+  // an inherited language is schema-invalid and never gets here (there is a
+  // test asserting the 422).
+  if (feeds.length) document = resolveEventInheritance(document as { events?: unknown });
   if (format === "feed-languages") {
     const body = JSON.stringify({ languages: availableTextLanguages(document as Record<string, unknown>) });
     return new Response(request.method === "HEAD" ? null : body, {

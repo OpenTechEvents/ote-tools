@@ -14,13 +14,16 @@ describe("labelled output in the reader's language", () => {
     expect(xml).not.toContain("<strong>When:</strong>");
   });
   it("renders dates in the requested language while keeping the published zone", () => {
-    const xml = decode(feedToRss(feed, { locale: "es" }));
+    // One timed event, so the assertion does not depend on which event sorts
+    // first — items come out newest-first, and the newest here is all-day.
+    const timed = feed.events.find((event) => event.startDate.includes("T"))!;
+    const xml = decode(feedToRss({ ...feed, events: [timed] }, { locale: "es" }));
     const when = /<strong>Cuándo:<\/strong> ([^<]+)/.exec(xml)?.[1] ?? "";
     expect(when).toMatch(/de \d{4}/);
-    expect(when).toContain(feed.events[0]!.timezone);
+    expect(when).toContain(timed.timezone);
     // The wall clock the publisher wrote, not an instant converted to the
     // reader's zone: RSS has no place to say which zone a time is in.
-    expect(when).toContain(feed.events[0]!.startDate.slice(11, 16));
+    expect(when).toContain(timed.startDate.slice(11, 16));
   });
   it("falls back to English labels for a language with no labels, and still localizes the date", () => {
     const xml = decode(feedToRss(feed, { locale: "de" }));

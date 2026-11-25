@@ -28,10 +28,12 @@ usage or I/O error.
 | --- | --- |
 | `id` | `UID` |
 | `name` | `SUMMARY` (`;LANGUAGE=<textLanguage>` when set) |
-| `description` | `DESCRIPTION` (`;LANGUAGE=<textLanguage>` when set, literal Markdown source) + `X-ALT-DESC;FMTTYPE=text/html` (rendered HTML, see below) |
+| `description` | `DESCRIPTION` (`;LANGUAGE=<textLanguage>` when set, Markdown rendered as readable plain text, retaining link targets) + `X-ALT-DESC;FMTTYPE=text/html` (rendered HTML, see below) |
 | `startDate` / `endDate` + `timezone` | `DTSTART` / `DTEND` (see below) |
 | `url` (else `location.onlineUrl`) | `URL` |
 | `location.venue` | `LOCATION` |
+| `location.address` | appended to `DESCRIPTION` as `Address: <street, postal code, locality, region, country>` |
+| `organizers[].name` | appended to `DESCRIPTION` as `Organizers: <names>` (`ORGANIZER` needs an email; see below) |
 | `location.geo` | `GEO` |
 | `tags` | `CATEGORIES` |
 | `status` | `STATUS` (`scheduled`→`CONFIRMED`, `tentative`→`TENTATIVE`, `cancelled`→`CANCELLED`, `postponed`/`rescheduled`→`TENTATIVE`, `moved-online`→`CONFIRMED` + a DESCRIPTION note) |
@@ -57,8 +59,8 @@ Decisions worth knowing:
   `DTEND` is exclusive, so the export adds one day. Without `endDate`, `DTEND`
   is omitted (RFC default: one day).
 - **Hybrid events.** `url` and `location.onlineUrl` both map to `URL`; the
-  canonical page wins and the attend link is appended to `DESCRIPTION` as
-  `Online: <url>` so it is never lost.
+  canonical page wins and both links are included in `DESCRIPTION`, the attend
+  link labelled `Online: <url>`, so neither is lost.
 - **`ORGANIZER` is structurally a `mailto:` address.** Without one, nothing
   valid can be emitted for that organizer — so the first organizer that
   *has* an email becomes `ORGANIZER`, not unconditionally the first one; the

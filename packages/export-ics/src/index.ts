@@ -1,8 +1,11 @@
+import { resolveEventInheritance } from "@opentechevents/validate";
+
 import { marked, type Tokens } from "marked";
 
 import { labelsFor, labelValue } from "@opentechevents/validate";
 
 import { wallClockToUtc } from "./wall-clock.js";
+import { markdownToCalendarText } from "./plain-text.js";
 
 import type { OteEvent, OteEventStatus, OteFeed, OteOrganizer } from "./types.js";
 
@@ -217,13 +220,36 @@ function vevent(event: OteEvent, dtstamp: string, locale?: string, utcTimes = fa
   const descriptionParts: string[] = [];
   const htmlParts: string[] = [];
   if (event.description) {
-    descriptionParts.push(event.description);
+    // Markdown source is what the publisher wrote; a reader looking at a
+    // calendar entry sees `**Bold**` and a link they cannot follow. The HTML
+    // alternative below is ignored by clients that have no renderer, so the
+    // plain-text one has to be readable on its own.
+    descriptionParts.push(markdownToCalendarText(event.description));
     htmlParts.push(descriptionToHtml(event.description));
   }
-  if (event.url && event.location?.onlineUrl) {
+  if (event.url) {
+    descriptionParts.push(`${label.event}: ${event.url}`);
+    const eventUrl = escapeHtml(event.url);
+    htmlParts.push(`<p>${label.event}: <a href="${eventUrl}">${eventUrl}</a></p>`);
+  }
+  if (event.location?.onlineUrl && event.location.onlineUrl !== event.url) {
     descriptionParts.push(`${label.online}: ${event.location.onlineUrl}`);
     const onlineUrl = escapeHtml(event.location.onlineUrl);
     htmlParts.push(`<p>${label.online}: <a href="${onlineUrl}">${onlineUrl}</a></p>`);
+  }
+  const address = event.location?.address;
+  if (address) {
+    const parts = [address.street, address.postalCode, address.locality, address.region, address.country].filter(Boolean);
+    if (parts.length) {
+      const line = `${label.address}: ${parts.join(", ")}`;
+      descriptionParts.push(line);
+      htmlParts.push(`<p>${escapeHtml(line)}</p>`);
+    }
+  }
+  if (event.organizers?.length) {
+    const line = `${label.organizers}: ${event.organizers.map((organizer) => organizer.name).join(", ")}`;
+    descriptionParts.push(line);
+    htmlParts.push(`<p>${escapeHtml(line)}</p>`);
   }
   if (event.status === "moved-online") {
     descriptionParts.push(label.movedOnline);
@@ -404,6 +430,13 @@ function vevent(event: OteEvent, dtstamp: string, locale?: string, utcTimes = fa
  * dropped outright. See the package README for the full mapping.
  */
 export function feedToIcs(feed: OteFeed, options: { locale?: string; utcTimes?: boolean } = {}): string {
+  // Each event's EFFECTIVE values. A feed may declare its organizers,
+  // language and licence once and let its events inherit them — the schemas
+  // say so in `x-inheritsFrom` and the feed schema validates against the
+  // effective value — so reading `event.organizers` without resolving meant
+  // half the events in a correctly written feed named nobody at all.
+  // Idempotent: a caller that already resolved loses nothing.
+  feed = resolveEventInheritance(feed);
   const dtstamp = icsUtc(feed.updatedAt);
   const lines = [
     "BEGIN:VCALENDAR",

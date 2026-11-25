@@ -23,11 +23,18 @@ function translated(value: ObjectValue, fields: string[], language: string): Obj
   return copy;
 }
 
-function eventInLanguage(event: ObjectValue, language: string, feedLanguage?: unknown, organizers?: unknown): ObjectValue {
-  const base = { ...event };
-  if (base.textLanguage === undefined && typeof feedLanguage === "string") base.textLanguage = feedLanguage;
-  if (base.organizers === undefined && Array.isArray(organizers)) base.organizers = organizers;
-  const result = translated(base, ["name", "description"], language);
+/**
+ * Inheritance is already resolved by the caller (`resolveEventInheritance`,
+ * from `@opentechevents/validate`), so `translated` below compares against
+ * each event's effective `textLanguage`.
+ *
+ * This function used to fill `textLanguage` and `organizers` itself: a
+ * second, partial copy of the inheritance rules — 2 of the 4 inheritable
+ * fields — living in a file about translation, and the reason the hosted
+ * output differed from a local export of the same feed.
+ */
+function eventInLanguage(event: ObjectValue, language: string): ObjectValue {
+  const result = translated({ ...event }, ["name", "description"], language);
   for (const [field, subfield] of [["image", "alt"], ["offers", "name"], ["recordings", "title"]]) {
     const values = result[field];
     if (Array.isArray(values)) result[field] = values.map(value => isObject(value) ? translated(value, [subfield!], language) : value);
@@ -44,7 +51,7 @@ export function selectLanguage(document: ObjectValue, kind: "feed" | "event", la
   const result = language ? translated(document, ["title", "description"], language) : { ...document };
   if (Array.isArray(document.events)) {
     result.events = document.events.map(event => isObject(event)
-      ? eventInLanguage(event, language ?? "", document.textLanguage, document.organizers) : event);
+      ? eventInLanguage(event, language ?? "") : event);
   }
   return result;
 }

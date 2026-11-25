@@ -10,33 +10,57 @@ All notable changes to `@opentechevents/export-ics` are documented here.
   package alone would ship a library whose `import { feedToIcs }` fails on a
   missing export, a breakage that previously could only reach the CLI.
 
-- **`feedToIcs(feed, { utcTimes: true })`** emits timed events as RFC 5545 UTC
-  `DATE-TIME` values instead of local times with a `TZID`, resolving the
-  publisher's IANA zone with `Intl` (`src/wall-clock.ts`: first occurrence in a
-  fold, the offset before the transition in a gap). The original zone is kept
-  on each timed event as the iCalendar property `X-OTE-TIMEZONE`. All-day
-  dates stay dates. It exists for the hosted converter, whose output has to be
-  subscribable by clients that would need a `VTIMEZONE` otherwise; the default
-  is unchanged.
-- An event whose end stops being after its start once both are resolved in
-  their zone (a start inside a spring-forward gap, pushed past the end) throws
-  rather than emitting an interval a calendar client will reject.
-- **`feedToIcs(feed, { locale })`** translates the field names this exporter
-  adds around publisher content (`Speakers:`, `Tickets:`, the eligibility and
-  status values). Publisher text is never translated. English and Spanish;
-  any other language gets English. The table is
-  `@opentechevents/validate`'s `labelsFor`, shared with `export-rss` and its
-  parser, because three copies is what the first draft had.
+### Output changes, for every caller
+
+- **A feed's defaults now reach every event.** A feed may declare
+  `organizers`, `textLanguage`, `license` and `contributing` once and let its
+  events inherit them — the schemas say so in `x-inheritsFrom`, and the feed
+  schema *validates* against the effective value — but this exporter read each
+  event's own fields, so a correctly written community feed came out with
+  `ORGANIZER` on some events and nothing on the others. One file, one
+  publisher, one command, and half the events named nobody. Measured on the
+  spec's own corpus: 13 of 26 events inherit `organizers`, 13 inherit
+  `textLanguage`, 19 inherit `license` — the majority case, not an edge.
+  Replacement, never merge; blanks only, so where neither level declares a
+  value the field stays absent (absent `textLanguage` means unknown, never
+  English).
+- **`DESCRIPTION` is readable text rather than Markdown source.** A client
+  with no HTML renderer showed `**Bold**` and a `[label](url)` whose target
+  was unreachable; link targets are now kept in parentheses. `X-ALT-DESC` is
+  unchanged.
+- **The event page is always in `DESCRIPTION`**, as `Event: <url>`, not only
+  when an online link also exists. `URL` is where a client looks for it, and
+  the clients that do not read `URL` left a reader with no way back to the
+  page.
+- **`location.address` and `organizers` reach `DESCRIPTION`** as `Address:`
+  and `Organizers:` lines. Neither has an iCalendar property that can hold
+  them (`ORGANIZER` is structurally a `mailto:`), so the alternative was
+  dropping them.
 - Fixed: a `dateTime` that carries seconds produced an eight-digit time
   (`19:00:30` → `19003000`), which is not a valid RFC 5545 value. Documents on
   0.1 and 0.2 can carry seconds, and the official examples for those versions
   do.
-- Without `locale` or `utcTimes`, the output of this release is byte-identical
-  to 0.6.1's **except** for a `dateTime` carrying seconds, which 0.6.1 emitted
-  as an invalid 8-digit time — the fix above. Measured across
-  `packages/export-ics/fixtures/`, `packages/export-rss/fixtures/` and
-  `packages/validate/fixtures/valid/`: identical everywhere; the one
-  difference is the OTE 0.1 example feed, which carries seconds.
+
+### New options, off by default
+
+- **`feedToIcs(feed, { utcTimes: true })`** emits timed events as RFC 5545 UTC
+  `DATE-TIME` values instead of local times with a `TZID`, resolving the
+  publisher's IANA zone with `Intl` (`src/wall-clock.ts`: first occurrence in
+  a fold, the offset before the transition in a gap). The original zone is
+  kept on each timed event as the iCalendar property `X-OTE-TIMEZONE`.
+  All-day dates stay dates. It exists for the hosted converter, whose output
+  has to be subscribable by clients that would otherwise need a `VTIMEZONE`.
+- An event whose end stops being after its start once both are resolved in
+  their zone (a start inside a spring-forward gap, pushed past the end) throws
+  rather than emitting an interval a calendar client will reject. A
+  zero-length event (`startDate === endDate`) is valid OTE and emits no
+  `DTEND`, which RFC 5545 reads as ending at the same instant.
+- **`feedToIcs(feed, { locale })`** translates the field names this exporter
+  adds around publisher content (`Event:`, `Speakers:`, `Tickets:`, the
+  eligibility and status values). Publisher text is never translated. English
+  and Spanish; any other language gets English. The table is
+  `@opentechevents/validate`'s `labelsFor`, shared with `export-rss` and its
+  parser, because three copies is what the first draft had.
 
 ## 0.6.1
 
