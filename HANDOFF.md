@@ -101,6 +101,22 @@ Read before touching the validator: `apps/validator/README.md`,
     `pnpm --filter @opentechevents/preview-feed build` ran in between. Revert,
     rebuild, then measure — and if a fix spans two packages, do it in both.
 
+11. **A `502` from GitHub's merge endpoint can still have merged the PR.**
+    During an Actions/Git partial outage (observed 2026-11-25) `gh pr merge`
+    and `gh api -X PUT /repos/…/pulls/N/merge` returned `502 Server Error`
+    and `GraphQL: Something went wrong` while the merge went through anyway,
+    and `gh pr view --json state` kept answering `OPEN` after it. Check
+    `git fetch && git log origin/main` before retrying, or you will merge
+    twice and open a replacement PR for nothing. `gh pr create` fails the
+    same way and does create nothing — retry that one.
+12. **A local `wrangler deploy` from this session is refused by the harness**
+    (the sandbox classifier blocks it), so deploying by hand needs the
+    maintainer's own shell. The repo path is the workflow —
+    `gh workflow run deploy-convert.yml` with `target: staging` or
+    `production` — which also means a GitHub Actions outage blocks deploys
+    and npm publishing alike. `wrangler deploy --dry-run` is allowed and does
+    confirm the bundle builds.
+
 ## Verifying a release on npm — three things that will mislead you
 
 `CLAUDE.md` says a fix is not shipped until the published artifact shows it.
