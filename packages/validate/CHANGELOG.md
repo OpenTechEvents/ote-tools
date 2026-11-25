@@ -69,6 +69,30 @@ The CLI changes with it (#117):
   instead of being told to add a `specVersion` the kit forbids writing by hand.
   Detection is for the message only — it never changes a verdict.
 
+### Dependents deliberately not republished
+
+`0.6.1` changed `DocumentReport.valid`, the CLI's counter and its exit codes.
+Three published dependents still pin `0.6.0`, and that is a decision rather
+than an oversight — `node .github/scripts/published-pins.mjs` reports them as
+patch-level gaps (exit `1`), which is the state this is meant to leave. Each
+one was checked against what it actually calls:
+
+- **`build-feed`** reads `validateFeed`, whose `ValidationResult.valid` is a
+  plain `boolean` and did not change. `src/index.ts:319` is its only read of
+  it. It also pins `export-ics` / `export-rss` at `0.6.0`, which is the same
+  case one level out: it uses their libraries (`feedToIcs`, `feedToRss`), and
+  those `0.6.1` releases fixed how their **CLIs** read `DocumentReport.valid`.
+- **`migrate`** reads `declaredSpecVersion`, `loadValidators`,
+  `LATEST_VERSION` and `PUBLISHED_VERSIONS`. None of them is the
+  `DocumentReport` path.
+- **`import-ics`** imports `eventSchema` for its IANA timezone enum and never
+  asks for a verdict. `import-jsonld` does not depend on this package at all.
+
+So none of them exercises the path that moved, and republishing them would
+have been noise. What makes this a record rather than a reassurance is that
+the next release gets the same list from the sweep and has to answer it again:
+the answer here is about `0.6.1`, not a standing exemption.
+
 ## 0.6.0
 
 - **Implements OTE Spec 0.6.0**, embedding every published version
