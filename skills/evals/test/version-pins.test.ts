@@ -143,6 +143,36 @@ function proseFiles(dir: string): string[] {
   return found.sort();
 }
 
+/** A skill is `SKILL.md` plus whatever it tells the agent to read. */
+function referenceFiles(skillDir: string): string[] {
+  const base = join(skillDir, "references");
+  if (!existsSync(base)) return [];
+  return readdirSync(base)
+    .filter((entry) => entry.endsWith(".md"))
+    .map((entry) => join(base, entry))
+    .sort();
+}
+
+/**
+ * Workspace packages that are not published. They version independently —
+ * `apps/embed` does so deliberately — so they cannot stand for the line a
+ * skill was tested against.
+ */
+function privatePackages(): Set<string> {
+  const names = new Set<string>();
+  for (const group of ["packages", "apps"]) {
+    const base = join(repoRoot, group);
+    if (!existsSync(base)) continue;
+    for (const entry of readdirSync(base)) {
+      const manifest = join(base, entry, "package.json");
+      if (!existsSync(manifest)) continue;
+      const pkg = JSON.parse(readFileSync(manifest, "utf8"));
+      if (pkg.name && pkg.private) names.add(pkg.name);
+    }
+  }
+  return names;
+}
+
 /** `name` → version, for every workspace package that a skill can pin. */
 function workspaceVersions(): Map<string, string> {
   const versions = new Map<string, string>();
@@ -294,6 +324,111 @@ describe("npm pins in the skills", () => {
         return ok ? [] : [`${at(hit)} pins ${name}@${pinned}, workspace ships ${shipped}`];
       });
     expect(stale).toEqual([]);
+  });
+});
+
+describe("the skill's version handshake", () => {
+  /**
+   * The line a copied skill compares itself against, and where it has to live.
+   *
+   * The pins in the body are checked here, where the file is maintained — and
+   * that check cannot reach the copy under somebody's
+   * `.agents/skills/ote-event/`, which still says `@0.6` a year later. So the
+   * skill names the line it was tested against and asks the installed CLI
+   * (`--versions`) whether it is newer.
+   *
+   * **In the body, below the closing `---`.** The first draft put the number
+   * only in the frontmatter, which is the one place it cannot work: an agent
+   * is handed the body, and frontmatter is configuration its runtime reads
+   * and does not pass on. The number was therefore invisible to the only
+   * reader that needed it, and no test could have caught that by reading the
+   * file from disk — which is exactly the vantage point the agent does not
+   * have. So the assertion is specifically about the body.
+   */
+  const minorOf = (version: string) => version.split(".").slice(0, 2).join(".");
+
+  const skillDir = join(skillsDir, "ote-event");
+  const skillFile = join(skillDir, "SKILL.md");
+
+  /** Everything after the frontmatter: what an agent actually receives. */
+  const body = (file: string): string => {
+    const text = readFileSync(file, "utf8");
+    const match = text.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+    return match ? match[1]! : text;
+  };
+
+  const testedLine = (file: string): string | undefined =>
+    body(file).match(/tested against the `(\d+\.\d+)` tool line/)?.[1];
+
+  /** The minor the packages this skill runs are released on. */
+  function shippedMinor(): { minor?: string; problem?: string } {
+    const versions = workspaceVersions();
+    const published = privatePackages();
+    const pinned = new Set(
+      scanFiles([skillFile, ...referenceFiles(skillDir)], /@opentechevents\/[a-z-]+(?=@\d)/g)
+        .filter((hit) => runsSomething(sourceLine(hit)))
+        .map((hit) => hit.text)
+        // A private package is versioned on its own terms — `apps/embed` ships
+        // its own line on purpose — so it cannot decide this one.
+        .filter((name) => versions.has(name) && !published.has(name)),
+    );
+    if (!pinned.size) return { problem: "the skill pins no publishable workspace package" };
+
+    const minors = new Set([...pinned].map((name) => minorOf(versions.get(name)!)));
+    if (minors.size > 1) {
+      return {
+        problem:
+          `the packages this skill runs are on ${[...minors].join(" and ")} ` +
+          `(${[...pinned].join(", ")}), so one line cannot name them: either hold the ` +
+          `skill's pins until they converge, or pin it to the oldest line it was tested on`,
+      };
+    }
+    return { minor: [...minors][0] };
+  }
+
+  it("names the tested line in the body, where an agent can read it", () => {
+    const declared = testedLine(skillFile);
+    expect(
+      declared,
+      "SKILL.md's body must say \"tested against the `<minor>` tool line\" — the frontmatter is not passed to the agent",
+    ).toBeTruthy();
+
+    const { minor, problem } = shippedMinor();
+    expect(problem, problem).toBeUndefined();
+    expect(declared, `re-stamp the tested line to ${minor}`).toBe(minor);
+  });
+
+  it("keeps the frontmatter copy, which is for tooling, in step with it", () => {
+    const text = readFileSync(skillFile, "utf8");
+    const inFrontmatter = text.slice(0, text.indexOf("\n---", 4)).match(/tested-with:\s*"?(\d+\.\d+)"?/)?.[1];
+    if (!inFrontmatter) return; // optional: the body is the authority
+    expect(inFrontmatter, "metadata.tested-with disagrees with the body").toBe(testedLine(skillFile));
+  });
+
+  it("names the same line the skill's own pins do", () => {
+    const declared = testedLine(skillFile);
+    const versions = workspaceVersions();
+    const wrong = scanFiles([skillFile, ...referenceFiles(skillDir)], /@opentechevents\/[a-z-]+@[\d.]+/g)
+      .filter((hit) => runsSomething(sourceLine(hit)))
+      .flatMap((hit) => {
+        const cut = hit.text.lastIndexOf("@");
+        const [name, pin] = [hit.text.slice(0, cut), hit.text.slice(cut + 1)];
+        if (!versions.has(name)) return [];
+        return minorOf(pin) === declared
+          ? []
+          : [`${at(hit)} pins ${hit.text}, but this skill says it was tested against ${declared}`];
+      });
+    expect(wrong).toEqual([]);
+  });
+
+  it("spends the declaration instead of only recording it", () => {
+    // #122's point: the skill asserted its pins as fact while telling the
+    // agent to ask the tool about everything else. The number is worth
+    // nothing unless the prose says what to do when the answer differs, so
+    // that sentence is the assertion.
+    expect(body(skillFile), "the handshake must say what to do when the CLI is newer").toMatch(
+      /your CLI implements/i,
+    );
   });
 });
 

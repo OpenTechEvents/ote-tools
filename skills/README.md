@@ -60,6 +60,19 @@ Paths move as these tools evolve. If the skill does not show up, the agent's own
 for "skills" are the authority — the folder contents are identical either way, so a
 `cp -R` to the right place is the whole fix.
 
+### A copy goes stale, and says so
+
+The skill names the tool line it was tested against — in its own text, and in every
+`npx` command in it. Those pins are checked where this repo is maintained, and that
+check cannot reach your copy: a folder copied today still names today's line a year
+from now.
+
+So the skill asks. Before the first gate it runs `ote-validate --versions` and compares
+the answer with the line it says it was tested against; if your tools implement a newer
+OTE release than the instructions were written for, it says so in one line and keeps
+going, asking only about what it knows and inventing nothing. Re-copying the folder is
+how you pick up the newer instructions — the `cp -R` above, again.
+
 ### Check it loaded
 
 Ask the agent to list its skills (in VS Code Copilot and Claude Code: type `/skills`).
