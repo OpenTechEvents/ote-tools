@@ -13,6 +13,7 @@ export interface OteGeo {
 
 export interface OteLocation {
   venue?: string;
+  address?: { street?: string; locality?: string; region?: string; postalCode?: string; country?: string };
   onlineUrl?: string;
   geo?: OteGeo;
 }

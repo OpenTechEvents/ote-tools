@@ -266,7 +266,13 @@ export function feedToRss(feed: OteFeed): string {
   // inventing one would make a promise no reader could interpret.
   lines.push(`    <lastBuildDate>${rfc822(feed.updatedAt)}</lastBuildDate>`);
   lines.push("    <generator>@opentechevents/export-rss</generator>");
-  for (const event of feed.events) {
+  // Newer event dates first. This is not an assertion about publication or
+  // modification time — OTE has neither — it is the order a reader of a feed
+  // of events expects, and RSS has no other way to express it. Compares the
+  // published local dates, keeps input order for ties, and never mutates the
+  // caller's feed.
+  const events = [...feed.events].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  for (const event of events) {
     lines.push(...item(event));
   }
   lines.push("  </channel>", "</rss>");
