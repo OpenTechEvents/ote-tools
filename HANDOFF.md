@@ -92,6 +92,15 @@ Read before touching the validator: `apps/validator/README.md`,
    blocks it with `form-action 'none'`). `build.mjs` now watches the static
    files too; the messages name both causes.
 
+10. **A revert check lies across a package boundary.** `CLAUDE.md`'s first
+    verification check is "revert the fix at the headlined surface and watch
+    it fail". Apps consume workspace packages through `dist/`, so reverting
+    only the source and re-running the app's suite tests the **still-fixed
+    build** and reports a false clean: `apps/embed` kept all 164 tests green
+    with `packages/preview-feed`'s pricing reverted, until
+    `pnpm --filter @opentechevents/preview-feed build` ran in between. Revert,
+    rebuild, then measure — and if a fix spans two packages, do it in both.
+
 ## Verifying a release on npm — three things that will mislead you
 
 `CLAUDE.md` says a fix is not shipped until the published artifact shows it.

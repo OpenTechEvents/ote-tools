@@ -183,6 +183,38 @@ describe("jsonToPreviewFeed", () => {
       amount: 30,
       currency: "EUR",
       url: "https://example.org/tickets/early-bird",
+      basis: "own",
     });
+  });
+
+  it("prices a multi-part session from the set's shared admission, and keeps it", () => {
+    const shared = [{ name: "General", price: 240, currency: "EUR", url: "https://trgcon.example/tickets" }];
+    const feed = oteJsonToPreviewFeed({
+      events: [
+        {
+          name: "Keynote",
+          partOf: { id: "https://trgcon.example/2026", type: "multipart", offers: shared },
+        },
+        {
+          name: "Workshop",
+          offers: [{ scope: "add-on", price: 60, currency: "EUR" }],
+          partOf: { id: "https://trgcon.example/2026", type: "multipart", offers: shared },
+        },
+      ],
+    });
+
+    // The session the document prices and the old mapper showed as unpriced.
+    expect(feed.events[0]!.price).toEqual({
+      amount: 240,
+      currency: "EUR",
+      url: "https://trgcon.example/tickets",
+      basis: "shared",
+    });
+    // And the surcharge that used to be published as the whole price.
+    expect(feed.events[1]!.price?.amount).toBe(300);
+    expect(feed.events[1]!.price?.basis).toBe("shared-plus-add-on");
+    // partOf.offers survives the mapping: a renderer needs it to say what the
+    // total is made of, and dropping it was half of the original defect.
+    expect(feed.events[0]!.partOf?.offers).toEqual(shared);
   });
 });

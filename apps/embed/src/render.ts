@@ -117,6 +117,8 @@ const STRINGS = {
     online: "Online",
     onlineEvent: "Online event",
     free: "Free",
+    addOnAmount: (amount: string) => `+${amount}`,
+    addOnNote: "Additional charge on top of the event's admission",
     updated: "Updated",
     event: "Event",
     when: "When",
@@ -159,6 +161,8 @@ const STRINGS = {
     online: "En línea",
     onlineEvent: "Evento en línea",
     free: "Gratis",
+    addOnAmount: (amount: string) => `+${amount}`,
+    addOnNote: "Cargo adicional sobre la entrada del evento",
     updated: "Actualizado",
     event: "Evento",
     when: "Cuándo",
@@ -488,29 +492,53 @@ export function selectVisibleEvents(state: WidgetState): PreviewEvent[] {
   return collapsed.slice(0, state.limit);
 }
 
-function formatPrice(price: NonNullable<PreviewEvent["price"]>, strings: Strings): string {
-  if (price.amount === 0) return strings.free;
-  if (price.currency) {
+function formatAmount(amount: number, currency: string | undefined): string {
+  if (currency) {
     try {
-      return new Intl.NumberFormat(undefined, { style: "currency", currency: price.currency }).format(
-        price.amount,
-      );
+      return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
     } catch {
-      return `${price.amount} ${price.currency}`;
+      return `${amount} ${currency}`;
     }
   }
-  return String(price.amount);
+  return String(amount);
+}
+
+/**
+ * What the badge says, which depends on what the number *is*.
+ *
+ * A multi-part event prices its parts through `partOf.offers` (the spec's
+ * D032), so a part's own `add-on` offer is a surcharge. Printing it as the
+ * price tells an attendee a workshop costs 60 when it costs 300 — and the
+ * spec's rule for this whole area is that incomplete is acceptable and false
+ * is not. So an add-on with no priced admission to add to is rendered as a
+ * surcharge, with a title saying so, and never as a total.
+ */
+function formatPrice(price: NonNullable<PreviewEvent["price"]>, strings: Strings): string | undefined {
+  if (price.amount === undefined) return undefined;
+  if (price.basis === "add-on-only") return strings.addOnAmount(formatAmount(price.amount, price.currency));
+  if (price.amount === 0) return strings.free;
+  return formatAmount(price.amount, price.currency);
 }
 
 /** Links out to the registration/ticket page when the winning offer had a `url`. */
-function priceBadge(price: NonNullable<PreviewEvent["price"]>, strings: Strings): HTMLElement {
+function priceBadge(
+  price: NonNullable<PreviewEvent["price"]>,
+  strings: Strings,
+): HTMLElement | undefined {
   const text = formatPrice(price, strings);
-  if (!price.url) return withText(el("span", "price"), text);
+  if (text === undefined) return undefined;
+  const title = price.basis === "add-on-only" ? strings.addOnNote : undefined;
+  if (!price.url) {
+    const span = withText(el("span", "price"), text);
+    if (title) span.title = title;
+    return span;
+  }
   const link = el("a", "price");
   link.href = price.url;
   link.target = "_blank";
   link.rel = "noopener";
   link.textContent = text;
+  if (title) link.title = title;
   return link;
 }
 
@@ -856,7 +884,8 @@ function renderCardEvent(
     badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
   }
   if (state.previewFields.has("price") && event.price) {
-    badges.append(priceBadge(event.price, strings));
+    const badge = priceBadge(event.price, strings);
+    if (badge) badges.append(badge);
   }
   if (state.previewFields.has("eligibility") && event.eligibility) {
     badges.append(eligibilityBadge(event.eligibility, strings));
@@ -993,7 +1022,8 @@ function renderListEvent(
     badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
   }
   if (state.detailFields.has("price") && event.price) {
-    badges.append(priceBadge(event.price, strings));
+    const badge = priceBadge(event.price, strings);
+    if (badge) badges.append(badge);
   }
   if (state.detailFields.has("eligibility") && event.eligibility) {
     badges.append(eligibilityBadge(event.eligibility, strings));
@@ -1396,7 +1426,10 @@ function renderModal(
   if (state.detailFields.has("attendance") && event.attendanceMode) {
     badges.append(attendanceBadge(event.attendanceMode, strings.attendance[event.attendanceMode]));
   }
-  if (state.detailFields.has("price") && event.price) badges.append(priceBadge(event.price, strings));
+  if (state.detailFields.has("price") && event.price) {
+    const badge = priceBadge(event.price, strings);
+    if (badge) badges.append(badge);
+  }
   if (state.detailFields.has("eligibility") && event.eligibility) {
     badges.append(eligibilityBadge(event.eligibility, strings));
   }

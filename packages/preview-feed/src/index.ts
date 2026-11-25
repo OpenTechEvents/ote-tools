@@ -1,8 +1,15 @@
-export type { PreviewEvent, PreviewEventPartOf, PreviewFeed } from "./types.js";
+export type {
+  PreviewEvent,
+  PreviewEventPartOf,
+  PreviewFeed,
+  PreviewOffer,
+  PreviewPrice,
+  PreviewPriceBasis,
+} from "./types.js";
 export type { OteJsonEvent, OteJsonFeed, OteJsonPreviewInput } from "./json.js";
 export {
   addDays,
-  cheapestPrice,
+  attendancePrice,
   detailRows,
   eventLocation,
   eventWhen,

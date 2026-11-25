@@ -1,5 +1,25 @@
 # @opentechevents/embed changelog
 
+## Unreleased
+
+### Fixed
+
+- **A multi-part event's price.** A conference published one document per
+  session prices them through `partOf.offers` (OTE Spec 0.5's D032), and the
+  widget read neither that nor `offers[].scope`: a covered session showed no
+  price at all, and a session with a 60 € `add-on` showed **60 €** — the
+  surcharge, presented as the cost of attending a day that costs 300. Both
+  come from `@opentechevents/preview-feed`'s pricing, which now composes the
+  total; the widget renders what the number *is*.
+- A surcharge with no priced admission to add to is rendered as `+20 €`, with
+  a title saying it is an additional charge, and never as a total. The spec's
+  rule for this area is that incomplete is acceptable and false is not.
+
+`oteSpecVersion` stays **0.4.0**: `speakers`, `recordings` and `contributing`
+are still unrendered (#115), so claiming 0.5 would be claiming more than the
+widget does. This release fixes the half that produced *wrong* output rather
+than absent output.
+
 ## 0.8.2
 
 ### Changed
