@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/build-feed` are documented here.
 
-## Unreleased
+## 0.6.1 — 2026-11-25
 
 - `resolveEventInheritance` moved to `@opentechevents/validate` and is
   re-exported here; this package's API is unchanged. The exporters resolve

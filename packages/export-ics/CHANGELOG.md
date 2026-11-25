@@ -2,7 +2,7 @@
 
 All notable changes to `@opentechevents/export-ics` are documented here.
 
-## Unreleased
+## 0.6.2 — 2026-11-25
 
 - **Publishing note:** this release imports `@opentechevents/validate` from
   `src/index.ts`, not only from the CLI. `workspace:*` publishes as an exact

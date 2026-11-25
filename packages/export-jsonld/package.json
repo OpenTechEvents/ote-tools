@@ -1,6 +1,6 @@
 {
   "name": "@opentechevents/export-jsonld",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Converts OTE events into schema.org/Event JSON-LD for SEO and interoperability",
   "license": "MIT",
   "homepage": "https://github.com/OpenTechEvents/ote-tools/tree/main/packages/export-jsonld",
