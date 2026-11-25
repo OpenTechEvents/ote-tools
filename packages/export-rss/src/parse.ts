@@ -48,10 +48,18 @@ function parseItemDescription(html: string | undefined): {
     // never any other tag, so only <p> needs to be checked for a label.
     const label =
       block.tagName === "P" ? block.querySelector("strong")?.textContent?.trim() : undefined;
-    const content = block.textContent?.replace(FIELD_LABEL, "").trim();
+    // Strip only the label this block actually carries, and only when the
+    // exporter is the one who wrote it. Matching every locale's labels
+    // against every block ate publisher prose instead: an English feed whose
+    // description began "Estado: todo va bien" lost those words, and each new
+    // language added another way to mangle a different language's text.
+    const text = block.textContent?.trim() ?? "";
+    const name = label?.slice(0, -1);
+    const ours = name !== undefined && FIELD_LABELS.has(name);
+    const content = (ours && text.startsWith(label!) ? text.slice(label!.length) : text).trim();
     if (!content) continue;
-    if (label && WHEN_LABELS.has(label.slice(0, -1))) when = content;
-    else if (label && WHERE_LABELS.has(label.slice(0, -1))) location = content;
+    if (ours && WHEN_LABELS.has(name!)) when = content;
+    else if (ours && WHERE_LABELS.has(name!)) location = content;
     else if (!label) description.push(content);
   }
 
@@ -82,12 +90,11 @@ const WHERE_LABELS = new Set([
   ...labelSet((labels) => labels.where),
   ...labelSet((labels) => labels.online),
 ]);
-const FIELD_LABEL = new RegExp(
-  `^(${Object.values(LABELS)
-    .flatMap((labels) => [labels.status, labels.when, labels.where, labels.online, labels.attendance])
-    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|")}):\\s*`,
-  "i",
+/** Every field name the exporter writes, in every language it has. */
+const FIELD_LABELS = new Set(
+  Object.values(LABELS).flatMap((labels) => [
+    labels.status, labels.when, labels.where, labels.online, labels.attendance,
+  ]),
 );
 
 export function rssToPreviewFeed(xml: string): RssPreviewFeed {

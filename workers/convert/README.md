@@ -53,8 +53,9 @@ its own schemas. The list is derived, never written down here:
 # `node -p "require(...)"` fails here with ERR_PACKAGE_PATH_NOT_EXPORTED).
 node --input-type=module \
   -e "import('@opentechevents/validate').then(m => console.log(m.PUBLISHED_VERSIONS.join(', ')))"
-``` In 0.1 and 0.2, extensions were allowed to
-use names that gained different standard meanings in 0.3. The service ignores
+```
+
+In 0.1 and 0.2, extensions were allowed to use names that gained different standard meanings in 0.3. The service ignores
 unstandardized legacy extensions instead of guessing what they meant.
 
 Schema output is a snapshot. A website build can request `output=script` or
@@ -88,9 +89,11 @@ commit it. Without the secret, purge is disabled. Purging cannot force a
 calendar client or another intermediary to refresh. Purge and cache bypass
 must be checked in the actual deployment environment before release.
 
-A `HEAD` answer is `no-store`: it carries no body, and a shared cache that
-stored it under the `GET` key would serve an empty `text/calendar` — a
-subscription that silently shows nothing.
+A `HEAD` answer is `no-store` on every endpoint that answers 200, not only
+the conversions: it carries no body, and a shared cache that stored it under
+the `GET` key would serve an empty `text/calendar` — a subscription that
+silently shows nothing — or an empty `/adopters.js`, which is a landing page
+with no working controls at all.
 
 Cloudflare Workers metrics provide a starting point for usage, errors and
 latency. Cache hits may bypass Worker code, so application-level counters

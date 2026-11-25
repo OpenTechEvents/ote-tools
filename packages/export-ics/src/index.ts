@@ -186,10 +186,25 @@ function vevent(event: OteEvent, dtstamp: string, locale?: string, utcTimes = fa
       lines.push(...prop("DTEND;VALUE=DATE", nextDay(event.endDate)));
     } else {
       const end = dateProp("DTEND", event.endDate, event.timezone, utcTimes);
-      if (utcTimes && !isDateOnly(event.startDate) && end[0]!.slice(6) <= start[0]!.slice(8)) {
-        throw new Error("The event's end is not after its start when resolved in its time zone.");
+      if (utcTimes && !isDateOnly(event.startDate)) {
+        // Compare the resolved instants, which is the only place a zone can
+        // change the answer: `DTEND:20260626T170000Z` against
+        // `DTSTART:20260626T170000Z`, property names trimmed.
+        const resolvedEnd = end[0]!.slice("DTEND:".length);
+        const resolvedStart = start[0]!.slice("DTSTART:".length);
+        // A zero-length event is valid OTE (start === end), and RFC 5545
+        // says a DATE-TIME `DTSTART` with no `DTEND` ends at the same instant
+        // — so omitting it expresses exactly what the publisher wrote.
+        // Refusing here instead meant the hosted converter rejected a whole
+        // feed that validator.opentechevents.org calls valid, blaming
+        // daylight saving for it.
+        if (resolvedEnd < resolvedStart) {
+          throw new Error("The event's end is not after its start when resolved in its time zone.");
+        }
+        if (resolvedEnd !== resolvedStart) lines.push(...end);
+      } else {
+        lines.push(...end);
       }
-      lines.push(...end);
     }
   }
 

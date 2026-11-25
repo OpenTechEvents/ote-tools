@@ -4,6 +4,12 @@ All notable changes to `@opentechevents/export-ics` are documented here.
 
 ## Unreleased
 
+- **Publishing note:** this release imports `@opentechevents/validate` from
+  `src/index.ts`, not only from the CLI. `workspace:*` publishes as an exact
+  pin, so `validate` must be published in the same run — releasing this
+  package alone would ship a library whose `import { feedToIcs }` fails on a
+  missing export, a breakage that previously could only reach the CLI.
+
 - **`feedToIcs(feed, { utcTimes: true })`** emits timed events as RFC 5545 UTC
   `DATE-TIME` values instead of local times with a `TZID`, resolving the
   publisher's IANA zone with `Intl` (`src/wall-clock.ts`: first occurrence in a
@@ -26,7 +32,11 @@ All notable changes to `@opentechevents/export-ics` are documented here.
   0.1 and 0.2 can carry seconds, and the official examples for those versions
   do.
 - Without `locale` or `utcTimes`, the output of this release is byte-identical
-  to 0.6.1's.
+  to 0.6.1's **except** for a `dateTime` carrying seconds, which 0.6.1 emitted
+  as an invalid 8-digit time — the fix above. Measured across
+  `packages/export-ics/fixtures/`, `packages/export-rss/fixtures/` and
+  `packages/validate/fixtures/valid/`: identical everywhere; the one
+  difference is the OTE 0.1 example feed, which carries seconds.
 
 ## 0.6.1
 

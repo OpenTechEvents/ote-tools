@@ -28,3 +28,24 @@ describe("UTC conversion of local event times", () => {
     expect(() => wallClockToUtc("2026-01-01T10:00", "Unknown/Zone")).toThrow();
   });
 });
+
+describe("an event that starts and ends at the same instant", () => {
+  const feed = (endDate: string) => ({
+    specVersion: "0.6.0", title: "Test", updatedAt: "2026-01-01T00:00:00Z", events: [{
+      id: "https://example.org/event", name: "Zero length", timezone: "Europe/Madrid",
+      startDate: "2026-06-26T19:00", endDate,
+    }],
+  });
+
+  it("omits DTEND rather than refusing the document", () => {
+    // Valid OTE, and RFC 5545 reads a DATE-TIME DTSTART with no DTEND as
+    // ending at the same instant. Refusing meant the hosted converter
+    // rejected a whole feed the validator calls valid, blaming DST for it.
+    const ics = feedToIcs(feed("2026-06-26T19:00"), { utcTimes: true });
+    expect(ics).toContain("DTSTART:20260626T170000Z");
+    expect(ics).not.toContain("DTEND");
+  });
+  it("still refuses an end that is genuinely before its start", () => {
+    expect(() => feedToIcs(feed("2026-06-26T18:00"), { utcTimes: true })).toThrow("end is not after its start");
+  });
+});

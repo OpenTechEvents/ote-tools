@@ -4,6 +4,10 @@ All notable changes to `@opentechevents/export-rss` are documented here.
 
 ## Unreleased
 
+- **Publishing note:** this release imports `@opentechevents/validate` from
+  `src/index.ts` and `src/parse.ts`, not only from the CLI. `workspace:*`
+  publishes as an exact pin, so `validate` must be published in the same run.
+
 - **`feedToRss(feed, { locale })`** translates the field names this exporter
   adds (`When:`, `Where:`, `Attendance:`, the status prefix in a title) and
   formats the date in that language, while keeping the published wall clock

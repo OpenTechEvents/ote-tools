@@ -12,7 +12,21 @@ import { normalizeLegacy } from "./legacy.js";
 import type { TcpProbe } from "../../validator/src/tcp-probe.js";
 
 type Bindings = Cloudflare.Env & { PURGE_TOKEN?: string };
-const probe: TcpProbe = async (...args) => (await import("../../validator/src/tcp-probe.js")).tcpProbe(...args);
+/**
+ * `tcp-probe.ts` promises it fails open — "a missing probe can only make this
+ * slower, never wrong" — but that promise lives inside `tcpProbe`, and the
+ * `cloudflare:sockets` import above it is what fails in any runtime that has
+ * no such module. `requestHop` awaits the probe without a `try`, so the
+ * failure became every conversion 500ing. `inconclusive` is the outcome that
+ * means "proceed as if no probe had run".
+ */
+const probe: TcpProbe = async (...args) => {
+  try {
+    return await (await import("../../validator/src/tcp-probe.js")).tcpProbe(...args);
+  } catch {
+    return "inconclusive";
+  }
+};
 const tagFor = async (target: string) => "feed-" + Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(target))), b => b.toString(16).padStart(2, "0")).join("");
 /**
  * Every version this kit embeds schemas for, which is every published one.
@@ -25,7 +39,7 @@ const tagFor = async (target: string) => "feed-" + Array.from(new Uint8Array(awa
  * whose schemas are embedded; being outside `SUPPORTED_VERSIONS` is a
  * migration notice, never a refusal (see `packages/validate/src/versions.ts`).
  */
-const convertibleVersions: readonly string[] = PUBLISHED_VERSIONS;
+export const convertibleVersions: readonly string[] = PUBLISHED_VERSIONS;
 const ttl = 900;
 /**
  * A publisher reading their access log must be able to tell a conversion from
@@ -34,6 +48,14 @@ const ttl = 900;
  * which otherwise introduces everyone as the validator.
  */
 const USER_AGENT = "OTE-Converter/0.1 (+https://convert.opentechevents.org/)";
+/**
+ * A `HEAD` answer carries no body, so it must never be what a shared cache
+ * hands a later `GET`. Every endpoint that answers 200 needs this, not only
+ * the conversions: a bodyless `/adopters.js` cached for an hour is a landing
+ * page with no listeners at all (HANDOFF.md trap 2).
+ */
+const cacheFor = (request: Request, directive: string): string =>
+  request.method === "HEAD" ? "no-store" : directive;
 const headers = { "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" };
 const fail = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: code, message }), {
   status, headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
@@ -75,9 +97,9 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
     if (destination.searchParams.has("cache") && destination.searchParams.get("cache") !== "bypass") return fail(400, "invalid-cache", "Use cache=bypass.");
     return new Response(null, { status: 303, headers: { ...headers, location: destination.pathname + destination.search, "cache-control": "no-store" } });
   }
-  if (url.pathname === "/") return new Response(request.method === "HEAD" ? null : landingPage, { headers: { ...headers, "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; connect-src 'self' https://opentechevents.org; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "cache-control": request.method === "HEAD" ? "no-store" : `public, max-age=0, s-maxage=${ttl}` } });
-  if (url.pathname === "/adopters.js") return new Response(adoptersScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
-  if (url.pathname === "/schema-ui.js") return new Response(schemaPageScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
+  if (url.pathname === "/") return new Response(request.method === "HEAD" ? null : landingPage, { headers: { ...headers, "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; connect-src 'self' https://opentechevents.org; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "cache-control": cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) } });
+  if (url.pathname === "/adopters.js") return new Response(request.method === "HEAD" ? null : adoptersScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": cacheFor(request, "public, max-age=3600") } });
+  if (url.pathname === "/schema-ui.js") return new Response(request.method === "HEAD" ? null : schemaPageScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": cacheFor(request, "public, max-age=3600") } });
   if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { ...headers, "content-type": "application/json", "cache-control": "no-store" } });
   const format = url.pathname.slice(1);
   if (!["ics", "rss", "schema", "feed-languages"].includes(format)) return fail(404, "not-found", "Choose /ics, /rss, or /schema.");
@@ -118,8 +140,9 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
   if (!validation.valid) return fail(422, "invalid-ote", "The source does not validate against its declared OTE version. Check it with validator.opentechevents.org.");
   document = normalizeLegacy(document as Record<string, unknown>, feeds.length ? "feed" : "event", version);
   if (format === "feed-languages") {
-    return Response.json({ languages: availableTextLanguages(document as Record<string, unknown>) }, {
-      headers: { ...headers, "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : `public, max-age=0, s-maxage=${ttl}` },
+    const body = JSON.stringify({ languages: availableTextLanguages(document as Record<string, unknown>) });
+    return new Response(request.method === "HEAD" ? null : body, {
+      headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) },
     });
   }
   document = selectLanguage(document as Record<string, unknown>, feeds.length ? "feed" : "event", language);
@@ -153,8 +176,7 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
   // A HEAD answer carries no body, so it must never become the cached entry a
   // later GET is served from. The body is what this service exists to return;
   // an empty 200 `text/calendar` is a silently broken subscription.
-  const bypass = url.searchParams.get("cache") === "bypass" || request.method === "HEAD";
-  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, "content-type": type, "cache-tag": await tagFor(target), "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": bypass ? "no-store" : `public, max-age=0, s-maxage=${ttl}` } });
+  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, "content-type": type, "cache-tag": await tagFor(target), "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) } });
 }
 export default {
   /**
