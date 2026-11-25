@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDays,
-  cheapestPrice,
+  attendancePrice,
   detailRows,
   eventLocation,
   eventWhen,
@@ -224,33 +224,154 @@ describe("firstImage", () => {
   });
 });
 
-describe("cheapestPrice", () => {
-  it("returns undefined when there are no offers, or none declare a price", () => {
-    expect(cheapestPrice(undefined)).toBeUndefined();
-    expect(cheapestPrice([])).toBeUndefined();
-    expect(cheapestPrice([{ currency: "EUR" }, { price: undefined }])).toBeUndefined();
+describe("attendancePrice", () => {
+  // The shared admission of the schema's own partOf.offers example.
+  const shared = [
+    { name: "Early bird", price: 180, currency: "EUR", url: "https://trgcon.example/tickets" },
+    { name: "General", price: 240, currency: "EUR", url: "https://trgcon.example/tickets" },
+  ];
+
+  it("returns undefined when nothing in the document prices the event", () => {
+    expect(attendancePrice({})).toBeUndefined();
+    expect(attendancePrice({ offers: [] })).toBeUndefined();
+    expect(attendancePrice({ offers: [{ currency: "EUR" }, { price: undefined }] })).toBeUndefined();
   });
 
-  it("picks the lowest priced offer, ignoring price-less ones", () => {
+  it("picks the cheapest of the ways to attend this part", () => {
     expect(
-      cheapestPrice([
-        { price: 45, currency: "EUR" },
-        { price: 30, currency: "EUR" },
-        { currency: "EUR" },
-      ]),
-    ).toEqual({ amount: 30, currency: "EUR" });
+      attendancePrice({
+        offers: [{ price: 45, currency: "EUR" }, { price: 30, currency: "EUR" }, { currency: "EUR" }],
+      }),
+    ).toEqual({ amount: 30, currency: "EUR", url: undefined, basis: "own" });
   });
 
-  it("treats a zero price as a valid (free) offer, not absent", () => {
-    expect(cheapestPrice([{ price: 0 }])).toEqual({ amount: 0, currency: undefined });
+  it("treats a zero price as free, not as absent", () => {
+    expect(attendancePrice({ offers: [{ price: 0 }] })).toEqual({
+      amount: 0,
+      currency: undefined,
+      url: undefined,
+      basis: "own",
+    });
   });
 
-  it("carries the winning offer's url through, for a registration/ticket link", () => {
+  it("carries the winning offer's url through, for a ticket link", () => {
     expect(
-      cheapestPrice([
-        { price: 45, currency: "EUR", url: "https://example.org/tickets/general" },
-        { price: 30, currency: "EUR", url: "https://example.org/tickets/early-bird" },
-      ]),
-    ).toEqual({ amount: 30, currency: "EUR", url: "https://example.org/tickets/early-bird" });
+      attendancePrice({
+        offers: [
+          { price: 45, currency: "EUR", url: "https://example.org/tickets/general" },
+          { price: 30, currency: "EUR", url: "https://example.org/tickets/early-bird" },
+        ],
+      })?.url,
+    ).toBe("https://example.org/tickets/early-bird");
+  });
+
+  // The three documents the old `Math.min` implementation answered wrongly.
+  // Each is schema-valid and each wrong answer was shown to an attendee.
+  describe("multi-part pricing (D032)", () => {
+    it("prices a part with no offers from the set's shared admission", () => {
+      // Was: undefined — "no price" for an event the document prices.
+      expect(attendancePrice({ partOf: { offers: shared } })).toEqual({
+        amount: 180,
+        currency: "EUR",
+        url: "https://trgcon.example/tickets",
+        basis: "shared",
+      });
+    });
+
+    it("adds an add-on to the shared admission instead of quoting it alone", () => {
+      // Was: 60 — the surcharge, presented as the cost of attending.
+      expect(
+        attendancePrice({
+          offers: [{ scope: "add-on", price: 60, currency: "EUR", url: "https://trgcon.example/workshop" }],
+          partOf: { offers: shared },
+        }),
+      ).toEqual({
+        amount: 240,
+        currency: "EUR",
+        url: "https://trgcon.example/workshop",
+        basis: "shared-plus-add-on",
+      });
+    });
+
+    it("compares totals, so a standalone admission can beat admission-plus-surcharge", () => {
+      // Was: 20 — the cheapest number on the page, and the one price nobody
+      // can pay. The spec composes an add-on with the SET admission, never
+      // with the part's own, so attending costs 50 (own) or 180 + 20 (set).
+      expect(
+        attendancePrice({
+          offers: [
+            { scope: "admission", price: 50, currency: "EUR" },
+            { scope: "add-on", price: 20, currency: "EUR" },
+          ],
+          partOf: { offers: shared },
+        }),
+      ).toEqual({ amount: 50, currency: "EUR", url: undefined, basis: "own" });
+    });
+
+    it("reads an absent scope as admission", () => {
+      expect(
+        attendancePrice({ offers: [{ price: 50, currency: "EUR" }], partOf: { offers: shared } })?.basis,
+      ).toBe("own");
+    });
+
+    it("says the total is unknown when a surcharge has no priced admission to add to", () => {
+      // The schema forbids this shape; the input here is unvalidated, and
+      // reporting 20 € as the price is the false answer the spec rules out.
+      expect(
+        attendancePrice({ offers: [{ scope: "add-on", price: 20, currency: "EUR" }] }),
+      ).toEqual({ amount: 20, currency: "EUR", url: undefined, basis: "add-on-only" });
+
+      expect(
+        attendancePrice({
+          offers: [{ scope: "add-on", price: 20, currency: "EUR" }],
+          partOf: { offers: [{ url: "https://trgcon.example/tickets" }] },
+        })?.basis,
+      ).toBe("add-on-only");
+    });
+
+    it("refuses to add across currencies, and says the surcharge instead", () => {
+      // 240 EUR + 20 USD is not 260 of anything. Nothing in the schema makes
+      // two offers share a currency, so this is reachable valid input.
+      expect(
+        attendancePrice({
+          offers: [{ scope: "add-on", price: 20, currency: "USD" }],
+          partOf: { offers: shared },
+        }),
+      ).toEqual({ amount: 20, currency: "USD", url: undefined, basis: "add-on-only" });
+    });
+
+    it("still reads a currency-less add-on in the currency the set is sold in", () => {
+      // An inference about notation, not about money.
+      expect(
+        attendancePrice({ offers: [{ scope: "add-on", price: 20 }], partOf: { offers: shared } }),
+      ).toEqual({
+        amount: 200,
+        currency: "EUR",
+        url: "https://trgcon.example/tickets",
+        basis: "shared-plus-add-on",
+      });
+    });
+
+    it("does not let the shared admission price a part that states its own ways in", () => {
+      // Own offers exist but carry no number: the part is not "covered", it
+      // is unpriced, and the set admission is not what attending it costs.
+      expect(
+        attendancePrice({
+          offers: [{ url: "https://trgcon.example/workshop" }],
+          partOf: { offers: shared },
+        }),
+      ).toBeUndefined();
+    });
+
+    it("prefers a priced total over a surcharge whose total is unknown", () => {
+      expect(
+        attendancePrice({
+          offers: [
+            { scope: "add-on", price: 5, currency: "EUR" },
+            { scope: "admission", price: 90, currency: "EUR" },
+          ],
+        }),
+      ).toEqual({ amount: 90, currency: "EUR", url: undefined, basis: "own" });
+    });
   });
 });

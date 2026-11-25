@@ -1,5 +1,12 @@
-import { cheapestPrice, detailRows, eventLocation, firstImage } from "./format.js";
-import type { PreviewEventCfp, PreviewEventEligibility, PreviewEventPartOf, PreviewFeed } from "./types.js";
+import { attendancePrice, detailRows, eventLocation, firstImage } from "./format.js";
+import type {
+  PreviewEventCfp,
+  PreviewEventEligibility,
+  PreviewEventPartOf,
+  PreviewFeed,
+  PreviewOffer,
+  PreviewPrice,
+} from "./types.js";
 
 export interface OteJsonEvent {
   id?: string;
@@ -17,9 +24,15 @@ export interface OteJsonEvent {
   updatedAt?: string;
   source?: unknown;
   image?: Array<string | { url: string; alt?: string }>;
-  offers?: Array<{ name?: string; price?: number; currency?: string; url?: string }>;
+  offers?: PreviewOffer[];
   organizers?: Array<{ name: string }>;
-  partOf?: { id?: string; type?: "series" | "multipart"; name?: string; url?: string };
+  partOf?: {
+    id?: string;
+    type?: "series" | "multipart";
+    name?: string;
+    url?: string;
+    offers?: PreviewOffer[];
+  };
   eligibility?: PreviewEventEligibility;
   cfp?: PreviewEventCfp;
 }
@@ -29,7 +42,32 @@ export interface OteJsonEvent {
 // rather than propagating a group key that can never actually group anything.
 function normalizePartOf(partOf: OteJsonEvent["partOf"]): PreviewEventPartOf | undefined {
   if (!partOf?.id) return undefined;
-  return { id: partOf.id, type: partOf.type === "multipart" ? "multipart" : "series", name: partOf.name, url: partOf.url };
+  return {
+    id: partOf.id,
+    type: partOf.type === "multipart" ? "multipart" : "series",
+    name: partOf.name,
+    url: partOf.url,
+    // Carried through, not dropped: it is the set's shared admission, and a
+    // part with no offers of its own is priced by it (D032). Dropping it left
+    // even a scope-aware renderer with nothing to fall back to.
+    offers: partOf.offers,
+  };
+}
+
+/** The detail row for a price, which has to carry what the number *is*. */
+function priceRow(price: PreviewPrice | undefined): string | undefined {
+  if (!price || price.amount === undefined) return undefined;
+  const amount = `${price.amount}${price.currency ? ` ${price.currency}` : ""}`;
+  switch (price.basis) {
+    case "add-on-only":
+      return `+${amount} (additional charge, total unknown)`;
+    case "shared":
+      return `${amount} (event admission)`;
+    case "shared-plus-add-on":
+      return `${amount} (event admission + this part)`;
+    case "own":
+      return amount;
+  }
 }
 
 export interface OteJsonFeed {
@@ -50,7 +88,7 @@ export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
     license: json.license,
     events: json.events.map((event) => {
       const image = firstImage(event.image);
-      const price = cheapestPrice(event.offers);
+      const price = attendancePrice({ offers: event.offers, partOf: event.partOf });
       const organizerName = event.organizers?.[0]?.name;
       return {
         id: event.id,
@@ -81,7 +119,12 @@ export function oteJsonToPreviewFeed(input: OteJsonPreviewInput): PreviewFeed {
           ["Updated", event.updatedAt],
           ["Source", event.source],
           ["Image", image?.url],
-          ["Price", price && `${price.amount}${price.currency ? ` ${price.currency}` : ""}`],
+          // The detail row says the same thing the badge does, including when
+          // the number is a surcharge rather than a total: a row reading
+          // "20 EUR" for a part whose admission is unpriced is the false
+          // answer D032 exists to prevent, in the one view that looks
+          // authoritative.
+          ["Price", priceRow(price)],
           ["Organizer", organizerName],
         ]),
       };
