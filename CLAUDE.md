@@ -182,6 +182,18 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   invisible to the test suite (the detached global `fetch`), and a page whose
   bundle throws while importing registers no listeners at all rather than
   reporting anything — hence `boot-errors.js`.
+- `workers/convert` is the hosted conversion service: it fetches a public OTE
+  document, validates it against the version it declares, and converts it to
+  iCalendar, RSS or schema.org JSON-LD. Read `workers/convert/README.md`
+  before touching it. Two things that are easy to undo by accident: the
+  default `wrangler.jsonc` is **staging** and declares no route, with
+  production in `wrangler.production.jsonc` reached only by a hand-run
+  workflow, and one request converts a bounded number of events rather than
+  whatever a stranger publishes. Both are asserted in
+  `workers/convert/test/hardening.test.ts` and `test/cap.test.ts`, so change
+  them there or not at all. It shares the validator's fetcher by relative
+  import across a package boundary — the one thing in this repo that does —
+  which is why `fetchDocument` takes a `userAgent`.
 - `apps/publish` (Broadcast) has its own `CLAUDE.md` too — the pinned-event
   rule, the generated/guided/planned ladder that lets its destination
   catalogue be wide without becoming a wall of promises, and the
