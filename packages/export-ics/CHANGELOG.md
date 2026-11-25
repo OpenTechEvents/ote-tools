@@ -4,6 +4,24 @@ All notable changes to `@opentechevents/export-ics` are documented here.
 
 ## Unreleased
 
+- **A feed's defaults now reach every event.** A feed may declare
+  `organizers`, `textLanguage`, `license` and `contributing` once and let its
+  events inherit them — the schemas say so in `x-inheritsFrom`, and the feed
+  schema *validates* against the effective value — but this exporter read
+  each event's own fields, so a correctly written community feed came out
+  with `ORGANIZER` on some events and nothing on the others. One file, one
+  publisher, one command, and half the events named nobody. Measured on the
+  spec's own corpus: 13 of 26 events inherit `organizers`, 13 inherit
+  `textLanguage`, 19 inherit `license` — the majority case, not an edge.
+  Resolution is replacement, never merge, and fills blanks only: where
+  neither level declares a value the field stays absent, because absent
+  `textLanguage` means unknown and never English.
+- **Changed output for existing callers**, including `ote-export-ics` itself:
+  19 of 42 outputs across the kit's fixture corpora change bytes, all of them
+  gaining `ORGANIZER`/`X-OTE-ORGANIZER` or `;LANGUAGE=`. `build-feed`
+  resolved already, so its output does not move; resolving twice is
+  idempotent.
+
 - **`DESCRIPTION` is readable text rather than Markdown source.** A client
   with no HTML renderer showed `**Bold**` and a `[label](url)` whose target
   was unreachable; link targets are now kept in parentheses. `X-ALT-DESC` is

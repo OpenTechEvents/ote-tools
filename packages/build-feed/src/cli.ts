@@ -167,9 +167,10 @@ export function runCli(
   }
 
   // feed.json keeps the un-resolved feed (inheritance stays implicit, valid
-  // per schema); feed.ics/feed.xml need each event's effective values
-  // resolved first — those exporters read organizers/textLanguage/license
-  // per event directly, with no notion of feed-level inheritance themselves.
+  // per schema). The exporters resolve inheritance themselves now, so this
+  // call is no longer what makes it reach them — it is what gives the
+  // per-event checks above the effective values. Resolving twice is
+  // idempotent.
   const resolvedFeed = resolveEventInheritance(feed);
   const outDir = resolve(args.out ?? join(root, "dist"));
   const outputs: Array<[string, string]> = [

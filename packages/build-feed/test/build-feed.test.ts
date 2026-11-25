@@ -345,12 +345,13 @@ describe("resolveEventInheritance — contributing (OTE 0.5+)", () => {
           ...event,
         },
       ],
-    }) as never;
+    }) as unknown as OteFeed;
 
   it("pushes the feed's contributing down to an event that has none", () => {
-    // Exporters read each event's fields directly and know nothing about
-    // feed-level inheritance, so anything inheritable has to be resolved here
-    // or it never reaches them.
+    // The exporters resolve inheritance themselves now (it lives in
+    // @opentechevents/validate, which they can depend on). This CLI still
+    // resolves before validating per event, and resolving twice is
+    // idempotent.
     const resolved = resolveEventInheritance(feed({ contributing: "mailto:fix@c.example" }));
     expect(resolved.events[0]!.contributing).toBe("mailto:fix@c.example");
   });

@@ -1,3 +1,5 @@
+import { resolveEventInheritance } from "@opentechevents/validate";
+
 import { markdownToPlainText } from "./markdown.js";
 import { wallClockWithOffset } from "./timezone.js";
 import type {
@@ -335,6 +337,10 @@ export function eventToJsonLd(event: OteEvent, options: JsonLdOptions = {}): Jso
  * For a single event, use `eventToJsonLd`.
  */
 export function feedToJsonLd(feed: OteFeed, options: JsonLdOptions = {}): JsonLdNode {
+  // Effective values per event; see resolveEventInheritance. Without it a
+  // feed that declared its organizer once emitted events with no
+  // `organizer`, which is exactly the field a search engine reads.
+  feed = resolveEventInheritance(feed);
   return {
     "@context": SCHEMA_CONTEXT,
     "@graph": feed.events.map((event) => eventNode(event, options, false)),
