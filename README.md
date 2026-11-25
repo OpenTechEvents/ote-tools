@@ -28,10 +28,12 @@ Design rationale lives in [DESIGN.md](DESIGN.md); the spec lives in
 All connectors are pure functions with a thin CLI on top. They never invent
 data: a field absent in the input stays absent in the output.
 
-Most packages follow the OTE spec minor they implement (`0.6.x` speaks OTE
-spec v0.6). `migrate` is the exception and is versioned on its own: it spans
-versions rather than implementing one. Each package also has its own
-changelog so fixes and improvements can be traced package by package.
+Most packages' **minor names the OTE spec version they implement**, so the
+spec release a package speaks is its own minor — `ote-validate --versions`
+prints what the installed one supports. `migrate` is the exception and is
+versioned on its own: it spans versions rather than implementing one. Each
+package also has its own changelog so fixes and improvements can be traced
+package by package.
 
 ### Workspace-internal packages
 
