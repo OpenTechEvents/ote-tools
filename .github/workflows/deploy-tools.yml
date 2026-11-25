@@ -42,7 +42,7 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site/editor _site/preview _site/publish _site/validator _site/embed _site/embed/latest
+          mkdir -p _site/editor _site/preview _site/publish _site/validator _site/convert _site/embed _site/embed/latest
           cp -R apps/editor/dist/. _site/editor/
           cp -R apps/preview/dist/. _site/preview/
           cp -R apps/publish/dist/. _site/publish/
@@ -60,6 +60,20 @@ jobs:
           <meta http-equiv="refresh" content="0; url=https://validator.opentechevents.org/">
           <p>The OTE validator now lives at
           <a href="https://validator.opentechevents.org/">validator.opentechevents.org</a>.</p>
+          </html>
+          EOF
+          # Same shape as /validator, and for the same reason: workers/convert
+          # serves the converter at convert.opentechevents.org, page and
+          # endpoints on one origin. This path is the link people will try.
+          cat > _site/convert/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <meta charset="utf-8">
+          <title>OTE converter</title>
+          <link rel="canonical" href="https://convert.opentechevents.org/">
+          <meta http-equiv="refresh" content="0; url=https://convert.opentechevents.org/">
+          <p>The OTE converter lives at
+          <a href="https://convert.opentechevents.org/">convert.opentechevents.org</a>.</p>
           </html>
           EOF
           if [ -d apps/embed/versions ]; then
@@ -83,6 +97,7 @@ jobs:
             <li><a href="./preview/">Feed previewer</a> — inspect generated JSON, ICS and RSS exports</li>
             <li><a href="https://validator.opentechevents.org/">Validator</a> &mdash; check any OTE feed or event by URL, file or paste</li>
             <li><a href="./publish/">Broadcast</a> — publish your events everywhere: structured data, widget, directories, posts</li>
+            <li><a href="https://convert.opentechevents.org/">Converter</a> &mdash; turn any OTE feed into a calendar subscription, RSS or schema.org data</li>
             <li><a href="./embed/">Embeddable widget</a> — &lt;ote-events&gt;: drop an OTE feed into any website</li>
           </ul>
           </html>
