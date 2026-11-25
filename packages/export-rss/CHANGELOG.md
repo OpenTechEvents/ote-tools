@@ -2,6 +2,22 @@
 
 All notable changes to `@opentechevents/export-rss` are documented here.
 
+## Unreleased
+
+- **`feedToRss(feed, { locale })`** translates the field names this exporter
+  adds (`When:`, `Where:`, `Attendance:`, the status prefix in a title) and
+  formats the date in that language, while keeping the published wall clock
+  and naming the zone — RSS has nowhere to say which zone a time belongs to.
+  Publisher text is never translated. English and Spanish labels; another
+  language gets English labels and its own date format.
+- `rssToPreviewFeed` recognises the labels in every language the table has,
+  derived from that table rather than listed again, so the two halves of the
+  round trip cannot drift.
+- Labels now come from `@opentechevents/validate`'s `labelsFor`; the
+  eligibility, status and attendance dictionaries are no longer duplicated
+  between the two exporters.
+- Without `locale`, the output of this release is byte-identical to 0.6.1's.
+
 ## 0.6.1
 
 - **An out-of-window feed exports instead of being refused.** This CLI read

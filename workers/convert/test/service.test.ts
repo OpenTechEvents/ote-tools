@@ -172,23 +172,15 @@ describe("conversion service", () => {
     expect(response.status).toBe(422);
     expect((await response.json() as { error: string }).error).toBe("invalid-time-range");
   });
-  it("includes an event page, address, and inherited organizers in calendar descriptions", async () => {
-    const response = await handleRequest(request(`/ics?feed=${encodeURIComponent(target)}`), env, fetcher(multilingualFeed));
-    const body = (await response.text()).replace(/\r\n[ \t]/g, "");
-    expect(body).toContain("Evento: https://pyalmeria.example/eventos/2026-06-async");
-    expect(body).toContain("Dirección: Calle Poeta Villaespesa 1");
-    expect(body).toContain("Organizadores: PyAlmería");
-  });
   it("uses requested Spanish labels in plain-text and HTML calendar descriptions", async () => {
     const withSpeaker = { ...feed, events: feed.events.map((event, i) => i === 0 ? { ...event, speakers: [{ name: "Speaker" }] } : event) };
     const response = await handleRequest(request(`/ics?feed=${encodeURIComponent(target)}&lang=es`), env, fetcher(withSpeaker));
     const body = (await response.text()).replace(/\r\n[ \t]/g, "");
-    expect(body).toContain("Evento: https://rustmadrid.example/meetups/2026-06");
     expect(body).toContain("En línea: https://meet.example/rust-madrid");
     expect(body).toContain("Ponentes:");
-    expect(body).toContain("<p>Evento: <a href=");
+    expect(body).toContain("<p>En línea: <a href=");
     const english = await handleRequest(request(`/ics?feed=${encodeURIComponent(target)}&lang=en`), env, fetcher(feed));
-    expect((await english.text()).replace(/\r\n[ \t]/g, "")).toContain("Event: https://rustmadrid.example/meetups/2026-06");
+    expect((await english.text()).replace(/\r\n[ \t]/g, "")).toContain("Online: https://meet.example/rust-madrid");
   });
   it("uses Spanish RSS metadata labels when requested", async () => {
     const withSpeaker = { ...feed, events: feed.events.map((event, i) => i === 0 ? { ...event, speakers: [{ name: "Speaker" }] } : event) };

@@ -14,6 +14,13 @@ All notable changes to `@opentechevents/validate` are documented here.
   unjudgeable versions as separate counts, and a run with both says both.
   Exit codes are unchanged (#119).
 
+- **`labelsFor(locale)`, `labelValue(value, locale)`, `LABELS`,
+  `LABEL_LOCALES`**: the field names the exporters put around publisher
+  content, in English and Spanish. One table, because `export-ics`,
+  `export-rss` and `export-rss`'s parser all need the same words and all
+  three already depend on this package. Not an i18n framework and not for
+  publisher text, which this kit never machine translates.
+
 ## 0.6.1
 
 **Support is no longer validity.** Two breaking changes to `DocumentReport`,

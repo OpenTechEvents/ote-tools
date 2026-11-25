@@ -1,3 +1,5 @@
+import { LABELS, type Labels } from "@opentechevents/validate";
+
 export interface RssPreviewEvent {
   title: string;
   link?: string;
@@ -46,12 +48,10 @@ function parseItemDescription(html: string | undefined): {
     // never any other tag, so only <p> needs to be checked for a label.
     const label =
       block.tagName === "P" ? block.querySelector("strong")?.textContent?.trim() : undefined;
-    const content = block.textContent
-      ?.replace(/^(Status|When|Where|Online|Attendance|Estado|Cuándo|Dónde|En línea|Modalidad):\s*/i, "")
-      .trim();
+    const content = block.textContent?.replace(FIELD_LABEL, "").trim();
     if (!content) continue;
-    if ((label === "When:" || label === "Cuándo:")) when = content;
-    else if (label === "Where:" || label === "Online:" || label === "Dónde:" || label === "En línea:") location = content;
+    if (label && WHEN_LABELS.has(label.slice(0, -1))) when = content;
+    else if (label && WHERE_LABELS.has(label.slice(0, -1))) location = content;
     else if (!label) description.push(content);
   }
 
@@ -67,6 +67,29 @@ function parseItemDescription(html: string | undefined): {
  * preview model. Browser-only: the central tools are static web apps and use
  * the platform XML parser.
  */
+/**
+ * The field names `feedToRss` writes, in every language it can write them in.
+ *
+ * Derived from the same table the exporter uses, because the two halves of a
+ * round trip drifting apart is the failure here: a label added for one
+ * language and recognised in none leaves the date it introduces sitting in
+ * the description as prose.
+ */
+const labelSet = (pick: (labels: Labels) => string): Set<string> =>
+  new Set(Object.values(LABELS).map(pick));
+const WHEN_LABELS = labelSet((labels) => labels.when);
+const WHERE_LABELS = new Set([
+  ...labelSet((labels) => labels.where),
+  ...labelSet((labels) => labels.online),
+]);
+const FIELD_LABEL = new RegExp(
+  `^(${Object.values(LABELS)
+    .flatMap((labels) => [labels.status, labels.when, labels.where, labels.online, labels.attendance])
+    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")}):\\s*`,
+  "i",
+);
+
 export function rssToPreviewFeed(xml: string): RssPreviewFeed {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   const parserError = doc.querySelector("parsererror");

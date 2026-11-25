@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
 import { PUBLISHED_VERSIONS } from "@opentechevents/validate";
 import worker, { handleRequest } from "../src/index.js";
 import { DEFAULT_USER_AGENT } from "../../validator/src/fetch-document.js";
 import feed from "../../../packages/export-ics/fixtures/feed.json";
+import workflow from "../../../.github/workflows/deploy-convert.yml?raw";
+import stagingConfig from "../wrangler.jsonc?raw";
+import productionConfig from "../wrangler.production.jsonc?raw";
 import type { fetchDocument } from "../../validator/src/fetch-document.js";
 
 const env = { RATE_LIMITER: { limit: async () => ({ success: true }) } };
@@ -79,8 +81,7 @@ describe("an unexpected throw is still this service answering", () => {
 });
 
 describe("no path reaches production without someone choosing it", () => {
-  const workflow = readFileSync(new URL("../../../.github/workflows/deploy-convert.yml", import.meta.url), "utf8");
-  const config = (name: string) => JSON.parse(readFileSync(new URL(`../${name}`, import.meta.url), "utf8").replace(/^\s*\/\/.*$/gm, "")) as { routes?: unknown[]; workers_dev?: boolean; name: string };
+  const config = (text: string) => JSON.parse(text.replace(/^\s*\/\/.*$/gm, "")) as { routes?: unknown[]; workers_dev?: boolean; name: string };
 
   it("deploys on no trigger but a hand-run workflow", () => {
     expect(workflow).toContain("workflow_dispatch:");
@@ -88,16 +89,16 @@ describe("no path reaches production without someone choosing it", () => {
     expect(workflow).not.toMatch(/^\s*push:/m);
   });
   it("names the production config only under an explicit production target", () => {
-    const line = workflow.split("\n").find((entry) => entry.includes("wrangler.production.jsonc"));
+    const line = workflow.split("\n").find((entry: string) => entry.includes("wrangler.production.jsonc"));
     expect(line).toContain('inputs.target }}" = production');
   });
   it("points a bare `wrangler deploy` at staging, which has no route", () => {
-    const staging = config("wrangler.jsonc");
+    const staging = config(stagingConfig);
     expect(staging.name).toContain("staging");
     expect(staging.routes).toBeUndefined();
   });
   it("gives production one canonical URL and no workers.dev twin", () => {
-    const production = config("wrangler.production.jsonc");
+    const production = config(productionConfig);
     expect(production.routes).toEqual([{ pattern: "convert.opentechevents.org", custom_domain: true }]);
     expect(production.workers_dev).toBe(false);
   });

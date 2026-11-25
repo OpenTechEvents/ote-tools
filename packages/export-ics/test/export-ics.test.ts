@@ -91,14 +91,6 @@ describe("feedToIcs", () => {
     expect(vevent).not.toContain("LOCATION:");
   });
 
-  it("includes both event and attendance links in the description", () => {
-    const hybrid = veventFor("https://rustmadrid.example/meetups/2026-06");
-    expect(hybrid).toContain("Event: https://rustmadrid.example/meetups/2026-06");
-    expect(hybrid).toContain("Online: https://meet.example/rust-madrid");
-    const online = veventFor("https://pyalmeria.example/eventos/2026-06-async");
-    expect(online).toContain("Online: https://meet.example/pyalmeria");
-  });
-
   it("hybrid event: canonical url wins URL, attend link kept in DESCRIPTION", () => {
     const vevent = veventFor("https://rustmadrid.example/meetups/2026-06");
     expect(vevent).toContain("URL:https://rustmadrid.example/meetups/2026-06");
@@ -177,9 +169,9 @@ describe("feedToIcs", () => {
     expect(vevent).toContain("X-ALT-DESC;FMTTYPE=text/html:");
     expect(vevent).toContain("<strong>Bold</strong>");
     expect(vevent).toContain('<a href="https://example.org/info">link</a>');
-    // Clients that ignore HTML receive readable text with link targets.
-    expect(vevent).toContain("DESCRIPTION:Bold intro");
-    expect(vevent).toContain("link (https://example.org/info)");
+    // DESCRIPTION stays the literal Markdown source — the universal
+    // plain-text fallback for clients that don't read X-ALT-DESC.
+    expect(vevent).toContain("DESCRIPTION:**Bold** intro");
   });
 
   it("escapes raw HTML found inside a Markdown description instead of passing it through live", () => {

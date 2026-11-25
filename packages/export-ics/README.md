@@ -8,12 +8,6 @@ import { feedToIcs } from "@opentechevents/export-ics";
 const ics = feedToIcs(feed); // string, ready to serve as text/calendar
 ```
 
-To emit timed events in UTC (without `TZID`), pass
-`feedToIcs(feed, { utcTimes: true })`. This resolves each event's IANA zone
-with `Intl`; the original zone is retained in `X-OTE-TIMEZONE`, which generic
-calendar clients may ignore. All-day events remain date-only. The default
-retains local `TZID` values and does not emit `VTIMEZONE`.
-
 `feedToIcs` is a pure function: no network, no filesystem, no clock. Output is
 deterministic — the same feed always produces byte-identical ICS. It assumes
 the feed is valid; validate first with `@opentechevents/validate`.
@@ -34,7 +28,7 @@ usage or I/O error.
 | --- | --- |
 | `id` | `UID` |
 | `name` | `SUMMARY` (`;LANGUAGE=<textLanguage>` when set) |
-| `description` | `DESCRIPTION` (`;LANGUAGE=<textLanguage>` when set, Markdown rendered as readable plain text, retaining link targets) + `X-ALT-DESC;FMTTYPE=text/html` (rendered HTML, see below) |
+| `description` | `DESCRIPTION` (`;LANGUAGE=<textLanguage>` when set, literal Markdown source) + `X-ALT-DESC;FMTTYPE=text/html` (rendered HTML, see below) |
 | `startDate` / `endDate` + `timezone` | `DTSTART` / `DTEND` (see below) |
 | `url` (else `location.onlineUrl`) | `URL` |
 | `location.venue` | `LOCATION` |
@@ -63,7 +57,7 @@ Decisions worth knowing:
   `DTEND` is exclusive, so the export adds one day. Without `endDate`, `DTEND`
   is omitted (RFC default: one day).
 - **Hybrid events.** `url` and `location.onlineUrl` both map to `URL`; the
-  canonical page wins and both links are included in `DESCRIPTION`; the attend link is labeled
+  canonical page wins and the attend link is appended to `DESCRIPTION` as
   `Online: <url>` so it is never lost.
 - **`ORGANIZER` is structurally a `mailto:` address.** Without one, nothing
   valid can be emitted for that organizer — so the first organizer that
