@@ -149,6 +149,25 @@ the same filenames at the repository root on the default branch via
   whatever workspace versions aren't on the registry yet. Releasing = bump
   `version` in the package(s), merge, run the workflow.
 
+  **Before running it, sweep the published sibling pins:**
+
+  ```sh
+  node .github/scripts/published-pins.mjs
+  ```
+
+  Exit `0` means every published package names the sibling version this
+  workspace ships. `1` means patch-level lag only — decide package by package
+  and **write the reason in the release notes**, which is the whole point:
+  `build-feed` carrying `validate@0.6.0` after `0.6.1` shipped was checked and
+  fine, but it was fine because somebody read the code, not because anything
+  looked. `2` means a published package calls into a line this workspace has
+  moved past, and that is a release to make rather than a note to write.
+
+  The pins are invisible in this repo: `workspace:*` becomes an **exact**
+  version when pnpm packs the tarball, and the tarball is what a user
+  installs. That is how `import-jsonld@0.6.0` shipped pinning
+  `import-ics@0.4.1` and nobody noticed for a release and a half (#133).
+
 ### Versioning and changelogs
 
 A published package's **minor names the OTE spec version it implements**, so
