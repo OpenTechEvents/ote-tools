@@ -2,6 +2,37 @@
 
 All notable changes to `@opentechevents/import-jsonld` are documented here.
 
+## 0.6.1
+
+**A release with no code change, to fix what the tarball says.** `0.6.0`
+shipped pinning `@opentechevents/import-ics@0.4.1` — two minors behind the
+line the kit ships and the one `skills/` tells an organizer to install. The
+pin is written by pnpm at pack time (`workspace:*` becomes an exact version),
+so it lived in the tarball and in nothing this repo shows; it took a registry
+sweep to see it.
+
+What it did **not** do is change anybody's output: the two symbols this
+package imports (`htmlToMarkdown`, `looksLikeHtml`) are re-exported from a
+`html-to-markdown.js` that is byte-identical in `import-ics` 0.4.1 and 0.6.0,
+verified by unpacking both. What it cost shows up in the installed
+tree: `npm install @opentechevents/import-jsonld@0.6.0 @opentechevents/import-ics@0.6.0`
+— the pair `skills/` tells an organizer to use — resolves to
+
+```
+├─ import-ics@0.6.0 → validate@0.6.0
+└─ import-jsonld@0.6.0 → import-ics@0.4.1 → validate@0.4.0
+```
+
+so the tree gains not just a second `import-ics` but **`validate@0.4.0`**, the
+release whose "support is not validity" defect the 0.6 line exists to have
+fixed. `import-jsonld` never calls it — it imports two HTML helpers and
+nothing else — so no verdict came from it; it was in the lockfile, in an audit's
+view, and loaded at import. The other cost is the one that had not happened
+yet: the next change to that shared file would have diverged invisibly.
+
+`.github/scripts/published-pins.mjs` now sweeps every published package's
+sibling pins against the workspace, as part of the release checklist (#133).
+
 ## 0.6.0
 
 - **Targets OTE Spec 0.6.0.**

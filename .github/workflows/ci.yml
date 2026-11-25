@@ -28,3 +28,7 @@ jobs:
       # no extra dependency for one script. Needs packages/validate built
       # first (already true by this point, via `pnpm build` above).
       - run: node --test .github/scripts/issue-to-pr.test.mjs
+      # published-pins.mjs itself is a release-checklist script and reaches
+      # the registry, so it is NOT run here — a CI job must not fail because
+      # npm is slow. Its comparison is pure and these are its unit tests.
+      - run: node --test .github/scripts/published-pins.test.mjs
