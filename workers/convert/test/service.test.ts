@@ -218,9 +218,9 @@ describe("conversion service", () => {
     expect(response.status).toBe(429);
     expect(mock).not.toHaveBeenCalled();
   });
-  it("does not permit unauthenticated cache purges", async () => {
+  it("answers 405 to a POST, now that no endpoint here accepts one", async () => {
     const response = await handleRequest(new Request(`https://convert.example/purge?feed=${encodeURIComponent(target)}`, { method: "POST" }), env);
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(405);
   });
   it("rejects ambiguous source parameters before fetching", async () => {
     const mock = fetcher(feed);

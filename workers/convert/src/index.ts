@@ -9,9 +9,10 @@ import { landingPage } from "./landing.js";
 import { renderSchemaPage, schemaPageScript } from "./schema-page.js";
 import { availableTextLanguages, selectLanguage } from "./language.js";
 import { normalizeLegacy } from "./legacy.js";
+import { capEvents, capNotice } from "./cap.js";
 import type { TcpProbe } from "../../validator/src/tcp-probe.js";
 
-type Bindings = Cloudflare.Env & { PURGE_TOKEN?: string };
+type Bindings = Cloudflare.Env;
 /**
  * `tcp-probe.ts` promises it fails open — "a missing probe can only make this
  * slower, never wrong" — but that promise lives inside `tcpProbe`, and the
@@ -27,7 +28,6 @@ const probe: TcpProbe = async (...args) => {
     return "inconclusive";
   }
 };
-const tagFor = async (target: string) => "feed-" + Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(target))), b => b.toString(16).padStart(2, "0")).join("");
 /**
  * Every version this kit embeds schemas for, which is every published one.
  *
@@ -61,21 +61,8 @@ const fail = (status: number, code: string, message: string) => new Response(JSO
   status, headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
 });
 
-export async function handleRequest(request: Request, env: Bindings, fetcher = fetchDocument, ctx?: ExecutionContext): Promise<Response> {
+export async function handleRequest(request: Request, env: Bindings, fetcher = fetchDocument): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname === "/purge" && request.method === "POST") {
-    const allowed = await env.RATE_LIMITER.limit({ key: request.headers.get("cf-connecting-ip") ?? "unknown" });
-    if (!allowed.success) return fail(429, "rate-limited", "Too many requests; try again later.");
-    const token = /^Bearer (.+)$/.exec(request.headers.get("authorization") ?? "")?.[1] ?? "";
-    if (!env.PURGE_TOKEN || !token) return fail(403, "forbidden", "Authorization required.");
-    const digest = async (value: string) => crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-    if (!crypto.subtle.timingSafeEqual(await digest(token), await digest(env.PURGE_TOKEN))) return fail(403, "forbidden", "Authorization required.");
-    const source = url.searchParams.get("feed") ?? url.searchParams.get("event");
-    if (!source) return fail(400, "invalid-input", "Pass a source URL.");
-    if (!ctx?.cache) return fail(503, "purge-unavailable", "Cache purge is unavailable.");
-    const result = await ctx.cache.purge({ tags: [await tagFor(source)] });
-    return Response.json(result, { status: result.success ? 200 : 503, headers: { ...headers, "cache-control": "no-store" } });
-  }
   if (request.method !== "GET" && request.method !== "HEAD") return fail(405, "method-not-allowed", "Use GET or HEAD.");
   if (url.pathname === "/" && (url.searchParams.has("feed") || url.searchParams.has("format"))) {
     const feeds = url.searchParams.getAll("feed");
@@ -146,6 +133,20 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
     });
   }
   document = selectLanguage(document as Record<string, unknown>, feeds.length ? "feed" : "event", language);
+  // Bounded work per request, since the document is whoever's URL was typed.
+  // Selecting one event by id is already bounded, and capping there could
+  // remove the very event that was asked for.
+  const capped = ids.length ? { document, omitted: 0, total: 0 } : capEvents(document as { events?: unknown });
+  document = capped.document;
+  const notice = capped.omitted
+    ? capNotice(capped.total - capped.omitted, capped.total, language ?? (document as { textLanguage?: string }).textLanguage)
+    : undefined;
+  if (notice && (format === "ics" || format === "rss")) {
+    // The calendar description and the RSS channel description are the one
+    // place in each format that holds a sentence about the feed itself.
+    const feedDocument = document as { description?: string };
+    document = { ...feedDocument, description: feedDocument.description ? `${notice}\n\n${feedDocument.description}` : notice };
+  }
   let body: string, type: string;
   try {
     if (format === "ics") { body = feedToIcs(document as IcsFeed, { locale: language ?? (document as IcsFeed).textLanguage, utcTimes: true }); type = "text/calendar; charset=utf-8"; }
@@ -163,7 +164,7 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
       else {
         const script = toJsonLdScript(data);
         if (output === "script") { body = script; type = "text/plain; charset=utf-8"; }
-        else { body = renderSchemaPage(data, url, feeds.length ? document as OteFeed : undefined, ids[0]); type = "text/html; charset=utf-8"; }
+        else { body = renderSchemaPage(data, url, feeds.length ? document as OteFeed : undefined, ids[0], notice); type = "text/html; charset=utf-8"; }
       }
     }
   } catch (error) {
@@ -176,7 +177,13 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
   // A HEAD answer carries no body, so it must never become the cached entry a
   // later GET is served from. The body is what this service exists to return;
   // an empty 200 `text/calendar` is a silently broken subscription.
-  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, "content-type": type, "cache-tag": await tagFor(target), "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) } });
+  // Always in a header too: `output=json` and `output=script` have nowhere to
+  // put a sentence, and a build script reading one of those must be able to
+  // notice that it is holding part of a feed.
+  const capHeaders: Record<string, string> = capped.omitted
+    ? { "x-ote-events-omitted": String(capped.omitted), "x-ote-events-total": String(capped.total) }
+    : {};
+  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, ...capHeaders, "content-type": type, "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) } });
 }
 export default {
   /**
@@ -188,9 +195,9 @@ export default {
    * convert locally"), so the message says that and the detail goes to the
    * log rather than to the internet.
    */
-  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Bindings) {
     try {
-      return await handleRequest(request, env, fetchDocument, ctx);
+      return await handleRequest(request, env, fetchDocument);
     } catch (error) {
       console.error("unhandled", request.method, new URL(request.url).pathname, error);
       return fail(500, "internal-error", "The conversion service failed unexpectedly. Try again, or convert locally with @opentechevents/export-ics.");

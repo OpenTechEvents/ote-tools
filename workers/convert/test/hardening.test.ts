@@ -12,7 +12,6 @@ const env = { RATE_LIMITER: { limit: async () => ({ success: true }) } };
 const target = "https://example.org/feed.json";
 const request = (path: string, init?: RequestInit) => new Request(`https://convert.example${path}`, init);
 const fetcher = (document: unknown) => vi.fn(async () => ({ ok: true as const, body: JSON.stringify(document), bytes: 1, contentType: "application/json", finalUrl: target, redirects: [], status: 200, transport: {} })) as unknown as typeof fetchDocument;
-const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
 
 describe("a HEAD answer never becomes the cached entry a GET is served from", () => {
   it.each(["/adopters.js", "/schema-ui.js", `/feed-languages?feed=${encodeURIComponent(target)}`])("%s answers HEAD with no body and no-store", async (path) => {
@@ -83,7 +82,7 @@ describe("an unexpected throw is still this service answering", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     // A missing binding is the cheapest real example: the rate limiter is
     // touched before any try block in the handler.
-    const response = await worker.fetch(request(`/ics?feed=${encodeURIComponent(target)}`), {} as never, ctx);
+    const response = await worker.fetch(request(`/ics?feed=${encodeURIComponent(target)}`), {} as never);
     expect(response.status).toBe(500);
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(response.headers.get("cache-control")).toBe("no-store");

@@ -63,6 +63,29 @@ Schema output is a snapshot. A website build can request `output=script` or
 content visible on the destination page; search engine eligibility depends on
 additional requirements and is not guaranteed.
 
+## How much one request converts
+
+At most **1000 events** per request (`src/cap.ts`). Over that, the events kept
+are the soonest that have not finished yet, and every output says what was
+left out: the calendar description, the RSS channel description, a notice on
+the schema page, and the `X-OTE-Events-Omitted` / `X-OTE-Events-Total`
+response headers on all of them — `output=json` and `output=script` have
+nowhere to put a sentence, and a build script must still be able to tell it is
+holding part of a feed. Nothing is ever dropped silently, and a full feed is
+one local export away (`@opentechevents/export-ics`, `@opentechevents/export-rss`).
+
+The cap is a budget, not a property of the formats. What it is set from,
+measured in this Worker on 2026-11-25, per event: `/ics` ≈0.7 ms of CPU (the
+IANA resolution dominates), `/schema` ≈2.6 KB of response. Uncapped, a
+6000-event feed cost 4.3 s and 15.6 MB, repeatable at 30 requests a minute per
+IP. Capped, the same feed and a 20000-event one both answer in under a second
+with a 0.68 MB calendar and a 2.6 MB schema page. Re-measure per format before
+moving the number; the fixture-sized feeds in `test/cap.test.ts` show the
+shape.
+
+Fetching is bounded separately and earlier: 5 MB decoded, 60 s, three
+redirects, each revalidated (`workers/validator/src/fetch-document.ts`).
+
 ## Caching and administration
 
 Successful responses use a 15-minute shared cache TTL. Errors and
@@ -73,27 +96,17 @@ change later than 15 minutes. Source URLs, including their query strings, are
 visible to the Worker and may appear in platform request logs; use public
 feeds without credentials in their URLs.
 
-**Purge has never worked here** (measured 2026-09, re-read 2026-11-25): an
-authenticated purge reached Cloudflare and `ctx.cache.purge()` answered
-`403 Unable to purge. Unauthorized`. Nobody has established whether that is
-the staging account, the plan, or the call. Until somebody does, treat
-`POST /purge` as unproven and use `cache=bypass`, which needs no secret and
-is covered by tests. What would change this line: a purge that returns
-`{"success":true}` against a real deployment.
-
-The optional `PURGE_TOKEN` Worker secret enables `POST /purge?feed=<url>` (or
-`event=<url>`), authenticated with `Authorization: Bearer <token>`. It purges
-all cached output variants for the **exact source URL string** via Workers
-Cache tags. Use a long randomly generated secret; do not put it in a URL or
-commit it. Without the secret, purge is disabled. Purging cannot force a
-calendar client or another intermediary to refresh. Purge and cache bypass
-must be checked in the actual deployment environment before release.
-
-A `HEAD` answer is `no-store` on every endpoint that answers 200, not only
-the conversions: it carries no body, and a shared cache that stored it under
-the `GET` key would serve an empty `text/calendar` — a subscription that
-silently shows nothing — or an empty `/adopters.js`, which is a landing page
-with no working controls at all.
+**There is no purge endpoint.** There was one, behind a `PURGE_TOKEN`
+secret, purging by cache tag — and it never once returned success:
+`ctx.cache.purge()` answered `403 Unable to purge. Unauthorized` (measured
+2026-09, re-read 2026-11-25), consistent with purge-by-tag being an
+Enterprise feature. It also could not be executed by any test
+(`crypto.subtle.timingSafeEqual` exists only in the Workers runtime), so a
+wrong token answered 500 rather than 403 everywhere the suite can reach, and
+its rate-limit token was spent before the token was checked. `cache=bypass`
+covers the actual need — a fresh conversion now — needs no secret, and is
+tested. Re-adding purge means a plan that supports it and a
+`@cloudflare/vitest-pool-workers` test, in that order.
 
 Cloudflare Workers metrics provide a starting point for usage, errors and
 latency. Cache hits may bypass Worker code, so application-level counters
@@ -106,9 +119,8 @@ Build workspace dependencies before type-checking in a fresh checkout. Run
 `pnpm --filter @opentechevents/convert-service test` and `typecheck`. Wrangler
 can bundle with `wrangler deploy --dry-run` without deploying.
 
-Before production: verify the rate-limit and Workers Cache configuration and
-purge with the target Cloudflare account; configure a secret and a staging
-route; test real calendar subscriptions and RSS readers, including updates,
+Before production: verify the rate-limit and Workers Cache configuration with
+the target Cloudflare account; test real calendar subscriptions and RSS readers, including updates,
 cancellations, all-day events and daylight-saving transitions; check official
 fixtures and field mapping across supported versions; evaluate large-feed CPU
 and memory limits and Cloudflare costs; choose the final hostname and deploy.
