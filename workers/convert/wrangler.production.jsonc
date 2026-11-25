@@ -1,0 +1,26 @@
+// Production. Deployed only by running the workflow by hand with
+// `target: production`, which is the maintainer's decision and not a side
+// effect of merging anything. Nothing in CI selects this file on a push.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ote-convert",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  "routes": [{ "pattern": "convert.opentechevents.org", "custom_domain": true }],
+  // One canonical URL for one tool: the custom domain, and no workers.dev
+  // twin. Declaring `routes` disables workers.dev by default; saying so
+  // explicitly keeps the next editor from re-enabling it by accident.
+  "workers_dev": false,
+  "observability": { "enabled": true },
+  "cache": { "enabled": true },
+  "unsafe": {
+    "bindings": [{
+      "name": "RATE_LIMITER",
+      "type": "ratelimit",
+      "namespace_id": "1002",
+      "simple": { "limit": 30, "period": 60 }
+    }]
+  }
+}

@@ -1,11 +1,15 @@
+// The default target is staging, on purpose: a bare `wrangler deploy` here
+// must not be able to reach a public hostname. Production lives in
+// `wrangler.production.jsonc` and is only ever deployed by choosing it
+// explicitly — see the release checklist in README.md.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ote-convert",
+  "name": "ote-convert-staging",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-09",
   "compatibility_flags": ["nodejs_compat"],
   "upload_source_maps": true,
-  "routes": [{ "pattern": "convert.opentechevents.org", "custom_domain": true }],
+  // No `routes`: staging is reachable at its workers.dev URL and nowhere else.
   "workers_dev": true,
   "observability": { "enabled": true },
   "cache": { "enabled": true },
@@ -13,7 +17,7 @@
     "bindings": [{
       "name": "RATE_LIMITER",
       "type": "ratelimit",
-      "namespace_id": "1002",
+      "namespace_id": "1003",
       "simple": { "limit": 30, "period": 60 }
     }]
   }

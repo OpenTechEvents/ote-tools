@@ -1,27 +1,27 @@
-# Deploy the converter on its own hostname, independently of the validator.
-# The Cloudflare token must be able to deploy Workers and manage the custom
-# domain in the opentechevents.org zone.
+# Deploying the converter is a decision, not a consequence of merging.
+#
+# There is deliberately no `push` trigger: the prototype has no production
+# route to keep warm, and the one hostname it will eventually answer on
+# (`convert.opentechevents.org`) must be claimed when the maintainer decides
+# to claim it. Run this workflow by hand and choose the target; `staging` is
+# the default and deploys the `ote-convert-staging` Worker, reachable only at
+# its workers.dev URL.
+#
+# The Cloudflare token must be able to deploy Workers; `production` also needs
+# it to manage the custom domain in the opentechevents.org zone.
 name: Deploy converter
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "workers/convert/**"
-      - "workers/validator/src/dns.ts"
-      - "workers/validator/src/fetch-document.ts"
-      - "workers/validator/src/ssrf.ts"
-      - "workers/validator/src/tcp-probe.ts"
-      - "packages/validate/**"
-      - "packages/export-ics/**"
-      - "packages/export-rss/**"
-      - "packages/export-jsonld/**"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/deploy-convert.yml"
   workflow_dispatch:
+    inputs:
+      target:
+        description: Which Worker to deploy
+        type: choice
+        default: staging
+        options: [staging, production]
 
 concurrency:
-  group: converter
+  group: converter-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
@@ -40,10 +40,17 @@ jobs:
       - run: pnpm build
       - run: pnpm --filter @opentechevents/convert-service test
       - name: Deploy
-        run: pnpm --filter @opentechevents/convert-service exec wrangler deploy
+        run: |
+          set -euo pipefail
+          config=wrangler.jsonc
+          if [ "${{ inputs.target }}" = production ]; then config=wrangler.production.jsonc; fi
+          pnpm --filter @opentechevents/convert-service exec wrangler deploy --config "$config"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       - name: Smoke check
+        # Only production has a stable hostname to probe. The staging URL is
+        # whatever workers.dev hands out, so the deploy output is the record.
+        if: inputs.target == 'production'
         run: |
           set -euo pipefail
           base=https://convert.opentechevents.org

@@ -70,6 +70,9 @@ export const DEFAULT_LIMITS: FetchLimits = {
   retryBackoffMs: 500,
 };
 
+/** Who this module says it is when the caller does not say. */
+export const DEFAULT_USER_AGENT = "OTE-Validator/0.1 (+https://tools.opentechevents.org/validator/)";
+
 export interface FetchDeps {
   fetchImpl: typeof fetch;
   resolve: Resolver;
@@ -81,6 +84,14 @@ export interface FetchDeps {
    * this slower, never wrong.
    */
   probe?: TcpProbe;
+  /**
+   * How this fetcher introduces itself. Defaults to the validator's string,
+   * because that is who most callers are — but a publisher reading their
+   * access log has to be able to tell *which* tool asked, and a second
+   * service sharing this module would otherwise be invisible as the
+   * validator. See `DEFAULT_USER_AGENT`.
+   */
+  userAgent?: string;
   /**
    * Absolute deadline (`Date.now()` + budget) shared by several calls. The
    * badge resolves a page and then the feed that page links to; without this
@@ -316,7 +327,7 @@ async function requestHop(
         headers: {
           accept:
             "application/ote+json, application/feed+json, application/json;q=0.9, text/html;q=0.8, */*;q=0.1",
-          "user-agent": "OTE-Validator/0.1 (+https://tools.opentechevents.org/validator/)",
+          "user-agent": deps.userAgent ?? DEFAULT_USER_AGENT,
         },
       });
     } catch (error) {

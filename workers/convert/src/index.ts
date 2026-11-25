@@ -14,8 +14,26 @@ import type { TcpProbe } from "../../validator/src/tcp-probe.js";
 type Bindings = Cloudflare.Env & { PURGE_TOKEN?: string };
 const probe: TcpProbe = async (...args) => (await import("../../validator/src/tcp-probe.js")).tcpProbe(...args);
 const tagFor = async (target: string) => "feed-" + Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(target))), b => b.toString(16).padStart(2, "0")).join("");
-const supportedVersions = new Set(["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0"]);
+/**
+ * Every version this kit embeds schemas for, which is every published one.
+ *
+ * Derived, never listed. The listed copy accepted exactly `PUBLISHED_VERSIONS`
+ * and so its refusal branch could not fire at all — until the next spec
+ * release, when it would have refused every document on the new version with
+ * "not yet tested by this service" while the rest of the kit validated them
+ * happily. A conversion is a mapping, and a mapping exists for any version
+ * whose schemas are embedded; being outside `SUPPORTED_VERSIONS` is a
+ * migration notice, never a refusal (see `packages/validate/src/versions.ts`).
+ */
+const convertibleVersions: readonly string[] = PUBLISHED_VERSIONS;
 const ttl = 900;
+/**
+ * A publisher reading their access log must be able to tell a conversion from
+ * a validation: this service is polled by calendar clients on a cache cycle,
+ * the validator is a person pressing a button. Both share `fetchDocument`,
+ * which otherwise introduces everyone as the validator.
+ */
+const USER_AGENT = "OTE-Converter/0.1 (+https://convert.opentechevents.org/)";
 const headers = { "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" };
 const fail = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: code, message }), {
   status, headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
@@ -57,7 +75,7 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
     if (destination.searchParams.has("cache") && destination.searchParams.get("cache") !== "bypass") return fail(400, "invalid-cache", "Use cache=bypass.");
     return new Response(null, { status: 303, headers: { ...headers, location: destination.pathname + destination.search, "cache-control": "no-store" } });
   }
-  if (url.pathname === "/") return new Response(request.method === "HEAD" ? null : landingPage, { headers: { ...headers, "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; connect-src 'self' https://opentechevents.org; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "cache-control": "public, max-age=0, s-maxage=900" } });
+  if (url.pathname === "/") return new Response(request.method === "HEAD" ? null : landingPage, { headers: { ...headers, "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; connect-src 'self' https://opentechevents.org; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "cache-control": request.method === "HEAD" ? "no-store" : `public, max-age=0, s-maxage=${ttl}` } });
   if (url.pathname === "/adopters.js") return new Response(adoptersScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
   if (url.pathname === "/schema-ui.js") return new Response(schemaPageScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
   if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { ...headers, "content-type": "application/json", "cache-control": "no-store" } });
@@ -83,15 +101,18 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
   if (url.searchParams.has("cache") && url.searchParams.get("cache") !== "bypass") return fail(400, "invalid-cache", "Use cache=bypass.");
   const { success } = await env.RATE_LIMITER.limit({ key: request.headers.get("cf-connecting-ip") ?? "unknown" });
   if (!success) return fail(429, "rate-limited", "Too many requests; try again later.");
+  // Never by reference: `fetchImpl: fetch` throws `Illegal invocation` in the
+  // Workers runtime while passing every unit test. See HANDOFF.md, trap 1.
   const fetchImpl: typeof fetch = (input, init) => fetch(input, init);
-  const fetched = await fetcher(target, { fetchImpl, resolve: dohResolver(fetchImpl), probe });
+  const fetched = await fetcher(target, { fetchImpl, resolve: dohResolver(fetchImpl), probe, userAgent: USER_AGENT });
   if (!fetched.ok) return fail(fetched.status, fetched.code, fetched.message);
   let document: unknown;
   try { document = JSON.parse(fetched.body); } catch { return fail(422, "invalid-json", "The source is not valid JSON."); }
   if (!document || typeof document !== "object" || !("specVersion" in document) || typeof document.specVersion !== "string") return fail(422, "unknown-version", "The source must declare a published specVersion.");
   const version = document.specVersion;
-  if (!(PUBLISHED_VERSIONS as readonly string[]).includes(version)) return fail(422, "unknown-version", "The declared OTE version is not known to this service.");
-  if (!supportedVersions.has(version)) return fail(422, "unsupported-version", "This OTE version has not yet been tested by this service.");
+  if (!convertibleVersions.includes(version)) {
+    return fail(422, "unknown-version", `The declared OTE version ${version} was never published. Published versions: ${PUBLISHED_VERSIONS.join(", ")}.`);
+  }
   const validators = await loadValidators(version);
   const validation = feeds.length ? validators.validateFeed(document) : validators.validateEvent(document);
   if (!validation.valid) return fail(422, "invalid-ote", "The source does not validate against its declared OTE version. Check it with validator.opentechevents.org.");
@@ -129,6 +150,28 @@ export async function handleRequest(request: Request, env: Bindings, fetcher = f
     if (format === "ics" && error instanceof RangeError) return fail(422, "unsupported-timezone", "An event's time zone is not supported by this runtime.");
     return fail(422, "conversion-failed", "The document could not be converted.");
   }
-  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, "content-type": type, "cache-tag": await tagFor(target), "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : `public, max-age=0, s-maxage=${ttl}` } });
+  // A HEAD answer carries no body, so it must never become the cached entry a
+  // later GET is served from. The body is what this service exists to return;
+  // an empty 200 `text/calendar` is a silently broken subscription.
+  const bypass = url.searchParams.get("cache") === "bypass" || request.method === "HEAD";
+  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, "content-type": type, "cache-tag": await tagFor(target), "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": bypass ? "no-store" : `public, max-age=0, s-maxage=${ttl}` } });
 }
-export default { fetch(request: Request, env: Bindings, ctx: ExecutionContext) { return handleRequest(request, env, fetchDocument, ctx); } };
+export default {
+  /**
+   * The boundary exists because without it an unexpected throw — a missing
+   * binding, a rate limiter outage, a value no branch above anticipated — is
+   * answered by the platform's own HTML error page: not this service's JSON
+   * shape, not `no-store`, and nothing in the log that says which request it
+   * was. Everything a caller can do about it is the same ("try again, or
+   * convert locally"), so the message says that and the detail goes to the
+   * log rather than to the internet.
+   */
+  async fetch(request: Request, env: Bindings, ctx: ExecutionContext) {
+    try {
+      return await handleRequest(request, env, fetchDocument, ctx);
+    } catch (error) {
+      console.error("unhandled", request.method, new URL(request.url).pathname, error);
+      return fail(500, "internal-error", "The conversion service failed unexpectedly. Try again, or convert locally with @opentechevents/export-ics.");
+    }
+  },
+};
