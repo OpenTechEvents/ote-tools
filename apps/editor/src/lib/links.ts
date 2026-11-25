@@ -1,5 +1,6 @@
 import type { BulkEditEntry } from "./series.js";
 import type { OteEvent } from "./types.js";
+import type { DraftClearance } from "./submit-gate.js";
 
 /**
  * The outputs of the editor, per DESIGN.md ("Flujo de escritura"): a
@@ -310,14 +311,25 @@ export function directEditUrl(
 /**
  * "Editar directo" on a NEW event: github.dev cannot create a file from a
  * URL, so this uses GitHub's prefilled new-file page instead
- * (deliberate deviation from DESIGN.md's "github.dev" wording).
+ * (deliberate deviation from DESIGN.md's "github.dev" wording). It prefills
+ * the page with `event`'s own JSON, which is what makes it the dangerous
+ * path.
+ *
+ * `clearance` is a token only `submitGate` mints: a direct commit to the
+ * default branch never runs `validate.yml`, so this is the one write path
+ * with nothing downstream to catch an invalid event, and it used to be
+ * reachable from an ungated click handler (#159). The parameter carries no
+ * data — it is there so the call cannot compile without a gate decision.
  */
 export function directCreateUrl(
   repo: string,
   slug: string,
   event: OteEvent,
+  clearance: DraftClearance,
   branch = "main",
 ): LinkResult {
+  // The token carries no data; requiring it is the whole point.
+  void clearance;
   const base = `https://github.com/${repo}/new/${branch}/events`;
   const json = JSON.stringify(event, null, 2) + "\n";
   const params = new URLSearchParams({
