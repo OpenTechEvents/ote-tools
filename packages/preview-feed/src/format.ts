@@ -1,4 +1,4 @@
-import type { PreviewEvent } from "./types.js";
+import type { PreviewEvent, PreviewOffer, PreviewPrice } from "./types.js";
 
 export function truncate(text: string | undefined, length = 320): string | undefined {
   if (!text) return undefined;
@@ -140,19 +140,108 @@ function isInsecureUrl(url: string): boolean {
 }
 
 /**
- * Picks the lowest-priced `offers[]` entry that actually declares a price —
- * an offer with only a `url` ("get tickets") has nothing to compare, so it's
- * skipped rather than treated as free. Carries that same offer's `url`
- * through (the registration/ticket link), so a price display can link out
- * to where it was quoted.
+ * What it costs to attend this event, by the spec's rules for multi-part
+ * pricing (D032) rather than by `Math.min` over `offers[]`.
+ *
+ * The old implementation took the numerically lowest priced offer, which is
+ * wrong by construction once scopes exist: an `admission` offer and an
+ * `add-on` offer are not alternatives to choose between, they are additive.
+ * Three documents it answered wrongly, all of them schema-valid:
+ *
+ * - a part with no `offers`, in a document carrying `partOf.offers` → it said
+ *   "no price" when the document states the price;
+ * - a part whose only offer is a 20 € `add-on` → it said "20 €", presented as
+ *   the cost of attending, when 20 € is the surcharge;
+ * - a part with its own 50 € admission and a 20 € add-on → it picked the
+ *   surcharge, 20 €, the cheapest number on the page and the one price nobody
+ *   can pay.
+ *
+ * The rule, from the schema's own words: an absent `scope` is `admission`, a
+ * complete way to attend this part. An `add-on` is "an ADDITIONAL charge on
+ * top of the set admission — total is a priced `partOf.offers` entry plus
+ * this entry's price when both carry a number, otherwise an additional
+ * charge, total unknown". So the candidates are compared as **totals**, and
+ * an add-on composes with the *set's* admission, never with the part's own:
+ * a part sold standalone for 50 € is attendable for 50 €.
+ *
+ * `undefined` means nothing in the document prices this event. An offer with
+ * only a `url` ("get tickets") carries no number and is skipped rather than
+ * read as free — only `price: 0` says free.
  */
-export function cheapestPrice(
-  offers: Array<{ price?: number; currency?: string; url?: string }> | undefined,
-): { amount: number; currency?: string; url?: string } | undefined {
-  const priced = (offers ?? []).filter(
-    (offer): offer is { price: number; currency?: string; url?: string } => offer.price !== undefined,
+export function attendancePrice(input: {
+  offers?: PreviewOffer[];
+  partOf?: { offers?: PreviewOffer[] };
+}): PreviewPrice | undefined {
+  const own = input.offers ?? [];
+  const shared = input.partOf?.offers ?? [];
+
+  // Cheapest priced entry of the set's shared admission. `partOf.offers` is
+  // the admission by definition, so a `scope` inside it changes nothing.
+  const sharedAdmission = cheapestPriced(shared);
+
+  // The one place an absent offers list means something other than unknown.
+  if (own.length === 0) {
+    return sharedAdmission
+      ? { amount: sharedAdmission.price, currency: sharedAdmission.currency, url: sharedAdmission.url, basis: "shared" }
+      : undefined;
+  }
+
+  const candidates: PreviewPrice[] = [];
+
+  for (const offer of own) {
+    if (offer.price === undefined) continue;
+    if (offer.scope !== "add-on") {
+      candidates.push({ amount: offer.price, currency: offer.currency, url: offer.url, basis: "own" });
+      continue;
+    }
+    // Two currencies cannot be added. Nothing in the schema makes two offers
+    // in one document share one, and a local-currency admission with a USD
+    // workshop fee is an ordinary shape — so summing them would invent
+    // "260 EUR" out of 240 EUR + 20 USD, which is a false number in the one
+    // change whose purpose is to stop producing them. The surcharge is still
+    // known, so it is reported as a surcharge.
+    const mixedCurrency =
+      !!sharedAdmission?.currency && !!offer.currency && sharedAdmission.currency !== offer.currency;
+
+    if (sharedAdmission && !mixedCurrency) {
+      candidates.push({
+        amount: sharedAdmission.price + offer.price,
+        // An add-on with no currency of its own is read in the currency the
+        // set is sold in; that is an inference about notation, not about
+        // money.
+        currency: sharedAdmission.currency ?? offer.currency,
+        url: offer.url ?? sharedAdmission.url,
+        basis: "shared-plus-add-on",
+      });
+      continue;
+    }
+    // A priced surcharge with nothing it can be added to: either no priced
+    // admission (the schema forbids that shape, but this input is
+    // unvalidated) or one in a different currency. Reporting the surcharge as
+    // a total is the false answer the spec rules out, so say what is known.
+    candidates.push({ amount: offer.price, currency: offer.currency, url: offer.url, basis: "add-on-only" });
+  }
+
+  if (candidates.length === 0) {
+    // Own offers exist but none is priced (a bare ticket link). The set's
+    // admission does not cover a part that states its own ways to attend.
+    return undefined;
+  }
+
+  // Compare totals. An add-on-only candidate has no total, so it only wins
+  // when nothing else is priced at all.
+  const totals = candidates.filter((candidate) => candidate.basis !== "add-on-only");
+  const pool = totals.length > 0 ? totals : candidates;
+  return pool.reduce((best, candidate) => (candidate.amount! < best.amount! ? candidate : best));
+}
+
+const cheapestPriced = (
+  offers: PreviewOffer[],
+): { price: number; currency?: string; url?: string } | undefined => {
+  const priced = offers.filter(
+    (offer): offer is PreviewOffer & { price: number } => offer.price !== undefined,
   );
   if (priced.length === 0) return undefined;
   const cheapest = priced.reduce((min, offer) => (offer.price < min.price ? offer : min));
-  return { amount: cheapest.price, currency: cheapest.currency, url: cheapest.url };
-}
+  return { price: cheapest.price, currency: cheapest.currency, url: cheapest.url };
+};

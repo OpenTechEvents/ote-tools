@@ -541,6 +541,68 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.querySelector(".attendance-hybrid svg.badge-icon")).toBeTruthy();
   });
 
+  /**
+   * Multi-part pricing (the spec's D032). A conference published as one
+   * document per session prices them through `partOf.offers`, so the widget
+   * has to read that and has to know that a session's own `add-on` offer is a
+   * surcharge. It used to do neither: it showed nothing for a covered session
+   * and the bare surcharge for a workshop — "60 €" for a day that costs 300.
+   */
+  describe("multi-part pricing", () => {
+    const SHARED = [{ name: "General", price: 240, currency: "EUR", url: "https://trgcon.example/tickets" }];
+    const PART_OF = { id: "https://trgcon.example/2026", type: "multipart", offers: SHARED };
+    const MULTIPART_FEED = JSON.stringify({
+      events: [
+        { name: "Keynote", startDate: "2999-01-01", partOf: PART_OF },
+        {
+          name: "Workshop",
+          startDate: "2999-01-02",
+          offers: [{ scope: "add-on", price: 60, currency: "EUR" }],
+          partOf: PART_OF,
+        },
+        {
+          name: "Orphan surcharge",
+          startDate: "2999-01-03",
+          offers: [{ scope: "add-on", price: 20, currency: "EUR" }],
+        },
+      ],
+    });
+
+    const prices = async (): Promise<string[]> => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => MULTIPART_FEED });
+      const el = createCardsElement();
+      el.setAttribute("feed", "https://trgcon.example/feed.json");
+      el.setAttribute("fields", "price");
+      document.body.append(el);
+      await flush();
+      return [...el.shadowRoot!.querySelectorAll(".price")].map((node) => node.textContent ?? "");
+    };
+
+    it("prices a covered session from the set's shared admission", async () => {
+      expect((await prices())[0]).toContain("240");
+    });
+
+    it("adds a session's surcharge to that admission instead of showing it alone", async () => {
+      const shown = (await prices())[1]!;
+      expect(shown).toContain("300");
+      expect(shown).not.toMatch(/\b60\b/);
+    });
+
+    it("marks a surcharge with no admission to add to as additional, never as a total", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => MULTIPART_FEED });
+      const el = createCardsElement();
+      el.setAttribute("feed", "https://trgcon.example/feed.json");
+      el.setAttribute("fields", "price");
+      document.body.append(el);
+      await flush();
+
+      const badge = [...el.shadowRoot!.querySelectorAll(".price")][2] as HTMLElement;
+      expect(badge.textContent).toContain("+");
+      expect(badge.textContent).toContain("20");
+      expect(badge.title).toMatch(/additional charge/i);
+    });
+  });
+
   it('fields="price,tags" shows only those, replacing the default set entirely', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
     const el = createCardsElement();
