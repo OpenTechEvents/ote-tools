@@ -52,6 +52,28 @@ describe("ote-build-feed CLI", () => {
     expect(io.outLines.at(-1)).toContain("3 events");
   });
 
+  it("ships the exporters' content, not just their envelopes", () => {
+    // These two assertions existed as "contains BEGIN:VCALENDAR" and
+    // "contains <rss version>", which stayed green through three changes to
+    // what the exporters actually write — and this CLI is what every
+    // organizer fork runs, so it is the surface those changes reach.
+    const io = makeIO();
+    const out = join(tempDir(), "dist");
+    expect(runCli([validProject, "--out", out], io)).toBe(0);
+
+    const feed = JSON.parse(readFileSync(join(out, "feed.json"), "utf8"));
+    const ics = readFileSync(join(out, "feed.ics"), "utf8").replaceAll("\r\n ", "");
+    // The page an attendee needs is in DESCRIPTION, not only in URL.
+    for (const event of feed.events) {
+      if (event.url) expect(ics).toContain(`Event: ${event.url}`);
+    }
+    // feed.json is ordered oldest first; feed.xml is newest first.
+    const xml = readFileSync(join(out, "feed.xml"), "utf8");
+    const titles = [...xml.matchAll(/<title>([^<]+)<\/title>/g)].slice(1).map((match) => match[1]);
+    expect(titles[0]).toContain("DevFest Almería 2026");
+    expect(feed.events.at(-1).name).toBe("DevFest Almería 2026");
+  });
+
   it("--check validates without writing anything", () => {
     const io = makeIO();
     const out = join(tempDir(), "dist");
