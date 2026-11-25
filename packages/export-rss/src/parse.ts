@@ -1,3 +1,5 @@
+import { LABELS, type Labels } from "@opentechevents/validate";
+
 export interface RssPreviewEvent {
   title: string;
   link?: string;
@@ -46,12 +48,18 @@ function parseItemDescription(html: string | undefined): {
     // never any other tag, so only <p> needs to be checked for a label.
     const label =
       block.tagName === "P" ? block.querySelector("strong")?.textContent?.trim() : undefined;
-    const content = block.textContent
-      ?.replace(/^(Status|When|Where|Online|Attendance):\s*/i, "")
-      .trim();
+    // Strip only the label this block actually carries, and only when the
+    // exporter is the one who wrote it. Matching every locale's labels
+    // against every block ate publisher prose instead: an English feed whose
+    // description began "Estado: todo va bien" lost those words, and each new
+    // language added another way to mangle a different language's text.
+    const text = block.textContent?.trim() ?? "";
+    const name = label?.slice(0, -1);
+    const ours = name !== undefined && FIELD_LABELS.has(name);
+    const content = (ours && text.startsWith(label!) ? text.slice(label!.length) : text).trim();
     if (!content) continue;
-    if (label === "When:") when = content;
-    else if (label === "Where:" || label === "Online:") location = content;
+    if (ours && WHEN_LABELS.has(name!)) when = content;
+    else if (ours && WHERE_LABELS.has(name!)) location = content;
     else if (!label) description.push(content);
   }
 
@@ -67,6 +75,28 @@ function parseItemDescription(html: string | undefined): {
  * preview model. Browser-only: the central tools are static web apps and use
  * the platform XML parser.
  */
+/**
+ * The field names `feedToRss` writes, in every language it can write them in.
+ *
+ * Derived from the same table the exporter uses, because the two halves of a
+ * round trip drifting apart is the failure here: a label added for one
+ * language and recognised in none leaves the date it introduces sitting in
+ * the description as prose.
+ */
+const labelSet = (pick: (labels: Labels) => string): Set<string> =>
+  new Set(Object.values(LABELS).map(pick));
+const WHEN_LABELS = labelSet((labels) => labels.when);
+const WHERE_LABELS = new Set([
+  ...labelSet((labels) => labels.where),
+  ...labelSet((labels) => labels.online),
+]);
+/** Every field name the exporter writes, in every language it has. */
+const FIELD_LABELS = new Set(
+  Object.values(LABELS).flatMap((labels) => [
+    labels.status, labels.when, labels.where, labels.online, labels.attendance,
+  ]),
+);
+
 export function rssToPreviewFeed(xml: string): RssPreviewFeed {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   const parserError = doc.querySelector("parsererror");

@@ -1,0 +1,216 @@
+import { feedToIcs, type OteFeed as IcsFeed } from "@opentechevents/export-ics";
+import { feedToRss, type OteFeed as RssFeed } from "@opentechevents/export-rss";
+import { eventToJsonLd, feedToJsonLd, toJsonLdScript, type OteEvent, type OteFeed } from "@opentechevents/export-jsonld";
+import { loadValidators, resolveEventInheritance, PUBLISHED_VERSIONS } from "@opentechevents/validate";
+import { fetchDocument } from "../../validator/src/fetch-document.js";
+import { dohResolver } from "../../validator/src/dns.js";
+import { adoptersScript } from "./adopters.js";
+import { landingPage } from "./landing.js";
+import { renderSchemaPage, schemaPageScript } from "./schema-page.js";
+import { availableTextLanguages, selectLanguage } from "./language.js";
+import { normalizeLegacy } from "./legacy.js";
+import { capEvents, capNotice } from "./cap.js";
+import type { TcpProbe } from "../../validator/src/tcp-probe.js";
+
+type Bindings = Cloudflare.Env;
+/**
+ * `tcp-probe.ts` promises it fails open — "a missing probe can only make this
+ * slower, never wrong" — but that promise lives inside `tcpProbe`, and the
+ * `cloudflare:sockets` import above it is what fails in any runtime that has
+ * no such module. `requestHop` awaits the probe without a `try`, so the
+ * failure became every conversion 500ing. `inconclusive` is the outcome that
+ * means "proceed as if no probe had run".
+ */
+const probe: TcpProbe = async (...args) => {
+  try {
+    return await (await import("../../validator/src/tcp-probe.js")).tcpProbe(...args);
+  } catch {
+    return "inconclusive";
+  }
+};
+/**
+ * Every version this kit embeds schemas for, which is every published one.
+ *
+ * Derived, never listed. The listed copy accepted exactly `PUBLISHED_VERSIONS`
+ * and so its refusal branch could not fire at all — until the next spec
+ * release, when it would have refused every document on the new version with
+ * "not yet tested by this service" while the rest of the kit validated them
+ * happily. A conversion is a mapping, and a mapping exists for any version
+ * whose schemas are embedded; being outside `SUPPORTED_VERSIONS` is a
+ * migration notice, never a refusal (see `packages/validate/src/versions.ts`).
+ */
+export const convertibleVersions: readonly string[] = PUBLISHED_VERSIONS;
+const ttl = 900;
+/**
+ * A publisher reading their access log must be able to tell a conversion from
+ * a validation: this service is polled by calendar clients on a cache cycle,
+ * the validator is a person pressing a button. Both share `fetchDocument`,
+ * which otherwise introduces everyone as the validator.
+ */
+const USER_AGENT = "OTE-Converter/0.1 (+https://convert.opentechevents.org/)";
+/**
+ * A `HEAD` answer carries no body, so it must never be what a shared cache
+ * hands a later `GET`. Every endpoint that answers 200 needs this, not only
+ * the conversions: a bodyless `/adopters.js` cached for an hour is a landing
+ * page with no listeners at all (HANDOFF.md trap 2).
+ */
+const cacheFor = (request: Request, directive: string): string =>
+  request.method === "HEAD" ? "no-store" : directive;
+const headers = { "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" };
+const fail = (status: number, code: string, message: string) => new Response(JSON.stringify({ error: code, message }), {
+  status, headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+});
+
+export async function handleRequest(request: Request, env: Bindings, fetcher = fetchDocument): Promise<Response> {
+  const url = new URL(request.url);
+  if (request.method !== "GET" && request.method !== "HEAD") return fail(405, "method-not-allowed", "Use GET or HEAD.");
+  if (url.pathname === "/" && (url.searchParams.has("feed") || url.searchParams.has("format"))) {
+    const feeds = url.searchParams.getAll("feed");
+    const formats = url.searchParams.getAll("format");
+    if (feeds.length !== 1 || !feeds[0] || formats.length !== 1 || !["ics", "rss", "schema"].includes(formats[0]!)) {
+      return fail(400, "invalid-input", "Choose one feed URL and one output format.");
+    }
+    const destination = new URL(`/${formats[0]}`, url);
+    destination.searchParams.set("feed", feeds[0]);
+    for (const key of ["lang", "cache"]) {
+      const values = url.searchParams.getAll(key);
+      if (values.length > 1) return fail(400, "invalid-input", "Pass each option at most once.");
+      // The form's "Original text" option submits lang=; omit it so the
+      // converter uses the source language and the URL matches the preview.
+      if (key === "lang" && values[0] === "") continue;
+      if (values.length && !values[0]) return fail(400, "invalid-input", "Option values cannot be empty.");
+      if (values.length) destination.searchParams.set(key, values[0]!);
+    }
+    if (destination.searchParams.has("cache") && destination.searchParams.get("cache") !== "bypass") return fail(400, "invalid-cache", "Use cache=bypass.");
+    return new Response(null, { status: 303, headers: { ...headers, location: destination.pathname + destination.search, "cache-control": "no-store" } });
+  }
+  if (url.pathname === "/") return new Response(request.method === "HEAD" ? null : landingPage, { headers: { ...headers, "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'none'; script-src 'self'; connect-src 'self' https://opentechevents.org; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "cache-control": cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) } });
+  if (url.pathname === "/adopters.js") return new Response(request.method === "HEAD" ? null : adoptersScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": cacheFor(request, "public, max-age=3600") } });
+  if (url.pathname === "/schema-ui.js") return new Response(request.method === "HEAD" ? null : schemaPageScript, { headers: { ...headers, "content-type": "application/javascript; charset=utf-8", "cache-control": cacheFor(request, "public, max-age=3600") } });
+  if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { ...headers, "content-type": "application/json", "cache-control": "no-store" } });
+  const format = url.pathname.slice(1);
+  if (!["ics", "rss", "schema", "feed-languages"].includes(format)) return fail(404, "not-found", "Choose /ics, /rss, or /schema.");
+  const feeds = url.searchParams.getAll("feed"), events = url.searchParams.getAll("event");
+  if (feeds.length + events.length !== 1 || (format !== "schema" && events.length)) return fail(400, "invalid-input", "Pass exactly one feed URL, or one event URL for /schema.");
+  const ids = url.searchParams.getAll("id");
+  if (ids.length && (format !== "schema" || !feeds.length || ids.length !== 1 || !ids[0])) {
+    return fail(400, "invalid-id", "Pass one non-empty id with /schema?feed=… only.");
+  }
+  const target = feeds[0] ?? events[0];
+  if (!target) return fail(400, "invalid-input", "The source URL is empty.");
+  const languages = url.searchParams.getAll("lang");
+  if (languages.length > 1 || (languages.length && !languages[0])) return fail(400, "invalid-language", "Pass one language tag in lang.");
+  let language: string | undefined;
+  if (languages.length) {
+    try { language = Intl.getCanonicalLocales(languages[0]!)[0]; }
+    catch { return fail(400, "invalid-language", "Use a valid language tag such as es or en-US."); }
+  }
+  const output = url.searchParams.get("output") ?? "html";
+  if (format === "schema" && !["html", "script", "json"].includes(output)) return fail(400, "invalid-output", "Use output=html, script, or json.");
+  if (url.searchParams.has("cache") && url.searchParams.get("cache") !== "bypass") return fail(400, "invalid-cache", "Use cache=bypass.");
+  const { success } = await env.RATE_LIMITER.limit({ key: request.headers.get("cf-connecting-ip") ?? "unknown" });
+  if (!success) return fail(429, "rate-limited", "Too many requests; try again later.");
+  // Never by reference: `fetchImpl: fetch` throws `Illegal invocation` in the
+  // Workers runtime while passing every unit test. See HANDOFF.md, trap 1.
+  const fetchImpl: typeof fetch = (input, init) => fetch(input, init);
+  const fetched = await fetcher(target, { fetchImpl, resolve: dohResolver(fetchImpl), probe, userAgent: USER_AGENT });
+  if (!fetched.ok) return fail(fetched.status, fetched.code, fetched.message);
+  let document: unknown;
+  try { document = JSON.parse(fetched.body); } catch { return fail(422, "invalid-json", "The source is not valid JSON."); }
+  if (!document || typeof document !== "object" || !("specVersion" in document) || typeof document.specVersion !== "string") return fail(422, "unknown-version", "The source must declare a published specVersion.");
+  const version = document.specVersion;
+  if (!convertibleVersions.includes(version)) {
+    return fail(422, "unknown-version", `The declared OTE version ${version} was never published. Published versions: ${PUBLISHED_VERSIONS.join(", ")}.`);
+  }
+  const validators = await loadValidators(version);
+  const validation = feeds.length ? validators.validateFeed(document) : validators.validateEvent(document);
+  if (!validation.valid) return fail(422, "invalid-ote", "The source does not validate against its declared OTE version. Check it with validator.opentechevents.org.");
+  document = normalizeLegacy(document as Record<string, unknown>, feeds.length ? "feed" : "event", version);
+  // The exporters resolve this themselves now; what they cannot resolve is
+  // `/schema?feed=…&id=…`, which lifts one event out of the feed and hands it
+  // to `eventToJsonLd` — no feed left to inherit from, and `organizer` is
+  // exactly the field that page exists to produce.
+  //
+  // Translation picking also reads each event's effective `textLanguage`, but
+  // that is not what this call is for: a document whose `translations` repeat
+  // an inherited language is schema-invalid and never gets here (there is a
+  // test asserting the 422).
+  if (feeds.length) document = resolveEventInheritance(document as { events?: unknown });
+  if (format === "feed-languages") {
+    const body = JSON.stringify({ languages: availableTextLanguages(document as Record<string, unknown>) });
+    return new Response(request.method === "HEAD" ? null : body, {
+      headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) },
+    });
+  }
+  document = selectLanguage(document as Record<string, unknown>, feeds.length ? "feed" : "event", language);
+  // Bounded work per request, since the document is whoever's URL was typed.
+  // Selecting one event by id is already bounded, and capping there could
+  // remove the very event that was asked for.
+  const capped = ids.length ? { document, omitted: 0, total: 0 } : capEvents(document as { events?: unknown });
+  document = capped.document;
+  const notice = capped.omitted
+    ? capNotice(capped.total - capped.omitted, capped.total, language ?? (document as { textLanguage?: string }).textLanguage)
+    : undefined;
+  if (notice && (format === "ics" || format === "rss")) {
+    // The calendar description and the RSS channel description are the one
+    // place in each format that holds a sentence about the feed itself.
+    const feedDocument = document as { description?: string };
+    document = { ...feedDocument, description: feedDocument.description ? `${notice}\n\n${feedDocument.description}` : notice };
+  }
+  let body: string, type: string;
+  try {
+    if (format === "ics") { body = feedToIcs(document as IcsFeed, { locale: language ?? (document as IcsFeed).textLanguage, utcTimes: true }); type = "text/calendar; charset=utf-8"; }
+    else if (format === "rss") { body = feedToRss(document as RssFeed, { locale: language ?? (document as RssFeed).textLanguage }); type = "application/rss+xml; charset=utf-8"; }
+    else {
+      let data;
+      if (feeds.length && ids.length) {
+        const event = (document as OteFeed).events.find((entry) => entry.id === ids[0]);
+        if (!event) return fail(404, "event-not-found", "No event with that exact id exists in the feed.");
+        data = eventToJsonLd(event);
+      } else {
+        data = feeds.length ? feedToJsonLd(document as OteFeed) : eventToJsonLd(document as OteEvent);
+      }
+      if (output === "json") { body = JSON.stringify(data, null, 2); type = "application/ld+json; charset=utf-8"; }
+      else {
+        const script = toJsonLdScript(data);
+        if (output === "script") { body = script; type = "text/plain; charset=utf-8"; }
+        else { body = renderSchemaPage(data, url, feeds.length ? document as OteFeed : undefined, ids[0], notice); type = "text/html; charset=utf-8"; }
+      }
+    }
+  } catch (error) {
+    if (format === "ics" && error instanceof Error && error.message === "The event's end is not after its start when resolved in its time zone.") {
+      return fail(422, "invalid-time-range", "An event's end is not after its start in its time zone. Check dates around daylight-saving transitions.");
+    }
+    if (format === "ics" && error instanceof RangeError) return fail(422, "unsupported-timezone", "An event's time zone is not supported by this runtime.");
+    return fail(422, "conversion-failed", "The document could not be converted.");
+  }
+  // A HEAD answer carries no body, so it must never become the cached entry a
+  // later GET is served from. The body is what this service exists to return;
+  // an empty 200 `text/calendar` is a silently broken subscription.
+  // Always in a header too: `output=json` and `output=script` have nowhere to
+  // put a sentence, and a build script reading one of those must be able to
+  // notice that it is holding part of a feed.
+  const capHeaders: Record<string, string> = capped.omitted
+    ? { "x-ote-events-omitted": String(capped.omitted), "x-ote-events-total": String(capped.total) }
+    : {};
+  return new Response(request.method === "HEAD" ? null : body, { headers: { ...headers, ...capHeaders, "content-type": type, "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "cache-control": url.searchParams.get("cache") === "bypass" ? "no-store" : cacheFor(request, `public, max-age=0, s-maxage=${ttl}`) } });
+}
+export default {
+  /**
+   * The boundary exists because without it an unexpected throw — a missing
+   * binding, a rate limiter outage, a value no branch above anticipated — is
+   * answered by the platform's own HTML error page: not this service's JSON
+   * shape, not `no-store`, and nothing in the log that says which request it
+   * was. Everything a caller can do about it is the same ("try again, or
+   * convert locally"), so the message says that and the detail goes to the
+   * log rather than to the internet.
+   */
+  async fetch(request: Request, env: Bindings) {
+    try {
+      return await handleRequest(request, env, fetchDocument);
+    } catch (error) {
+      console.error("unhandled", request.method, new URL(request.url).pathname, error);
+      return fail(500, "internal-error", "The conversion service failed unexpectedly. Try again, or convert locally with @opentechevents/export-ics.");
+    }
+  },
+};

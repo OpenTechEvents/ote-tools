@@ -4,18 +4,39 @@ All notable changes to `@opentechevents/export-rss` are documented here.
 
 ## Unreleased
 
+- **Publishing note:** this release imports `@opentechevents/validate` from
+  `src/index.ts` and `src/parse.ts`, not only from the CLI. `workspace:*`
+  publishes as an exact pin, so `validate` must be published in the same run.
+
+### Output changes, for every caller
+
 - **A feed's defaults now reach every item** (`organizers`, `textLanguage`,
   `license`, `contributing`). Items whose event inherited its organizer had no
   `<author>`/`<dc:creator>` at all; see `@opentechevents/export-ics` for the
-  measurement and the reasoning. Changes output for existing callers.
-
+  measurement and the reasoning.
 - **Items are ordered newest event first**, rather than in feed order. OTE has
   no publication instant and RSS has nowhere else to express an ordering, so
   the event date is what a reader of a feed of events is served by. The
   caller's feed is never mutated, and ties keep input order.
-- **Changed output for existing callers**, including `@opentechevents/build-feed`:
-  a generated `feed.xml` will come out in a different order on the next build,
-  with no content change.
+- Who sees both: `@opentechevents/build-feed` regenerates `feed.xml` on the
+  next build, reordered and with authors it did not have.
+
+### New option, off by default
+
+- **`feedToRss(feed, { locale })`** translates the field names this exporter
+  adds (`When:`, `Where:`, `Attendance:`, the status prefix in a title) and
+  formats the date in that language, while keeping the published wall clock
+  and naming the zone — RSS has nowhere to say which zone a time belongs to.
+  Publisher text is never translated. English and Spanish labels; another
+  language gets English labels and its own date format.
+- `rssToPreviewFeed` recognises the labels in every language the table has,
+  derived from that table rather than listed again, so the two halves of the
+  round trip cannot drift. It strips only the label a block actually carries,
+  so a publisher's prose that opens with a field name in another language is
+  left alone.
+- Labels now come from `@opentechevents/validate`'s `labelsFor`; the
+  eligibility, status and attendance dictionaries are no longer duplicated
+  between the two exporters.
 
 ## 0.6.1
 

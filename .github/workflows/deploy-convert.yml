@@ -1,0 +1,61 @@
+# Deploying the converter is a decision, not a consequence of merging.
+#
+# There is deliberately no `push` trigger: the prototype has no production
+# route to keep warm, and the one hostname it will eventually answer on
+# (`convert.opentechevents.org`) must be claimed when the maintainer decides
+# to claim it. Run this workflow by hand and choose the target; `staging` is
+# the default and deploys the `ote-convert-staging` Worker, reachable only at
+# its workers.dev URL.
+#
+# The Cloudflare token must be able to deploy Workers; `production` also needs
+# it to manage the custom domain in the opentechevents.org zone.
+name: Deploy converter
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which Worker to deploy
+        type: choice
+        default: staging
+        options: [staging, production]
+
+concurrency:
+  group: converter-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @opentechevents/convert-service test
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          config=wrangler.jsonc
+          if [ "${{ inputs.target }}" = production ]; then config=wrangler.production.jsonc; fi
+          pnpm --filter @opentechevents/convert-service exec wrangler deploy --config "$config"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Smoke check
+        # Only production has a stable hostname to probe. The staging URL is
+        # whatever workers.dev hands out, so the deploy output is the record.
+        if: inputs.target == 'production'
+        run: |
+          set -euo pipefail
+          base=https://convert.opentechevents.org
+          curl -fsS "$base/health" > /dev/null
+          for probe in "file:///etc/passwd" "http://169.254.169.254/"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base/ics?feed=$(printf %s "$probe" | jq -sRr @uri)")
+            test "$code" = "400" || { echo "SSRF probe $probe answered $code, expected 400"; exit 1; }
+          done

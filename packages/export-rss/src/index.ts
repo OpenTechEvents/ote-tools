@@ -2,7 +2,9 @@ import { resolveEventInheritance } from "@opentechevents/validate";
 
 import { marked, type Tokens } from "marked";
 
-import type { OteEvent, OteEventStatus, OteFeed } from "./types.js";
+import { labelsFor, labelValue } from "@opentechevents/validate";
+
+import type { OteEvent, OteFeed } from "./types.js";
 
 export { rssToPreviewFeed } from "./parse.js";
 export type { RssPreviewEvent, RssPreviewFeed } from "./parse.js";
@@ -68,22 +70,21 @@ function rfc822(instant: string): string {
   );
 }
 
-const STATUS_PREFIX: Record<OteEventStatus, string> = {
-  scheduled: "",
-  tentative: "[Tentative] ",
-  cancelled: "[Cancelled] ",
-  postponed: "[Postponed] ",
-  rescheduled: "[Rescheduled] ",
-  "moved-online": "[Moved online] ",
-};
-
 /** `2026-06-26T19:00:00` → `2026-06-26 19:00:00`; dates pass through. */
 const humanize = (wallClock: string): string => wallClock.replace("T", " ");
 
-function when(event: OteEvent): string {
+function when(event: OteEvent, locale?: string): string {
+  const render = (value: string): string => {
+    if (!locale) return humanize(value);
+    const dateOnly = !value.includes("T");
+    const date = new Date(`${dateOnly ? value + "T00:00:00" : value.length === 16 ? value + ":00" : value}Z`);
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "long", ...(dateOnly ? {} : { timeStyle: "short" }), timeZone: "UTC",
+    }).format(date);
+  };
   const range = event.endDate
-    ? `${humanize(event.startDate)} – ${humanize(event.endDate)}`
-    : humanize(event.startDate);
+    ? `${render(event.startDate)} – ${render(event.endDate)}`
+    : render(event.startDate);
   return `${range} (${event.timezone})`;
 }
 
@@ -91,21 +92,23 @@ function when(event: OteEvent): string {
  * RSS does not model events, so dates, location and status go in the item
  * body as HTML (entity-encoded when embedded, per RSS 2.0 practice).
  */
-function itemHtml(event: OteEvent): string {
+function itemHtml(event: OteEvent, locale?: string): string {
+  // Field names only; the publisher's own text is passed through as written.
+  const label = labelsFor(locale);
   const parts: string[] = [];
-  const field = (label: string, html: string) =>
-    parts.push(`<p><strong>${label}:</strong> ${html}</p>`);
+  const field = (name: string, html: string) =>
+    parts.push(`<p><strong>${name}:</strong> ${html}</p>`);
 
   if (event.status && event.status !== "scheduled") {
-    field("Status", escapeXml(event.status));
+    field(label.status, escapeXml(labelValue(event.status, locale)));
   }
-  field("When", escapeXml(when(event)));
-  if (event.location?.venue) field("Where", escapeXml(event.location.venue));
+  field(label.when, escapeXml(when(event, locale)));
+  if (event.location?.venue) field(label.where, escapeXml(event.location.venue));
   if (event.location?.onlineUrl) {
     const url = escapeXml(event.location.onlineUrl);
-    field("Online", `<a href="${url}">${url}</a>`);
+    field(label.online, `<a href="${url}">${url}</a>`);
   }
-  if (event.attendanceMode) field("Attendance", escapeXml(event.attendanceMode));
+  if (event.attendanceMode) field(label.attendance, escapeXml(labelValue(event.attendanceMode, locale)));
   if (event.description) {
     parts.push(descriptionToHtml(event.description));
   }
@@ -117,19 +120,19 @@ function itemHtml(event: OteEvent): string {
   // Status/When/Where/Online/Attendance labels — still reads them as part of
   // the free-text description instead of silently dropping an unknown label.
   if (event.cfp) {
-    const window = event.cfp.closesAt ? ` (closes ${escapeXml(event.cfp.closesAt)})` : "";
+    const window = event.cfp.closesAt ? ` (${label.closes} ${escapeXml(event.cfp.closesAt)})` : "";
     const url = escapeXml(event.cfp.url);
-    parts.push(`<p>Call for proposals: <a href="${url}">${url}</a>${window}</p>`);
+    parts.push(`<p>${label.cfp}: <a href="${url}">${url}</a>${window}</p>`);
   }
   if (event.eligibility) {
     const note = event.eligibility.note ? ` — ${escapeXml(event.eligibility.note)}` : "";
-    parts.push(`<p>Eligibility: ${escapeXml(event.eligibility.type)}${note}</p>`);
+    parts.push(`<p>${label.eligibility}: ${escapeXml(labelValue(event.eligibility.type, locale))}${note}</p>`);
   }
   if (event.speakers && event.speakers.length > 0) {
     const names = event.speakers.map((s) =>
       escapeXml(s.affiliation ? `${s.name}, ${s.affiliation}` : s.name),
     );
-    parts.push(`<p>Speakers: ${names.join(", ")}</p>`);
+    parts.push(`<p>${label.speakers}: ${names.join(", ")}</p>`);
   }
   if (event.recordings && event.recordings.length > 0) {
     const links = event.recordings.map((r) => {
@@ -137,7 +140,7 @@ function itemHtml(event: OteEvent): string {
       const label = typeof r === "string" ? url : escapeXml(r.title ?? r.url);
       return `<a href="${url}">${label}</a>`;
     });
-    parts.push(`<p>Recording:<br/>${links.join("<br/>")}</p>`);
+    parts.push(`<p>${label.recording}:<br/>${links.join("<br/>")}</p>`);
   }
   if (event.offers && event.offers.length > 0) {
     const offerLines = event.offers.map((o) => {
@@ -146,15 +149,15 @@ function itemHtml(event: OteEvent): string {
       // that is wrong, not merely incomplete. Say what it is instead.
       const price =
         o.scope === "add-on"
-          ? "additional charge on top of admission"
+          ? label.addOn
           : o.price === 0
-            ? "Free"
+            ? label.free
             : o.price !== undefined && o.currency
               ? `${o.price} ${o.currency}`
               : undefined;
       return escapeXml([o.name, price, o.url].filter((part): part is string => Boolean(part)).join(" — "));
     });
-    parts.push(`<p>Tickets:<br/>${offerLines.join("<br/>")}</p>`);
+    parts.push(`<p>${label.tickets}:<br/>${offerLines.join("<br/>")}</p>`);
   }
   if (event.partOf) {
     const shared = event.partOf.offers?.find(
@@ -163,18 +166,18 @@ function itemHtml(event: OteEvent): string {
     // The set admission is what makes an add-on readable at all, so it is
     // printed next to the parent it belongs to.
     const admission = shared
-      ? ` (admission ${shared.price === 0 ? "free" : `${shared.price} ${shared.currency}`})`
+      ? ` (${label.admissionLower} ${shared.price === 0 ? label.freeLower : `${shared.price} ${shared.currency}`})`
       : "";
     parts.push(
-      `<p>Part of: ${escapeXml(event.partOf.name ?? event.partOf.id)}${escapeXml(admission)}</p>`,
+      `<p>${label.partOf}: ${escapeXml(event.partOf.name ?? event.partOf.id)}${escapeXml(admission)}</p>`,
     );
   }
   return parts.join("\n");
 }
 
-function item(event: OteEvent): string[] {
+function item(event: OteEvent, locale?: string): string[] {
   const lines = ["    <item>"];
-  const prefix = event.status ? STATUS_PREFIX[event.status] : "";
+  const prefix = event.status ? (labelsFor(locale).statusPrefixes[event.status] ?? "") : "";
   lines.push(`      <title>${escapeXml(prefix + event.name)}</title>`);
   if (event.url) lines.push(`      <link>${escapeXml(event.url)}</link>`);
   // id is a stable URI but not necessarily a fetchable page → never a permalink.
@@ -217,7 +220,7 @@ function item(event: OteEvent): string[] {
     }
   }
   lines.push(
-    `      <description>${escapeXml(itemHtml(event))}</description>`,
+    `      <description>${escapeXml(itemHtml(event, locale))}</description>`,
   );
   lines.push("    </item>");
   return lines;
@@ -231,7 +234,7 @@ function item(event: OteEvent): string[] {
  * No pubDate is emitted: OTE has no publication instant and the exporter
  * never invents data. See the package README for the mapping.
  */
-export function feedToRss(feed: OteFeed): string {
+export function feedToRss(feed: OteFeed, options: { locale?: string } = {}): string {
   // Effective values per event; see resolveEventInheritance. Without it a
   // feed that declared its organizer once produced items with no author.
   feed = resolveEventInheritance(feed);
@@ -278,7 +281,7 @@ export function feedToRss(feed: OteFeed): string {
   // caller's feed.
   const events = [...feed.events].sort((a, b) => b.startDate.localeCompare(a.startDate));
   for (const event of events) {
-    lines.push(...item(event));
+    lines.push(...item(event, options.locale));
   }
   lines.push("  </channel>", "</rss>");
   return lines.join("\n") + "\n";
