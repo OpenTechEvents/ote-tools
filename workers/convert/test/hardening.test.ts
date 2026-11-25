@@ -13,6 +13,11 @@ const target = "https://example.org/feed.json";
 const request = (path: string, init?: RequestInit) => new Request(`https://convert.example${path}`, init);
 const fetcher = (document: unknown) => vi.fn(async () => ({ ok: true as const, body: JSON.stringify(document), bytes: 1, contentType: "application/json", finalUrl: target, redirects: [], status: 200, transport: {} })) as unknown as typeof fetchDocument;
 
+// What these assert is the Worker's own behaviour on a HEAD it actually
+// receives — a cache miss. Behind Cloudflare's cache a HEAD is answered from
+// the GET entry with the body stripped at the edge and the Worker is not
+// invoked at all (measured; see the README), so this is the belt, not the
+// braces: the thing it protects against cannot be reached from outside.
 describe("a HEAD answer never becomes the cached entry a GET is served from", () => {
   it.each(["/adopters.js", "/schema-ui.js", `/feed-languages?feed=${encodeURIComponent(target)}`])("%s answers HEAD with no body and no-store", async (path) => {
     // Enumerated from the code, not from the fix: a bodyless `/adopters.js`

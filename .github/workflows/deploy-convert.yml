@@ -65,7 +65,18 @@ jobs:
         run: |
           set -euo pipefail
           base=https://convert.opentechevents.org
-          curl -fsS "$base/health" > /dev/null
+          # A custom domain created by this very deploy does not resolve
+          # instantly, and the runner's resolver can cache the NXDOMAIN it
+          # just got: the first production deploy failed its own smoke check
+          # with `Could not resolve host` while the Worker was live and
+          # answering. Wait for DNS rather than calling that a bad deploy.
+          for attempt in $(seq 1 20); do
+            if curl -fsS --max-time 10 "$base/health" > /dev/null; then break; fi
+            if [ "$attempt" = 20 ]; then
+              echo "$base/health did not answer within ~5 minutes"; exit 1
+            fi
+            sleep 15
+          done
           for probe in "file:///etc/passwd" "http://169.254.169.254/"; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$base/ics?feed=$(printf %s "$probe" | jq -sRr @uri)")
             test "$code" = "400" || { echo "SSRF probe $probe answered $code, expected 400"; exit 1; }

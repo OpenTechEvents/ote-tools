@@ -96,6 +96,16 @@ change later than 15 minutes. Source URLs, including their query strings, are
 visible to the Worker and may appear in platform request logs; use public
 feeds without credentials in their URLs.
 
+**`HEAD` is answered by the platform, not by this Worker.** Measured against
+the deployment (2026-11-25): `HEAD /ics?feed=…` comes back with
+`cf-cache-status: HIT`, the cacheable `s-maxage=900` directive and a
+`content-length` equal to the whole body — Cloudflare serves it from the
+cached `GET` entry and strips the body at the edge, so the Worker is never
+invoked and never sees the method. The handler still answers a `HEAD` it does
+reach (a cache miss) with `no-store` and no body, which is also why the
+"an empty `text/calendar` is a silently broken subscription" concern cannot
+bite from outside: a bodyless answer is never what gets stored.
+
 **There is no purge endpoint.** There was one, behind a `PURGE_TOKEN`
 secret, purging by cache tag — and it never once returned success:
 `ctx.cache.purge()` answered `403 Unable to purge. Unauthorized` (measured
