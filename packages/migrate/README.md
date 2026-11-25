@@ -30,7 +30,10 @@ really costs 240 + 60 goes on publishing, validly and machine-readably, that
 it costs 60. Nothing can flag that automatically: whether the 60 is the whole
 price or an extra is a fact about your event, not about the JSON.
 
-So `ote-migrate` asks you:
+So `ote-migrate` asks you — the samples below show the release that was
+current when they were captured (2026-11); the real target is whatever
+`ote-validate --versions` names as latest, and the tool takes it from the
+installed schemas rather than from this page:
 
 ```text
 ✓ feed.json — OTE 0.4.0 → 0.6.0

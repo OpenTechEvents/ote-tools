@@ -41,6 +41,95 @@ const skillsDir = join(repoRoot, "skills");
  */
 const FIXTURES = join(skillsDir, "evals", "fixtures");
 
+/**
+ * The repo's prose, beyond `skills/`.
+ *
+ * The scan started inside `skills/` because that is where a version literal
+ * is an instruction an organizer follows. The rule it enforces is wider than
+ * that, and when it was written down in `CLAUDE.md` it arrived with about a
+ * dozen counterexamples one `grep` away — seven package READMEs introducing
+ * themselves with a spec minor two releases old, and `CONTRIBUTING.md`
+ * describing a versioning scheme this repo had stopped using (#135). A rule
+ * whose violations are one `grep` away teaches the next reader that it is
+ * decorative.
+ *
+ * Two different surfaces, with deliberately different rules:
+ *
+ * - **What a reader copies** (`EXAMPLE_FILES`): a `specVersion` in an example
+ *   must be the current release, everywhere, no exceptions. The live
+ *   validator page shipped `"specVersion": "0.4.0"` in its placeholder — the
+ *   one tool whose job is judging versions, handing out a stale one.
+ * - **What a contributor reads first** (`CONTRIBUTOR_PROSE`): a bare spec
+ *   minor is allowed only when the line carries a date. That is not a
+ *   loophole, it is the third rung of the rule in `CLAUDE.md` — if a command
+ *   cannot print it and a test cannot assert it, date it and name what would
+ *   change it. A dated sentence is a fact about the past; the same sentence
+ *   undated is a claim about the present that will quietly stop being true.
+ *
+ * Version *history* is excluded by file, not by line, and only where history
+ * is the document's subject: changelogs, and the embed's released-versions
+ * table. Everything else is in.
+ */
+const EXCLUDED = [
+  "CHANGELOG.md",
+  // The fixture *documents* carry versions as data — a 0.3.0 example is the
+  // point of the file. Their README is prose and is scanned.
+  "/fixtures/valid/",
+  "/fixtures/invalid/",
+  "/fixtures/versioned/",
+  "/fixtures/repos/",
+  "/node_modules/",
+  "apps/embed/versions/",
+  // The embed's own docs page is a version history: every past release, its
+  // schema version and its script URL, by design.
+  "apps/embed/index.html",
+  "apps/embed/CLAUDE.md",
+];
+
+const isExcluded = (file: string): boolean => EXCLUDED.some((part) => file.includes(part));
+
+/** Every `.md` and `.html` a reader might copy an example out of. */
+function exampleFiles(): string[] {
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist") continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(md|html)$/.test(entry.name) && !isExcluded(full)) found.push(full);
+    }
+  };
+  walk(repoRoot);
+  return found.sort();
+}
+
+/**
+ * The files a contributor reads before touching anything: the front door, the
+ * contributing guide, and each package's and app's own introduction.
+ */
+function contributorProse(): string[] {
+  const found = [join(repoRoot, "README.md"), join(repoRoot, "CONTRIBUTING.md")];
+
+  // Every README under those trees, at any depth. The first version of this
+  // collected `packages/*/README.md` only, which left
+  // `packages/validate/fixtures/README.md` — the file #135's own item 4 was
+  // about — guarded by nothing, so the one line that got fixed by hand had
+  // nothing keeping it fixed. That is the failure the issue opens with.
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist") continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name === "README.md" && !isExcluded(full)) found.push(full);
+    }
+  };
+  for (const group of ["packages", "apps"]) {
+    const base = join(repoRoot, group);
+    if (existsSync(base)) walk(base);
+  }
+  return found.filter((file) => existsSync(file)).sort();
+}
+
 /** Files whose version literals this repo is responsible for. */
 function proseFiles(dir: string): string[] {
   const found: string[] = [];
@@ -76,6 +165,20 @@ interface Hit {
   text: string;
 }
 
+/** Every match of `pattern` across a given set of files. */
+function scanFiles(files: string[], pattern: RegExp): Hit[] {
+  const hits: Hit[] = [];
+  for (const file of files) {
+    const lines = readFileSync(file, "utf8").split("\n");
+    lines.forEach((text, index) => {
+      for (const match of text.matchAll(pattern)) {
+        hits.push({ file: relative(repoRoot, file), line: index + 1, text: match[0] });
+      }
+    });
+  }
+  return hits;
+}
+
 /** Every match of `pattern` across the prose, with where to go and fix it. */
 function scan(pattern: RegExp): Hit[] {
   const hits: Hit[] = [];
@@ -91,6 +194,28 @@ function scan(pattern: RegExp): Hit[] {
 }
 
 const at = (hit: Hit): string => `${hit.file}:${hit.line}`;
+
+/**
+ * The markdown block a hit sits in — lines up to the blank line on either
+ * side.
+ *
+ * The date rule reads this rather than the single line, because prose wraps
+ * and a statement is a paragraph, not a row of 80 columns. The first version
+ * checked the line alone and demanded a date inside a link URL, which is how
+ * a guard starts shaping sentences into something worse than what it found.
+ * The cost is honest, and it is two things: a date anywhere in the paragraph
+ * covers every version named in it, and the date is not required to be *about*
+ * a version — "benchmarked on 2026-01 hardware" licenses the paragraph as
+ * surely as "0.4 as of 2026-11" does.
+ */
+const sourceBlock = (hit: Hit): string => {
+  const lines = readFileSync(join(repoRoot, hit.file), "utf8").split("\n");
+  let start = hit.line - 1;
+  let end = hit.line - 1;
+  while (start > 0 && lines[start - 1]!.trim() !== "") start--;
+  while (end < lines.length - 1 && lines[end + 1]!.trim() !== "") end++;
+  return lines.slice(start, end + 1).join("\n");
+};
 
 /** The whole line a hit sits on, for deciding whether it is a command. */
 const sourceLine = (hit: Hit): string =>
@@ -224,6 +349,72 @@ describe("spec versions written into the skills", () => {
       .filter((hit) => !/embed\/v[\d.]+/.test(readFileSync(join(repoRoot, hit.file), "utf8").split("\n")[hit.line - 1]))
       .map((hit) => `${at(hit)} names ${hit.text}; say "the current release" and cite --versions`);
     expect(named).toEqual([]);
+  });
+});
+
+describe("the rest of the repo's prose", () => {
+  const LATEST_MINOR = LATEST_VERSION.split(".").slice(0, 2).join(".");
+
+  /**
+   * Same rule as the skills', same reason, wider blast radius: whatever a
+   * reader copies has to be current. This one caught a live page — the
+   * validator's own placeholder — so it is deliberately absolute.
+   */
+  it("writes the current spec version in every example a reader can copy", () => {
+    const stale = scanFiles(exampleFiles(), /"specVersion":\s*"[\d.]+"/g)
+      .filter((hit) => !hit.text.includes(`"${LATEST_VERSION}"`))
+      .map((hit) => `${at(hit)} writes ${hit.text}, latest is ${LATEST_VERSION}`);
+    expect(stale).toEqual([]);
+  });
+
+  /**
+   * A bare spec minor in the files a contributor reads first is a claim about
+   * the present. Undated, it expires with nothing to notice: seven package
+   * READMEs introduced themselves as "(v0.4)" while the repo implemented two
+   * minors past it, and `CONTRIBUTING.md` described a release scheme the repo
+   * had replaced.
+   *
+   * A date in the paragraph is what makes it readable as history — `CLAUDE.md`'s
+   * third rung, and the only escape there is. Be clear about how much that
+   * buys: the rung is "date it **and** name what would change it", and this
+   * checks the first half. `As of 2026-11, v0.4 is the current release` passes
+   * and is a lie. What the date does is force the author to decide whether the
+   * sentence is about the past, and leave the reader a way to tell a fact from
+   * a fossil. There is no marker to silence the rule, on purpose: a sentence
+   * that cannot be dated and cannot be derived is a sentence to delete.
+   *
+   * Only the `v0.X` spelling is matched, and that boundary is load-bearing in
+   * the same way the npm rule's "lines that run something" is. A bare `0.5`
+   * is usually *data*: `packages/migrate` exists to move documents between
+   * spec minors and names them the way a function names its arguments, and
+   * `apps/validator` documents what each release decided. `v0.4` is the
+   * spelling that reads as "the spec version this is about", which is the
+   * claim that expires.
+   */
+  it("dates every spec minor it names, or does not name one", () => {
+    const undated = scanFiles(contributorProse(), /\bv0\.\d+\b/gi)
+      .filter((hit) => !/\b20\d\d-\d\d\b/.test(sourceBlock(hit)))
+      // The badge is a pin with its own rule below, derived rather than
+      // banned.
+      .filter((hit) => !/img\.shields\.io/.test(sourceLine(hit)))
+      .map(
+        (hit) =>
+          `${at(hit)} names ${hit.text} with no date on the line; ` +
+          `say "the current release" and cite \`ote-validate --versions\`, or date it`,
+      );
+    expect(undated).toEqual([]);
+  });
+
+  /**
+   * The badge on the front page is a pin like any other, and the one most
+   * people see. It is derived here rather than banned: a badge that names no
+   * version says nothing.
+   */
+  it("keeps the front page's spec badge on the current minor", () => {
+    const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+    const badge = readme.match(/OTE%20spec-v([\d.]+)/);
+    expect(badge, "README.md must carry an OTE spec badge").not.toBeNull();
+    expect(badge![1], `re-point the spec badge at v${LATEST_MINOR}`).toBe(LATEST_MINOR);
   });
 });
 

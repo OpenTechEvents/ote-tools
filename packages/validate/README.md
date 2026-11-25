@@ -49,7 +49,7 @@ of that vintage turns up.
 > (never a local `link:`). When the spec releases, bump that pin, run
 > `pnpm gen`, and review the generated diff — the guard tests fail until the
 > re-embed happens (see `scripts/embed-schemas.mjs`). The version list itself
-> is derived from the package's export map, so a release that adds `v0.5`
+> is derived from the package's export map, so a release that adds a version
 > cannot be half-adopted.
 
 ## API
@@ -179,8 +179,9 @@ measured at all.
 
 `3` is distinct from `1` deliberately. CI and agents have to tell "I cannot
 answer" from "your feed is broken", and returning `1` for both says the
-publisher is at fault when they are not — which is exactly how 18 documents
-that were valid against `spec/v0.5` were reported as `0/18 valid`. When both
+publisher is at fault when they are not — which is exactly how, in 2026-11,
+18 documents valid against the then-newest spec release were reported as
+`0/18 valid` by a build that did not have it yet. When both
 occur in one run, `1` wins: a real defect is the more urgent answer. And a run
 that judged some files and found no defect is a `0` even if others could not
 be judged — a fork whose events are fine must not fail its own PR check.
