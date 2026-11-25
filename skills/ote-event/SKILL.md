@@ -1,5 +1,7 @@
 ---
 name: ote-event
+metadata:
+  tested-with: "0.6"
 description: Publish a tech community event as an OTE (Open Tech Events) document and expose it on the community's website. Use when given an event page URL (Meetup, Eventbrite, Luma, eventos.wiki, a conference site), a Google Calendar or .ics export, or a plain description of an event, and the user wants an OTE event file, an events.json feed, a feed `<link rel="alternate">` tag, an OTE badge, or schema.org JSON-LD for their events. Triggers include "create the OTE spec for this conference", "add my events to my website", "make my events discoverable", "publicar mis eventos", "añade este meetup".
 ---
 
@@ -30,6 +32,38 @@ mapping, you do not re-derive it.
 ```sh
 npx -y -p @opentechevents/validate@0.6 ote-validate --versions
 ```
+
+### The handshake: these instructions have a version too
+
+**These instructions were written and tested against the `0.6` tool line** — the same
+line every `npx` command below pins. That sentence is here, in the body, on purpose:
+frontmatter is configuration, and an agent is handed the body. A number an agent cannot
+read cannot be compared, so the copy under `metadata.tested-with` is for tooling and
+this one is for you.
+
+Run that command **before** the first gate and compare its `latest:` line with the line
+named above. In this kit a package's minor names the OTE Spec version it implements, so
+the two are directly comparable.
+
+- **The same line** → nothing to say. Continue.
+- **The CLI is newer** — tested against `0.6`, `latest: 0.7.0` — say so once, in one
+  line, and keep going:
+
+  > These instructions were tested with the 0.6 tools; your CLI implements 0.7.0.
+  > Expect fields it supports that I will not ask you about — I will not invent them.
+
+  Then behave exactly as that sentence promises: ask only about what this file
+  covers, and do not guess at what the newer release added. A document missing a new
+  optional field is fine. A document with a field you improvised is the failure this
+  skill exists to prevent.
+- **The CLI is older** → the section above applies: write the version it supports, get
+  a real `0`, and say a newer spec release exists.
+
+This is the skill's own rule turned on itself. A skill is installed by **copying** it,
+so a copy taken today still claims `@0.6` a year from now with nothing on either side
+noticing — the pins in this file are checked where it is maintained, and that check
+cannot reach your copy. The handshake is what makes the copy say so out loud instead of
+improvising.
 
 ### When the CLI is behind the spec
 
