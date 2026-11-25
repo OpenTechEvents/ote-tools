@@ -28,3 +28,23 @@ allowBuilds:
 # compromised releases, so it must not become permanent or grow a second line.
 minimumReleaseAgeExclude:
   - '@opentechevents/schema@0.6.0'
+
+# Svelte is a transitive dependency of @event-calendar/core (`svelte: ^5.57.3`)
+# and the two are tightly coupled, in both directions. Measured on
+# 2026-11-25, with `apps/embed/test/calendar-render.test.ts` and confirmed in
+# a real browser with the built widget:
+#
+#   - calendar 5.18.1 (what we ship) + svelte 5.59.1 → the calendar mounts and
+#     throws `TypeError: Cannot read properties of undefined (reading 'call')`
+#     inside its own compiled template. A visitor gets that sentence where the
+#     month should be.
+#   - calendar 5.21.2 + svelte 5.57.3 → `Missing "./internal/init-operations"
+#     specifier in "svelte"`: the newer calendar needs newer Svelte internals.
+#   - calendar 5.18.1 + svelte 5.57.3 → renders. This is the pin.
+#
+# So svelte is pinned exactly, because it is not ours to float: nothing in
+# this repo imports it, and a lockfile refresh that bumps it silently breaks a
+# public widget layout. Moving either version means moving both, and the
+# rendered-calendar test is what says whether the pair works.
+overrides:
+  svelte: 5.57.3
