@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { badgeTtlSeconds, renderBadge, resolveBadge, type BadgeState } from "../src/badge.js";
+import {
+  badgeTtlSeconds,
+  renderBadge,
+  resolveBadge,
+  BADGE_STATES,
+} from "../src/badge.js";
 import { handleRequest, type BadgeCache } from "../src/index.js";
 
 /**
@@ -121,6 +126,42 @@ describe("resolveBadge", () => {
     expect(verdict.state).toBe("invalid");
   });
 
+  it("says VALID for a healthy feed on an out-of-window release", async () => {
+    // The regression this guards is not hypothetical: a registered adopter
+    // publishes 0.3.0, and this badge — which sits in their own README — went
+    // red, with a detail claiming "1 schema error(s)" over a feed whose only
+    // finding was the support policy (#124). A badge emits one word, so there
+    // is no second channel to put support in: the window must not move the bit.
+    const feed = JSON.stringify({
+      specVersion: "0.3.0",
+      title: "Comunidad",
+      url: "https://comunidad.example",
+      license: "CC-BY-4.0",
+      // 0.3 required this of a feed; 0.6 does not. Which is the point of
+      // judging a document by the version it declares.
+      updatedAt: "2026-09-27T18:00:00Z",
+      events: [],
+    });
+    const verdict = await resolveBadge("https://comunidad.example/feed.json", {
+      fetchImpl: network({ "https://comunidad.example/feed.json": json(feed) }),
+      resolve,
+    });
+    expect(verdict.state).toBe("valid");
+  });
+
+  it("says not checked — never invalid — for a version nobody published", async () => {
+    const feed = JSON.stringify({ specVersion: "9.9.9", title: "C", events: [] });
+    const verdict = await resolveBadge("https://comunidad.example/feed.json", {
+      fetchImpl: network({ "https://comunidad.example/feed.json": json(feed) }),
+      resolve,
+    });
+    // Nothing was measured, so there is no finding to report. "invalid" here
+    // would be an accusation with no evidence behind it — the same reasoning
+    // that keeps "no feed found" and "slow" out of that word.
+    expect(verdict.state).toBe("not-checked");
+    expect(verdict.detail).toContain("9.9.9");
+  });
+
   it("says invalid, not unreachable, for a body that is not JSON at all", async () => {
     const verdict = await resolveBadge("https://comunidad.example/feed.json", {
       fetchImpl: network({ "https://comunidad.example/feed.json": json("not json") }),
@@ -224,14 +265,9 @@ describe("resolveBadge", () => {
 });
 
 describe("renderBadge", () => {
-  const states: BadgeState[] = [
-    "valid",
-    "invalid",
-    "not-discovered",
-    "ambiguous",
-    "unreachable",
-    "slow",
-  ];
+  // Derived, not listed: a hand-kept copy of this meant a new state was
+  // untested the day it was added.
+  const states = BADGE_STATES;
 
   it("draws only its own constants, never anything fetched", () => {
     // The remote document's words are in `detail`, which the SVG must not

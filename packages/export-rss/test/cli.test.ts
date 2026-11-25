@@ -41,9 +41,47 @@ describe("ote-export-rss CLI", () => {
     const io = makeIO();
     const dir = mkdtempSync(join(tmpdir(), "ote-export-rss-bad-"));
     const file = join(dir, "not-a-feed.json");
-    writeFileSync(file, JSON.stringify({ events: [] }), "utf8");
+    // A published specVersion, so the document really was measured — and it
+    // really is broken. That is what "not a valid OTE feed" is for.
+    writeFileSync(file, JSON.stringify({ specVersion: "0.6.0", events: [] }), "utf8");
     expect(await runCli([file], io)).toBe(1);
     expect(io.errLines[0]).toContain("not a valid OTE feed");
+  });
+
+  it("a version nobody published → exit 1, but not called invalid", async () => {
+    const io = makeIO();
+    const dir = mkdtempSync(join(tmpdir(), "ote-export-rss-unknown-"));
+    const file = join(dir, "feed.json");
+    writeFileSync(file, JSON.stringify({ specVersion: "9.9.9", events: [] }), "utf8");
+    // Still refused: mapping a document whose rules this release does not
+    // have would mean inventing the mapping. But it is not a defect in the
+    // feed, and the wording must not say it is (#124).
+    expect(await runCli([file], io)).toBe(1);
+    expect(io.errLines[0]).toContain("not checked");
+    // Marked with ? rather than ✗ — the file is not a failure, the question is.
+    expect(io.errLines[0]!.startsWith("?")).toBe(true);
+    expect(io.errLines[0]).not.toContain("not a valid OTE feed");
+  });
+
+  it("an out-of-window feed exports, with the migration note", async () => {
+    const io = makeIO();
+    const feed = JSON.parse(
+      readFileSync(
+        fileURLToPath(
+          new URL("../../validate/fixtures/versioned/feed-corunajug-0.3.0.json", import.meta.url),
+        ),
+        "utf8",
+      ),
+    );
+    const dir = mkdtempSync(join(tmpdir(), "ote-export-rss-old-"));
+    const file = join(dir, "feed.json");
+    writeFileSync(file, JSON.stringify(feed), "utf8");
+    // The regression this guards: the exporter used to refuse a healthy feed
+    // on an older release and tell the publisher it was "not a valid OTE
+    // feed" — measured live on a registered adopter's 0.3.0 feed (#124).
+    expect(await runCli([file], io)).toBe(0);
+    expect(io.errLines.join(" ")).toContain("support window");
+    expect(io.errLines.join(" ")).not.toContain("not a valid OTE feed");
   });
 
   it("malformed JSON → exit 1 with parse message", async () => {

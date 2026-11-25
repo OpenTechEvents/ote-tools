@@ -51,6 +51,40 @@ For an event imported from an `.ics` with no URL of its own, the examples use
 identity to the originating calendar. Prefer minting under the organizer's own domain
 when they have one.
 
+## Appending to a feed that already exists
+
+The rules above mint the *first* event. When Step 0 found a healthy feed on the
+organizer's own domain and the event they are asking about is **not** in it, the job
+is an append, and the shape is decided by what is already there — not by the defaults
+on this page.
+
+**Read the existing entries before writing, and copy their conventions:**
+
+- **The `id` pattern.** Take it from the entries, not from the convention above: a
+  feed may mint `…/events/<slug>-<YYYY-MM-DD>` while the kit's default is
+  `…/events/<slug>`, and both are fine. What is not fine is a feed where the eleventh
+  event is spelled differently from the first ten — consumers diff ids, and a new
+  shape reads as somebody else's event. Derive the pattern, including which host the
+  ids use: a feed served from `corunajug.org` whose ids all say
+  `https://www.corunajug.org/events/…` keeps the `www.`.
+- **The file layout.** Where the existing events live is where the new one goes:
+  `events/*.json` in a kit fork, or a new entry in the feed document when the feed is
+  hand-maintained as one file. Do not introduce a second layout, and never a second
+  feed file.
+- **What is inherited.** In a kit fork the member inherits `specVersion`, and usually
+  `license`, `organizers` and `textLanguage` from `ote.config.json`. In a
+  single-file feed the members inherit from the feed object the same way — so do not
+  repeat `license` on the event, and do not touch the feed's `specVersion`: migrating
+  the feed is a separate decision the organizer has to make, and an older supported
+  version is not a reason to make it now.
+- **`updatedAt`.** The feed's `updatedAt` describes the data, so move it to now when
+  you add an event. An event's own `updatedAt`, if the siblings carry one, follows the
+  same rule.
+
+Two things that are still the same: the new `id` must be unique in the feed (the
+validator enforces it), and `source` is required if you imported the event from a page
+or a calendar rather than being told about it directly.
+
 ## The slug: minted once, never regenerated
 
 The file name is `events/<slug>.json`, with the slug built once from date + name

@@ -42,6 +42,14 @@ export type BadgeState =
   | "not-discovered"
   /** The page declares several feeds; the badge refuses to pick, as the page does. */
   | "ambiguous"
+  /**
+   * The document declares a spec version that was never published, so there
+   * are no rules to measure it against and nothing was measured. Kept apart
+   * from `invalid` for the same reason as everything else here: this image
+   * sits in a publisher's README, and "invalid" over a document this service
+   * could not judge is an accusation it has no evidence for (#124).
+   */
+  | "not-checked"
   /** The document could not be fetched at all — DNS, refusal, 500. */
   | "unreachable"
   /**
@@ -75,11 +83,24 @@ const STATES: Record<BadgeState, StateStyle> = {
   invalid: { text: "invalid", color: "#c4302f", ttlSeconds: 3600 },
   "not-discovered": { text: "no feed found", color: "#6f7787", ttlSeconds: 3600 },
   ambiguous: { text: "several feeds", color: "#b06d00", ttlSeconds: 3600 },
+  // Neutral grey, like "no feed found": there is no finding about the
+  // document, so the colour must not suggest one.
+  "not-checked": { text: "not checked", color: "#6f7787", ttlSeconds: 3600 },
   // A transient outage must not stick to a README for an hour.
   unreachable: { text: "unreachable", color: "#b06d00", ttlSeconds: 300 },
   // Same short life, for the same reason: the origin may be quick tomorrow.
   slow: { text: "slow", color: "#b06d00", ttlSeconds: 300 },
 };
+
+/**
+ * Every state, derived from the style table rather than listed again.
+ *
+ * Exported for the tests, which have to draw each one and check the image is
+ * wide enough for its own word. That list used to be hand-kept beside them,
+ * so a new state was simply absent from it — silently untested, which is how
+ * `not-checked` arrived with no rendering coverage.
+ */
+export const BADGE_STATES = Object.keys(STATES) as BadgeState[];
 
 /** Cache lifetime for a verdict, in seconds. */
 export function badgeTtlSeconds(state: BadgeState): number {
@@ -118,6 +139,19 @@ async function judge(text: string): Promise<BadgeVerdict> {
 
   const report = await validateDocument(json, { kind });
   const against = report.checkedVersion ? ` against spec ${report.checkedVersion}` : "";
+
+  // A badge emits one word, so there is no second channel to put support in:
+  // whatever the window says, it must not move this bit. A document that is
+  // valid against the version it declares is valid here, outdated or not.
+  // Only "nothing was measured" gets its own word, and `valid === null` is
+  // what says so — a falsy check would have printed "invalid" instead.
+  if (report.valid === null) {
+    return {
+      state: "not-checked",
+      detail: `the ${kind} declares spec version ${report.declaredVersion ?? "(none)"}, which was never published`,
+    };
+  }
+
   return report.valid
     ? { state: "valid", detail: `a valid OTE ${kind}${against}` }
     : {

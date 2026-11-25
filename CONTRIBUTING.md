@@ -149,12 +149,44 @@ the same filenames at the repository root on the default branch via
   whatever workspace versions aren't on the registry yet. Releasing = bump
   `version` in the package(s), merge, run the workflow.
 
+  **Before running it, sweep the published sibling pins:**
+
+  ```sh
+  node .github/scripts/published-pins.mjs
+  ```
+
+  Exit `0` means every published package names the sibling version this
+  workspace ships. `1` means patch-level lag only — decide package by package
+  and **write the reason in the release notes**, which is the whole point:
+  `build-feed` carrying `validate@0.6.0` after `0.6.1` shipped was checked and
+  fine, but it was fine because somebody read the code, not because anything
+  looked. `2` means a published package calls into a line this workspace has
+  moved past, and that is a release to make rather than a note to write.
+
+  The pins are invisible in this repo: `workspace:*` becomes an **exact**
+  version when pnpm packs the tarball, and the tarball is what a user
+  installs. That is how `import-jsonld@0.6.0` shipped pinning
+  `import-ics@0.4.1` and nobody noticed for a release and a half (#133).
+
 ### Versioning and changelogs
 
-The **published** packages track the OTE spec minor they implement: packages
-that speak OTE spec v0.4 are versioned `0.4.x`. That keeps the compatibility
-story obvious: `@opentechevents/validate` 0.4.x validates against spec v0.4,
-and `@opentechevents/import-jsonld` 0.4.x imports into that same event shape.
+A published package's **minor names the OTE spec version it implements**, so
+compatibility reads off the version with no lookup table: install a package on
+the minor that matches the spec release you publish. `migrate` is the one
+exception and is versioned on its own (`0.1.x`): it converts documents
+*between* spec versions rather than implementing one, so a spec minor in its
+own version would name nothing. The root `README.md` says the same.
+ The command, rather than
+a number here, is the authority:
+
+```sh
+npx -y -p @opentechevents/validate ote-validate --versions   # what a release can judge
+grep '"@opentechevents/schema"' packages/validate/package.json   # the pinned spec
+```
+
+The minors are not consecutive, and that is the scheme working: a spec version
+that gets no implementation here gets no release, so the published lines skip
+the ones nobody built.
 
 The ladder covers exactly the packages that go to npm — the ones without
 `"private": true`. Workspace-internal packages (`discover-feed`, `feed-urls`,
@@ -163,14 +195,32 @@ The ladder covers exactly the packages that go to npm — the ones without
 by version, so putting them on the ladder would only add release work. If one
 of them is ever published, it joins the ladder at that release.
 
-Within a spec minor, each package uses SemVer patch releases independently:
-bug fixes and backwards-compatible improvements bump only the package that
-changed (`0.4.0` → `0.4.1`). A new OTE spec minor moves every published
-package to the matching minor, even if one package did not need code changes,
-so consumers can read compatibility without a lookup table — those packages
-still get a changelog entry saying so. Breaking package API changes wait for
-the next compatible major/minor plan and must be called out explicitly in the
-package changelog.
+**A fix is a patch, and that is load-bearing.** Within a spec minor, bug fixes
+and backwards-compatible improvements bump only the package that changed
+(`0.6.0` → `0.6.1`). Spending a minor on a fix would announce a spec version
+that does not exist — and, because `skills/` pins minors (`@0.6`, which npm
+resolves to the newest patch), it would strand every already-copied skill on
+the broken line forever. A patch reaches them with no edit at all.
+
+**A minor is for implementing a new spec version.** It moves every published
+package that speaks the spec to the matching minor, even where no code
+changed, and it is the one moment the version literals in `skills/` may name a
+line npm does not have yet — in the same `release(<pkg>): <version>` commit,
+with `pnpm publish` run right after. Those packages still get a changelog
+entry saying what moved.
+
+A feature PR changes behaviour and leaves the version alone, writing its entry
+under `## Unreleased`. Breaking package API changes wait for the next
+compatible major/minor plan and must be called out explicitly in the package
+changelog.
+
+The version literals in `skills/` are checked, not trusted:
+`pnpm --filter @opentechevents/skill-evals test` fails with the file, the line
+and the value to write. The same test reaches this guide and the READMEs, for
+**two** patterns of the "no prose that expires" rule in `CLAUDE.md`: a
+`specVersion` in an example must be the current release, and a bare `v0.x`
+must carry a date. The rest of that rule — counts, status prose — is still on
+the author.
 
 Every published package has its own `CHANGELOG.md`. Add an `Unreleased` entry
 for user-visible fixes, improvements, warnings, mappings, CLI behavior or

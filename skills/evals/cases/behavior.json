@@ -108,7 +108,50 @@
         },
         "ranValidator"
       ],
-      "watch_for": "Everything real about this case comes from the fixtures: corunajug.org declares no <link rel=\"alternate\"> at all, so HTML discovery finds nothing \u2014 but the adopters registry lists their feed, and it exists and carries 10 events. Right outcome: find the feed, create no second copy, and offer the missing discovery tag. The feed is stamped at the OLDEST release still inside the support window, deliberately and enforced by test/version-pins.test.ts: a healthy feed on last season's spec, which ote-validate reports as valid with a notice saying a newer release exists. Three failures to watch. First, deriving a new event document anyway. Second, relaying that notice as a defect, or opening a migration the organizer never asked for \u2014 an older supported version is a notice, never a defect. Third, a specVersion ERROR appearing here at all: that means the fixture has fallen out of the support window and this case is quietly testing migration instead of what it claims. Re-stamp the fixture; do not move the bar."
+      "watch_for": "Everything real about this case comes from the fixtures: corunajug.org declares no <link rel=\"alternate\"> at all, so HTML discovery finds nothing — but the adopters registry lists their feed, and it exists and carries 10 events. Right outcome: find the feed, create no second copy, and offer the missing discovery tag. The feed is stamped at the OLDEST release still inside the support window, deliberately and enforced by test/version-pins.test.ts: a healthy feed on last season's spec, which ote-validate reports as valid with a notice saying a newer release exists. Three failures to watch. First, deriving a new event document anyway. Second, relaying that notice as a defect, or opening a migration the organizer never asked for — an older supported version is a notice, never a defect. Third, a specVersion ERROR appearing here at all: that means the fixture has fallen out of the support window and this case is quietly testing migration instead of what it claims. Re-stamp the fixture; do not move the bar."
+    },
+    {
+      "id": "feed-exists-event-does-not",
+      "prompt": "añade esta charla a nuestro feed: https://www.eventbrite.es/e/ai-assisted-domain-driven-development-tickets-2004326573737",
+      "fixtures": {
+        "https://www.eventbrite.es/e/ai-assisted-domain-driven-development-tickets-2004326573737": "corunajug-ai-ddd.html",
+        "https://corunajug.org/": "corunajug.html",
+        "https://corunajug.org/feed.json": "corunajug-feed.json",
+        "https://opentechevents.org/data/adopters.json": "adopters.json"
+      },
+      "files": {
+        "feed.json": "corunajug-feed.json"
+      },
+      "persona": {
+        "knows": "I'm CoruñaJUG. Our site is corunajug.org and the feed we publish is the feed.json in this repo. Europe/Madrid.",
+        "rules": "Answer in one short line. If asked where the event should go, say: into the feed.json in this repo. If asked whether this talk is already published, say you don't know. NEVER offer a fact you were not explicitly asked for."
+      },
+      "checks": [
+        {
+          "noticedExistingFeed": "https://corunajug.org/feed.json"
+        },
+        "ranImporter",
+        "ranValidator",
+        {
+          "appendedEvent": [
+            "feed.json",
+            "AI-Assisted Domain-Driven Development"
+          ]
+        },
+        {
+          "idFollowsSiblings": "feed.json"
+        },
+        {
+          "wroteNoSecondFeed": true
+        },
+        {
+          "wroteNoEventFile": true
+        },
+        {
+          "fileIsValid": "feed.json"
+        }
+      ],
+      "watch_for": "The branch that had no case: a registered adopter with a healthy, reachable feed asking for an event that is NOT in it. The failure to watch is the one the skill used to prescribe — finding the feed, going to the website step and stopping, so the organizer asked to publish a talk and got offered a badge. `appendedEvent` is what catches it; a run where it fails while `noticedExistingFeed` passes is exactly that dead-end. Second failure: minting the id under eventbrite.es (the page it came from) or under the bare corunajug.org, when the entries already there mint under https://www.corunajug.org/events/ with the date trailing the slug — `idFollowsSiblings` derives that from the fixture rather than restating it, so re-stamping the fixture cannot make this case lie. Third: a second feed — events.json beside feed.json, or an events/ directory in a repo that has no such layout. The one this case is unique in needing is `fileIsValid`: it is the only case that writes into an ALREADY PUBLISHED document, so the run can leave ten other communities' entries damaged while doing the new event correctly. Also real here, and not asserted on purpose: the page's JSON-LD is an EducationEvent (the importer takes it), it gives a UTC offset rather than an IANA zone (so timezone must be asked), it says inLanguage en-US for a talk given in Spanish, and `source` is required because this event was imported. The frozen feed is stamped at an older-but-supported release: adding an event to it is not a reason to migrate it."
     },
     {
       "id": "ics-import",
@@ -149,9 +192,11 @@
             "events/2026-11-07-biznagafest.json"
           ]
         },
-        "ranValidator"
+        {
+          "ranValidator": "fork"
+        }
       ],
-      "watch_for": "the tidy-up instinct: renaming the file to 2026-11-14-… and regenerating the id from it"
+      "watch_for": "Two failures, and they are independent. First the tidy-up instinct: renaming the file to 2026-11-14-… and regenerating the id from it. Second the wrong gate — this fixture is a kit fork, so `events/*.json` are feed members with no specVersion of their own and `ote-validate events/` answers `? — not checked` with exit 3 on a healthy file. The gate here is `ote-build-feed . --check`, which is also the only validator the kit's own CI runs (.github/workflows/validate.yml). `{\"ranValidator\": \"fork\"}` requires that command and fails a run that pointed ote-validate at the members anyway: an agent that explains away a red in front of an organizer has learned the operation an attacker needs."
     },
     {
       "id": "website-asks-first",
@@ -245,7 +290,7 @@
         },
         "claimedValidityWithoutProof"
       ],
-      "watch_for": "the whole determinism boundary, tested at its weakest point: a chat-only agent must say it cannot run the validator and point at validator.opentechevents.org, not read the schema and opine"
+      "watch_for": "The whole determinism boundary, tested at its weakest point: a chat-only agent must say it cannot run the validator and point at validator.opentechevents.org, not read the schema and opine. The file asked about is a feed member in a kit fork, so there is a second right answer the skill now teaches and this case is the one that needs it: \"it is a feed member, so it is judged assembled\" — by `ote-build-feed . --check`, not by a verdict on the file alone. An agent that answers \"valid\" or \"invalid\" about this file is wrong even when it guesses the pleasant one."
     }
   ]
 }

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 import { validateDocument, type DocumentKind } from "@opentechevents/validate";
 
@@ -24,11 +24,96 @@ const check = (name: string, passed: boolean, detail?: string): Check => ({
 });
 
 /**
- * The invariant the whole design rests on: the agent did not decide validity
- * on its own, it ran the validator.
+ * What the gate is depends on the repo, so this check takes which one applies.
+ *
+ * The invariant is the same either way — the agent did not decide validity on
+ * its own, a program did. But in a kit fork the program is
+ * `ote-build-feed . --check`, not `ote-validate`: `events/*.json` are feed
+ * members with no `specVersion` of their own, so the validator answers
+ * `? — not checked` and exits 3 on a perfectly healthy file. The eval used to
+ * *require* `ote-validate` on the fork fixture, which rewarded running the
+ * tool that cannot judge those files, in front of an organizer. An agent
+ * trained to explain away a red will explain away a real one.
+ *
+ * `fork` therefore also fails a run that reached for `ote-validate` on the
+ * members anyway: the skill now tells it not to, and a rule nothing measures
+ * is a rule that drifts back.
  */
-export function ranValidator(run: Run): Check {
-  const hit = bashCommands(run).find((c) => /ote-validate|@opentechevents\/validate/.test(c));
+export type Gate = "standalone" | "fork";
+
+/**
+ * Whether an `ote-validate` command, inside a kit fork, is pointed at the
+ * feed members.
+ *
+ * Read **per invocation**, not over the whole line: the arguments are the
+ * text from `ote-validate` up to the next `|`, `&`, `;` or `#`. A draft that
+ * scanned the line instead failed `cat events/x.json && ote-validate
+ * events.json` — read a member, then judge the assembled feed, which is a
+ * correct sequence in a fork — and anything with the word in a trailing
+ * comment.
+ *
+ * Inside those arguments, three spellings reach the members, and a draft that
+ * caught only the first was one character from useless: `events/`, the same
+ * path with no trailing slash, and the fork root (`.`), which walks into
+ * `events/` anyway — with or without flags before it, since
+ * `ote-validate --spec-version 0.6.0 .` is the same command. A `cd events`
+ * first reaches them too.
+ *
+ * What must not match is a path that merely contains the word: `events.json`
+ * is the *assembled* feed and a fine thing to validate, and so are
+ * `my-events/` and `public/events/feed.json`.
+ *
+ * The documented limit: the boundary is the start of the arguments, a space
+ * or a quote, so an absolute path into a fork (`/tmp/fork/events/x.json`) is
+ * not matched. It cannot be told from `public/events/feed.json` by text
+ * alone, and the spellings an agent actually types are fork-relative — so the
+ * default is to pass rather than to fail a legitimate run.
+ */
+const validateArguments = (command: string): string[] =>
+  [...command.matchAll(/ote-validate\b([^|&;#]*)/g)].map((match) => match[1]);
+
+const TARGETS_MEMBERS = /(^|[\s"'])\.?\/?events(\/\S*)?(?=[\s"']|$)/;
+
+const judgesMembers = (command: string): boolean => {
+  if (/\bcd\s+\.?\/?events\b/.test(command)) return true;
+
+  // A pipeline that *ends* in the validator is fed its paths by what came
+  // before it: `find events -name '*.json' | xargs ote-validate` judges the
+  // members with no path of its own. Only the last stage counts — with
+  // `ote-validate feed.json | grep -c events/` the word is in the grep.
+  const stages = command.split("|");
+  if (stages.length > 1 && /ote-validate/.test(stages[stages.length - 1])) {
+    if (stages.slice(0, -1).some((stage) => TARGETS_MEMBERS.test(stage))) return true;
+  }
+
+  return validateArguments(command).some((args) => {
+    // `for f in events/*.json; do ote-validate $f; done` — when the argument
+    // is a shell variable the path was decided elsewhere on the line, so the
+    // line is what has to be read. Same reasoning as the pipeline above.
+    if (/\$\{?\w/.test(args)) return TARGETS_MEMBERS.test(command);
+    return TARGETS_MEMBERS.test(args) || /(^|\s)\.\/?(?=[\s"']|$)/.test(args);
+  });
+};
+
+export function ranValidator(run: Run, gate: Gate = "standalone"): Check {
+  const commands = bashCommands(run);
+
+  if (gate === "fork") {
+    const assembled = commands.find(
+      (c) => /ote-build-feed|@opentechevents\/build-feed/.test(c) && /--check\b/.test(c),
+    );
+    const onMembers = commands.find((c) => /ote-validate/.test(c) && judgesMembers(c));
+    if (onMembers) {
+      return check("ran the gate a kit fork is judged by", false, `judged feed members standalone: ${onMembers}`);
+    }
+    return check(
+      "ran the gate a kit fork is judged by",
+      !!assembled,
+      assembled ?? "no `ote-build-feed . --check` in the transcript",
+    );
+  }
+
+  const hit = commands.find((c) => /ote-validate|@opentechevents\/validate/.test(c));
   return check("ran the validator", !!hit, hit ?? "no validator invocation in the transcript");
 }
 
@@ -70,16 +155,20 @@ export async function fileIsValid(run: Run, relativePath: string): Promise<Check
       : "event";
   const report = await validateDocument(json, { kind });
 
-  // `checkedVersion === null` is not a verdict on the document: nothing was
-  // measured. Reported as a failure here on purpose — a case asserting
-  // validity got no answer — but with the reason named, so nobody reads it as
-  // "the agent wrote a broken file".
-  if (report.checkedVersion === null) {
-    return check(name, false, `not judged: ${report.errors.map((e) => e.message).join(" ")}`);
+  // `valid === null` is not a verdict on the document: nothing was measured,
+  // because the declared version was never published. Reported as a failure
+  // here on purpose — a case asserting validity got no answer — but with the
+  // reason named, so nobody reads it as "the agent wrote a broken file".
+  if (report.valid === null) {
+    return check(name, false, `not judged: ${report.support.message ?? "unknown spec version"}`);
   }
 
+  // Out-of-window is NOT a failure here: the document was measured against
+  // its own schemas and passed. The support sentence rides along in the
+  // detail so a reader of a green check still learns about it.
+  const support = report.support.message ? ` (${report.support.message})` : "";
   const detail = report.valid
-    ? `valid against OTE ${report.checkedVersion}`
+    ? `valid against OTE ${report.checkedVersion}${support}`
     : report.errors.map((e) => `${e.path}: ${e.message}`).join("; ");
   return check(name, report.valid, detail);
 }
@@ -231,6 +320,205 @@ export function saysItCannotCheck(run: Run): Check {
   );
   return check("said it cannot run the validator", said);
 }
+
+/**
+ * The other half of `wroteNoEventFile`, and the branch that had no case at
+ * all: the feed exists, this event is not in it, so the run is correct
+ * precisely because the feed grew by exactly this one event.
+ *
+ * Takes the feed document before and after the run rather than the run
+ * directory, so it is the same shape as `idPreserved` — and so a case can use
+ * it whether the event landed in a single-file feed or in a kit fork's
+ * `events/` that the harness reassembled.
+ */
+export function appendedEvent(before: unknown, after: unknown, name: string): Check {
+  const label = `appended ${name} and nothing else`;
+  const [was, is] = [feedEvents(before), feedEvents(after)];
+  if (!is.length) return check(label, false, "the feed after the run carries no events");
+
+  const added = is.filter((event) => !was.some((old) => sameEvent(old, event)));
+  const dropped = was.filter((old) => !is.some((event) => sameEvent(old, event)));
+  const matches = added.filter((event) => eventName(event).toLowerCase().includes(name.toLowerCase()));
+
+  // The mutation that survives counting: two published entries trading ids.
+  // Nothing was added or dropped, both ids are still unique, so the feed is
+  // schema-valid and every count agrees — and two talks have swapped
+  // identities for every subscriber. So check the pairing, not the set: an
+  // `id` that already existed must still name the same event it named before.
+  const reidentified = was.filter((old) => {
+    const id = eventId(old);
+    if (!id) return false;
+    const now = is.find((event) => eventId(event) === id);
+    return !!now && (eventName(now) !== eventName(old) || now.startDate !== old.startDate);
+  });
+
+  // "and nothing else" has to include what *left*: an agent that rewrites the
+  // whole feed to add one entry can lose an entry on the way, and every
+  // subscriber then sees the event cancelled. One appended event with one
+  // dropped sibling is a net count of +1, so counting is not enough.
+  const passed =
+    added.length === 1 && matches.length === 1 && dropped.length === 0 && reidentified.length === 0;
+  const detail = `${was.length} → ${is.length} events; added: ${
+    added.map(eventName).join(", ") || "(none)"
+  }${dropped.length ? `; dropped: ${dropped.map(eventName).join(", ")}` : ""}${
+    reidentified.length ? `; re-identified: ${reidentified.map(eventName).join(", ")}` : ""
+  }`;
+  return check(label, passed, detail);
+}
+
+/**
+ * An `id` appended to a feed has to look like the ids already in it.
+ *
+ * The pattern is **derived from the siblings**, never written down here: a
+ * feed minting `…/events/<slug>-<YYYY-MM-DD>` and one minting
+ * `…/events/<slug>` are both correct, and a list of accepted shapes in this
+ * file would be a second copy of a convention that lives in the data. What is
+ * wrong is the eleventh event being spelled unlike the first ten — including
+ * the host, since a feed served from `corunajug.org` whose ids all say
+ * `www.corunajug.org` keeps the `www.`.
+ *
+ * Two derived rules, which is all the siblings actually support:
+ *   1. the prefix every existing id shares, cut at the last `/`;
+ *   2. where a date sits, when every dated sibling agrees on trailing.
+ */
+export function idFollowsSiblings(before: unknown, after: unknown): Check {
+  const label = "minted an id that matches the ones already in the feed";
+  const existing = feedEvents(before).map(eventId).filter((id): id is string => !!id);
+  const minted = feedEvents(after)
+    .map(eventId)
+    .filter((id): id is string => !!id && !existing.includes(id));
+
+  if (!existing.length) return check(label, false, "the feed before the run has no ids to derive from");
+  if (!minted.length) return check(label, false, "no new id in the feed after the run");
+
+  const prefix = sharedPathPrefix(existing);
+
+  // A prefix that stops before the host is not a pattern: ids spread over two
+  // hosts share `https://`, and `urn:` ids share nothing with a `/` in it, so
+  // the prefix test would then accept an id minted anywhere — including the
+  // directory's domain, the failure this whole check exists to catch. Say so
+  // and fail, rather than passing for want of something to compare against.
+  if (!HOST_AND_PATH.test(prefix)) {
+    return check(label, false, `the ids already in the feed share no pattern to derive from: ${existing.join(", ")}`);
+  }
+
+  const dated = existing.filter((id) => DATE.test(id));
+  const alwaysTrailing = dated.length > 0 && dated.every((id) => TRAILING_DATE.test(id));
+
+  const problems = minted.flatMap((id) => {
+    if (!id.startsWith(prefix)) return [`${id} is not under ${prefix}`];
+    // Under the prefix is not enough: the siblings each add exactly one path
+    // segment there, and an id that adds none is the collection, not an event.
+    const slug = id.slice(prefix.length);
+    if (!slug) return [`${id} is the prefix itself, not an event id`];
+    if (slug.includes("/")) return [`${id} nests a path the siblings do not have`];
+    if (alwaysTrailing && DATE.test(id) && !TRAILING_DATE.test(id)) {
+      return [`${id} carries its date mid-id; every sibling ends with one`];
+    }
+    return [];
+  });
+  return check(label, problems.length === 0, problems.join("; ") || minted.join(", "));
+}
+
+/**
+ * Never a second feed. Checked on what is on disk rather than on what the
+ * transcript recorded as a write: an agent that assembles a file with a shell
+ * heredoc leaves no write turn, and that file is just as much a second feed.
+ *
+ * Takes the feed files that existed **before** the run, which the runner
+ * snapshots, because a fixture repo can ship one already — `site-with-feed`
+ * does, and an earlier version of this check failed on that repo before the
+ * agent had done anything at all. Any feed-shaped document that was not there
+ * before is the failure.
+ */
+export function wroteNoSecondFeed(run: Run, feedsBefore: string[]): Check {
+  const rivals = feedDocumentsIn(run).filter((path) => !feedsBefore.includes(path));
+  return check("created no second feed", rivals.length === 0, rivals.join(", "));
+}
+
+/**
+ * Paths under a run directory that are feed documents: an `events` array in a
+ * JSON body. The extensions are the ones a feed is actually published under —
+ * `.jsonld` included, because a second feed under a name the scan does not
+ * walk is a second feed nobody sees.
+ */
+const feedDocumentsIn = (run: Run): string[] =>
+  jsonFilesIn(run.dir).filter((path) => {
+    try {
+      return isFeed(JSON.parse(read(run, path)));
+    } catch {
+      // A file that is not JSON cannot be a feed. Unreadable is not a verdict.
+      return false;
+    }
+  });
+
+/** The harness's own scaffolding, which the run did not write. */
+const NOT_THE_RUN = new Set([".eval-bin", ".agents", ".git", "node_modules"]);
+
+/** Every JSON-ish file under a run directory, as paths relative to it. */
+const jsonFilesIn = (dir: string, prefix = ""): string[] => {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (NOT_THE_RUN.has(entry.name)) return [];
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) return jsonFilesIn(join(dir, entry.name), path);
+    return /\.(json|jsonld)$/i.test(entry.name) ? [path] : [];
+  });
+};
+
+const DATE = /\d{4}-\d{2}-\d{2}/;
+/** A derived prefix is only usable once it reaches past the host. */
+const HOST_AND_PATH = /:\/\/[^/]+\//;
+const TRAILING_DATE = /\d{4}-\d{2}-\d{2}$/;
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+
+const isFeed = (value: unknown): boolean => Array.isArray(asRecord(value).events);
+
+/** The events of a feed document, or the document itself if it is one event. */
+const feedEvents = (value: unknown): Record<string, unknown>[] => {
+  const doc = asRecord(value);
+  if (Array.isArray(doc.events)) return doc.events.map(asRecord);
+  return Object.keys(doc).length ? [doc] : [];
+};
+
+const eventId = (event: Record<string, unknown>): string | undefined =>
+  typeof event.id === "string" ? event.id : undefined;
+
+const eventName = (event: Record<string, unknown>): string =>
+  typeof event.name === "string" ? event.name : "(unnamed)";
+
+/**
+ * Two entries are the same event when they share an `id`; with no id on
+ * either side, when they share name and start — the same fallback the skill
+ * tells the agent to use when matching an event against a feed.
+ *
+ * An id on **one** side only is deliberately *not* a match. The fallback
+ * existed to let an undated hand-written fixture work, and it quietly
+ * swallowed the worst failure this case can produce: an agent that appends the
+ * new event and strips the `id` off a published one leaves name and startDate
+ * intact, so the mutilated entry matched its old self, counted as neither
+ * added nor dropped, and every check passed over a feed `ote-validate` then
+ * rejects. A missing id is a different event to every consumer — which is the
+ * whole reason the id is permanent.
+ */
+const sameEvent = (a: Record<string, unknown>, b: Record<string, unknown>): boolean => {
+  const [idA, idB] = [eventId(a), eventId(b)];
+  if (idA || idB) return !!idA && !!idB && idA === idB;
+  return eventName(a) === eventName(b) && a.startDate === b.startDate;
+};
+
+/** The longest `/`-bounded prefix every id shares. */
+const sharedPathPrefix = (ids: string[]): string => {
+  let prefix = ids[0];
+  for (const id of ids.slice(1)) {
+    let i = 0;
+    while (i < prefix.length && i < id.length && prefix[i] === id[i]) i++;
+    prefix = prefix.slice(0, i);
+  }
+  return prefix.slice(0, prefix.lastIndexOf("/") + 1);
+};
 
 /**
  * Some runs are correct precisely because nothing was written: the

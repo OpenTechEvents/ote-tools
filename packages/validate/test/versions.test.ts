@@ -110,11 +110,16 @@ describe("validateDocument — inside the support window", () => {
       kind: "event",
     });
     expect(report.valid).toBe(true);
-    expect(report.notices).toHaveLength(1);
-    // The notice earns its place by saying what changed, not that something
-    // did — and it carries the link as a link, not as a URL mid-sentence.
-    expect(report.notices[0]!.message).toContain(LATEST_VERSION);
-    expect(report.notices[0]!.links[0]!.href).toContain("CHANGELOG.md");
+    // The sentence lives in `support`, not in `notices` and never in
+    // `errors`: it is a fact about which releases this build keeps a code
+    // path for, and a consumer must be able to render it without it looking
+    // like something to fix (#124).
+    expect(report.support.action).toBe("inform");
+    expect(report.errors).toHaveLength(0);
+    // It earns its place by saying what changed, not that something did — and
+    // it carries the link as a link, not as a URL mid-sentence.
+    expect(report.support.message).toContain(LATEST_VERSION);
+    expect(report.support.links[0]!.href).toContain("CHANGELOG.md");
   });
 
   it("checks a 0.4 document exactly as before", async () => {
@@ -153,17 +158,23 @@ describe("validateDocument — outside the window and beyond", () => {
     const report = await validateDocument(loadFixture("versioned", "feed-0.1.0.json"), {
       kind: "feed",
     });
-    expect(report.valid).toBe(false);
+    // VALID. The document was measured against its own 0.1 schemas and
+    // passed them; being outside the window is a fact about this release,
+    // not a defect in the feed. Reporting it as invalid is what turned a
+    // registered adopter's badge red on their own README (#124).
+    expect(report.valid).toBe(true);
     expect(report.checkedVersion).toBe("0.1.0");
-    const versionError = report.errors.find((e) => e.path === "specVersion");
-    expect(versionError?.message).toContain("support window");
-    expect(versionError?.message).toContain("0.1");
-    // The schemas of an out-of-window version stay published, and the notice
-    // channel links them rather than leaving "migrate" as the only instruction.
-    const hrefs = report.notices.flatMap((notice) => notice.links.map((link) => link.href));
+    expect(report.errors).toHaveLength(0);
+    // Migration is still asked for, in the channel that cannot be mistaken
+    // for a finding.
+    expect(report.support.action).toBe("migrate");
+    expect(report.support.message).toContain("support window");
+    expect(report.support.message).toContain("0.1");
+    // The schemas of an out-of-window version stay published, and the support
+    // links point at them rather than leaving "migrate" as the only
+    // instruction.
+    const hrefs = report.support.links.map((link) => link.href);
     expect(hrefs).toContain("https://opentechevents.org/schema/v0.1/feed.schema.json");
-    // Nothing else is wrong with this document, and nothing else is claimed.
-    expect(report.errors).toHaveLength(1);
     // Before 0.3 there was no recommended profile to check against.
     expect(report.recommendedProfileChecked).toBe(false);
   });
@@ -173,12 +184,17 @@ describe("validateDocument — outside the window and beyond", () => {
       loadFixture("versioned", "feed-no-specversion.json"),
       { kind: "feed" },
     );
-    expect(report.valid).toBe(false);
+    // Null, not false: nothing was measured, so there is no verdict. A
+    // document declaring a version nobody published is an unanswerable
+    // question, not an invalid document, and a falsy check must not be able
+    // to turn one into the other.
+    expect(report.valid).toBeNull();
     expect(report.checkedVersion).toBeNull();
-    expect(report.errors).toHaveLength(1);
-    expect(report.errors[0]!.message).toContain("declares no specVersion");
+    expect(report.errors).toHaveLength(0);
+    expect(report.support.action).toBe("cannot-judge");
+    expect(report.support.message).toContain("declares no specVersion");
     for (const version of PUBLISHED_VERSIONS) {
-      expect(report.errors[0]!.message).toContain(version);
+      expect(report.support.message).toContain(version);
     }
   });
 
@@ -187,10 +203,11 @@ describe("validateDocument — outside the window and beyond", () => {
       loadFixture("versioned", "feed-unknown-specversion.json"),
       { kind: "feed" },
     );
-    expect(report.valid).toBe(false);
+    expect(report.valid).toBeNull();
     expect(report.checkedVersion).toBeNull();
-    expect(report.errors[0]!.path).toBe("specVersion");
-    expect(report.errors[0]!.message).toContain('"9.9.9" is not a published OTE Spec version');
+    expect(report.errors).toHaveLength(0);
+    expect(report.support.action).toBe("cannot-judge");
+    expect(report.support.message).toContain('"9.9.9" is not a published OTE Spec version');
   });
 });
 
@@ -220,9 +237,69 @@ describe("validateDocument — a version chosen by hand", () => {
       version: "0.3.0",
     });
     expect(report.overridden).toBe(false);
-    // Out of the window now, so the policy asks for a migration — but the
-    // document itself is still clean against the 0.3 rules it declared, and
-    // the only error is the version one.
-    expect(report.errors.filter((e) => e.path !== "specVersion")).toEqual([]);
+    // Out of the window now, so the policy asks for a migration — and the
+    // document is clean against the 0.3 rules it declared, so it is valid.
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.support.action).toBe("migrate");
+  });
+
+  it("an override reports no support action: the question was about a version the document does not claim", async () => {
+    const report = await validateDocument(loadFixture("versioned", "feed-0.1.0.json"), {
+      kind: "feed",
+      version: LATEST_VERSION,
+    });
+    expect(report.overridden).toBe(true);
+    // The policy's reading of 0.1.0 would be "migrate", and saying it here
+    // would be answering a question nobody asked: the user is rehearsing
+    // what the latest release would break, and `describeOverride` tells that
+    // story in `notices` instead.
+    expect(report.support.action).toBe("none");
+    expect(report.support.message).toBeNull();
+    expect(report.notices.map((n) => n.message).join(" ")).toContain("because you selected it");
+  });
+});
+
+/**
+ * The regression guard for #124: support is not validity, on every axis a
+ * consumer can read. Three of the six consumers of this report refused to act
+ * on a document that failed only these assertions — the exporters would not
+ * export, Broadcast would not broadcast, and the badge went red in a
+ * publisher's README.
+ */
+describe("validateDocument — support never reaches the verdict", () => {
+  it("an out-of-window document is valid, with nothing in errors", async () => {
+    const report = await validateDocument(loadFixture("versioned", "feed-corunajug-0.3.0.json"), {
+      kind: "feed",
+    });
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.checkedVersion).toBe("0.3.0");
+    expect(report.support.action).toBe("migrate");
+  });
+
+  it("never puts a support sentence in errors, at any status", async () => {
+    const fixtures: [string, string][] = [
+      ["feed-0.1.0.json", "feed"],
+      ["feed-corunajug-0.3.0.json", "feed"],
+      ["event-0.4.0.json", "event"],
+      ["feed-no-specversion.json", "feed"],
+      ["feed-unknown-specversion.json", "feed"],
+    ];
+    for (const [name, kind] of fixtures) {
+      const report = await validateDocument(loadFixture("versioned", name), {
+        kind: kind as "feed" | "event",
+      });
+      // The whole defect in one assertion: whatever the policy makes of the
+      // version, its sentence is never a finding about the document.
+      if (report.support.message) {
+        expect(
+          report.errors.map((e) => e.message),
+          `${name}: the support sentence leaked into errors`,
+        ).not.toContain(report.support.message);
+      }
+      // And `valid` is a verdict only when something was measured.
+      expect(report.valid === null).toBe(report.checkedVersion === null);
+    }
   });
 });

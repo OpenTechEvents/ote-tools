@@ -2,6 +2,21 @@
 
 All notable changes to `@opentechevents/export-rss` are documented here.
 
+## 0.6.1
+
+- **An out-of-window feed exports instead of being refused.** This CLI read
+  `DocumentReport.valid`, which was `false` for any feed whose `specVersion`
+  had left the support window — even with zero schema violations — so it
+  printed `not a valid OTE feed` and exited 1. Measured on a registered
+  adopter's live feed: 25 valid events, declared 0.3.0, refused. The feed is
+  now measured against its own schemas, exports, and the migration ask is
+  printed as a note. See `@opentechevents/validate@0.6.1`.
+- A feed whose declared version was *never published* is still refused —
+  mapping a document whose rules this release does not have would mean
+  inventing the mapping — but it is reported with `?` and the words "not
+  checked" rather than `✗` and "not a valid OTE feed". It is this release
+  that cannot answer, not the publisher's feed that is broken.
+
 ## 0.6.0
 
 - **Implements OTE Spec 0.6.0.**

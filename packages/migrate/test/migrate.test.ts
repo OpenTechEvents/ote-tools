@@ -22,10 +22,12 @@ describe("migrateDocument", () => {
     expect((result.document as Record<string, unknown>).specVersion).toBe(LATEST_VERSION);
   });
 
-  // The whole reason this package exists rather than a `sed`: the adopter
-  // who most needs to migrate is the one whose version left the support
-  // window, and `validateDocument` calls that an error. Migrating must still
-  // work for them.
+  // The whole reason this package exists rather than a `sed`: the adopter who
+  // most needs to migrate is the one whose version left the support window.
+  // Migrating must work for them — including now that `validateDocument`
+  // reports that window as support rather than as an error, because the
+  // document still has to be rewritten for anyone building to the current
+  // release.
   it("migrates a document whose version is outside the support window", async () => {
     const result = await migrateDocument(feed03(), { to: "0.6.0" });
     expect(result.to).toBe("0.6.0");

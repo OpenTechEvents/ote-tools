@@ -1,7 +1,7 @@
 # @opentechevents/import-ics
 
-Converts an iCalendar (`.ics`) document into **partial** OTE event documents
-(v0.4), ready for an organizer to review and complete.
+Converts an iCalendar (`.ics`) document into **partial** OTE event documents,
+ready for an organizer to review and complete.
 
 Part of the [OpenTechEvents organizer kit](https://github.com/OpenTechEvents/ote-tools);
 see [DESIGN.md](https://github.com/OpenTechEvents/ote-tools/blob/main/DESIGN.md)
@@ -66,7 +66,7 @@ and a calendar shared by link or exported from a private account is not publicat
 Copying an address out of one is not translating a value, it is changing its level
 of exposure.
 
-## Mapping (VEVENT → OTE v0.4)
+## Mapping (VEVENT → OTE)
 
 | iCal | OTE |
 | --- | --- |
@@ -120,7 +120,7 @@ would produce a different id; keep the first one.
   conversion, not a warned-about loss. `Z`-suffixed times map to
   `timezone: "UTC"`; a `TZID` is passed through only when it's a real IANA
   zone — checked against the same IANA enum `@opentechevents/validate`
-  embeds from the v0.4 schema, not a shape regex (a regex would trust a
+  embeds from the schema, not a shape regex (a regex would trust a
   plausible-looking but nonexistent zone like `Europe/Atlantida`). Windows
   zone names ("W. Europe Standard Time") and floating times (no `TZID`, no
   `Z`) yield **no timezone + a warning** — OTE requires IANA and guessing one

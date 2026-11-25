@@ -80,6 +80,12 @@ const urlForm = $<HTMLFormElement>("url-form");
 const urlInput = $<HTMLInputElement>("url-input");
 const fileInput = $<HTMLInputElement>("file-input");
 const pasteInput = $<HTMLTextAreaElement>("paste-input");
+// Derived, never written into the markup. This placeholder is copied by
+// organizers, and it sat two minors behind the spec on the deployed page —
+// handing out a stale `specVersion` from the one tool whose job is to judge
+// them. The HTML ships a `…` so a failed import cannot leave a wrong version
+// on screen either.
+pasteInput.placeholder = `{ "specVersion": "${LATEST_VERSION}", … }`;
 const pasteButton = $<HTMLButtonElement>("paste-validate");
 const statusBox = $("status");
 const discoveryBox = $("discovery");
@@ -364,7 +370,9 @@ function renderFindings(
  */
 function versionSentence(report: Extract<Report, { status: "validated" }>): string {
   if (report.specVersion === null) {
-    return `Checked as an OTE ${report.kind}. No spec version could be applied.`;
+    // Not "Checked as…": the badge above this says "Not checked", and a
+    // summary that opens with the opposite word makes the reader pick.
+    return `Read as an OTE ${report.kind}, but its spec version was never published, so no rules could be applied.`;
   }
   const against = report.overridden
     ? `against spec ${report.specVersion} (selected by hand)`
@@ -377,15 +385,31 @@ function renderVerdict(report: Extract<Report, { status: "validated" }>, label: 
   verdictBox.hidden = false;
 
   const heading = element("h2", undefined, "Validation");
-  const badge = element(
+  // Three states, not two, and the third is not a softer kind of invalid:
+  // `valid === null` means the declared version was never published, so
+  // nothing was measured and there is no verdict to give. Rendering it as
+  // "invalid" is what told a publisher on 0.3.0 that their healthy feed was
+  // broken (#124). A falsy check would do exactly that, which is why the
+  // library makes this null rather than false.
+  const badge =
+    report.valid === null
+      ? element("p", "badge unknown", "Not checked")
+      : element(
+          "p",
+          report.valid ? "badge ok" : "badge bad",
+          report.valid ? "Valid OTE document" : "Invalid OTE document",
+        );
+  const counts =
+    report.valid === null
+      ? ""
+      : report.valid
+        ? `${report.recommendations.length} recommendation(s) unmet.`
+        : `${report.errors.length} error(s) must be fixed.`;
+  const summary = element(
     "p",
-    report.valid ? "badge ok" : "badge bad",
-    report.valid ? "Valid OTE document" : "Invalid OTE document",
+    "muted",
+    counts ? `${versionSentence(report)} ${counts}` : versionSentence(report),
   );
-  const counts = report.valid
-    ? `${report.recommendations.length} recommendation(s) unmet.`
-    : `${report.errors.length} error(s) must be fixed.`;
-  const summary = element("p", "muted", `${versionSentence(report)} ${counts}`);
   verdictBox.append(heading, badge, summary, element("p", "muted", label));
 
   kindSelect.value = report.kind;
@@ -492,6 +516,13 @@ function renderReport(report: Report, label: string): void {
       versionRow.hidden = false;
       renderVerdict(report, label);
       renderNotices([
+        // The support sentence arrives in its own channel now and is rendered
+        // here, among the things that are true and are not defects. It must
+        // never reach renderFindings: a publisher on an older release has
+        // nothing in their document to fix.
+        ...(report.support.message
+          ? [{ message: report.support.message, links: report.support.links }]
+          : []),
         ...report.notices,
         // Said rather than left as an empty list: "no recommendations" would
         // read as "nothing to improve", when the profile did not exist yet.

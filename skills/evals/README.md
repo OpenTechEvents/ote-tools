@@ -47,7 +47,7 @@ transcript and the files the run left behind — see `src/assertions.ts`:
 
 | Check | What it catches |
 | --- | --- |
-| `ranValidator` / `ranImporter` | the agent deciding validity or mapping on its own |
+| `ranValidator` / `ranImporter` | the agent deciding validity or mapping on its own. `{ "ranValidator": "fork" }` is the same invariant where the program is different: in a kit fork the gate is `ote-build-feed . --check`, and pointing `ote-validate` at the members is itself the failure |
 | `fileIsValid` | ground truth: the validator run by the harness, over what is on disk |
 | `claimedValidityWithoutProof` | "this looks valid" arriving before the evidence |
 | `noInventedFields` | every field must trace to the source or to something the organizer said |
@@ -56,6 +56,7 @@ transcript and the files the run left behind — see `src/assertions.ts`:
 | `groupedQuestions` | the UX goal as a number: asked once, not interrogated |
 | `askedBeforeTouching` | nothing in a public website edited before a yes |
 | `noticedExistingFeed` | re-deriving a document that already exists upstream |
+| `appendedEvent`, `idFollowsSiblings`, `wroteNoSecondFeed` | the other side of that: a feed that exists is not the event being published, and the eleventh entry has to be spelled like the first ten |
 
 An LLM judge is used for **one** thing, deliberately: *"is this `id` minted under
 a domain the organizer controls?"* (`mintsIdUnder`), which no assertion can decide.
@@ -106,6 +107,8 @@ came out. The bar for `ote-event`:
 | Check | Bar |
 | --- | --- |
 | `ranValidator`, `noInventedFields`, `idPreserved`, `slugUnchanged`, `absentField` (the email) | **3/3.** These are correctness, not style. |
+| `appendedEvent`, `wroteNoSecondFeed`, `wroteNoEventFile` | **3/3.** Whether the run was supposed to write the event or supposed to leave it alone, getting it backwards is the whole bug. |
+| `idFollowsSiblings` | 3/3 — it derives the pattern from the feed's own entries, so a failure is the agent deviating, not the bar being strict |
 | `fileIsValid`, `claimedValidityWithoutProof`, `askedBeforeTouching` | 3/3 |
 | `groupedQuestions`, `noticedExistingFeed` | 2/3 |
 
@@ -123,6 +126,15 @@ the time. Fix the skill text, do not re-roll.
 3. If the check you need does not exist, add it to `src/assertions.ts` **with a unit
    test**. No exceptions: an assertion nobody tested is a lie waiting to be believed.
 
+A check that compares the state before and against the state after — `idPreserved`,
+`slugUnchanged`, `appendedEvent`, `idFollowsSiblings`, `wroteNoSecondFeed` — takes
+that state as plain data, so the case names only the file
+(`{ "appendedEvent": ["feed.json", "<name>"] }`) or nothing at all
+(`{ "wroteNoSecondFeed": true }`, where the runner passes the feeds that already
+existed) and the runner is what snapshots it. Keeping the before-state out of the case is
+deliberate: a case that wrote down what the fixture contains would be a second copy of
+the fixture, and the fixtures get re-stamped.
+
 ## What is not built
 
 Honest inventory, so nobody assumes more than exists:
@@ -133,6 +145,12 @@ Honest inventory, so nobody assumes more than exists:
   replies, applies the checks by name, and repeats each case three times.
   Multi-turn resumption is the part that differs most between agents, which is why
   it is not sketched in here.
+
+  One contract to get right when it is written: a check handed a before-state
+  (`{ "wroteNoSecondFeed": true }` is the extreme — the case declares nothing at
+  all) is only as good as the snapshot. Paths must be spelled the way the
+  assertions spell them, relative to the run directory, or the check compares two
+  sets that never intersect and passes on everything.
 - **Adapters other than `claude-code`.** Adding one means normalizing that agent's
   transcript into `src/transcript.ts`'s shape. Nothing else in the evals is
   agent-specific — not the cases, not the assertions.

@@ -2,6 +2,97 @@
 
 All notable changes to `@opentechevents/validate` are documented here.
 
+## Unreleased
+
+- **The not-judged summary names its reason.** A kit fork's `events/*.json`
+  were already reported per file as organizer-kit members, with the right
+  command to judge them — and then the closing count said *"a spec version
+  this release cannot check against (supported: …)"*, which for a file that
+  declares no version describes something that never happened. It is the
+  last line a non-technical organizer reads, so it is the one that decided
+  what they thought was wrong. The summary now reports members and
+  unjudgeable versions as separate counts, and a run with both says both.
+  Exit codes are unchanged (#119).
+
+## 0.6.1
+
+**Support is no longer validity.** Two breaking changes to `DocumentReport`,
+both of which exist because six consumers read the support window as a defect
+in somebody's feed (#124):
+
+- **`DocumentReport.support`** is new: a typed `SupportStatus` carrying the
+  policy's reading of the declared version (`status`), what a caller must do
+  with it (`action`: `none` / `inform` / `migrate` / `cannot-judge`), the
+  sentence, and its links. **The policy message is no longer pushed into
+  `errors`.** A document outside the support window with no schema violations
+  is now `valid: true` — it was measured against its own schemas and it
+  passed. Being outside the window is a fact about which releases this build
+  keeps a code path for, not a finding about the document.
+- **`DocumentReport.valid` is now `boolean | null`.** Null when nothing was
+  measured, because the declared version was never published. It is not
+  `false`: a document declaring `0.9.9` is an unanswerable question, not an
+  invalid document, and the two call for opposite behaviour from a consumer.
+  The type makes that choice unavoidable instead of letting a falsy check
+  decide it silently.
+
+Both are breaking for consumers of `DocumentReport`, and this still ships as a
+**patch**. In this repo the minor names the spec version a release implements
+(0.1.0, 0.3.0, 0.4.0, 0.6.0 — the gaps are spec versions that got no
+implementation), so spending a minor on a fix would announce an OTE Spec 0.7.0
+that does not exist. It costs nothing to do it this way and buys the thing the
+fix is for: the `@0.6` pins in `skills/` are minor pins, so npm resolves them
+to this patch and **every already-copied skill gets the fix without an edit**.
+A minor would have stranded them all on 0.6.0.
+
+The breaking half has no known external cost — the adopter registry lists no
+live consumers of OTE documents, so nothing outside this monorepo reads
+`DocumentReport`.
+
+Migrating: anywhere you read `report.valid`, handle `null` first.
+`if (!report.valid)` now treats "could not be judged" as "invalid", which is
+the bug this release fixes.
+
+The CLI changes with it (#117):
+
+- The summary no longer collapses into one fraction. `N/M judged valid` counts
+  only what was measured, and unjudged files get their own line — `0/3 valid`
+  over three files nobody judged read as "three bad files".
+- **Exit `0` now includes an out-of-window document**, and `3` narrows to
+  "something could not be judged at all" — one such file is enough, even when
+  the rest of the run was clean. That last part matters: a looser rule
+  (exiting `0` whenever anything had been measured) let a typo'd `specVersion`
+  pass CI next to a valid feed.
+- The exit-code table in the README notes this narrowing of `3` explicitly
+  rather than claiming the contract was never touched.
+- A document with no `specVersion` under an `ote.config.json` is named as an
+  organizer-kit feed member, and pointed at `ote-build-feed . --check`,
+  instead of being told to add a `specVersion` the kit forbids writing by hand.
+  Detection is for the message only — it never changes a verdict.
+
+### Dependents deliberately not republished
+
+`0.6.1` changed `DocumentReport.valid`, the CLI's counter and its exit codes.
+Three published dependents still pin `0.6.0`, and that is a decision rather
+than an oversight — `node .github/scripts/published-pins.mjs` reports them as
+patch-level gaps (exit `1`), which is the state this is meant to leave. Each
+one was checked against what it actually calls:
+
+- **`build-feed`** reads `validateFeed`, whose `ValidationResult.valid` is a
+  plain `boolean` and did not change. `src/index.ts:319` is its only read of
+  it. It also pins `export-ics` / `export-rss` at `0.6.0`, which is the same
+  case one level out: it uses their libraries (`feedToIcs`, `feedToRss`), and
+  those `0.6.1` releases fixed how their **CLIs** read `DocumentReport.valid`.
+- **`migrate`** reads `declaredSpecVersion`, `loadValidators`,
+  `LATEST_VERSION` and `PUBLISHED_VERSIONS`. None of them is the
+  `DocumentReport` path.
+- **`import-ics`** imports `eventSchema` for its IANA timezone enum and never
+  asks for a verdict. `import-jsonld` does not depend on this package at all.
+
+So none of them exercises the path that moved, and republishing them would
+have been noise. What makes this a record rather than a reassurance is that
+the next release gets the same list from the sweep and has to answer it again:
+the answer here is about `0.6.1`, not a standing exemption.
+
 ## 0.6.0
 
 - **Implements OTE Spec 0.6.0**, embedding every published version

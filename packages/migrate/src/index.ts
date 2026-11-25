@@ -207,11 +207,12 @@ async function errorsAgainst(
  * Migrates a document to a newer spec version.
  *
  * Validation happens against the declared version directly rather than
- * through `validateDocument`, and that is deliberate: `validateDocument`
- * applies the support policy, which calls an out-of-window version an error.
- * A document on an unsupported release is precisely the one that needs
- * migrating, and a migrator that refuses it would be useless to the only
- * people who have to run it.
+ * through `validateDocument`, which is still the right call even though
+ * `validateDocument` no longer treats an out-of-window version as an error
+ * (it reports support separately — see its `SupportStatus`). What this
+ * function needs is the raw verdict of one version's schemas, with no policy
+ * reading attached, for a document whose whole problem is the version it is
+ * on.
  *
  * Throws `MigrationError` when the migration cannot be attempted — an
  * unplaceable version, a target that does not exist, a downgrade, or input

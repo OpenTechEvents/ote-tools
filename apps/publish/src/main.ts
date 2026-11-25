@@ -1,6 +1,7 @@
 import { type OteFeed } from "@opentechevents/export-jsonld";
 import { validateDocument, type SpecVersionNotice } from "@opentechevents/validate";
 
+import { feedGate } from "./lib/feed-gate.js";
 import { feedUrls, parseFeedSource, type FeedSource } from "./lib/feed-source.js";
 import { DEFAULT_EMBED_OPTIONS } from "./lib/site-snippets.js";
 import {
@@ -131,7 +132,27 @@ async function boot(): Promise<void> {
   // and Broadcast refused to publish it — being behind is a notice, never a
   // defect (#69).
   const report = await validateDocument(json, { kind: "feed" });
-  if (!report.valid) {
+  // The three-way decision lives in `feedGate` so it can be tested: inside
+  // this function it could be broken without a single test failing, and the
+  // out-of-window case was broken for exactly that long (#124).
+  const gate = feedGate(report);
+
+  if (gate.action === "unchecked") {
+    message.className = "panel error";
+    message.replaceChildren(
+      el("h2", undefined, "This feed could not be checked"),
+      el("p", undefined, gate.reason),
+      el(
+        "p",
+        undefined,
+        "Nothing is wrong with the feed as far as this tool can tell — it has no rules for that version, so it will not guess at how to map it.",
+      ),
+    );
+    message.hidden = false;
+    return;
+  }
+
+  if (gate.action === "invalid") {
     message.className = "panel error";
     message.replaceChildren(
       el("h2", undefined, "This feed is not valid OTE"),
@@ -142,7 +163,7 @@ async function boot(): Promise<void> {
       ),
     );
     const list = el("ul");
-    for (const error of report.errors) {
+    for (const error of gate.errors) {
       const item = el("li");
       item.append(el("code", undefined, error.path), document.createTextNode(` — ${error.message}`));
       list.append(item);
@@ -154,7 +175,11 @@ async function boot(): Promise<void> {
 
   // Said, but not in the way of anything: a supported-but-older release is a
   // legitimate choice, so this sits above the app instead of replacing it.
-  showNotices(report.notices);
+  showNotices(
+    gate.support
+      ? [{ message: gate.support, links: report.support.links }, ...report.notices]
+      : report.notices,
+  );
 
   const feed = json as OteFeed;
   setFeedLabel(

@@ -49,7 +49,7 @@ of that vintage turns up.
 > (never a local `link:`). When the spec releases, bump that pin, run
 > `pnpm gen`, and review the generated diff — the guard tests fail until the
 > re-embed happens (see `scripts/embed-schemas.mjs`). The version list itself
-> is derived from the package's export map, so a release that adds `v0.5`
+> is derived from the package's export map, so a release that adds a version
 > cannot be half-adopted.
 
 ## API
@@ -131,9 +131,14 @@ ote-validate --versions
   the latest one — the CLI runs `validateDocument`. Being on an
   older-but-supported release is a note, never a failure.
 - Output: `✓`/`✗`/`?` per file, each naming the version whose rules were
-  applied, plus an `N/M valid` summary. A `✓` says what it checked on purpose:
-  a green that does not name its rules is how nine skipped keywords once read
-  as `18/18 valid`.
+  applied, then up to three summary lines. A `✓` says what it checked on
+  purpose: a green that does not name its rules is how nine skipped keywords
+  once read as `18/18 valid`.
+- **The summary never collapses into one fraction.** `N/M judged valid` has
+  what was actually measured as its denominator, and files that could not be
+  judged get their own line. `0/3 valid` over three files nobody judged reads
+  as "three bad files", which is how a healthy organizer-kit fork was
+  reported (#117).
 - `--spec-version <x.y.z>`: measure against this version instead of the
   declared one — the migration rehearsal, "what would 0.5 break?", asked
   before committing to the answer.
@@ -143,18 +148,43 @@ ote-validate --versions
 
 ### Exit codes
 
+**This table is a contract from here on.** A code's meaning is not redefined
+again; new behaviour gets a new code.
+
+One honest exception, which is this release: `3` **narrowed**. It used to also
+cover a document outside the support window; now that case is measured against
+its own schemas and lands in `0` or `1` like any other, and `3` means only
+"nothing could be judged". That is a behaviour change for anyone reading the
+code, which is why it ships as a minor and is written down here rather than
+left to be discovered.
+
 | code | meaning |
 | --- | --- |
-| `0` | every document valid |
+| `0` | every document was measured, and none was invalid |
 | `1` | a document is invalid — a real defect, against the rules it declared |
 | `2` | usage or I/O error |
-| `3` | no defect found, but a document declares a version this release cannot judge it against (unpublished, or outside the support window) |
+| `3` | nothing was invalid, but at least one document could not be judged: it declares a spec version that was never published, so there are no rules to apply |
 
-`3` is distinct from `1` deliberately. CI and agents have to tell a version
-pin from a broken feed, and returning `1` for both says the publisher is at
-fault when they are not — which is exactly how 18 documents that were valid
-against `spec/v0.5` were reported as `0/18 valid`. When both occur in one run,
-`1` wins: a real defect is the more urgent answer.
+`0` **includes a document outside the support window.** Its schemas exist, it
+was measured against them, and it passed; the migration ask is printed as a
+note next to the `✓` and changes nothing else. Treating the window as a
+failure is what made `ote-export-ics` refuse a registered adopter's healthy
+0.3.0 feed and call it "not a valid OTE feed" (#124).
+
+`3` fires on **one** unjudgeable file, even when every other file in the run
+was fine. A looser rule was tried and is worse: exiting `0` whenever
+*something* had been measured let a typo'd `specVersion` (`"0.6"` for
+`"0.6.0"`) sit beside a valid feed and pass CI, because that file was never
+measured at all.
+
+`3` is distinct from `1` deliberately. CI and agents have to tell "I cannot
+answer" from "your feed is broken", and returning `1` for both says the
+publisher is at fault when they are not — which is exactly how, in 2026-11,
+18 documents valid against the then-newest spec release were reported as
+`0/18 valid` by a build that did not have it yet. When both
+occur in one run, `1` wins: a real defect is the more urgent answer. And a run
+that judged some files and found no defect is a `0` even if others could not
+be judged — a fork whose events are fine must not fail its own PR check.
 
 ## Development
 

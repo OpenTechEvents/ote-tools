@@ -1,5 +1,7 @@
 ---
 name: ote-event
+metadata:
+  tested-with: "0.6"
 description: Publish a tech community event as an OTE (Open Tech Events) document and expose it on the community's website. Use when given an event page URL (Meetup, Eventbrite, Luma, eventos.wiki, a conference site), a Google Calendar or .ics export, or a plain description of an event, and the user wants an OTE event file, an events.json feed, a feed `<link rel="alternate">` tag, an OTE badge, or schema.org JSON-LD for their events. Triggers include "create the OTE spec for this conference", "add my events to my website", "make my events discoverable", "publicar mis eventos", "añade este meetup".
 ---
 
@@ -17,8 +19,10 @@ asked — linked from their website.
 npx -y -p @opentechevents/validate@0.6 ote-validate <file|dir>
 ```
 
-Exit `0` = valid · `1` = invalid · `2` = usage or I/O problem · `3` = **this release
-cannot judge that `specVersion`** — not a defect in the document. Show its output as it
+Exit `0` = valid · `1` = invalid · `2` = usage or I/O problem · `3` = **not judged** —
+either the document declares a `specVersion` this release has no rules for, or it
+declares none at all — and when it is a kit-fork feed member, the CLI says so and names
+the gate that does judge it (Step 4). None of the three is a defect in the document. Show its output as it
 came. If you cannot run it, say so and stop at that step — do not substitute your own
 reading of the schema. The same holds for extraction: the importers below own the
 mapping, you do not re-derive it.
@@ -28,6 +32,38 @@ mapping, you do not re-derive it.
 ```sh
 npx -y -p @opentechevents/validate@0.6 ote-validate --versions
 ```
+
+### The handshake: these instructions have a version too
+
+**These instructions were written and tested against the `0.6` tool line** — the same
+line every `npx` command below pins. That sentence is here, in the body, on purpose:
+frontmatter is configuration, and an agent is handed the body. A number an agent cannot
+read cannot be compared, so the copy under `metadata.tested-with` is for tooling and
+this one is for you.
+
+Run that command **before** the first gate and compare its `latest:` line with the line
+named above. In this kit a package's minor names the OTE Spec version it implements, so
+the two are directly comparable.
+
+- **The same line** → nothing to say. Continue.
+- **The CLI is newer** — tested against `0.6`, `latest: 0.7.0` — say so once, in one
+  line, and keep going:
+
+  > These instructions were tested with the 0.6 tools; your CLI implements 0.7.0.
+  > Expect fields it supports that I will not ask you about — I will not invent them.
+
+  Then behave exactly as that sentence promises: ask only about what this file
+  covers, and do not guess at what the newer release added. A document missing a new
+  optional field is fine. A document with a field you improvised is the failure this
+  skill exists to prevent.
+- **The CLI is older** → the section above applies: write the version it supports, get
+  a real `0`, and say a newer spec release exists.
+
+This is the skill's own rule turned on itself. A skill is installed by **copying** it,
+so a copy taken today still claims `@0.6` a year from now with nothing on either side
+noticing — the pins in this file are checked where it is maintained, and that check
+cannot reach your copy. The handshake is what makes the copy say so out loud instead of
+improvising.
 
 ### When the CLI is behind the spec
 
@@ -71,9 +107,34 @@ never the identity and never the authority.**
    noise (biznagafest.com does), and plenty of real ones point at an RSS feed for a
    blog. Require an `href`, and fetch it before believing it.
 
-   - Found, on the organizer's own domain → the authoritative document already
-     exists. Do not create a second one. Go to Step 6 and stop.
-   - Not found → the organizer does not publish OTE yet. Continue.
+   - **Not found** → the organizer does not publish OTE yet. Continue.
+   - **Found, on the organizer's own domain** → that feed is the authoritative
+     document, and there is never a second one. **Fetch it**, and then decide the
+     step on the *event*, not on the feed: is **this event** already in there? Match
+     on `id` first; failing that, on `startDate` plus `name` — the same talk often
+     carries a different title on a directory than in the feed.
+
+     - **It is in the feed** → it is already published. Show them the entry as it
+       stands, do not rewrite it, and write nothing new. If they asked for the
+       website side too, Step 6 is what is left.
+     - **It is not in the feed** → the task is **adding an event to a feed that
+       already exists**. Steps 1–5, written into the repo that builds that feed,
+       with the `id` minted under the same domain and following the convention of
+       the entries already in it — see *"Appending to a feed that already exists"*
+       in `references/writing.md`. Never a second feed.
+
+     **When they named no event at all** — *"I want to publish CoruñaJUG's events in
+     OTE"* — the feed *is* the answer: show it, create nothing, and offer Step 6. The
+     question only arises once there is a specific event to look for.
+
+     "The organizer already has a feed" and "this event is already published" are
+     different facts, and only the second one ends the work. A returning adopter
+     asking you to add a meetup is the most common request this skill gets; answering
+     it with a badge is a failure, not caution.
+
+     If you can find the feed but not the repo that builds it, that is the one thing
+     to ask: *"which repo publishes `<feed url>`?"* Do not write into a different
+     repo, and do not publish a second document to work around not knowing.
 
 3. **Then, and only then, look at the directories** — they can save the organizer
    retyping. `https://opentechevents.org/data/adopters.json` lists who has declared
@@ -206,6 +267,10 @@ In an organizer repo that follows the kit, events live at `events/<slug>.json`;
 otherwise ask where. See `references/writing.md` for the `id`, slug and `source` rules —
 **read it before writing**, those three are the ones that silently break consumers.
 
+If Step 0 found an existing feed and this event was not in it, the layout and the `id`
+shape come from the entries already there, not from the defaults — *"Appending to a
+feed that already exists"* in that file is the part to read.
+
 The short form, which you must never violate:
 
 - An `id` already published **never changes**, for any reason.
@@ -216,11 +281,36 @@ The short form, which you must never violate:
 
 ## Step 4 — Gate 2: validate
 
-Run the validator on what you wrote and paste its output. If the repo is a kit fork,
-also check the feed assembles:
+Which command *is* the gate depends on what you wrote. Run the right one and paste its
+output.
+
+**In a kit fork** — an `ote.config.json` with `events/*.json` beside it — the gate is:
 
 ```sh
 npx -y -p @opentechevents/build-feed@0.6 ote-build-feed . --check
+```
+
+That is the whole gate: **do not run `ote-validate` on `events/`.** Those files are
+*feed members*. They carry no `specVersion`, and often no `license`, because both are
+inherited when the feed is assembled — `references/writing.md` forbids writing them by
+hand. A member judged on its own is not judged at all, so the validator correctly
+answers `? … — not checked` and exits `3`, saying why and pointing at the command
+above. Running it anyway puts a failure-shaped output in front of the organizer for a
+healthy file, and then you are explaining away a red — which is a habit worth not
+having, because the next red may be real. The kit's own CI made this choice already:
+`.github/workflows/validate.yml` runs `ote-build-feed . --check` and never calls
+`ote-validate`.
+
+So when someone asks *"is this event file valid?"* about a file in `events/`, the
+answer is not yes or no: **it is a feed member, so it is judged assembled** — and that
+command is what judges it.
+
+**A standalone document** is `ote-validate`'s job: one event or a whole feed that
+carries its own `specVersion`, including somebody else's published feed you are
+checking for them.
+
+```sh
+npx -y -p @opentechevents/validate@0.6 ote-validate <file|dir>
 ```
 
 Mention failures of the **recommended** profile once, as warnings, and move on: a valid
@@ -270,6 +360,9 @@ Steps 0–5 **and** Step 6. Do not stop after the JSON.
 - Treat a directory's listing as the authority on an event it did not organize, or
   mint an `id` under a directory's domain.
 - Merge two sources that disagree without showing the organizer the disagreement.
+- Write a second feed for an organizer who already has one, under any name.
+- End the work at the website step because a feed exists, when what they asked for is
+  an event that feed does not contain.
 
 ## Language
 

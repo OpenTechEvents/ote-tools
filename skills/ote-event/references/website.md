@@ -30,16 +30,18 @@ declaration (biznagafest.com emits exactly that), and an `alternate` pointing at
 blog's RSS is a different feed entirely. Only an `href` that resolves to the OTE feed
 means "already done": then say so and change nothing.
 
-Two cautions:
+Two things to get right:
 
-- The media type is **not settled** in the spec
-  ([spec#33](https://github.com/OpenTechEvents/opentechevents-spec/issues/33)):
-  `application/ote+json` vs. reusing `application/feed+json`. Write
-  `application/ote+json` — what the spec documents today — and mention in one line
-  that it may change, so the organizer is not surprised later. When *reading*
-  someone's site, accept all the spellings.
-- `/.well-known/ote-feed` is a complement, only for organizers who control their
-  domain apex, and also unsettled. Do not set it up unprompted.
+- **Write `application/ote+json`.** The spec settled this in its discovery decision
+  (`DECISIONS.md`, D036) and gives the reasoning: `application/feed+json` belongs to
+  JSON Feed, and a document claiming it is claiming to be one. There is no caveat to pass
+  on to the organizer — the IANA registration is an external process, not a pending
+  change to the document. When *reading* someone's site, still accept every spelling:
+  a consumer meeting an OTE feed behind `application/feed+json` should take it and
+  warn, because the type is wrong and the document is fine.
+- `/.well-known/ote-feed` is an optional complement (a **MAY**), for organizers who
+  control their domain apex. Plenty of publishers cannot write there at all, which is
+  why it is not a recommendation. Do not set it up unprompted.
 
 ## 2. The badge
 
