@@ -152,6 +152,23 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   `pnpm build` has run. That error means the workspace is unbuilt, not broken —
   never "fix" it by touching imports. CI never hits it: it builds first.
 - Convention: connectors never invent data; absent field = absent + warning.
+- **The audience for every tool here is technical.** Organizers who publish
+  an OTE feed edit JSON, run a workflow and host files; the widgets are
+  embedded by whoever maintains the site. So a label may name a format —
+  `ICS`, `RSS`, `webcal://`, `feed.json` — without a gloss, and a control
+  does not need a sentence explaining a distinction its reader already
+  holds. Design review here should say "that explanation is for a different
+  audience" at least as often as it asks for more help text.
+
+  Two consequences that have already decided something. A UI *element* may
+  assume the vocabulary; a **publisher-facing** decision — which third party
+  a visitor is routed to, which action is the default — still has to be
+  stated somewhere the publisher reads, because they are the one who can
+  change it. And it cuts the other way too: `<ote-subscribe>`'s popover
+  used to tell the *visitor* that its calendar feed was service-generated,
+  which was both the wrong audience and an explanation its reader did not
+  need (see `apps/embed/CLAUDE.md`).
+
 - **Visual language: every UI here follows opentechevents.org.** The tools are
   reached from that site and carry its name, so a visitor must never feel
   handed off to a different product. Take the tokens from its stylesheet
