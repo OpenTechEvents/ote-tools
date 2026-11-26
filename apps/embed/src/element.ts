@@ -34,6 +34,7 @@ import {
 import {
   renderEventModal,
   renderWidget,
+  renderWidgetHeader,
   resolveEventGroups,
   selectVisibleEvents,
   type EventActionsInput,
@@ -48,8 +49,16 @@ import { footerMetaFromDocument, type FooterFeedMeta } from "./footer.js";
 import { parseSubscribeLayout } from "./subscribe-attrs.js";
 import { WIDGET_CSS } from "./theme.css.js";
 
+import type { HeaderDensity } from "./header.js";
+
 type Status = "idle" | "loading" | "loaded" | "error";
-type CalendarHandle = { destroy(): void; currentDate(): string | undefined };
+type CalendarHandle = {
+  destroy(): void;
+  currentDate(): string | undefined;
+  prev(): void;
+  next(): void;
+  today(): void;
+};
 
 export interface OteEventsFeedObject extends Omit<OteJsonFeed, "events"> {
   events?: OriginalOteEvent[];
@@ -165,6 +174,23 @@ export class OteEventsElement extends HTMLElement {
    */
   #selectedView: Layout | undefined;
 
+  /**
+   * What the header row can afford to show, and what the mounted calendar
+   * has told it (#183).
+   *
+   * The density is **measured**, not asked of a media query: one inside a
+   * shadow root follows the viewport, and this widget lives in a column.
+   * `#fitHeader()` renders at `full` and steps down only while the row
+   * actually overflows, so a long title, a translated label or a host's
+   * larger `--ote-font-size` all count without anything listing them.
+   */
+  #headerDensity: HeaderDensity = "full";
+  #calendarTitle: string | undefined;
+  #calendarShowsToday = false;
+  #headerObserver: ResizeObserver | undefined;
+  #headerWidth: number | undefined;
+  #fitScheduled = false;
+
   constructor() {
     super();
     const root = this.attachShadow({ mode: "open" });
@@ -176,11 +202,37 @@ export class OteEventsElement extends HTMLElement {
   }
 
   connectedCallback(): void {
+    // The header's density follows the widget's own width, which only a
+    // ResizeObserver can report: a media query inside a shadow root
+    // follows the viewport instead, and this widget lives in a column.
+    // The observer re-fits an existing row rather than re-rendering, so a
+    // host resizing its layout never remounts the calendar.
+    if (!this.#headerObserver && typeof ResizeObserver !== "undefined") {
+      this.#headerObserver = new ResizeObserver((entries) => {
+        // Width only, and only when it actually moved. Re-fitting changes
+        // the row's *height* (a select is not a segmented group), which
+        // would resize this element and deliver another notification —
+        // the feedback loop Chrome reports as "ResizeObserver loop
+        // completed with undelivered notifications", measured here before
+        // this guard existed. A host page's error reporting sees that.
+        const width = entries[0]?.contentRect.width ?? this.clientWidth;
+        if (width === this.#headerWidth) return;
+        this.#headerWidth = width;
+        // Out of the delivery itself, on the next frame: measuring and
+        // restyling inside the callback is what makes Chrome report
+        // "ResizeObserver loop completed with undelivered notifications",
+        // and a host page's error reporting sees that.
+        this.#scheduleFit();
+      });
+      this.#headerObserver.observe(this);
+    }
     if (this.#runtimeDataOverride) this.#renderNow();
     else void this.#load();
   }
 
   disconnectedCallback(): void {
+    this.#headerObserver?.disconnect();
+    this.#headerObserver = undefined;
     this.#teardownCalendar();
   }
 
@@ -400,6 +452,8 @@ export class OteEventsElement extends HTMLElement {
       this.#container.setAttribute("data-bounded", "");
     }
     renderWidget(this.#container, state);
+    // The header is measured, not queried: see #fitHeader().
+    this.#fitHeader();
 
     if (state.layout === "calendar" && state.status === "loaded") {
       const events = selectVisibleEvents(state);
@@ -435,6 +489,24 @@ export class OteEventsElement extends HTMLElement {
       layout: this.#activeView(),
       views: this.#views(),
       onViewSelect: (view) => this.#selectView(view),
+      headerDensity: this.#headerDensity,
+      // The month nav belongs to the calendar and to nothing else: `list`
+      // and `cards` have no month to page.
+      ...(this.#activeView() === "calendar"
+        ? {
+            calendarNav: {
+              ...(this.#calendarTitle !== undefined ? { title: this.#calendarTitle } : {}),
+              showsToday: this.#calendarShowsToday,
+              onNav: (action: "prev" | "next" | "today") => {
+                // Straight to the mounted calendar, never through a
+                // re-render: #renderNow() replaces `.calendar-host` and so
+                // remounts the month, which would undo the navigation it
+                // was asked to perform.
+                this.#calendarHandle?.[action]();
+              },
+            },
+          }
+        : {}),
       previewFields: parseFields(this.getAttribute("fields-preview") ?? this.getAttribute("fields")),
       detailFields: parseDetailFields(this.getAttribute("fields-detail") ?? this.getAttribute("fields")),
       groupEvents: parseGroupEvents(this.getAttribute("group-events")),
@@ -628,6 +700,17 @@ export class OteEventsElement extends HTMLElement {
         fillsHeight,
         compact: resolveCompact(parseDensity(this.getAttribute("density")), bounded || fillsHeight),
         ...parseCalendarAttributes((name) => this.getAttribute(name), this.#calendarDate),
+        // The header's month title and Today state, straight from the
+        // library's own rendered view — recomputing them from the date
+        // would get the narrow `list` fallback wrong, which titles a range
+        // of days rather than a month. Applied to the existing row rather
+        // than through #renderNow(), which would remount this calendar and
+        // lose the month it was just asked to move to.
+        onDatesSet: ({ title, showsToday }) => {
+          this.#calendarTitle = title;
+          this.#calendarShowsToday = showsToday;
+          this.#updateNav();
+        },
         onEventClick: (event) => {
           const eventClick = parseEventClick(this.getAttribute("event-click"));
           this.dispatchEvent(new CustomEvent("ote-event-open", { detail: this.#domEventDetail(undefined, event) }));
@@ -644,6 +727,102 @@ export class OteEventsElement extends HTMLElement {
       const host = this.#container.querySelector<HTMLElement>(".calendar-host");
       if (host) host.textContent = error instanceof Error ? error.message : String(error);
     }
+  }
+
+  /**
+   * The month title and the Today button, updated in place.
+   *
+   * Everything else in this widget re-renders; this cannot. `#renderNow()`
+   * replaces `.calendar-host`, which remounts the calendar — so applying a
+   * month change that way would throw away the month change. Same reasoning
+   * as `#renderModalNow()`.
+   */
+  #updateNav(): void {
+    const title = this.#container.querySelector<HTMLElement>(".header-title");
+    if (title && this.#calendarTitle !== undefined) title.textContent = this.#calendarTitle;
+    const today = this.#container.querySelector<HTMLButtonElement>(".header-today");
+    if (today) today.disabled = this.#calendarShowsToday;
+    for (const arrow of this.#container.querySelectorAll<HTMLButtonElement>(".header-arrow")) {
+      arrow.disabled = this.#calendarTitle === undefined;
+    }
+    // The month is the widest thing in the row and it arrives *after* the
+    // row is first measured — the lazy calendar chunk reports it. Without
+    // this, a 400px widget kept its view labels while "November 2026" was
+    // pushing the nav 92px past its box (measured).
+    this.#scheduleFit();
+  }
+
+  /**
+   * Step the header down until it stops overflowing: labels, then icons,
+   * then a native `<select>`.
+   *
+   * Measured rather than queried, because a media query inside a shadow
+   * root follows the **viewport** and this widget is usually in a column —
+   * the #169 mistake, which this row re-made once already. Measuring also
+   * means a Spanish label, a long month name and a host's own
+   * `--ote-font-size` all count without any of them being listed anywhere.
+   *
+   * It always restarts from `full`, so a widget that grows gets its labels
+   * back. Only the `menu` step rebuilds DOM, and it rebuilds the header
+   * alone — never the widget, whose calendar would remount with it.
+   */
+  /** One fit per frame, however many notifications arrive in it. */
+  #scheduleFit(): void {
+    if (this.#fitScheduled) return;
+    this.#fitScheduled = true;
+    const run = (): void => {
+      this.#fitScheduled = false;
+      if (this.isConnected) this.#fitHeader();
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else run();
+  }
+
+  #fitHeader(): void {
+    // Not until the row holds what it will hold. The month is the widest
+    // thing in it and the lazy calendar chunk reports it a few frames
+    // after the row is built, so measuring before it lands decides the
+    // density against a title that is still empty — measured as the same
+    // widget keeping its labels at 460px and dropping them at 420px,
+    // purely on which render won the race. In `list`/`cards` there is no
+    // title to wait for.
+    if (this.#activeView() === "calendar" && this.#calendarTitle === undefined) {
+      this.#container.setAttribute("data-header", this.#headerDensity);
+      return;
+    }
+    for (const density of ["full", "icons", "menu"] as const) {
+      if (density !== this.#headerDensity) {
+        const wasMenu = this.#headerDensity === "menu";
+        this.#headerDensity = density;
+        // The first two steps are the same DOM with a different stylesheet
+        // branch; only the select is a different control.
+        if (density === "menu" || wasMenu) this.#renderHeaderNow();
+      }
+      this.#container.setAttribute("data-header", density);
+      const header = this.#container.querySelector<HTMLElement>(".ote-header");
+      if (!header) return;
+      // The row and the nav group both, because the squeeze shows up in
+      // whichever of them ran out first: a flex item cannot shrink below
+      // its min-content width, so when the nav's buttons stop fitting it
+      // is the nav that overflows while the row around it still "fits".
+      // And `.header-title` has a min-width (theme.css.ts) so that a title
+      // free to shrink to nothing cannot absorb the squeeze silently.
+      if (!overflows(header) && !overflows(header.querySelector(".header-nav"))) return;
+    }
+  }
+
+  /**
+   * Replace the header row alone, leaving the events and the mounted
+   * calendar untouched — the `#renderModalNow()` pattern, for the one
+   * density step that changes the DOM.
+   */
+  #renderHeaderNow(): void {
+    const existing = this.#container.querySelector<HTMLElement>(".ote-header");
+    if (!existing) return;
+    this.#container.setAttribute("data-header", this.#headerDensity);
+    const rendered = renderWidgetHeader(this.#buildState());
+    if (rendered) existing.replaceWith(rendered);
+    this.#updateNav();
   }
 
   #eventActionsWithAttributeDefaults(): EventActionsInput {
@@ -679,6 +858,11 @@ export class OteEventsElement extends HTMLElement {
     this.#calendarHandle?.destroy();
     this.#calendarHandle = undefined;
   }
+}
+
+/** Whether an element's content needs more room than it has. */
+function overflows(node: Element | null): boolean {
+  return node !== null && node.scrollWidth > node.clientWidth + 1;
 }
 
 function originalEvents(input: OteEventsFeedData): OriginalOteEvent[] {

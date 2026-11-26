@@ -15,7 +15,7 @@ import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/pr
 import type { EventClickMode, FieldKey, FooterMode, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
 import { el, svgIcon, withText } from "./dom.js";
 import { renderFooter, type FooterFeedMeta } from "./footer.js";
-import { renderViewSwitcher } from "./view-switcher.js";
+import { renderHeader, type HeaderDensity, type HeaderNavState } from "./header.js";
 import type { SubscribeLayout } from "./subscribe-attrs.js";
 import { computeEventGroups } from "./grouping.js";
 import type { EventGroupInfo, EventGroups } from "./grouping.js";
@@ -117,6 +117,18 @@ export interface WidgetState {
   views: readonly Layout[];
   /** Called with the view the visitor picked; element.ts holds that state and re-renders. */
   onViewSelect?(view: Layout): void;
+  /**
+   * How much room the header row has — measured by element.ts, because a
+   * media query inside a shadow root follows the viewport rather than the
+   * widget (see header.ts).
+   */
+  headerDensity: HeaderDensity;
+  /**
+   * The month navigation, in `layout="calendar"` only. Its title comes from
+   * the mounted calendar, so it is absent until the lazy chunk has reported
+   * one (header.ts renders the arrows disabled until then).
+   */
+  calendarNav?: HeaderNavState;
   /** The host's raw `theme` attribute, forwarded to the footer's `<ote-subscribe>`. */
   theme?: string | null;
   eventClick: EventClickMode;
@@ -1511,6 +1523,26 @@ function hasClockTime(event: PreviewEvent): boolean {
   return [event.startDate, event.endDate].some((value) => typeof value === "string" && value.includes("T"));
 }
 
+/**
+ * The chrome row above the events (#183): month navigation on the left in
+ * `layout="calendar"`, the view switcher on the right. Exported so
+ * `element.ts` can replace it on its own when the measured density changes
+ * — re-rendering the whole widget would remount the calendar under it.
+ */
+export function renderWidgetHeader(state: WidgetState): HTMLElement | undefined {
+  const onViewSelect = state.onViewSelect;
+  return renderHeader({
+    // No callback means a direct renderWidget() caller rather than the
+    // element: a row of buttons that do nothing is worse than no row.
+    views: onViewSelect ? state.views : [],
+    active: state.layout,
+    lang: state.lang,
+    density: state.headerDensity,
+    ...(state.calendarNav ? { nav: state.calendarNav } : {}),
+    onSelect: (view) => onViewSelect?.(view),
+  });
+}
+
 export function renderWidget(container: HTMLElement, state: WidgetState): void {
   container.replaceChildren();
   const strings = STRINGS[state.lang];
@@ -1559,14 +1591,7 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     return;
   }
 
-  const switcher = state.onViewSelect
-    ? renderViewSwitcher({
-        views: state.views,
-        active: state.layout,
-        lang: state.lang,
-        onSelect: state.onViewSelect,
-      })
-    : undefined;
+  const header = renderWidgetHeader(state);
 
   // Chrome is inside the height budget, so the events have to scroll
   // *under* it rather than carry it away: a bounded `layout="cards"`
@@ -1577,8 +1602,8 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
   // is mounted **only** when there is chrome to keep out of it — which is
   // what keeps `footer="off" views="none"` byte-identical to the pre-#68
   // tree.
-  const body = footer || switcher ? el("div", "events-scroll") : container;
-  if (switcher) container.append(switcher);
+  const body = footer || header ? el("div", "events-scroll") : container;
+  if (header) container.append(header);
 
   if (state.layout === "calendar") {
     // Mount point only, with a loading placeholder: element.ts lazy-loads
@@ -1594,13 +1619,13 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
   const groups = resolveEventGroups(state);
   const list = el("ul", `events layout-${state.layout}`);
   if (state.layout === "list") {
-    const header = el("li", "event-list-header");
-    header.append(
+    const columns = el("li", "event-list-header");
+    columns.append(
       withText(el("span"), strings.event),
       withText(el("span"), strings.when),
       iconHeader("icon-updated", strings.lastUpdate),
     );
-    list.append(header);
+    list.append(columns);
   }
   for (const event of events) {
     list.append(

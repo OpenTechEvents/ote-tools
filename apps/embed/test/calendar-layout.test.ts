@@ -19,7 +19,9 @@ describe("calendarLocaleOptions", () => {
     expect(options).toMatchObject({
       locale: "es-ES",
       firstDay: 1,
-      buttonText: { prev: "Mes anterior", next: "Mes siguiente", today: "Hoy", close: "Cerrar" },
+      // One label, since the widget's own header owns prev/next/today
+      // (#183): `close` names the "+N more" popover's close button.
+      buttonText: { close: "Cerrar" },
       dayHeaderFormat: { weekday: "short" },
     });
     expect((options.titleFormat as (date: Date) => string)(new Date("2026-08-01T00:00:00Z"))).toBe(
@@ -31,7 +33,7 @@ describe("calendarLocaleOptions", () => {
     expect(calendarLocaleOptions("en")).toMatchObject({
       locale: "en-US",
       firstDay: 0,
-      buttonText: { prev: "Previous month", next: "Next month", today: "Today", close: "Close" },
+      buttonText: { close: "Close" },
     });
   });
 

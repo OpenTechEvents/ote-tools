@@ -964,12 +964,6 @@ a.price:focus-visible {
   overflow: hidden;
 }
 
-/* Four controls plus a month title do not fit a phone-width toolbar on one line. */
-.calendar-host .ec-toolbar {
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
 .event-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1285,37 +1279,76 @@ a.price:focus-visible {
 }
 
 /*
- * The view switcher (#183): the other chrome row inside the height budget.
+ * The header (#183): the chrome row above the events, in every layout.
  *
- * Same flex: none as .footer and for the same reason — it keeps its height
- * and the event area absorbs what is left of the budget. The segmented look
- * is the playground's own .segmented-toolbar (apps/embed/styles.css) ported
- * to the --ote-* tokens, so the control a publisher configures and the one
- * their visitor clicks are visibly the same control.
+ * Google Calendar's order, because it is the one a visitor arrives with:
+ * Today and the month arrows on the left, the title beside them, the view
+ * control floating right. Same flex: none as .footer and for the same
+ * reason — it is chrome, so it keeps its height and the event area absorbs
+ * what is left of the budget.
  *
- * align-self: flex-start, not a full-width row: the group is three short
- * buttons, and stretching its border across a 1120px embed would draw a
- * band the widget has no other use for.
+ * The library's own toolbar is switched off (calendar-layout.ts), so this
+ * row is the only one: the two used to stack, and together they cost about
+ * 76px of a budget that is often 300.
+ *
+ * No wrapping, deliberately: the row reports its overflow through
+ * scrollWidth and element.ts steps the density down instead (see
+ * #fitHeader). A row that wrapped would always fit, and so would never ask
+ * for the smaller control that actually belongs at that width.
  */
-.view-switcher {
-  display: inline-flex;
-  align-self: flex-start;
+.ote-header {
+  display: flex;
   flex: none;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.75rem;
   margin-block-end: 0.75rem;
-  padding: 0.2rem;
-  border: 1px solid var(--ote-border);
-  border-radius: var(--ote-radius);
+  min-width: 0;
+  /* Past the last density step there is nothing left to drop, and a row
+     that spills into the events is worse than one that is cut off. */
+  overflow: hidden;
 }
 
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+/*
+ * The month is the one thing here allowed to take the room, and the one
+ * thing that may truncate — but not to nothing.
+ *
+ * The min-width is what makes the row's overflow a usable signal: without
+ * it the title shrinks to zero and the header always "fits", so
+ * element.ts#fitHeader would never see a reason to drop anything.
+ *
+ * 7.5rem is "a month and a year", measured: at 4.5rem the labels survived
+ * down to a 360px widget while "November 2026" was already cut to
+ * "Novemb…" — the wrong thing given up first. The floor buys the month its
+ * room and makes the view labels pay for it, which is the order a visitor
+ * would choose.
+ */
+.header-title {
+  flex: 0 1 auto;
+  min-width: 7.5rem;
+  margin-inline-start: 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ote-text);
+}
+
+.header-today,
+.header-arrow,
 .view-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.55rem;
   border: 1px solid transparent;
-  border-radius: calc(var(--ote-radius) - 2px);
   background: transparent;
   color: var(--ote-muted);
   font: inherit;
@@ -1324,19 +1357,81 @@ a.price:focus-visible {
   cursor: pointer;
 }
 
-.view-button:hover {
-  color: var(--ote-text);
+.header-today {
+  padding: 0.3rem 0.6rem;
   border-color: var(--ote-border);
+  border-radius: var(--ote-radius);
+  white-space: nowrap;
 }
 
-/* Focus is visible on the button itself rather than on the group: with
-   three ordinary tab stops (view-switcher.ts says why they are not a radio
-   group) the ring is the only thing telling a keyboard visitor which of
-   the three they are on. */
-.view-button:focus-visible {
+.header-arrow {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.header-today:hover:not(:disabled),
+.header-arrow:hover:not(:disabled) {
+  background: var(--ote-surface);
+  color: var(--ote-text);
+}
+
+.header-today:focus-visible,
+.header-arrow:focus-visible,
+.view-button:focus-visible,
+.view-select:focus-visible {
   color: var(--ote-text);
   outline: 2px solid var(--ote-accent);
   outline-offset: 1px;
+}
+
+/* Disabled means "you are already here" (Today) or "the calendar has not
+   reported a month yet" (the arrows) — both are states, not failures, so
+   they fade rather than look broken. */
+.header-today:disabled,
+.header-arrow:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.header-arrow-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/*
+ * The view control. The segmented group is the playground's own
+ * .segmented-toolbar (apps/embed/styles.css) ported to the --ote-* tokens,
+ * so the control a publisher configures and the one their visitor clicks
+ * are visibly the same control.
+ */
+/* margin-inline-start: auto, not justify-content on the row: in list and
+   cards there is no nav beside it, and space-between alone would swing the
+   control to the left exactly when the visitor switched views. Measured:
+   it moved 513px. */
+.view-switcher,
+.view-select-wrapper {
+  margin-inline-start: auto;
+}
+
+.view-switcher {
+  display: inline-flex;
+  flex: none;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--ote-border);
+  border-radius: var(--ote-radius);
+}
+
+.view-button {
+  padding: 0.3rem 0.55rem;
+  border-radius: calc(var(--ote-radius) - 2px);
+}
+
+.view-button:hover {
+  color: var(--ote-text);
+  border-color: var(--ote-border);
 }
 
 .view-button[aria-pressed="true"] {
@@ -1354,18 +1449,73 @@ a.price:focus-visible {
 }
 
 /*
- * The row wraps rather than hiding its labels at a narrow width.
- *
- * An earlier draft collapsed .view-button-label to its icon under
- * @media (max-width: 360px) — which is the #169 mistake in a new place: a
- * media query inside a shadow root follows the **viewport**, and this
- * widget is embedded in a column. Measured in Chrome at a 330px-wide host
- * in an 800px window, the labels stayed and the rule did nothing; in a
- * 320px window it would have hidden them in a widget 1120px wide.
- * Three short words fit a 278px row (measured), so wrapping is the whole
- * fix, and a container query would be buying a container-type for a
- * problem that no longer exists.
+ * At the last step there is nothing left to drop, so the floor goes too:
+ * the row clips from its end (overflow: hidden above), and what sits at
+ * the end is the view control — the one thing a visitor at 320px still
+ * needs. Measured: the nav wanted 35px more at 320px and 75px at 280px,
+ * all of it the title's floor.
  */
+.ote-events[data-header="menu"] .header-title {
+  min-width: 0;
+}
+
+/*
+ * data-header is written by element.ts after measuring the row, because a
+ * media query inside a shadow root follows the viewport and this widget
+ * lives in a column (the #169 mistake, re-made by this row once and
+ * removed again). "icons" keeps every label in the DOM and only hides it
+ * visually, so each button keeps its accessible name; clip rather than
+ * display: none is what makes that true.
+ */
+.ote-events[data-header="icons"] .view-button-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ote-events[data-header="icons"] .view-button {
+  padding: 0.3rem 0.45rem;
+}
+
+/*
+ * The last step down is a native select, not a hand-built menu: the
+ * platform renders its popup in the top layer with its own keyboard and
+ * touch behaviour, and there is no "clicked outside" to detect — which is
+ * the one thing a menu inside a shadow root gets wrong (see
+ * suppressRetargetedOutsideEvents in calendar-layout.ts).
+ */
+.view-select-wrapper {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--ote-border);
+  border-radius: var(--ote-radius);
+  color: var(--ote-accent);
+}
+
+.view-select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/*
+ * The library's toolbar is configured empty (calendar-layout.ts) but still
+ * renders its container, and an empty 40px strip above the grid is exactly
+ * the room this header set out to give back.
+ */
+.calendar-host .ec-toolbar {
+  display: none;
+}
 
 /*
  * The footer (#68): feed name and time zone on one side, <ote-subscribe>

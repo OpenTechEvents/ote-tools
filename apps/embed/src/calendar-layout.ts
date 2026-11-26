@@ -19,6 +19,19 @@ export interface CalendarHandle {
   destroy(): void;
   /** The month the calendar is showing now, as `YYYY-MM-DD` — see `element.ts`: every re-render remounts the calendar, and without this the month the visitor paged to is lost. */
   currentDate(): string | undefined;
+  /**
+   * The month navigation, driven from the widget's own header (#183).
+   *
+   * The library has a `headerToolbar` and it is deliberately switched off:
+   * it only exists inside this lazy-loaded chunk, so a toolbar drawn by it
+   * cannot carry the view switcher, which has to be reachable from `list`
+   * and `cards` too. One row of chrome that works in every layout beats two
+   * that each work in one — and the widget's height budget is spent on
+   * events, not on a second strip.
+   */
+  prev(): void;
+  next(): void;
+  today(): void;
 }
 
 /**
@@ -318,14 +331,11 @@ export function calendarLocaleOptions(lang: Lang): Calendar.Options {
     firstDay: lang === "es" ? 1 : 0,
     // A plain object replaces the library's whole `buttonText` default (see
     // its `mergeOpts`), so every label the widget can actually show has to
-    // be here — `close` included: it names the `+N more` popover's close
-    // button, which did not exist before `dayMaxEvents` was switched on.
-    buttonText: {
-      prev: strings.prev,
-      next: strings.next,
-      today: strings.today,
-      close: strings.close,
-    },
+    // be here. Since #183 that is one: the toolbar is off and the widget's
+    // own header names prev/next/today (header.ts), while `close` still
+    // names the `+N more` popover's close button. Keeping unused copies of
+    // the other three here would be a second set to rot.
+    buttonText: { close: strings.close },
     titleFormat: (start) => capitalizeFirst(
       new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(start),
     ),
@@ -339,31 +349,19 @@ export function calendarLocaleOptions(lang: Lang): Calendar.Options {
 }
 
 interface CalendarStrings {
-  prev: string;
-  next: string;
-  today: string;
   close: string;
-  nextEvent: string;
   moreLink: (num: number) => string;
   noEvents: string;
 }
 
 const CALENDAR_STRINGS: Record<Lang, CalendarStrings> = {
   en: {
-    prev: "Previous month",
-    next: "Next month",
-    today: "Today",
     close: "Close",
-    nextEvent: "Next event",
     moreLink: (num) => `+${num} more`,
     noEvents: "No events this month",
   },
   es: {
-    prev: "Mes anterior",
-    next: "Mes siguiente",
-    today: "Hoy",
     close: "Cerrar",
-    nextEvent: "Próximo evento",
     moreLink: (num) => `+${num} más`,
     noEvents: "No hay eventos este mes",
   },
@@ -400,6 +398,14 @@ export interface RenderCalendarOptions {
   fillsHeight: boolean;
   /** `Date.now()` by default; a seam for tests, which must not depend on the real clock. */
   now?: Date;
+  /**
+   * Called on mount and on every month change with what the widget's header
+   * has to show: the library's own rendered title (not one recomputed from
+   * the date — the narrow `list` fallback titles a *range of days*, not a
+   * month), and whether today is inside the range on screen, which is what
+   * greys the Today button.
+   */
+  onDatesSet?(info: { title: string; showsToday: boolean }): void;
 }
 
 /**
@@ -446,9 +452,7 @@ export function renderCalendar(
 ): CalendarHandle {
   const { lang, maxPerDay, responsive, bounded, compact, fillsHeight } = options;
   const now = options.now ?? new Date();
-  const strings = CALENDAR_STRINGS[lang];
   const date = resolveCalendarDate(events, options.initialDate, now);
-  const jumpTo = nextEventDate(events, toISODate(now));
 
   // A numeric cap is a row height, not a count — see dayRowHeight(). The
   // property is set on the container and read by a rule in theme.css.ts,
@@ -518,34 +522,30 @@ export function renderCalendar(
     height: "100%",
     dayMaxEvents: maxPerDay !== "off",
     datesSet(info) {
-      // Fires on mount and on every month/view change. The list fallback has
-      // no month grid to size, so it is left alone.
+      // Fires on mount and on every month/view change: the widget's header
+      // reads its title and its Today state from here (see CalendarHandle).
+      // Compared at local midnight, which is also where the library's
+      // `info.start` sits: a range test against the raw clock would call
+      // the current month "not today" for the rest of the day it starts on.
+      const today = options.now ?? new Date();
+      const todayStamp = +new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      options.onDatesSet?.({
+        title: typeof info.view.title === "string" ? info.view.title : "",
+        showsToday: todayStamp >= +info.start && todayStamp < +info.end,
+      });
+      // The list fallback has no month grid to size, so it is left alone.
       if (info.view.type === "list") {
         container.removeAttribute("data-week-rows");
         return;
       }
       applyWeekRows(info.start, info.end);
     },
-    // "Next event" earns its place on a 460-event feed, where paging month
-    // by month is the only other way to find anything — but only when there
-    // is something ahead to jump to.
-    ...(jumpTo
-      ? {
-          customButtons: {
-            nextEvent: {
-              text: strings.nextEvent,
-              click() {
-                calendar.setOption("date", jumpTo);
-              },
-            },
-          },
-        }
-      : {}),
-    headerToolbar: {
-      start: "title",
-      center: "",
-      end: `${jumpTo ? "nextEvent " : ""}today prev,next`,
-    },
+    // The library's own toolbar is off: the widget draws one header for
+    // every layout instead (see CalendarHandle). An empty `headerToolbar`
+    // still renders its container, which theme.css.ts hides — measured,
+    // because a 40px strip of nothing above the grid is exactly the room
+    // this change set out to give back.
+    headerToolbar: { start: "", center: "", end: "" },
     eventClick(info) {
       const previewEvent = info.event.extendedProps["previewEvent"] as PreviewEvent | undefined;
       if (previewEvent) options.onEventClick(previewEvent);
@@ -569,6 +569,15 @@ export function renderCalendar(
   }
 
   return {
+    prev() {
+      calendar.prev();
+    },
+    next() {
+      calendar.next();
+    },
+    today() {
+      calendar.setOption("date", toISODate(options.now ?? new Date()));
+    },
     currentDate() {
       const current = calendar.getOption("date");
       return current instanceof Date ? toISODate(current) : typeof current === "string" ? current : undefined;

@@ -99,6 +99,7 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     // the element's chrome, and a row whose buttons do nothing is worse
     // than none.
     views: [],
+    headerDensity: "full",
     previewFields: new Set(["location"]),
     detailFields: new Set(["location"]),
     groupEvents: new Set(),
@@ -2682,6 +2683,139 @@ describe("<ote-events>", () => {
       ]);
     });
 
+    it("renders the month navigation only in the calendar view", async () => {
+      // The nav acts on the month on screen; list and cards have none.
+      const calendar = await loaded("calendar");
+      const nav = calendar.shadowRoot!.querySelector(".header-nav")!;
+      expect(nav).not.toBeNull();
+      // jsdom cannot load the lazy calendar chunk, so no month has been
+      // reported and the arrows say so rather than looking live. The
+      // mounted-calendar half — the title, Today greying out, paging — is
+      // a browser check (see apps/embed/CLAUDE.md).
+      expect([...nav.querySelectorAll<HTMLButtonElement>(".header-arrow")].map((b) => b.disabled)).toEqual([
+        true,
+        true,
+      ]);
+      expect(nav.querySelector(".header-title")!.textContent).toBe("");
+
+      const list = await loaded("list");
+      expect(list.shadowRoot!.querySelector(".header-nav")).toBeNull();
+      expect(switcherOf(list)).not.toBeNull();
+    });
+
+    describe("the header's density is measured, not queried", () => {
+      // A media query inside a shadow root follows the viewport and this
+      // widget lives in a column (#169), so element.ts measures the row.
+      // jsdom has no layout at all, so the widths are stubbed: what is
+      // asserted is the stepping, which is the logic.
+      const NEEDED: Record<string, number> = { full: 520, icons: 380, menu: 300 };
+      let available = 800;
+      let observed: Array<{ target: Element; callback: ResizeObserverCallback; observer: ResizeObserver }> = [];
+
+      beforeEach(() => {
+        available = 800;
+        observed = [];
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+          configurable: true,
+          get(this: HTMLElement) {
+            return this.classList.contains("ote-header") ? available : 0;
+          },
+        });
+        Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+          configurable: true,
+          get(this: HTMLElement) {
+            if (!this.classList.contains("ote-header")) return 0;
+            const density = this.closest(".ote-events")?.getAttribute("data-header") ?? "full";
+            return NEEDED[density] ?? 0;
+          },
+        });
+        class StubResizeObserver implements ResizeObserver {
+          constructor(private readonly callback: ResizeObserverCallback) {}
+          observe(target: Element): void {
+            observed.push({ target, callback: this.callback, observer: this });
+          }
+          unobserve(): void {}
+          disconnect(): void {
+            observed = observed.filter((entry) => entry.observer !== this);
+          }
+        }
+        vi.stubGlobal("ResizeObserver", StubResizeObserver);
+        // The fit is scheduled out of the observer's own delivery; running
+        // it as a plain task keeps the test synchronous-ish.
+        vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+          setTimeout(() => callback(0), 0);
+          return 0;
+        });
+      });
+
+      afterEach(() => {
+        for (const property of ["clientWidth", "scrollWidth"]) {
+          Object.defineProperty(HTMLElement.prototype, property, { configurable: true, value: 0 });
+        }
+      });
+
+      function resizeTo(width: number): void {
+        available = width;
+        for (const { target, callback, observer } of observed) {
+          callback([{ target, contentRect: { width } } as unknown as ResizeObserverEntry], observer);
+        }
+      }
+
+      const densityOf = (el: OteEventsElement): string | null =>
+        el.shadowRoot!.querySelector(".ote-events")!.getAttribute("data-header");
+
+      it("keeps the labels while they fit, then drops them, then falls back to a select", async () => {
+        const el = await loaded("list");
+        expect(densityOf(el)).toBe("full");
+
+        resizeTo(400);
+        await flush();
+        expect(densityOf(el)).toBe("icons");
+        expect(el.shadowRoot!.querySelectorAll(".view-button-label")).toHaveLength(3);
+
+        resizeTo(320);
+        await flush();
+        expect(densityOf(el)).toBe("menu");
+        expect(el.shadowRoot!.querySelector(".view-select")).not.toBeNull();
+        expect(el.shadowRoot!.querySelector(".view-switcher")).toBeNull();
+      });
+
+      it("gives the labels back when the widget grows again", async () => {
+        const el = await loaded("list");
+        resizeTo(320);
+        await flush();
+        expect(densityOf(el)).toBe("menu");
+
+        resizeTo(900);
+        await flush();
+        expect(densityOf(el)).toBe("full");
+        expect(el.shadowRoot!.querySelector(".view-switcher")).not.toBeNull();
+      });
+
+      it("keeps the visitor's view across a density change", async () => {
+        // The select and the segmented group are two shapes of one
+        // control; re-rendering the row must not re-read `layout`.
+        const el = await loaded("list");
+        pick(el, "cards");
+        resizeTo(320);
+        await flush();
+
+        const select = el.shadowRoot!.querySelector<HTMLSelectElement>(".view-select")!;
+        expect(select.value).toBe("cards");
+        expect(el.shadowRoot!.querySelector("ul.layout-cards")).not.toBeNull();
+      });
+
+      it("waits for the calendar's title before deciding", async () => {
+        // The month is the widest thing in the row and arrives with the
+        // lazy chunk — which jsdom never loads, so the density must stay
+        // put rather than be decided against an empty title.
+        const el = await loaded("calendar");
+        resizeTo(320);
+        await flush();
+        expect(densityOf(el)).toBe("full");
+      });
+    });
+
     it("mounts the scrollport for the switcher alone, and keeps it out of it", async () => {
       // footer="off" isolates the switcher as the only chrome: with the
       // footer there, the wrapper would be mounted either way and this
@@ -2695,12 +2829,13 @@ describe("<ote-events>", () => {
       await flush();
 
       const container = el.shadowRoot!.querySelector(".ote-events")!;
-      const switcher = switcherOf(el)!;
+      const header = container.querySelector(".ote-header")!;
       // Chrome inside the height budget: subtracted from it, not drawn
       // over the events. The heights are a browser matter (see
       // apps/embed/CLAUDE.md); the wiring is what is asserted here.
-      expect(container.firstElementChild).toBe(switcher);
-      expect(switcher.nextElementSibling).toBe(container.querySelector(".events-scroll"));
+      expect(container.firstElementChild).toBe(header);
+      expect(header.contains(switcherOf(el))).toBe(true);
+      expect(header.nextElementSibling).toBe(container.querySelector(".events-scroll"));
       expect(container.querySelector(".events-scroll")!.querySelector("ul.events")).not.toBeNull();
     });
   });

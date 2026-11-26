@@ -158,7 +158,23 @@ Read before touching the validator: `apps/validator/README.md`,
     phone width at all, see trap 3's iframe note; the embed's own
     measurements use a 320px `<iframe>`.
 
-15. **Two things make a headless measurement of the embed measure the wrong
+15. **`--virtual-time-budget` runs `requestAnimationFrame` at about 2fps,
+    so anything scheduled on a frame is not there when `--dump-dom` fires.**
+    Measured: 3 frames in 1.5s of virtual time, and awaiting `rAF` in the
+    page can hang outright. It made a width sweep of the embed's header
+    report full labels at 480px and a dropdown at 320px *on alternate
+    runs* — a race in the instrument, read as a bug in the widget. Timers
+    are fine; frames are not. When the thing under test uses `rAF` or a
+    `ResizeObserver` (whose delivery is frame-bound too), drive a real
+    browser over CDP instead — Node 22 has a global `WebSocket`, so it is
+    about 30 lines: launch `--headless=new --remote-debugging-port=N
+    --user-data-dir=<temp>`, read the page target from
+    `http://127.0.0.1:N/json`, connect, then `Runtime.evaluate` with
+    `awaitPromise: true` (and `Page.captureScreenshot` for a look). The
+    same driver makes a resize sweep possible at all, which `--dump-dom`
+    cannot do: it is one shot per page load.
+
+16. **Two things make a headless measurement of the embed measure the wrong
     page.** A feed served from `localhost` is refused by
     `subscribe-urls.ts#isConvertibleFeedUrl`, so `<ote-subscribe>` renders
     only the OTE group and a check expecting ICS/RSS badges silently tests

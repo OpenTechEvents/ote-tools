@@ -646,65 +646,88 @@ the time zone, `<ote-subscribe>`, the OTE mark. `src/footer.ts` builds it;
   `apps/preview`), and is filed separately — do not "fix" the footer line to
   agree with it.
 
-## The view switcher is the second chrome row, and the visitor's only state
+## The header is one row for the whole widget, and the library's toolbar is off
 
-`views` (#183, default all three) renders Calendar / List / Cards above the
-events; `layout` becomes the view the widget *opens* on. `src/view-switcher.ts`
-builds it, `render.ts` places it, `element.ts` holds the pick. What is worth
-keeping:
+`views` (#183, default all three) gives the visitor Calendar / List / Cards;
+`layout` becomes the view the widget *opens* on. `src/header.ts` builds the
+row — month nav left, view control right, Google Calendar's order —
+`render.ts` places it, `element.ts` holds the pick and measures the fit.
 
-- **It cannot live in `ec-toolbar`.** That toolbar belongs to
+- **The nav had to leave `ec-toolbar`.** That toolbar belongs to
   `@event-calendar/core` and exists only inside the lazy-loaded
-  `calendar-layout.ts` — absent in `list` and `cards`, the two views with no
-  other way back to the calendar.
+  `calendar-layout.ts`, absent in the two views with no other way back to
+  the calendar. So `headerToolbar` is configured empty, the handle grew
+  `prev()/next()/today()`, and `onDatesSet` reports the title and whether
+  today is on screen. **The title is the library's own rendered one**: the
+  narrow fallback titles a range of days, not a month, so recomputing it
+  here would be wrong exactly where the layout already changed under us.
+  The payoff is a row instead of two — about 76px of a budget that is often
+  300.
 
-- **The active view is state, not an attribute, so `data-layout` reads the
-  state.** `#renderNow()` builds `WidgetState` *before* it writes
-  `data-layout`, because the stylesheet has to follow the visitor's pick
-  (cards scroll a different element from the other two, and CSS cannot ask
-  which layout rendered). Everything downstream of `#activeView()` sees one
-  `state.layout` and does not know a switcher exists.
+- **Nav and title are applied in place, never through a re-render.**
+  `#renderNow()` replaces `.calendar-host` and so remounts the calendar: a
+  month change applied that way would undo itself. `#updateNav()` is the
+  `#renderModalNow()` pattern for the same reason.
+
+- **The active view is state, so `data-layout` reads the state.**
+  `#renderNow()` builds `WidgetState` *before* writing the attribute,
+  because cards scroll a different element from the other two and CSS
+  cannot ask which layout rendered.
 
 - **A write that moves nothing must not reset the pick.**
-  `attributeChangedCallback` fires on every write, including
-  `setAttribute("layout", "list")` when it is already `"list"` — which is
-  what the playground, and any framework re-render, does on an unrelated
-  keystroke. Hence the `oldValue !== newValue` guard; the host *moving*
-  `layout` or `views` still wins, because `layout` is documented as the
-  initial selection.
+  `attributeChangedCallback` fires on every write, including the
+  playground's `setAttribute("layout", "list")` when it is already `"list"`
+  — hence the `oldValue !== newValue` guard. The host *moving* `layout` or
+  `views` still wins.
 
-- **Focus is restored by hand.** `renderWidget()` starts with
-  `replaceChildren()`, so the button the visitor pressed is gone before the
-  new row exists and a keyboard visitor would land back at the top of the
-  document. Three ordinary `aria-pressed` buttons in a labelled
-  `role="group"`, deliberately *not* `role="radiogroup"`: a radio group owes
-  arrow keys and a single tab stop, which means managing `tabindex` across a
-  tree this widget rebuilds on every render.
+- **The density is measured, and three things make the measurement
+  honest.** A media query inside a shadow root follows the **viewport**
+  (the #169 mistake, which this row re-made once). So `#fitHeader()` starts
+  at `full`, steps to `icons` and then to a native `<select>` while the row
+  or the nav overflows — and:
 
-- **No switcher over an empty feed**, unlike the footer: every view renders
-  the same message, so the row would offer three ways to see nothing. And
-  **no switcher for a host app driving the widget by property** unless it
-  sets `views` — OTE Reader owns its own view chrome (it already sets
-  `event-actions="none"`/`sort="none"`), and it has no feed URL either.
+  1. `.header-title` has a `min-width`, because a title free to shrink to
+     nothing makes every row "fit" and nothing ever steps down. At menu
+     density the floor is dropped: there is nothing left to give, and the
+     row clips from the end, where the view control is.
+  2. The nav is measured too. A flex item cannot shrink below its
+     min-content width, so when the buttons stop fitting it is the *nav*
+     that overflows while the row around it still fits.
+  3. **It does not run until the month title exists.** The title is the
+     widest thing in the row and arrives with the lazy chunk; measuring
+     before it lands decided the density against an empty title — the same
+     widget kept its labels at 460px and dropped them at 420px purely on
+     which render won the race.
 
-- **`.events-scroll` is now mounted for *either* chrome row**, which is what
-  keeps the switcher out of the scrollport in `layout="cards"`. The
+  Measured in Chrome on a real feed: labels to 520px, icons from 480px,
+  select from 340px. The observer fires on **width** only and schedules on
+  `requestAnimationFrame`: re-fitting changes the row's *height*, and
+  reacting to that is what makes Chrome log "ResizeObserver loop completed
+  with undelivered notifications" into the host page's console.
+
+- **The select is not a lesser fallback.** The platform renders its popup
+  in the top layer with its own keyboard and touch behaviour and no
+  "clicked outside" to detect — the one thing a hand-built menu in a shadow
+  root gets wrong (`suppressRetargetedOutsideEvents`). The segmented group
+  stays the default because with three views a dropdown hides that `cards`
+  exists at all; when a fourth lands (#72), re-decide.
+
+- **No "Next event" button.** It is gone with the library's toolbar:
+  `initial-date="next-event"` already opens the calendar where the data is
+  (#167), and List and Cards answer "what is next" better than a jump.
+
+- **No switcher over an empty feed** (every view renders the same message),
+  and **none for a host app driving the widget by property** unless it sets
+  `views` — OTE Reader owns its own view chrome and has no feed URL either.
+
+- **`.events-scroll` is mounted for *either* chrome row.** The
   byte-identical-to-pre-#68 tree is `footer="off" views="none"`.
 
-- **A media query inside the shadow root follows the viewport, not the
-  widget** — the #169 mistake, which this row re-made and had removed. An
-  earlier draft collapsed the labels to icons under
-  `@media (max-width: 360px)`; measured in Chrome, a 330px-wide host in an
-  800px window kept its labels and a 1120px-wide widget in a 320px window
-  would have lost them. The row wraps instead: 277×36px at a real 320px
-  viewport with all three labels visible.
-
-- **The choice is memory-only, on purpose.** Nothing goes to `localStorage`
-  or to the host page's URL — that question is the open half of #176, and a
-  widget on someone else's page does not get to answer it alone.
-  `ote-view-change` (`{ view, previousView }`, composed) is how a host
-  mirrors it; `playground.ts` listens to it to keep its own layout toolbar
-  in step, which is also the only demonstration of the event.
+- **The pick is memory-only, on purpose**: nothing to `localStorage` or to
+  the host page's URL, which is the open half of #176. `ote-view-change`
+  (`{ view, previousView }`, composed) is how a host mirrors it;
+  `playground.ts` listens to it to keep its own toolbar in step, which is
+  also the only demonstration of the event.
 
 ## The playground has one feed field, above the tabs, shared by both widgets
 

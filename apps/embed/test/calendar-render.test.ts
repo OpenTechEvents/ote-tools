@@ -156,14 +156,16 @@ describe("the calendar the widget mounts", () => {
     expect(closePopover).toHaveBeenCalledTimes(1);
   });
 
-  it("gives the month navigation the requested language", () => {
+  it("draws no toolbar of its own", () => {
+    // The widget draws one header for every layout (#183), so the
+    // library's toolbar is configured empty: it would otherwise stack a
+    // second strip above the grid, and the two together cost about 76px
+    // of a budget that is often 300.
     render([timed], "es");
-    expect(container.querySelector(".ec-prev")?.getAttribute("aria-label")).toBe("Mes anterior");
-    expect(container.querySelector(".ec-next")?.getAttribute("aria-label")).toBe("Mes siguiente");
-    handle!.destroy();
-    container.innerHTML = "";
-    render([timed], "en");
-    expect(container.querySelector(".ec-prev")?.getAttribute("aria-label")).toBe("Previous month");
+    expect(container.querySelector("button.ec-today")).toBeNull();
+    expect(container.querySelector(".ec-prev")).toBeNull();
+    expect(container.querySelector(".ec-next")).toBeNull();
+    expect(container.querySelector(".ec-toolbar")?.textContent?.trim() ?? "").toBe("");
   });
 
   it("names the weekdays for a screen reader", () => {
@@ -207,22 +209,52 @@ describe("the calendar the widget mounts", () => {
     expect(handle!.currentDate()).toBe("2026-12-01");
   });
 
-  it("offers Today and Next event in the toolbar, and jumps with them", () => {
-    // Before this, the toolbar was `title | prev,next` only, which makes a
-    // 460-event feed a blind month-by-month walk (#167).
-    render([timed], "en", { initialDate: { kind: "today" }, now: new Date(2026, 0, 15) });
-    expect(container.querySelector(".ec-today")).not.toBeNull();
-    const nextEvent = container.querySelector<HTMLButtonElement>("button.ec-nextEvent");
-    expect(nextEvent).not.toBeNull();
-    nextEvent!.click();
+  it("pages and returns to today on the header's behalf", async () => {
+    // The header owns the controls; the calendar owns the month. These
+    // three are the whole contract between them.
+    render([timed], "en", { initialDate: { kind: "date", date: "2026-08-12" }, now: new Date(2026, 0, 15) });
     expect(handle!.currentDate()).toBe("2026-08-12");
+
+    handle!.next();
+    await flush();
+    expect(handle!.currentDate()?.slice(0, 7)).toBe("2026-09");
+
+    handle!.prev();
+    handle!.prev();
+    await flush();
+    expect(handle!.currentDate()?.slice(0, 7)).toBe("2026-07");
+
+    handle!.today();
+    await flush();
+    expect(handle!.currentDate()).toBe("2026-01-15");
   });
 
-  it("hides the Next event button when the feed has nothing upcoming", () => {
-    // A button that can only answer "nothing ahead" is worse than no button.
-    render([timed], "en", { now: new Date(2027, 0, 15) });
-    expect(container.querySelector(".ec-today")).not.toBeNull();
-    expect(container.querySelector(".ec-nextEvent")).toBeNull();
+  it("reports the month it is showing, and whether today is on screen", async () => {
+    // The title is the library's own rendered one rather than a date
+    // reformatted here: the narrow list fallback titles a range of days,
+    // not a month. `showsToday` is what greys the header's Today button.
+    //
+    // No injected `now` here, on purpose: `initial-date="today"` hands the
+    // month to the library, which reads the real clock, so a fake one
+    // would make the widget and the calendar disagree about what "today"
+    // means and the test would assert that disagreement.
+    const onDatesSet = vi.fn();
+    render([timed], "en", { initialDate: { kind: "today" }, onDatesSet });
+    // Svelte renders on a microtask, so the first report lands after mount
+    // returns — which is why element.ts applies it to the row in place
+    // rather than passing it into the render that created the row.
+    await flush();
+
+    expect(onDatesSet).toHaveBeenCalledTimes(1);
+    const first = onDatesSet.mock.calls[0]![0] as { title: string; showsToday: boolean };
+    expect(first.title).toContain("2026");
+    expect(first.showsToday).toBe(true);
+
+    handle!.next();
+    await flush();
+    const latest = onDatesSet.mock.calls.at(-1)![0] as { title: string; showsToday: boolean };
+    expect(latest.title).not.toBe(first.title);
+    expect(latest.showsToday).toBe(false);
   });
 
   it("caps a day by pinning the row height, and off removes the cap", () => {

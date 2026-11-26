@@ -4,43 +4,57 @@
 
 ### Added
 
-- `<ote-events views>` (#183): a **Calendar / List / Cards switcher** rendered
-  above the events, so a visitor can pick the view the embedder guessed.
-  `layout` becomes the view the widget *opens* on rather than the only one
-  available. **On by default, so it changes the rendered output of every
-  embed that moves its pin**; embeds pinned to a committed
-  `versions/v<x.y.z>/` URL are untouched. `views="none"` (or `"off"`/
-  `"false"`) reproduces the previous output exactly, and a narrowed list —
-  `views="calendar,list"` — renders only those; a one-view list renders no
-  row at all, because a chrome row with a single button is noise. Tokens are
-  rendered in the switcher's canonical order whatever order they are written
-  in.
+- **One header for the whole widget** (#183), in Google Calendar's order:
+  `Today`, the month arrows and the month on the left, the view control
+  floating right. It replaces two rows — the calendar library's own toolbar
+  and the view switcher — which used to stack and together cost about 76px
+  of a height budget that is often 300. Measured in Chrome: 36px for the
+  row, and `.ec-toolbar` gone.
 
-  It is chrome inside the `max-height` budget, like the footer: the event
-  area is its own scrollport and scrolls under both. Measured in Chrome at
-  36px for the row, with the switcher and the footer staying put while the
-  events scroll to their end inside a 300px budget.
+  - `<ote-events views>` chooses which views the visitor may switch
+    between: Calendar, List and Cards. **On by default, so it changes the
+    rendered output of every embed that moves its pin**; embeds pinned to a
+    committed `versions/v<x.y.z>/` URL are untouched. `views="none"` (or
+    `"off"`/`"false"`) keeps the layout the embedder chose and a one-view
+    list renders no control, because a chrome row with a single button is
+    noise. Tokens render in the switcher's canonical order whatever order
+    they are written in.
+  - `layout` becomes the view the widget *opens* on rather than the only one
+    available, and still wins when a host moves it at runtime.
+  - **The month nav belongs to the header, not to the calendar.** The
+    library's `headerToolbar` is switched off: it only exists inside the
+    lazy-loaded calendar chunk, so it could never carry a control that has
+    to work in `list` and `cards` too. `Today` greys out while today is on
+    screen; the arrows are inert until the chunk reports a month.
+  - **The view control is a segmented group that degrades by measurement**,
+    not by media query — one inside a shadow root follows the viewport, and
+    this widget lives in a column. Measured in Chrome on a real feed: labels
+    down to 520px, icon-only from 480px, and a native `<select>` from 340px,
+    where even three icons beside the nav stop fitting. The select is the
+    platform's own popup: top layer, its own keyboard and touch behaviour,
+    and no "clicked outside" to get wrong inside a shadow root.
+  - Three `aria-pressed` buttons inside a labelled `role="group"` — not a
+    radio group, whose single tab stop would mean managing `tabindex` across
+    a tree this widget rebuilds on every render — with focus restored after
+    the re-render, `aria-live` on the month, named arrows, and translated
+    labels (Calendario / Lista / Tarjetas, Hoy).
+  - Switching to `calendar` still lazy-loads `calendar-layout.js`, and the
+    month the visitor paged to survives the round trip.
+  - The visitor's view lives in memory only — nothing is written to
+    `localStorage` or to the host page's URL; that question is the open half
+    of #176. A host that wants to remember it has the new
+    **`ote-view-change`** event (`detail: { view, previousView }`), which
+    the playground uses to keep its own layout toolbar in step. A host app
+    driving the widget by property (`.events = […]`) gets **no** switcher
+    unless it sets `views`: OTE Reader owns its own view chrome.
 
-  Switching to `calendar` still loads `calendar-layout.js` on demand —
-  verified in Chrome from a cold `list` render: one request, the month
-  styled inside the shadow root, and no second request when the visitor
-  switches away and back. The month the visitor paged to survives the round
-  trip.
+### Removed
 
-  Three ordinary buttons with `aria-pressed` inside a labelled
-  `role="group"`, so Tab and Enter/Space work with no `tabindex` to manage,
-  and focus returns to the pressed button after the re-render. Labels are
-  text (translated: Calendario / Lista / Tarjetas), not tooltips on icons.
-  Themed through the existing `--ote-*` properties.
-
-  The visitor's choice lives in memory only — nothing is written to
-  `localStorage` or to the host page's URL; whether visitor chrome may touch
-  the host's URL is the open half of #176. A host that wants to remember it
-  has the new **`ote-view-change`** event (`detail: { view, previousView }`),
-  which the playground uses to keep its own layout toolbar in step. A host
-  app driving the widget by property (`.events = […]`) gets **no** switcher
-  unless it sets `views`: OTE Reader owns its own view chrome, and a second
-  switcher inside the widget would be a duplicate control.
+- **The calendar's "Next event" button.** It existed because a sparse feed
+  opens on an empty month (#167) — but the calendar already *opens* on the
+  next event by default, and the List and Cards views the header now offers
+  answer "what is next" better than a jump to one month ever did.
+  `initial-date="next-event"` is unchanged.
 
 ### Fixed
 
