@@ -8,6 +8,7 @@ import type {
 
 import {
   parseCardWidth,
+  parseMaxHeight,
   parseDetailFields,
   parseCalendarAttributes,
   parseFields,
@@ -90,6 +91,7 @@ export class OteEventsElement extends HTMLElement {
     "max-per-day",
     "initial-date",
     "responsive",
+    "max-height",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -308,6 +310,22 @@ export class OteEventsElement extends HTMLElement {
     // this is the one piece of layout.cards config that's genuinely a CSS
     // concern (--ote-card-min-width), not widget state.
     this.style.setProperty("--ote-card-min-width", parseCardWidth(this.getAttribute("card-width")));
+    // `max-height` is applied the same way, and for the same reason: it is a
+    // CSS concern, not widget state. The `data-bounded` marker is what turns
+    // the scroll plumbing on — a stylesheet cannot test whether a custom
+    // property is set, and the plumbing must stay off by default so an
+    // unbounded widget keeps laying out exactly as it did before.
+    const maxHeight = parseMaxHeight(this.getAttribute("max-height"));
+    if (maxHeight === undefined) {
+      this.style.removeProperty("--ote-max-height");
+      this.#container.removeAttribute("data-bounded");
+    } else {
+      this.style.setProperty("--ote-max-height", maxHeight);
+      // The layout is the value, not just a marker: layout="cards" scrolls a
+      // different element from the other two (see theme.css.ts), and a
+      // stylesheet cannot ask which layout rendered without it.
+      this.#container.setAttribute("data-bounded", parseLayout(this.getAttribute("layout")));
+    }
     const lang = resolveLang(parseLangAttr(this.getAttribute("lang")), navigator.language);
     const state: WidgetState = {
       status: this.#status,
@@ -355,7 +373,7 @@ export class OteEventsElement extends HTMLElement {
     if (state.layout === "calendar" && state.status === "loaded") {
       const events = selectVisibleEvents(state);
       if (events.length > 0) {
-        void this.#mountCalendar(events, state.lang);
+        void this.#mountCalendar(events, state.lang, maxHeight !== undefined);
         return;
       }
     }
@@ -371,6 +389,7 @@ export class OteEventsElement extends HTMLElement {
   async #mountCalendar(
     events: ReturnType<typeof selectVisibleEvents>,
     lang: WidgetState["lang"],
+    bounded: boolean,
   ): Promise<void> {
     this.#teardownCalendar();
     const requestId = ++this.#calendarRequestId;
@@ -395,6 +414,7 @@ export class OteEventsElement extends HTMLElement {
       host.replaceChildren(); // clear the "Loading…" placeholder before mounting
       this.#calendarHandle = module.renderCalendar(host, events, {
         lang,
+        bounded,
         ...parseCalendarAttributes((name) => this.getAttribute(name), this.#calendarDate),
         onEventClick: (event) => {
           const eventClick = parseEventClick(this.getAttribute("event-click"));

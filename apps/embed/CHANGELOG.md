@@ -1,5 +1,70 @@
 # @opentechevents/embed changelog
 
+## Unreleased
+
+### Added
+
+- **`max-height` gives the host a vertical budget for the widget** (#168).
+  A length in `px`/`rem`/`em`/`ch`/`vh`/`dvh`/`svh`/`vmin`/`vmax` (a bare
+  number is read as pixels), and it applies to all three layouts. Anything
+  else leaves the widget unbounded — including `calc()`, and including `%`,
+  which parses but resolves against an auto-height containing block and so
+  would mark the widget bounded while bounding nothing. Previously the rendered height was
+  whatever the feed happened to need — `layout="calendar"` hardcoded the
+  library's `height: "auto"` — so embedding `<ote-events>` in a dialog, a
+  card or a sidebar meant letting somebody else's feed decide the layout.
+
+  It is a **maximum, not a fixed height**: a feed shorter than the budget
+  renders at its natural height rather than padding the box out. An absent,
+  `none`/`off`, or unparseable value leaves the widget unbounded, and all of
+  the scrolling behaviour below is gated on the attribute parsing, so an
+  existing embed lays out exactly as it did before.
+
+  What overflows scrolls **inside** the widget. That is the part the
+  host-side `max-height` + `overflow-y` workaround could not do: a wrapper
+  scrolls the widget from the outside, so the calendar's own sticky weekday
+  header has no scrollport to pin against and rides away with the content.
+  Now the weekday header and `layout="list"`'s column header both stay put
+  while their rows scroll.
+
+  In `layout="calendar"` the weeks **share the budget instead of each
+  reserving `max-per-day` events' worth of height**. The cap is implemented
+  as a flat row height, which sizes every week for that many events
+  including the empty ones, so a sparse month scrolled through roughly 750px
+  of mostly blank rows inside a 400px budget. Bounded rows shrink to an
+  equal share of what the budget leaves — on a real 25-event feed that took
+  the same month from ~750px to 588px, with the events still visible.
+
+  Rows will not shrink below the height of **a day showing one event beside
+  a `+N more` link**. The library's own sizing has no such floor, and
+  without one a 400px budget over a six-week month produced 52px rows that
+  held the date and nothing else: every single-event day rendered as
+  `+1 more` and the calendar showed no events at all. Where even the floor
+  does not fit, the weeks stop shrinking and the grid scrolls with the
+  weekday header pinned.
+
+  The trade is that **`max-per-day` stops being an exact count while a
+  budget is set** and becomes "as many as fit" — a host that asked for a
+  height asked for it first.
+
+- **`max-per-day="off"` now lets empty weeks collapse under a budget**, so a
+  sparse month stops reserving room it does not use. The library floors
+  every day cell at 5em and lifts that floor only in its uniform (capped)
+  mode, so the one mode that sizes each week to its own content still gave
+  every empty week 80px. On a real 25-event feed at `max-height="400px"`
+  that is six uniform 80px rows scrolling 511px, versus `60/37/37/37/60/36`
+  that does not scroll at all and leaves the widget at 354px inside its
+  400px budget.
+
+  This is the reason the two modes exist, and it is a genuine either/or
+  rather than an oversight: a capped row needs a fixed height to cap
+  against, while an auto-sized row grows to its content — so nothing ever
+  overflows and the `+N more` popover never fires. Measured, not assumed:
+  every `minmax(auto, <cap>)` and `minmax(min-content, <cap>)` variant
+  rendered all nine events of a busy day with no popover at all, because CSS
+  ignores a `minmax()` max that is smaller than its min. So **a busy feed
+  wants the default cap, and a sparse one wants `max-per-day="off"`.**
+
 ## 0.9.0 — 2026-11-26
 
 ### Changed

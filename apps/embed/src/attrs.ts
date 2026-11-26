@@ -220,6 +220,39 @@ export function parseCardWidth(value: string | null): string {
   return CARD_WIDTH_PRESETS.medium!;
 }
 
+/**
+ * `max-height` — the vertical budget the host gives the widget, as a CSS
+ * length (`"600px"`, `"60vh"`, `"40rem"`); a bare number is treated as
+ * pixels. Absent, `"none"`/`"off"`, or unparseable yields `undefined`, which
+ * means "grow to fit the feed" — the behaviour every embed had before this
+ * attribute existed.
+ *
+ * It is a *max*, not a fixed height: a feed shorter than the budget renders
+ * at its natural height rather than padding the box out with dead space.
+ * What overflows the budget scrolls inside the widget, so the host no longer
+ * has to wrap the element in its own `max-height`/`overflow` container — a
+ * wrapper that scrolls the widget from the outside, which is why it dragged
+ * the calendar's own sticky weekday header out of view (#168).
+ *
+ * The value is written straight into a CSS custom property, so the accepted
+ * grammar is a closed list rather than "whatever CSS parses": a number with
+ * one of px/rem/em/ch/vh/dvh/svh/vmin/vmax, or a bare number read as px.
+ * Anything else - including `calc()` - is refused and leaves the widget
+ * unbounded. `%` is refused for a different reason: it parses, but a
+ * percentage max-height resolves against a containing block of auto height
+ * and computes to `none`, so accepting it would mark the widget bounded
+ * (turning on the scroll plumbing, and the cards inset with it) while
+ * bounding nothing.
+ */
+export function parseMaxHeight(value: string | null): string | undefined {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) return undefined;
+  if (trimmed === "none" || trimmed === "off" || trimmed === "auto") return undefined;
+  if (/^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}px`;
+  if (/^\d+(\.\d+)?(px|rem|em|ch|vh|dvh|svh|vmin|vmax)$/.test(trimmed)) return trimmed;
+  return undefined;
+}
+
 export const DEFAULT_MAX_PER_DAY = 3;
 
 /**
