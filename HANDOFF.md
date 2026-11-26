@@ -59,12 +59,14 @@ Read before touching the validator: `apps/validator/README.md`,
   there is a URL-shape fix in `subscribe-urls.ts`, not a redesign. The
   `<ote-events>` footer mounts the same element, so a fix reaches both.
 - **The playground rework, the popover's ARIA restructure, the
-  `<ote-events>` footer (#68) and the view switcher (#183) have not been
+  `<ote-events>` footer (#68) and the header redesign (#183) have not been
   through adversarial review.** The last two are the ones that matter: both
   are default-on chrome on a versioned public widget, the footer mounts a
-  second custom element inside the first, and the switcher gives the widget
-  its first piece of visitor-held state plus a new DOM event
-  (`ote-view-change`). Worth one pass before publishing.
+  second custom element inside the first, and the header takes the month
+  navigation off the calendar library's own toolbar, adds the widget's
+  first visitor-held state and a new DOM event (`ote-view-change`), and
+  decides its own density by measuring itself. Worth one pass before
+  publishing.
 
 ## Traps that cost time — do not rediscover them
 
