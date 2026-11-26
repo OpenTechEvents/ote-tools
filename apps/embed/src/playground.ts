@@ -62,6 +62,9 @@ const cardWidthSelect = document.querySelector<HTMLSelectElement>("#card-width-s
 const maxHeightInput = document.querySelector<HTMLInputElement>("#max-height-input")!;
 const maxPerDayInput = document.querySelector<HTMLInputElement>("#max-per-day-input")!;
 const densitySelect = document.querySelector<HTMLSelectElement>("#density-select")!;
+const footerSelect = document.querySelector<HTMLSelectElement>("#footer-select")!;
+const footerSubscribeLayoutSelect = document.querySelector<HTMLSelectElement>("#subscribe-layout-footer-select")!;
+const footerMarkSelect = document.querySelector<HTMLSelectElement>("#footer-mark-select")!;
 const initialDateSelect = document.querySelector<HTMLSelectElement>("#initial-date-select")!;
 const responsiveCheckbox = document.querySelector<HTMLInputElement>("#responsive-checkbox")!;
 const previewFieldCheckboxes = Array.from(
@@ -203,6 +206,9 @@ function buildSnippet(config: {
   maxHeight: string | undefined;
   maxPerDay: string | undefined;
   density: string | undefined;
+  footer: string | undefined;
+  footerSubscribeLayout: string | undefined;
+  footerMark: string | undefined;
   initialDate: string | undefined;
   responsive: boolean;
   fieldsPreview: string | undefined;
@@ -237,6 +243,11 @@ function buildSnippet(config: {
   if (config.maxHeight) elementLines.push(`  max-height="${attr(config.maxHeight)}"`);
   if (config.maxPerDay) elementLines.push(`  max-per-day="${attr(config.maxPerDay)}"`);
   if (config.density) elementLines.push(`  density="${attr(config.density)}"`);
+  if (config.footer) elementLines.push(`  footer="${attr(config.footer)}"`);
+  if (config.footerSubscribeLayout) {
+    elementLines.push(`  subscribe-layout="${attr(config.footerSubscribeLayout)}"`);
+  }
+  if (config.footerMark) elementLines.push(`  footer-mark="${attr(config.footerMark)}"`);
   if (config.initialDate) elementLines.push(`  initial-date="${attr(config.initialDate)}"`);
   if (!config.responsive) elementLines.push(`  responsive="off"`);
   if (config.fieldsPreview) elementLines.push(`  fields-preview="${attr(config.fieldsPreview)}"`);
@@ -554,6 +565,10 @@ function applyAndRender(): void {
   const maxHeightAttr = maxHeightInput.value.trim() || undefined;
   const maxPerDayAttr = maxPerDayInput.value.trim() || undefined;
   const densityAttr = densitySelect.value === "auto" ? undefined : densitySelect.value;
+  const footerAttr = footerSelect.value === "on" ? undefined : footerSelect.value;
+  const footerSubscribeLayoutAttr =
+    footerSubscribeLayoutSelect.value === "badges" ? undefined : footerSubscribeLayoutSelect.value;
+  const footerMarkAttr = footerMarkSelect.value === "on" ? undefined : footerMarkSelect.value;
   const initialDateAttr = initialDateSelect.value === "next-event" ? undefined : initialDateSelect.value;
   const responsive = responsiveCheckbox.checked;
   const previewFields = currentPreviewFields();
@@ -619,6 +634,12 @@ function applyAndRender(): void {
   else widget.removeAttribute("max-height");
   if (densityAttr) widget.setAttribute("density", densityAttr);
   else widget.removeAttribute("density");
+  if (footerAttr) widget.setAttribute("footer", footerAttr);
+  else widget.removeAttribute("footer");
+  if (footerSubscribeLayoutAttr) widget.setAttribute("subscribe-layout", footerSubscribeLayoutAttr);
+  else widget.removeAttribute("subscribe-layout");
+  if (footerMarkAttr) widget.setAttribute("footer-mark", footerMarkAttr);
+  else widget.removeAttribute("footer-mark");
   if (maxPerDayAttr) widget.setAttribute("max-per-day", maxPerDayAttr);
   else widget.removeAttribute("max-per-day");
   if (initialDateAttr) widget.setAttribute("initial-date", initialDateAttr);
@@ -662,6 +683,9 @@ function applyAndRender(): void {
     maxHeight: maxHeightAttr,
     maxPerDay: maxPerDayAttr,
     density: densityAttr,
+    footer: footerAttr,
+    footerSubscribeLayout: footerSubscribeLayoutAttr,
+    footerMark: footerMarkAttr,
     initialDate: initialDateAttr,
     responsive,
     fieldsPreview: previewFieldsAttr,
@@ -687,6 +711,9 @@ for (const control of [
   maxHeightInput,
   maxPerDayInput,
   densitySelect,
+  footerSelect,
+  footerSubscribeLayoutSelect,
+  footerMarkSelect,
   initialDateSelect,
   responsiveCheckbox,
   ...previewFieldCheckboxes,

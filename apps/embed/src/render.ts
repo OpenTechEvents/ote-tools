@@ -12,8 +12,10 @@ import {
 } from "@opentechevents/preview-feed";
 import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
 
-import type { EventClickMode, FieldKey, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
+import type { EventClickMode, FieldKey, FooterMode, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
 import { el, withText } from "./dom.js";
+import { renderFooter, type FooterFeedMeta } from "./footer.js";
+import type { SubscribeLayout } from "./subscribe-attrs.js";
 import { computeEventGroups } from "./grouping.js";
 import type { EventGroupInfo, EventGroups } from "./grouping.js";
 
@@ -97,6 +99,16 @@ export interface WidgetState {
   groupEvents: Set<GroupKey>;
   placeholderImage?: string;
   emptyMessage?: string;
+  /** `footer` (#68): the provenance strip under the events. */
+  footer: FooterMode;
+  /** What the footer says about where these events came from; see footer.ts. */
+  footerMeta?: FooterFeedMeta;
+  /** `subscribe-layout`: the shape of the `<ote-subscribe>` the footer mounts. */
+  footerSubscribeLayout: SubscribeLayout;
+  /** `footer-mark`: whether the footer carries the "Powered by OTE" link. */
+  footerMark: boolean;
+  /** The host's raw `theme` attribute, forwarded to the footer's `<ote-subscribe>`. */
+  theme?: string | null;
   eventClick: EventClickMode;
   eventActions: EventActionsInput;
   eventClassName?: EventClassNameResolver;
@@ -1503,6 +1515,11 @@ export function renderEventModal(container: HTMLElement, state: WidgetState): vo
   container.append(renderModal(state.selectedEvent, strings, state, groups));
 }
 
+/** Whether an event renders a clock time — what decides if the footer's time-zone line is answering a real question. See footer.ts. */
+function hasClockTime(event: PreviewEvent): boolean {
+  return [event.startDate, event.endDate].some((value) => typeof value === "string" && value.includes("T"));
+}
+
 export function renderWidget(container: HTMLElement, state: WidgetState): void {
   container.replaceChildren();
   const strings = STRINGS[state.lang];
@@ -1520,6 +1537,21 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
   }
 
   const events = selectVisibleEvents(state);
+  // Only in the loaded state, and in it even when nothing is upcoming: the
+  // document fetched fine, so its name and its subscribe links are known
+  // and true — and an empty widget is exactly where a visitor most wants to
+  // be told when something next happens. A footer under "Could not load
+  // events" would be naming a feed the widget never read.
+  const footer = renderFooter({
+    mode: state.footer,
+    lang: state.lang,
+    theme: state.theme,
+    meta: state.footerMeta,
+    subscribeLayout: state.footerSubscribeLayout,
+    mark: state.footerMark,
+    hasTimes: events.some(hasClockTime),
+  });
+
   if (events.length === 0) {
     // With `event-id` set, "empty" means the id matched nothing — a
     // different problem from a feed with no upcoming events, and one the
@@ -1527,14 +1559,26 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     const emptyText =
       state.emptyMessage ?? (state.eventId !== undefined ? strings.notFound : strings.empty);
     container.append(withText(el("p", "message"), emptyText));
+    if (footer) container.append(footer);
     return;
   }
+
+  // The footer is chrome inside the height budget, so the events have to
+  // scroll *under* it rather than carry it away: a bounded `layout="cards"`
+  // scrolls `.ote-events` itself (theme.css.ts explains why the grid cannot
+  // be the flex item), which would put the subscribe badges below the fold
+  // of a widget the host deliberately bounded. `.events-scroll` is the
+  // scrollport instead, and it is mounted **only** when there is a footer —
+  // which is what keeps `footer="off"` byte-identical to the pre-#68 tree.
+  const body = footer ? el("div", "events-scroll") : container;
 
   if (state.layout === "calendar") {
     // Mount point only, with a loading placeholder: element.ts lazy-loads
     // calendar-layout.js and replaces this — render.ts stays
     // synchronous/dependency-free.
-    container.append(withText(el("div", "calendar-host"), strings.loading));
+    body.append(withText(el("div", "calendar-host"), strings.loading));
+    if (body !== container) container.append(body);
+    if (footer) container.append(footer);
     if (state.selectedEvent) container.append(renderModal(state.selectedEvent, strings, state));
     return;
   }
@@ -1557,6 +1601,8 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
         : renderCardEvent(event, state, strings, groups),
     );
   }
-  container.append(list);
+  body.append(list);
+  if (body !== container) container.append(body);
+  if (footer) container.append(footer);
   if (state.selectedEvent) container.append(renderModal(state.selectedEvent, strings, state, groups));
 }

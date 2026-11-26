@@ -15,6 +15,8 @@ import {
   parseCalendarAttributes,
   parseFields,
   parseFeedsAttr,
+  parseFooter,
+  parseFooterMark,
   parseEventActions,
   parseEventClick,
   parseGroupEvents,
@@ -39,6 +41,8 @@ import {
   type OriginalOteEvent,
   type WidgetState,
 } from "./render.js";
+import { footerMetaFromDocument, type FooterFeedMeta } from "./footer.js";
+import { parseSubscribeLayout } from "./subscribe-attrs.js";
 import { WIDGET_CSS } from "./theme.css.js";
 
 type Status = "idle" | "loading" | "loaded" | "error";
@@ -96,6 +100,17 @@ export class OteEventsElement extends HTMLElement {
     "responsive",
     "max-height",
     "density",
+    "footer",
+    // Three footer passthroughs, read by the <ote-subscribe> the footer
+    // mounts. `convert` is the one that matters: with the footer on by
+    // default, it is the publisher's only way to say "do not build
+    // convert.opentechevents.org URLs for my visitors" (#186), and a lever
+    // the publisher cannot reach is not a lever.
+    "convert",
+    "feed-ics",
+    "feed-rss",
+    "subscribe-layout",
+    "footer-mark",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -105,6 +120,8 @@ export class OteEventsElement extends HTMLElement {
   #runtimeDataOverride = false;
   #originalEvents: OriginalOteEvent[] = [];
   #feedSource: EventFeedSource | undefined;
+  /** What the footer knows about the fetched document — title, publisher page, declared alternates. Attribute-driven parts are merged in #buildState(). */
+  #feedMeta: FooterFeedMeta | undefined;
   #contexts = new WeakMap<PreviewEvent, EventRenderContext>();
   #status: Status = "idle";
   #errorMessage = "";
@@ -261,6 +278,7 @@ export class OteEventsElement extends HTMLElement {
       this.#runtimeDataOverride = false;
       this.#originalEvents = originalEvents(runtimeData);
       this.#feedSource = fulfilled.length === 1 ? feedSource(runtimeData, fulfilled[0]!.value.url) : undefined;
+      this.#feedMeta = feedMetaFromResults(fulfilled.map((result) => result.value));
       this.#contexts = buildContexts(feed, this.#originalEvents, this.#feedSource);
       this.#status = "loaded";
       this.#selectedEvent = undefined;
@@ -268,6 +286,7 @@ export class OteEventsElement extends HTMLElement {
       this.#status = "error";
       this.#errorMessage = error instanceof Error ? error.message : String(error);
       this.#selectedEvent = undefined;
+      this.#feedMeta = undefined;
     }
     this.#renderNow();
   }
@@ -281,6 +300,7 @@ export class OteEventsElement extends HTMLElement {
       this.#feed = undefined;
       this.#originalEvents = [];
       this.#feedSource = undefined;
+      this.#feedMeta = undefined;
       this.#contexts = new WeakMap();
       this.#errorMessage = "";
       this.#selectedEvent = undefined;
@@ -294,6 +314,10 @@ export class OteEventsElement extends HTMLElement {
       this.#feed = oteJsonToPreviewFeed(value as OteJsonPreviewInput);
       this.#originalEvents = originalEvents(value);
       this.#feedSource = feedSource(value);
+      // A host app's own array has no document and no URL: whatever title
+      // the object carries is all the footer gets, and there is nothing to
+      // subscribe to. `footer="auto"` is the attribute for that case.
+      this.#feedMeta = footerMetaFromDocument(Array.isArray(value) ? undefined : value);
       this.#contexts = buildContexts(this.#feed, this.#originalEvents, this.#feedSource);
       this.#status = "loaded";
       this.#errorMessage = "";
@@ -302,6 +326,7 @@ export class OteEventsElement extends HTMLElement {
       this.#feed = undefined;
       this.#originalEvents = [];
       this.#feedSource = undefined;
+      this.#feedMeta = undefined;
       this.#contexts = new WeakMap();
       this.#status = "error";
       this.#errorMessage = error instanceof Error ? error.message : String(error);
@@ -375,6 +400,15 @@ export class OteEventsElement extends HTMLElement {
       groupEvents: parseGroupEvents(this.getAttribute("group-events")),
       placeholderImage: this.getAttribute("placeholder-image")?.trim() || undefined,
       emptyMessage: this.getAttribute("empty-message")?.trim() || undefined,
+      footer: parseFooter(this.getAttribute("footer")),
+      footerMeta: this.#footerMeta(),
+      // Defaulted to "badges" here, not to <ote-subscribe>'s own "menu":
+      // the standalone element is a button a host places deliberately,
+      // while the footer's is one of four things in a strip, where naming
+      // the formats costs nothing and a single "Subscribe" hides them.
+      footerSubscribeLayout: parseSubscribeLayout(this.getAttribute("subscribe-layout") ?? "badges"),
+      footerMark: parseFooterMark(this.getAttribute("footer-mark")),
+      theme: this.getAttribute("theme"),
       eventClick: parseEventClick(this.getAttribute("event-click")),
       eventActions: this.#eventActionsWithAttributeDefaults(),
       eventClassName: this.#eventClassName,
@@ -402,6 +436,27 @@ export class OteEventsElement extends HTMLElement {
       },
     };
     return state;
+  }
+
+  /**
+   * The document-derived footer metadata with the host's attributes layered
+   * on top. The attributes win: `feed-ics`/`feed-rss` are written by
+   * whoever wrote the embed, and a declared URL beats a generated one
+   * (#186's first rule) one level further out than `<ote-subscribe>` can
+   * see.
+   */
+  #footerMeta(): FooterFeedMeta | undefined {
+    const meta = this.#feedMeta;
+    const icsUrl = this.getAttribute("feed-ics")?.trim();
+    const rssUrl = this.getAttribute("feed-rss")?.trim();
+    const convert = this.getAttribute("convert");
+    if (!meta && !icsUrl && !rssUrl) return undefined;
+    return {
+      ...meta,
+      ...(icsUrl ? { icsUrl } : {}),
+      ...(rssUrl ? { rssUrl } : {}),
+      ...(convert !== null ? { convert } : {}),
+    };
   }
 
   /**
@@ -580,6 +635,33 @@ function feedSource(input: OteEventsFeedData, url?: string): EventFeedSource | u
     title: title ?? stringMeta(firstEvent?.["_feedTitle"]),
   };
   return source.url || source.title ? source : undefined;
+}
+
+/**
+ * The footer's view of what loaded. One feed is the document itself; two or
+ * more have no single title, URL or subscribe target, so the strip names
+ * the count and keeps each source's own name (falling back to its host) for
+ * the tooltip — see footer.ts#feedNameNode.
+ */
+function feedMetaFromResults(results: FeedFetchResult[]): FooterFeedMeta {
+  if (results.length === 1) {
+    const { url, data } = results[0]!;
+    return footerMetaFromDocument(Array.isArray(data) ? undefined : data, url);
+  }
+  return {
+    sources: results.map(({ url, data }) => {
+      const title = Array.isArray(data) ? undefined : stringMeta(data.title);
+      return title ?? hostOf(url) ?? url;
+    }),
+  };
+}
+
+function hostOf(url: string): string | undefined {
+  try {
+    return new URL(url, location.href).host || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function buildContexts(

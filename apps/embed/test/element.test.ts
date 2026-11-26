@@ -92,6 +92,9 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     showPast: true,
     sort: "auto",
     layout,
+    footer: "off",
+    footerSubscribeLayout: "badges",
+    footerMark: true,
     previewFields: new Set(["location"]),
     detailFields: new Set(["location"]),
     groupEvents: new Set(),
@@ -2101,5 +2104,332 @@ describe("<ote-events>", () => {
       expect(after, `${name} is not observed`).toBeTruthy();
       expect(after, `${name} did not re-render the calendar`).not.toBe(before);
     }
+  });
+  describe("the footer (#68)", () => {
+    const FOOTER_FEED = JSON.stringify({
+      specVersion: "0.6.0",
+      title: "PyAlmería",
+      url: "https://pyalmeria.example/",
+      updatedAt: "2026-01-01T00:00:00Z",
+      events: [{ name: "Monthly meetup", startDate: "2999-01-01T19:00:00+01:00" }],
+    });
+
+    const DECLARED_ALTERNATES_FEED = JSON.stringify({
+      title: "ComBuilders",
+      alternates: [
+        { mediaType: "text/calendar", url: "https://combuilders.example/events.ics" },
+        { mediaType: "application/rss+xml", url: "https://combuilders.example/events.rss" },
+      ],
+      events: [{ name: "Declared", startDate: "2999-01-01T19:00:00+01:00" }],
+    });
+
+    function footerOf(el: OteEventsElement): HTMLElement | null {
+      return el.shadowRoot!.querySelector(".footer");
+    }
+
+    it("renders feed name, time zone, subscribe and the OTE mark by default", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      const footer = footerOf(el)!;
+      expect(footer).not.toBeNull();
+      expect(footer.querySelector("a.footer-feed")!.textContent).toBe("PyAlmería");
+      expect((footer.querySelector("a.footer-feed") as HTMLAnchorElement).href).toBe(
+        "https://pyalmeria.example/",
+      );
+      expect(footer.querySelector(".footer-zone")!.textContent).toMatch(/^Times in /);
+      // The feed URL the widget fetched, not one the host had to repeat.
+      expect(footer.querySelector("ote-subscribe")!.getAttribute("feed-json")).toBe(
+        "https://pyalmeria.example/feed.json",
+      );
+      expect(footer.querySelector("a.footer-mark")).not.toBeNull();
+    });
+
+    it("upgrades the <ote-subscribe> it mounts, rather than leaving an inert tag", async () => {
+      // The element is statically imported by footer.ts; without the
+      // defineOteSubscribe() call there, the tag would render as an unknown
+      // element with no shadow root and no badges at all.
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      const subscribe = footerOf(el)!.querySelector("ote-subscribe")!;
+      expect(customElements.get("ote-subscribe")).toBeTruthy();
+      expect(subscribe.shadowRoot).not.toBeNull();
+      // layout="badges": one trigger per available group, and for a
+      // JSON-only publisher the ICS/RSS ones come from the converter (#186).
+      const triggers = [...subscribe.shadowRoot!.querySelectorAll("button.trigger")].map((button) =>
+        button.getAttribute("data-group"),
+      );
+      expect(triggers).toEqual(["ics", "rss", "ote"]);
+    });
+
+    it("footer=off renders the pre-#68 tree: no footer and no scroll wrapper", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createCardsElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("footer", "off");
+      document.body.append(el);
+      await flush();
+
+      const container = el.shadowRoot!.querySelector(".ote-events")!;
+      expect(footerOf(el)).toBeNull();
+      expect(container.querySelector(".events-scroll")).toBeNull();
+      expect(container.firstElementChild!.tagName).toBe("UL");
+    });
+
+    it("mounts the scroll wrapper around the events whenever the footer is there", async () => {
+      // The footer is chrome inside the height budget: the events scroll
+      // under it. The heights themselves are a browser matter (see
+      // apps/embed/CLAUDE.md); what is asserted here is the wiring.
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createCardsElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("max-height", "400px");
+      document.body.append(el);
+      await flush();
+
+      const container = el.shadowRoot!.querySelector(".ote-events")!;
+      const wrapper = container.querySelector(".events-scroll")!;
+      expect(wrapper.querySelector("ul.events")).not.toBeNull();
+      // Order matters: the footer is a sibling *after* the scrollport, not
+      // inside it, or it would scroll away with the grid.
+      expect(wrapper.nextElementSibling).toBe(footerOf(el));
+    });
+
+    it("keeps the footer out of the loading and error states", async () => {
+      fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => "" });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      document.body.append(el);
+
+      expect(footerOf(el)).toBeNull(); // loading
+      await flush();
+      expect(el.shadowRoot!.textContent).toContain("Could not load events");
+      expect(footerOf(el)).toBeNull(); // error: the document was never read
+    });
+
+    it("keeps the footer under an empty feed, where subscribing is the only thing left to do", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ title: "Quiet", events: [] }),
+      });
+      const el = createListElement();
+      el.setAttribute("feed", "https://quiet.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(el.shadowRoot!.textContent).toContain("No upcoming events");
+      expect(footerOf(el)!.querySelector("ote-subscribe")).not.toBeNull();
+    });
+
+    it("renders no feed name, and no subscribe, for a host-provided events array", async () => {
+      const el = createListElement();
+      document.body.append(el);
+      el.events = [{ name: "Host app event", startDate: "2999-01-01T19:00:00+01:00" }];
+      await flush();
+
+      const footer = footerOf(el)!;
+      expect(footer.querySelector(".footer-feed")).toBeNull();
+      expect(footer.querySelector("ote-subscribe")).toBeNull();
+      expect(footer.querySelector(".footer-zone")).not.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("footer=auto renders nothing for a host-provided array, and the footer for a fetched feed", async () => {
+      const hosted = createListElement();
+      hosted.setAttribute("footer", "auto");
+      document.body.append(hosted);
+      hosted.events = [{ name: "Host app event", startDate: "2999-01-01T19:00:00+01:00" }];
+      await flush();
+      expect(footerOf(hosted)).toBeNull();
+
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const fetched = createListElement();
+      fetched.setAttribute("footer", "auto");
+      fetched.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      document.body.append(fetched);
+      await flush();
+      expect(footerOf(fetched)).not.toBeNull();
+    });
+
+    it("names the sources and offers no subscribe for a multi-feed render", async () => {
+      fetchMock.mockImplementation(async (url: string) => ({
+        ok: true,
+        status: 200,
+        text: async () =>
+          url.includes("one")
+            ? JSON.stringify({ title: "One", events: [{ name: "A", startDate: "2999-01-01" }] })
+            : JSON.stringify({ title: "Two", events: [{ name: "B", startDate: "2999-02-01" }] }),
+      }));
+      const el = createListElement();
+      el.setAttribute("feeds", "https://one.example/feed.json,https://two.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      const name = footerOf(el)!.querySelector(".footer-feed") as HTMLElement;
+      expect(name.textContent).toBe("2 sources");
+      expect(name.title).toBe("One, Two");
+      expect(footerOf(el)!.querySelector("ote-subscribe")).toBeNull();
+    });
+
+    it("hands the publisher's declared alternates to <ote-subscribe> instead of generating them", async () => {
+      // #186's first rule, one level further out: a declared URL is never
+      // replaced by a converter URL. Here the declaration is in the feed
+      // document, which only the widget can see.
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => DECLARED_ALTERNATES_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://combuilders.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      const subscribe = footerOf(el)!.querySelector("ote-subscribe")!;
+      expect(subscribe.getAttribute("feed-ics")).toBe("https://combuilders.example/events.ics");
+      expect(subscribe.getAttribute("feed-rss")).toBe("https://combuilders.example/events.rss");
+      const icsLink = subscribe.shadowRoot!.querySelector('button[data-group="ics"]')!;
+      expect(icsLink.hasAttribute("data-generated")).toBe(false);
+    });
+
+    it("lets the embed override a declared alternate, and the publisher turn conversion off", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => DECLARED_ALTERNATES_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://combuilders.example/feed.json");
+      el.setAttribute("feed-ics", "https://mirror.example/events.ics");
+      el.setAttribute("convert", "off");
+      document.body.append(el);
+      await flush();
+
+      const subscribe = footerOf(el)!.querySelector("ote-subscribe")!;
+      expect(subscribe.getAttribute("feed-ics")).toBe("https://mirror.example/events.ics");
+      expect(subscribe.getAttribute("convert")).toBe("off");
+    });
+
+    it("stops the converter from being reached at all with convert=off on a JSON-only feed", async () => {
+      // The publisher's only lever over #186's default-on generation, now
+      // that the footer mounts the element for them. A lever the publisher
+      // cannot reach is not a lever.
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("convert", "off");
+      document.body.append(el);
+      await flush();
+
+      const subscribe = footerOf(el)!.querySelector("ote-subscribe")!;
+      const groups = [...subscribe.shadowRoot!.querySelectorAll("button.trigger")].map((button) =>
+        button.getAttribute("data-group"),
+      );
+      expect(groups).toEqual(["ote"]);
+      expect(subscribe.shadowRoot!.innerHTML).not.toContain("convert.opentechevents.org");
+    });
+
+    it("refuses a feed-declared publisher URL that is not http(s)", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            title: "Hostile",
+            url: "javascript:alert(document.domain)",
+            events: [{ name: "X", startDate: "2999-01-01" }],
+          }),
+      });
+      const el = createListElement();
+      el.setAttribute("feed", "https://hostile.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      const footer = footerOf(el)!;
+      expect(footer.querySelector("a.footer-feed")).toBeNull();
+      expect(footer.querySelector("span.footer-feed")!.textContent).toBe("Hostile");
+    });
+
+    it("leaves the time-zone line out of a date-only feed", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({ title: "All-day", events: [{ name: "Sprint", startDate: "2999-01-01" }] }),
+      });
+      const el = createListElement();
+      el.setAttribute("feed", "https://allday.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(footerOf(el)!.querySelector(".footer-zone")).toBeNull();
+    });
+
+    it("subscribe-layout=menu collapses the badges into the single trigger", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("subscribe-layout", "menu");
+      document.body.append(el);
+      await flush();
+
+      const subscribe = footerOf(el)!.querySelector("ote-subscribe")!;
+      expect(subscribe.getAttribute("layout")).toBe("menu");
+      const triggers = [...subscribe.shadowRoot!.querySelectorAll("button.trigger")].map((button) =>
+        button.getAttribute("data-group"),
+      );
+      expect(triggers).toEqual(["menu"]);
+    });
+
+    it("defaults the mounted element to badges, not to <ote-subscribe>'s own menu default", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(footerOf(el)!.querySelector("ote-subscribe")!.getAttribute("layout")).toBe("badges");
+    });
+
+    it("footer-mark=off removes the mark and leaves the subscribe links", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("footer-mark", "off");
+      document.body.append(el);
+      await flush();
+
+      const footer = footerOf(el)!;
+      expect(footer.querySelector("a.footer-mark")).toBeNull();
+      expect(footer.querySelector("ote-subscribe")).not.toBeNull();
+      expect(footer.querySelector(".footer-feed")).not.toBeNull();
+    });
+
+    it("observes footer and the five passthroughs", () => {
+      for (const name of ["footer", "convert", "feed-ics", "feed-rss", "subscribe-layout", "footer-mark"]) {
+        expect(OteEventsElementClass.observedAttributes, `${name} is not observed`).toContain(name);
+      }
+    });
+
+    it("renders the footer in every layout", async () => {
+      for (const layout of ["list", "cards", "calendar"]) {
+        fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+        const el = document.createElement("ote-events") as OteEventsElement;
+        el.setAttribute("layout", layout);
+        el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+        document.body.append(el);
+        await flush();
+
+        expect(footerOf(el), `${layout} has no footer`).not.toBeNull();
+        // The calendar mount point and the footer are siblings inside the
+        // container, not nested: in jsdom the lazy calendar module never
+        // loads, so the placeholder is what stays.
+        const wrapper = el.shadowRoot!.querySelector(".events-scroll")!;
+        expect(wrapper.nextElementSibling, `${layout} draws the footer inside the scrollport`).toBe(
+          footerOf(el),
+        );
+        el.remove();
+      }
+    });
   });
 });

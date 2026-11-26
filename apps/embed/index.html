@@ -198,6 +198,72 @@
               </p>
             </div>
 
+            <div class="field">
+              <label for="footer-select">footer</label>
+              <select id="footer-select">
+                <option value="on" selected>on (default)</option>
+                <option value="auto">auto</option>
+                <option value="off">off</option>
+              </select>
+              <p class="hint">
+                A strip under the events carrying the feed's name (linked to
+                the publisher's own page when the document declares
+                <code>url</code>), the time zone the times are rendered in,
+                an <code>&lt;ote-subscribe&gt;</code> and the OTE mark. On by
+                default, so upgrading a floating
+                <code>/embed/latest/</code> embed changes what the page
+                renders; a pinned <code>/embed/v&lt;x.y.z&gt;/</code> URL is
+                untouched. <code>auto</code> renders it only when the widget
+                knows where the data came from — for a host app driving the
+                widget through <code>.events = […]</code> that is nothing, so
+                it renders nothing. It is chrome inside the
+                <code>max-height</code> budget: the events scroll under it.
+              </p>
+              <p class="hint">
+                The footer's subscribe element gets the feed URL the widget
+                already fetched, plus the <code>text/calendar</code> and
+                <code>application/rss+xml</code> entries of the document's
+                own <code>alternates</code> (OTE Spec 0.5+) — so your own ICS
+                is offered instead of a generated one. <code>feed-ics</code>,
+                <code>feed-rss</code> and <code>convert</code> on
+                <code>&lt;ote-events&gt;</code> are passed straight through
+                to it and outrank the document;
+                <code>convert="off"</code> is how you stop
+                <code>convert.opentechevents.org</code> URLs from being built
+                for your visitors at all. With
+                <code>feeds="a,b"</code> there is no single document, so the
+                strip names the source count and offers no subscribe.
+              </p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-layout-footer-select">subscribe-layout</label>
+              <select id="subscribe-layout-footer-select">
+                <option value="badges" selected>badges (default in the footer)</option>
+                <option value="menu">menu</option>
+              </select>
+              <p class="hint">
+                The shape of the <code>&lt;ote-subscribe&gt;</code> the footer
+                mounts. <code>badges</code> names the formats on the strip
+                itself; <code>menu</code> is one
+                <em>Subscribe</em> trigger, which is quieter when the
+                converter supplies three groups. Note the default differs
+                from the standalone element's, which is <code>menu</code>.
+              </p>
+
+              <label for="footer-mark-select">footer-mark</label>
+              <select id="footer-mark-select">
+                <option value="on" selected>on (default)</option>
+                <option value="off">off</option>
+              </select>
+              <p class="hint">
+                The "Powered by OTE" link to the spec — the "this is an open
+                feed, you can take it with you" affordance. Off for a site
+                whose own footer already says it; the subscribe links stay
+                either way, which turning the whole footer off would lose.
+              </p>
+            </div>
+
             <div class="field" id="card-width-field">
               <label for="card-width-select">card-width</label>
               <select id="card-width-select">
