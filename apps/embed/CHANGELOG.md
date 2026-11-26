@@ -4,6 +4,31 @@
 
 ### Added
 
+- **`layout="calendar"` sizes each week to its own content, keeping
+  `max-per-day`** (#170). A month used to give every week the same height,
+  reserving room for `max-per-day` events in the empty ones too. Each
+  visible week now gets the height its busiest day needs, capped, and a week
+  with no events gets its date row and nothing more. On a 158-event feed
+  that is six uniform 93px rows (644px) against 26/26/26/26/92/92 (373px),
+  with every `+N more` link unchanged, and it is recomputed when the visitor
+  pages to another month.
+
+  Two earlier notes in this repo said collapsing and capping could not be
+  combined. **They were wrong**, and the correction is worth stating because
+  the reasoning looked sound: the constraint was never the calendar library,
+  it was `--ec-row-height` being a *single value shared by every row*.
+  Content-sizing it grows each cell to its events, so nothing overflows and
+  the `+N more` popover stops firing. Writing `grid-template-rows` as an
+  explicit per-week track list has no such limit.
+
+  The events a cap hides keep their layout box, so they inflate the grid's
+  scrollable height well past what it draws. That was invisible while the
+  grid was `overflow: hidden`, but a `max-height` turns it to `auto`: a
+  month that comfortably fits its budget still grew a scrollbar that
+  scrolled 400px into blank space. The event layer is now clipped to the
+  grid, so a month that fits has no scrollbar and one that does not scrolls
+  through its actual weeks.
+
 - **`density` controls how much room a `layout="calendar"` cell gives each
   event** (#170). `auto` (the default), `comfortable` or `compact`.
 
@@ -81,14 +106,8 @@
   that does not scroll at all and leaves the widget at 354px inside its
   400px budget.
 
-  This is the reason the two modes exist, and it is a genuine either/or
-  rather than an oversight: a capped row needs a fixed height to cap
-  against, while an auto-sized row grows to its content — so nothing ever
-  overflows and the `+N more` popover never fires. Measured, not assumed:
-  every `minmax(auto, <cap>)` and `minmax(min-content, <cap>)` variant
-  rendered all nine events of a busy day with no popover at all, because CSS
-  ignores a `minmax()` max that is smaller than its min. So **a busy feed
-  wants the default cap, and a sparse one wants `max-per-day="off"`.**
+  `max-per-day="off"` remains the uncapped mode, for a feed that would
+  rather show a busy day in full than collapse it.
 
 ## 0.9.0 — 2026-11-26
 

@@ -881,6 +881,39 @@ a.price:focus-visible {
   font-size: 0.72em;
 }
 
+/*
+ * Weeks sized to their own content (calendar-layout.ts#weekRowTracks).
+ *
+ * This is the rule that lets a month collapse its empty weeks while keeping
+ * max-per-day. --ec-row-height cannot: it is one value for every row, so
+ * content-sizing it grows each cell to its events and the "+N more" popover
+ * stops firing. A track list sets each week independently, and the library
+ * still hides whatever does not fit a given cell.
+ *
+ * One class more specific than the library's own grid-template-rows, and on
+ * our container rather than its element, so its re-render cannot drop it.
+ */
+.calendar-host[data-week-rows] .ec-day-grid .ec-main {
+  grid-template-rows: var(--ote-calendar-week-rows);
+}
+
+/*
+ * The events the day cap hides are still laid out - the library hides them
+ * with visibility: hidden, which leaves them occupying space - so they
+ * inflate .ec-main's scrollHeight far past the grid. Harmless while
+ * .ec-main is overflow: hidden, but a bounded calendar turns that to auto,
+ * and then a month that fits its budget still grew a 17px scrollbar that
+ * scrolled 400px into blank space (measured: scrollHeight 707 against a
+ * 297px grid).
+ *
+ * Clipping the event layer to the grid fixes both halves: a month that fits
+ * has no scrollbar at all, and one that does not scrolls through its actual
+ * weeks. The chips and their "+N more" links are untouched.
+ */
+.calendar-host[data-week-rows] .ec-day-grid .ec-body {
+  overflow: hidden;
+}
+
 /* Four controls plus a month title do not fit a phone-width toolbar on one line. */
 .calendar-host .ec-toolbar {
   flex-wrap: wrap;

@@ -69,6 +69,23 @@ describe("the max-height stylesheet", () => {
     expect(WIDGET_CSS).toContain('[data-density="compact"] .ec-day-foot');
   });
 
+  it("sizes month weeks from a track list rather than one shared row height", () => {
+    // --ec-row-height is a single value for every row, so content-sizing it
+    // grows each cell to its events and the "+N more" popover stops firing.
+    // A track list sets each week independently and keeps the cap.
+    expect(WIDGET_CSS).toContain(
+      ".calendar-host[data-week-rows] .ec-day-grid .ec-main {\n  grid-template-rows: var(--ote-calendar-week-rows);\n}",
+    );
+  });
+
+  it("clips the event layer so hidden events cannot inflate the scrollport", () => {
+    // The capped-away events keep their layout box, so without this a month
+    // that fits its budget still grew a scrollbar into 400px of blank space.
+    expect(WIDGET_CSS).toContain(
+      ".calendar-host[data-week-rows] .ec-day-grid .ec-body {\n  overflow: hidden;\n}",
+    );
+  });
+
   it("overrides the vendor stylesheet by specificity, never with !important", () => {
     // apps/embed/CLAUDE.md: the widget themes through --ote-* custom
     // properties and beats the library's own rules with one extra class,

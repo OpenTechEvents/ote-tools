@@ -83,12 +83,92 @@ export function dayRowHeight(maxPerDay: number, compact = false): string {
  * others. Below that the weeks stop shrinking and `.ec-main` scrolls (the
  * safety valve in theme.css.ts).
  *
- * The pin is not used here because it reserves `max-per-day` events' worth
- * of height in *every* week including the empty ones, which is what made a
- * sparse month scroll through ~750px of blank rows inside a 400px budget.
- * So a bounded day shows as many events as fit rather than exactly
- * `max-per-day` — see renderCalendar().
+ * Superseded in practice by `weekRowTracks()`, whose track list overrides
+ * `grid-template-rows` outright and sizes each week separately. This stays
+ * as the value `--ec-row-height` falls back to when no track list is in
+ * play — the narrow list fallback, and any path where `datesSet` has not
+ * fired yet — so a month is never left sizing its rows from nothing.
  */
+/**
+ * The `grid-template-rows` for a month whose weeks are sized to their own
+ * content, as a track list: the weekday header, then one track per visible
+ * week.
+ *
+ * This is what lets a month collapse its empty weeks **and** keep
+ * `max-per-day`. Driving the sizing through `--ec-row-height` cannot do
+ * both — it is a single value shared by every row, so content-sizing it
+ * (`auto`) grows each cell to fit its events and the "+N more" popover
+ * never fires. An explicit track list has no such constraint: each week gets
+ * the height its densest day needs, capped, and the library still hides
+ * whatever does not fit that cell. Verified in Chrome on a 158-event feed —
+ * six uniform 93px rows (644px) became 26/26/26/26/92/92 (373px) with every
+ * `+N more` link unchanged.
+ *
+ * A week whose busiest day is within the cap reserves no footer, because
+ * nothing is hidden and the "+N more" line is what the footer is for.
+ */
+export function weekRowTracks(
+  events: PreviewEvent[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  maxPerDay: number,
+  compact: boolean,
+): string {
+  const { head, row, foot } = compact ? CALENDAR_DENSITY.compact : CALENDAR_DENSITY.comfortable;
+  const perDay = eventsPerDay(events);
+  const tracks: string[] = [];
+  for (const week of weeksIn(rangeStart, rangeEnd)) {
+    const busiest = Math.max(0, ...week.map((day) => perDay.get(day) ?? 0));
+    if (busiest === 0) tracks.push(`${head}em`);
+    else if (busiest <= maxPerDay) tracks.push(`calc(${head}em + ${busiest} * ${row}em)`);
+    else tracks.push(`calc(${head}em + ${maxPerDay} * ${row}em + ${foot}em)`);
+  }
+  // `max-content` is the library's own first track, the weekday header.
+  return `max-content ${tracks.join(" ")}`;
+}
+
+/** How many events land on each `YYYY-MM-DD`, counting every day a multi-day event covers. */
+function eventsPerDay(events: PreviewEvent[]): Map<string, number> {
+  const perDay = new Map<string, number>();
+  for (const event of events) {
+    if (!event.startDate) continue;
+    const start = datePart(event.startDate);
+    const end = event.endDate ? datePart(event.endDate) : start;
+    for (const day of daysBetween(start, end)) perDay.set(day, (perDay.get(day) ?? 0) + 1);
+  }
+  return perDay;
+}
+
+/** The visible range split into weeks of seven `YYYY-MM-DD` days. */
+function weeksIn(rangeStart: Date, rangeEnd: Date): string[][] {
+  const weeks: string[][] = [];
+  const cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate());
+  // The range end is exclusive, and a guard keeps a bad range from spinning.
+  while (cursor < rangeEnd && weeks.length < 10) {
+    const week: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      week.push(toISODate(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+/** Every `YYYY-MM-DD` from `start` to `end` inclusive, capped so a bad range cannot spin. */
+function daysBetween(start: string, end: string): string[] {
+  const days = [start];
+  if (end <= start) return days;
+  const cursor = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  while (days.length < 400) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (cursor > last) break;
+    days.push(toISODate(cursor));
+  }
+  return days;
+}
+
 export function boundedRowHeight(compact = false): string {
   return `minmax(${dayRowHeight(1, compact)}, 1fr)`;
 }
@@ -340,6 +420,24 @@ export function renderCalendar(
     );
   }
 
+  // Weeks are sized to their own content, recomputed whenever the visible
+  // range changes. It goes on the container as a custom property rather than
+  // as an inline style on `.ec-main`, because that element belongs to the
+  // library and its re-render rewrites the style attribute — the same reason
+  // the row-height pin works this way.
+  const applyWeekRows = (rangeStart: Date, rangeEnd: Date) => {
+    if (maxPerDay === "off") {
+      container.removeAttribute("data-week-rows");
+      container.style.removeProperty("--ote-calendar-week-rows");
+      return;
+    }
+    container.setAttribute("data-week-rows", "");
+    container.style.setProperty(
+      "--ote-calendar-week-rows",
+      weekRowTracks(events, rangeStart, rangeEnd, maxPerDay, compact),
+    );
+  };
+
   let view = calendarViewForWidth(container.clientWidth, responsive);
 
   const calendar: Calendar = createCalendar(container, [DayGrid, List], {
@@ -352,6 +450,15 @@ export function renderCalendar(
     // rather than each reserving `max-per-day`'s worth of room.
     height: bounded ? "100%" : "auto",
     dayMaxEvents: maxPerDay !== "off",
+    datesSet(info) {
+      // Fires on mount and on every month/view change. The list fallback has
+      // no month grid to size, so it is left alone.
+      if (info.view.type === "list") {
+        container.removeAttribute("data-week-rows");
+        return;
+      }
+      applyWeekRows(info.start, info.end);
+    },
     // "Next event" earns its place on a 460-event feed, where paging month
     // by month is the only other way to find anything — but only when there
     // is something ahead to jump to.
