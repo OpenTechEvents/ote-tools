@@ -185,6 +185,57 @@ function buildPopover(menuId: string, group: RenderGroup): HTMLElement {
   return popover;
 }
 
+/**
+ * Whether this browser puts a popover in the top layer.
+ *
+ * The check is what decides between two positioning schemes, so it has to
+ * be about the behaviour rather than about the attribute existing: the
+ * fallback path below is the pre-#187 `position: absolute` popover, which
+ * is clipped by an overflow ancestor but is at least anchored correctly.
+ */
+const SUPPORTS_POPOVER =
+  typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.showPopover === "function";
+
+/**
+ * Places a top-layer popover under its trigger, flipping and clamping so it
+ * stays whole.
+ *
+ * Top layer means nothing can clip it — not an `overflow: hidden` ancestor,
+ * not a host container shorter than the popover, not `<ote-events>`'s own
+ * bounded column, which is the configuration #68's footer creates. The cost
+ * is that the browser no longer positions it for us: a top-layer element is
+ * laid out against the viewport, so the trigger's position has to be
+ * measured and applied.
+ *
+ * Flipping alone was not enough and clamping alone was not either. A
+ * right-aligned trigger needs the inline flip (the ~110px overflow #187
+ * measured at every width); a trigger near the bottom of a tall page needs
+ * the block flip; and a popover wider than the viewport on a phone needs
+ * the clamp, because flipping a 208px box inside a 320px viewport just
+ * moves which edge it leaves.
+ */
+function positionPopover(trigger: HTMLElement, popover: HTMLElement): void {
+  const GAP = 4;
+  const MARGIN = 8;
+  const anchor = trigger.getBoundingClientRect();
+  const box = popover.getBoundingClientRect();
+  const viewportWidth = document.documentElement.clientWidth;
+  const viewportHeight = document.documentElement.clientHeight;
+
+  const below = anchor.bottom + GAP;
+  const above = anchor.top - GAP - box.height;
+  const fitsBelow = below + box.height <= viewportHeight - MARGIN;
+  const top = fitsBelow || above < MARGIN ? below : above;
+
+  let left = anchor.left;
+  if (left + box.width > viewportWidth - MARGIN) left = anchor.right - box.width;
+  left = Math.min(Math.max(left, MARGIN), Math.max(MARGIN, viewportWidth - box.width - MARGIN));
+
+  popover.style.top = `${Math.max(MARGIN, Math.min(top, viewportHeight - MARGIN))}px`;
+  popover.style.left = `${left}px`;
+  popover.style.maxHeight = `${Math.max(120, viewportHeight - top - MARGIN)}px`;
+}
+
 /** One trigger + its popover (when open), wrapped in its own positioning context so the menu anchors under that specific trigger. */
 function renderTrigger(
   container: HTMLElement,
@@ -242,12 +293,28 @@ function renderTrigger(
   });
   wrap.append(trigger);
 
-  if (options.open && !options.disabled) {
+  const popover = options.open && !options.disabled ? options.buildMenuContent() : undefined;
+  if (popover) {
     trigger.setAttribute("aria-controls", options.menuId);
-    wrap.append(options.buildMenuContent());
+    // The top layer, so the popover cannot be clipped by anything (#187).
+    // `manual` rather than `auto`: an auto popover brings its own light
+    // dismiss, which would race this element's existing outside-pointerdown
+    // and Escape handling — and that handling also returns focus to the
+    // trigger, which the platform's does not do for us here.
+    if (SUPPORTS_POPOVER) popover.setAttribute("popover", "manual");
+    wrap.append(popover);
   }
 
   container.append(wrap);
+
+  // After the append, not before: showPopover() throws InvalidStateError on
+  // a disconnected element, and until `wrap` is in `container` the popover
+  // is not in the document. Positioning has to follow for the same reason —
+  // an unconnected element measures 0x0.
+  if (popover && SUPPORTS_POPOVER) {
+    popover.showPopover();
+    positionPopover(trigger, popover);
+  }
 }
 
 export function renderSubscribe(container: HTMLElement, state: SubscribeState): void {

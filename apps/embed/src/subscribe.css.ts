@@ -167,6 +167,7 @@ export const SUBSCRIBE_CSS = `
   inset-block-start: calc(100% + 0.25rem);
   inset-inline-start: 0;
   z-index: 4;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   min-width: 13rem;
@@ -177,6 +178,32 @@ export const SUBSCRIBE_CSS = `
   border-radius: var(--ote-radius);
   background: var(--ote-surface);
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.12);
+}
+
+/* In the top layer (#187). A popover there is laid out against the
+   viewport, so the anchoring comes from subscribe-render.ts#positionPopover
+   writing top/left — but the reason to be there is what no amount of
+   positioning can buy: nothing clips it. An ancestor with overflow:hidden,
+   a host container shorter than the menu, <ote-events>'s own bounded
+   column in #68's footer — none of them reach into the top layer.
+
+   :popover-open rather than [popover]: the attribute is set while the
+   element is still being measured, and these rules must not apply to the
+   absolutely-positioned fallback. */
+.popover:popover-open {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  z-index: auto;
+  border: 1px solid var(--ote-border);
+  background: var(--ote-surface);
+  color: var(--ote-text);
+  overflow: visible;
+}
+
+.popover::backdrop {
+  background: none;
 }
 
 .menu {
