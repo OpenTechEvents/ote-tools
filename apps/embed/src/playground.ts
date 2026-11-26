@@ -10,7 +10,8 @@ import {
   type NativeEventAction,
 } from "./attrs.js";
 import { resetToDefaults, setupControlTabs } from "./control-tabs.js";
-import { applyPreset, EVENT_PRESETS } from "./presets.js";
+import { type Adopter, parseAdopterRegistry } from "./adopters.js";
+import { applyPreset, EVENT_PRESETS, type Preset } from "./presets.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
 import { ALL_CONVERT_TOKENS, ALL_SHOW_TOKENS, type ConvertToken, type ShowToken } from "./subscribe-attrs.js";
@@ -29,7 +30,7 @@ const SUBSCRIBE_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_
  */
 const feedInput = document.querySelector<HTMLInputElement>("#source-feed-input")!;
 const sourceStatus = document.querySelector<HTMLElement>("#source-status")!;
-const sourceResetButton = document.querySelector<HTMLButtonElement>("#source-reset-button")!;
+const adopterSelect = document.querySelector<HTMLSelectElement>("#adopter-select")!;
 const feedDataInput = document.querySelector<HTMLTextAreaElement>("#feed-data-input")!;
 const feedSourceField = document.querySelector<HTMLElement>("#feed-source-field")!;
 const jsonSourceField = document.querySelector<HTMLElement>("#json-source-field")!;
@@ -479,6 +480,7 @@ function setTheme(theme: Theme): void {
 }
 
 function setActiveTab(tab: string): void {
+  writeParam("tab", tab === "events" ? null : tab);
   for (const button of siteTabButtons) {
     const isActive = button.dataset.tab === tab;
     button.setAttribute("aria-selected", String(isActive));
@@ -851,7 +853,20 @@ siteTabsContainer.addEventListener("keydown", (event) => {
  * pointed at that feed. Same parameter name `apps/preview` and
  * `apps/validator` already use, so a URL moves between the tools unchanged.
  */
-const EXAMPLE_FEED = "https://communitybuilders.dev/events/feed.json";
+/**
+ * The feed the page opens on when nothing else says otherwise.
+ *
+ * Chosen for what it shows rather than for who publishes it: a demo whose
+ * calendar is mostly empty months and whose cards have no images teaches that
+ * the widget is thin. Measured 2026-11-26 across the nine registered feeds —
+ * 216 events, 77 of them upcoming, 214 with an image — and it declares spec
+ * 0.6.0, where the previous default declared 0.3.0, which has since fallen
+ * out of the support window.
+ *
+ * It is one entry of the registry the picker offers; if it goes stale, pick
+ * another from `adopters.json` on the same grounds.
+ */
+const EXAMPLE_FEED = "https://digest.hackbarna.com/events.json";
 const FEED_STORAGE_KEY = "ote-embed-playground-feed";
 
 function storedFeed(): string | null {
@@ -864,11 +879,21 @@ function storedFeed(): string | null {
   }
 }
 
-function rememberFeed(value: string): void {
+/**
+ * The page's shareable state lives in its own address (#146): `feed`, `tab`
+ * and `preset`. One writer, reading the current URL each time, so adding a
+ * parameter cannot drop another — and a value at its default is *absent*
+ * rather than written out, which keeps a plain link to the playground plain.
+ */
+function writeParam(name: string, value: string | null): void {
   const url = new URL(window.location.href);
-  if (value && value !== EXAMPLE_FEED) url.searchParams.set("feed", value);
-  else url.searchParams.delete("feed");
+  if (value) url.searchParams.set(name, value);
+  else url.searchParams.delete(name);
   window.history.replaceState(null, "", url);
+}
+
+function rememberFeed(value: string): void {
+  writeParam("feed", value && value !== EXAMPLE_FEED ? value : null);
   try {
     if (value && value !== EXAMPLE_FEED) localStorage.setItem(FEED_STORAGE_KEY, value);
     else localStorage.removeItem(FEED_STORAGE_KEY);
@@ -952,6 +977,7 @@ function setStatus(token: number, text: string, kind: "ok" | "warn" | ""): void 
 let describeTimer: ReturnType<typeof setTimeout> | undefined;
 function onFeedChanged(): void {
   const value = feedInput.value.trim();
+  syncAdopterSelection();
   rememberFeed(value);
   const token = ++statusToken;
   clearTimeout(describeTimer);
@@ -960,16 +986,71 @@ function onFeedChanged(): void {
 
 feedInput.addEventListener("input", onFeedChanged);
 feedInput.addEventListener("change", onFeedChanged);
-sourceResetButton.addEventListener("click", () => {
-  feedInput.value = EXAMPLE_FEED;
+/**
+ * Examples from the public adopters registry (#185), the same list the
+ * converter's landing page offers and validated by the same function.
+ *
+ * It degrades quietly: a registry that is unreachable, malformed, or has no
+ * usable entry leaves a disabled select saying so, and the text field keeps
+ * working. A playground whose example list is down is still a playground.
+ */
+async function loadAdopters(): Promise<void> {
+  // No initialiser: the catch returns, so the only way past the block is
+  // through the assignment, and seeding it with [] would be a value nothing
+  // ever reads.
+  let adopters: Adopter[];
+  try {
+    const response = await fetch("https://opentechevents.org/data/adopters.json");
+    if (!response.ok) throw new Error(`Registry answered ${response.status}`);
+    adopters = parseAdopterRegistry(await response.json());
+  } catch {
+    adopterSelect.options[0].textContent = "Examples unavailable";
+    return;
+  }
+
+  if (adopters.length === 0) {
+    adopterSelect.options[0].textContent = "No examples available";
+    return;
+  }
+
+  adopterSelect.options[0].textContent = "Example feeds";
+  for (const adopter of adopters) {
+    adopterSelect.append(new Option(adopter.name, adopter.feed));
+  }
+  adopterSelect.disabled = false;
+  // The page may already be showing one of them.
+  syncAdopterSelection();
+}
+
+/** Typing a URL by hand drops the selection, as the converter's picker does. */
+function syncAdopterSelection(): void {
+  const current = feedInput.value.trim();
+  adopterSelect.value = [...adopterSelect.options].some((option) => option.value === current)
+    ? current
+    : "";
+}
+
+adopterSelect.addEventListener("change", () => {
+  if (!adopterSelect.value) return;
+  feedInput.value = adopterSelect.value;
   onFeedChanged();
   applyAndRender();
   applySubscribeAndRender();
-  feedInput.focus();
 });
 
 feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim() || storedFeed() || EXAMPLE_FEED;
 onFeedChanged();
+void loadAdopters();
+
+/*
+ * Open on what the link asked for. Both are validated against what this page
+ * actually has, and an unknown value is ignored rather than treated as an
+ * error: a link outliving a renamed preset should still open the playground.
+ */
+const openingParams = new URL(window.location.href).searchParams;
+const openingTab = openingParams.get("tab");
+if (openingTab && Object.hasOwn(tabPanels, openingTab)) setActiveTab(openingTab);
+else writeParam("tab", null);
 
 for (const column of document.querySelectorAll<HTMLElement>(".controls-column")) {
   setupControlTabs(column);
@@ -982,29 +1063,51 @@ for (const column of document.querySelectorAll<HTMLElement>(".controls-column"))
  */
 const eventsColumn = document.querySelector<HTMLElement>("#tab-panel-events .controls-column")!;
 const presetButtons = document.querySelector<HTMLElement>("#event-presets")!;
+/**
+ * `?preset=` names the configuration the form is *in*, so it survives only
+ * while that stays true: touching any control clears it. A link that claims
+ * "Cards grid" and opens something else is worse than a link with no claim.
+ */
+let applyingPreset = false;
+
+function usePreset(preset: Preset | null): void {
+  applyingPreset = true;
+  // Reset first: two presets in a row must not compose into a third
+  // configuration nobody chose.
+  resetToDefaults(eventsColumn);
+  const finish = (): void => {
+    applyAndRender();
+    eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
+    applyingPreset = false;
+    writeParam("preset", preset?.id ?? null);
+  };
+  if (preset) applyPreset(eventsColumn, preset, finish);
+  else finish();
+}
+
 for (const preset of EVENT_PRESETS) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "preset-button";
   button.textContent = preset.label;
   button.title = preset.description;
-  button.addEventListener("click", () => {
-    // Reset first: two presets in a row must not compose into a third
-    // configuration nobody chose.
-    resetToDefaults(eventsColumn);
-    applyPreset(eventsColumn, preset, () => {
-      applyAndRender();
-      eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  });
+  button.addEventListener("click", () => usePreset(preset));
   presetButtons.append(button);
 }
 
-document.querySelector<HTMLButtonElement>("#event-reset")!.addEventListener("click", () => {
-  resetToDefaults(eventsColumn);
-  applyAndRender();
-  eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
-});
+document.querySelector<HTMLButtonElement>("#event-reset")!.addEventListener("click", () => usePreset(null));
+
+for (const event of ["input", "change"]) {
+  eventsColumn.addEventListener(event, () => {
+    if (!applyingPreset) writeParam("preset", null);
+  });
+}
+
+// Read after the handler exists, so a link opens on a configured widget
+// rather than on the default calendar.
+const openingPreset = EVENT_PRESETS.find((preset) => preset.id === openingParams.get("preset"));
+if (openingPreset) usePreset(openingPreset);
+else writeParam("preset", null);
 
 /**
  * The sticky preview column has to clear the sticky feed/tabs strip, and the

@@ -1,5 +1,21 @@
-/** Landing page interactions; the public registry sends CORS headers. */
+import { parseAdopterRegistry } from "../../../apps/embed/src/adopters.js";
+
+/**
+ * Landing page interactions; the public registry sends CORS headers.
+ *
+ * The registry validation is shared with the embed playground (#185) rather
+ * than kept as a second copy here — the two pages must agree on which
+ * entries are safe to offer. It is embedded as source text because this is a
+ * classic `<script>`, not a module, and bound to a `const` rather than relied
+ * on by name: the worker bundle is minified, which renames the declaration
+ * but not a name written inside a string.
+ *
+ * This is the same relative import across a package boundary that
+ * `workers/convert` already makes into `apps/validator` for `fetchDocument`.
+ * It is now the second one.
+ */
 export const adoptersScript = `
+const parseAdopterRegistry = ${parseAdopterRegistry};
 const select = document.querySelector('#adopter-select');
 const input = document.querySelector('#feed');
 const form = document.querySelector('#convert-form');
@@ -86,22 +102,15 @@ async function loadAdopters() {
   try {
     const response = await fetch('https://opentechevents.org/data/adopters.json');
     if (!response.ok) throw new Error('Registry unavailable');
-    const registry = await response.json();
-    if (!Array.isArray(registry.adopters)) throw new Error('Unexpected registry');
-    let count = 0;
-    for (const adopter of registry.adopters) {
-      if (!adopter || typeof adopter.name !== 'string' || typeof adopter.feed !== 'string') continue;
-      let feed;
-      try { feed = new URL(adopter.feed); } catch { continue; }
-      if (!['https:', 'http:'].includes(feed.protocol) || feed.username || feed.password) continue;
+    const adopters = parseAdopterRegistry(await response.json());
+    for (const adopter of adopters) {
       const option = document.createElement('option');
       option.value = adopter.feed;
       option.textContent = adopter.name;
       select.append(option);
-      count++;
     }
-    select.disabled = !count;
-    if (!count) select.options[0].textContent = 'No examples available';
+    select.disabled = !adopters.length;
+    if (!adopters.length) select.options[0].textContent = 'No examples available';
   } catch {
     select.options[0].textContent = 'Examples unavailable';
   }

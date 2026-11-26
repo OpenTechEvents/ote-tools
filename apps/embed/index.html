@@ -80,7 +80,9 @@
           aria-describedby="source-status source-feed-hint"
         />
         <p class="source-status" id="source-status" role="status">Checking the feed…</p>
-        <button type="button" class="btn btn-ghost" id="source-reset-button">Example feed</button>
+        <select id="adopter-select" disabled aria-label="Example feeds from the OTE adopters registry">
+          <option value="">Loading examples…</option>
+        </select>
         <button
           type="button"
           class="info-button"
@@ -717,7 +719,7 @@
             </div>
           </div>
           <div class="widget-frame">
-            <ote-events id="preview-widget" feed="https://communitybuilders.dev/events/feed.json"></ote-events>
+            <ote-events id="preview-widget"></ote-events>
           </div>
         </section>
 
@@ -960,11 +962,7 @@
         <section class="panel" aria-labelledby="subscribe-preview-heading">
           <h2 id="subscribe-preview-heading">Live preview</h2>
           <div class="widget-frame">
-            <ote-subscribe
-              id="subscribe-preview-widget"
-              feed-ics="https://communitybuilders.dev/events/feed.ics"
-              feed-rss="https://communitybuilders.dev/events/feed.xml"
-            ></ote-subscribe>
+            <ote-subscribe id="subscribe-preview-widget"></ote-subscribe>
           </div>
         </section>
 
