@@ -117,9 +117,63 @@
   <main>
     <section id="tab-panel-events" class="playground-layout" role="tabpanel" aria-labelledby="tab-btn-events" tabindex="0">
       <div class="controls-column" aria-label="Events widget controls">
-        <details class="control-group" open>
-          <summary>Basics</summary>
-          <div class="group-body">
+        <!-- Tabs rather than accordions (#192). Four groups and ~25 controls
+             made the column's height change with every open and close, which
+             moved the page under the sticky preview. Tabs keep it constant.
+
+             Their cost is hidden state — a value set in another tab is a
+             value you can forget and then blame the widget for. The badge is
+             the mitigation: it counts the controls in each panel that differ
+             from their default, derived from the DOM's own `defaultChecked` /
+             `defaultValue` / `defaultSelected` rather than from a table of
+             defaults kept beside the markup. -->
+        <div class="control-tabs" role="tablist" aria-label="Events widget settings">
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-basics"
+            aria-controls="ev-panel-basics"
+            aria-selected="true"
+            
+          >Basics<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-appearance"
+            aria-controls="ev-panel-appearance"
+            aria-selected="false"
+            tabindex="-1"
+          >Appearance<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-behavior"
+            aria-controls="ev-panel-behavior"
+            aria-selected="false"
+            tabindex="-1"
+          >Behavior<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-actions"
+            aria-controls="ev-panel-actions"
+            aria-selected="false"
+            tabindex="-1"
+          >Actions<span class="tab-badge" hidden aria-hidden="true"></span></button>
+        </div>
+
+        <div
+          class="control-panel"
+          id="ev-panel-basics"
+          role="tabpanel"
+          aria-labelledby="ev-tab-basics"
+          tabindex="0"
+          
+        >
             <div class="field">
               <span class="fields-legend">data source</span>
               <div class="source-options">
@@ -158,12 +212,15 @@
               <input type="number" id="limit-input" min="1" step="1" placeholder="No limit" />
               <p class="hint">Optional maximum number of events to show. Default: no limit.</p>
             </div>
-          </div>
-        </details>
-
-        <details class="control-group">
-          <summary>Appearance</summary>
-          <div class="group-body">
+        </div>
+        <div
+          class="control-panel"
+          id="ev-panel-appearance"
+          role="tabpanel"
+          aria-labelledby="ev-tab-appearance"
+          tabindex="0"
+          hidden
+        >
             <div class="field">
               <label for="placeholder-image-input">placeholder-image override</label>
               <input type="url" id="placeholder-image-input" placeholder="Optional image URL for cards without images" />
@@ -341,12 +398,15 @@
                 <code>responsive="off"</code>.
               </p>
             </div>
-          </div>
-        </details>
-
-        <details class="control-group">
-          <summary>Behavior</summary>
-          <div class="group-body">
+        </div>
+        <div
+          class="control-panel"
+          id="ev-panel-behavior"
+          role="tabpanel"
+          aria-labelledby="ev-tab-behavior"
+          tabindex="0"
+          hidden
+        >
             <div class="field" id="fields-matrix-field">
               <span class="fields-legend">fields — preview / detail</span>
               <p class="hint">
@@ -479,12 +539,15 @@
               </label>
               <p class="hint">Include events whose start date has already passed. Default: on.</p>
             </div>
-          </div>
-        </details>
-
-        <details class="control-group">
-          <summary>Actions</summary>
-          <div class="group-body">
+        </div>
+        <div
+          class="control-panel"
+          id="ev-panel-actions"
+          role="tabpanel"
+          aria-labelledby="ev-tab-actions"
+          tabindex="0"
+          hidden
+        >
             <div class="field">
               <label for="event-click-select">event-click</label>
               <select id="event-click-select">
@@ -530,8 +593,7 @@
               </div>
               <p class="hint">Adds a custom action with an icon that shows an alert for the selected event.</p>
             </div>
-          </div>
-        </details>
+        </div>
       </div>
 
       <div class="output-column">

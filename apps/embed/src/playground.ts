@@ -9,6 +9,7 @@ import {
   type Layout,
   type NativeEventAction,
 } from "./attrs.js";
+import { setupControlTabs } from "./control-tabs.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
 import { ALL_CONVERT_TOKENS, ALL_SHOW_TOKENS, type ConvertToken, type ShowToken } from "./subscribe-attrs.js";
@@ -970,6 +971,10 @@ sourceResetButton.addEventListener("click", () => {
 
 feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim() || storedFeed() || EXAMPLE_FEED;
 onFeedChanged();
+
+for (const column of document.querySelectorAll<HTMLElement>(".controls-column")) {
+  setupControlTabs(column);
+}
 
 /**
  * The sticky preview column has to clear the sticky feed/tabs strip, and the
