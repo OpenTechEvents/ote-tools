@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+### Changed
+
+- **The playground is reorganised** (#199). The page's own markup only —
+  `ote-events.js` and `ote-subscribe.js` build byte-identical to the previous
+  commit, so no version bump.
+
+  - **Tabs instead of accordions** in both controls columns, each tab
+    carrying a badge counting the settings inside it that are not at their
+    default. Hiding controls behind tabs is what makes a value set in another
+    tab forgettable; the badge is what makes it findable again.
+  - **One view switcher.** The playground's layout toolbar is gone — the
+    widget has had its own since #183 — and `layout` is a select in
+    Appearance, which is what "the view the widget opens on" is. The theme
+    toolbar stays over the preview.
+  - **Per-view settings are grouped by view and dimmed, not disabled.** With
+    `views` the visitor reaches every enabled view, so `card-width` is in
+    effect in the embed you copy whatever the preview is showing.
+  - **The subscribe panel asks where the Calendar and RSS links come from
+    once** — a radio, instead of a closed group plus a `convert` checkbox
+    pair meaning the same thing. `convert="ics"` alone is no longer reachable
+    from the form; the attribute is unchanged.
+  - **Long help moves behind an info button and a popover** (eighteen hints,
+    the longest 199 words). Hints of 20 words or fewer stay where they are.
+  - **Four one-click presets** and a Reset.
+  - Page chrome above the preview is roughly 160px shorter: a two-sentence
+    intro, the page index hidden, and the feed field and tabs in one sticky
+    strip.
+
+### Fixed
+
+- The playground emitted `group-events="series,multipart"` from an untouched
+  form, because the checkboxes shipped ticked while `parseGroupEvents()`
+  treats the absent attribute as a deliberate no-op. Every snippet it handed
+  out turned on grouping the visitor had not asked for, beside a hint reading
+  "Off by default".
+- The preview panel was sized by the calendar's min-content and scrolled the
+  whole page sideways. Fixing that squeezed the widget under the 600px
+  container width where it degrades the month grid to a list, so the preview
+  column is now the wide one and the two-column breakpoint drops 58rem →
+  52rem — a 1024px tablet keeps both columns instead of putting the preview
+  below the form.
+
 ### Added
 
 - **One header for the whole widget** (#183), in Google Calendar's order:

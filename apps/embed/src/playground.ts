@@ -9,6 +9,8 @@ import {
   type Layout,
   type NativeEventAction,
 } from "./attrs.js";
+import { resetToDefaults, setupControlTabs } from "./control-tabs.js";
+import { applyPreset, EVENT_PRESETS } from "./presets.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
 import { ALL_CONVERT_TOKENS, ALL_SHOW_TOKENS, type ConvertToken, type ShowToken } from "./subscribe-attrs.js";
@@ -36,9 +38,7 @@ const sourceModeInputs = Array.from(
 );
 const eventIdInput = document.querySelector<HTMLInputElement>("#event-id-input")!;
 const limitInput = document.querySelector<HTMLInputElement>("#limit-input")!;
-const layoutButtons = Array.from(
-  document.querySelectorAll<HTMLButtonElement>("[data-layout]"),
-);
+const layoutSelect = document.querySelector<HTMLSelectElement>("#layout-select")!;
 const placeholderImageInput = document.querySelector<HTMLInputElement>("#placeholder-image-input")!;
 const eventClickSelect = document.querySelector<HTMLSelectElement>("#event-click-select")!;
 const eventActionCheckboxes = Array.from(
@@ -90,9 +90,10 @@ const subscribeNameInput = document.querySelector<HTMLInputElement>("#subscribe-
 const subscribeShowCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".subscribe-show-checkbox"),
 );
-const subscribeConvertCheckboxes = Array.from(
-  document.querySelectorAll<HTMLInputElement>(".subscribe-convert-checkbox"),
+const subscribeSourceInputs = Array.from(
+  document.querySelectorAll<HTMLInputElement>('input[name="subscribe-source"]'),
 );
+const subscribeOwnFeeds = document.querySelector<HTMLElement>("#subscribe-own-feeds")!;
 const subscribeLayoutSelect = document.querySelector<HTMLSelectElement>("#subscribe-layout-select")!;
 const subscribeThemeSelect = document.querySelector<HTMLSelectElement>("#subscribe-theme-select")!;
 const subscribeLangSelect = document.querySelector<HTMLSelectElement>("#subscribe-lang-select")!;
@@ -108,10 +109,6 @@ const tabPanels: Record<string, HTMLElement> = {
   reference: document.querySelector<HTMLElement>("#tab-panel-reference")!,
 };
 
-const cardWidthField = document.querySelector<HTMLElement>("#card-width-field")!;
-const calendarField = document.querySelector<HTMLElement>("#calendar-field")!;
-const groupEventsField = document.querySelector<HTMLElement>("#group-events-field")!;
-const fieldsMatrixField = document.querySelector<HTMLElement>("#fields-matrix-field")!;
 
 type RuntimeDataKind = "feedData" | "events" | "event";
 
@@ -321,10 +318,24 @@ function currentShow(): ShowToken[] {
     .map((checkbox) => checkbox.value as ShowToken);
 }
 
+type SubscribeSource = "generated" | "own" | "none";
+
+function subscribeSource(): SubscribeSource {
+  const value = subscribeSourceInputs.find((input) => input.checked)?.value;
+  return value === "own" || value === "none" ? value : "generated";
+}
+
+/**
+ * Where the Calendar and RSS groups come from, as one question.
+ *
+ * It used to be three controls: a closed "Do you host your own ICS or RSS?"
+ * group, and a `convert` checkbox pair whose "untick both" said the same
+ * thing as "no links at all". `convert="ics"` alone — generate the calendar
+ * but not the feed — is no longer reachable from the form; `show` already
+ * drops a whole group, which is what anyone wanting that was after.
+ */
 function currentConvert(): ConvertToken[] {
-  return subscribeConvertCheckboxes
-    .filter((checkbox) => checkbox.checked)
-    .map((checkbox) => checkbox.value as ConvertToken);
+  return subscribeSource() === "none" ? [] : [...ALL_CONVERT_TOKENS];
 }
 
 function isAllShowTokens(tokens: ShowToken[]): boolean {
@@ -363,8 +374,13 @@ function setSubscribeSnippet(text: string): void {
 }
 
 function applySubscribeAndRender(): void {
-  const icsUrl = subscribeIcsInput.value.trim();
-  const rssUrl = subscribeRssInput.value.trim();
+  const source = subscribeSource();
+  // The two fields are the exception, so they are only on screen when the
+  // radio says they apply — and their values stop counting when it does not,
+  // rather than silently outranking a generated feed from a hidden input.
+  subscribeOwnFeeds.hidden = source !== "own";
+  const icsUrl = source === "own" ? subscribeIcsInput.value.trim() : "";
+  const rssUrl = source === "own" ? subscribeRssInput.value.trim() : "";
   // The shared field accepts several comma-separated feeds, which only the
   // events widget can combine. <ote-subscribe> links to one document, so it
   // takes the first — rather than emitting a comma-separated string as a
@@ -440,16 +456,13 @@ function sourceMode(): SourceMode {
 }
 
 function currentLayout(): Layout {
-  const pressed = layoutButtons.find((button) => button.getAttribute("aria-pressed") === "true");
-  if (pressed?.dataset.layout === "list") return "list";
-  if (pressed?.dataset.layout === "cards") return "cards";
+  if (layoutSelect.value === "list") return "list";
+  if (layoutSelect.value === "cards") return "cards";
   return "calendar";
 }
 
 function setLayout(layout: Layout): void {
-  for (const button of layoutButtons) {
-    button.setAttribute("aria-pressed", String(button.dataset.layout === layout));
-  }
+  layoutSelect.value = layout;
 }
 
 function currentTheme(): Theme {
@@ -476,28 +489,25 @@ function setActiveTab(tab: string): void {
   }
 }
 
-function setControlDisabled(
-  field: HTMLElement,
-  controls: Array<HTMLInputElement | HTMLSelectElement>,
-  disabled: boolean,
-): void {
-  field.classList.toggle("is-disabled", disabled);
-  for (const control of controls) control.disabled = disabled;
-}
-
+/**
+ * Controls that belong to one view are dimmed when the preview is showing
+ * another — and stay editable.
+ *
+ * They used to be disabled, which was wrong twice over. `views` (#183) means
+ * the widget renders all three and the visitor moves between them, so
+ * `card-width` is in effect in the embed you copy whatever is on screen
+ * here; disabling it hid a live setting. And with the controls behind tabs,
+ * a greyed control's reason is no longer anywhere near it — it was buried in
+ * the hint ("Cards layout only").
+ *
+ * The scope is declared in the markup as `data-views`, so a control added to
+ * one of these groups is covered without a matching edit here.
+ */
 function updateControlAvailability(layout: Layout): void {
-  setControlDisabled(cardWidthField, [cardWidthSelect], layout !== "cards");
-  setControlDisabled(
-    calendarField,
-    [maxPerDayInput, densitySelect, initialDateSelect, responsiveCheckbox],
-    layout !== "calendar",
-  );
-  setControlDisabled(groupEventsField, groupEventsCheckboxes, layout !== "cards");
-  setControlDisabled(
-    fieldsMatrixField,
-    [...previewFieldCheckboxes, ...detailFieldCheckboxes],
-    layout === "calendar",
-  );
+  for (const group of document.querySelectorAll<HTMLElement>(".view-scoped")) {
+    const views = (group.dataset.views ?? "").split(/\s+/).filter(Boolean);
+    group.dataset.active = String(views.includes(layout));
+  }
 }
 
 function applyRuntimeData(runtimeData: RuntimeData | undefined): void {
@@ -719,6 +729,7 @@ for (const control of [
   feedInput,
   eventIdInput,
   limitInput,
+  layoutSelect,
   placeholderImageInput,
   eventClickSelect,
   nativeActionPlacementSelect,
@@ -762,17 +773,6 @@ widget.addEventListener("ote-view-change", (event) => {
   applyAndRender();
 });
 
-for (const button of layoutButtons) {
-  button.addEventListener("click", () => {
-    if (button.dataset.layout === "list" || button.dataset.layout === "cards") {
-      setLayout(button.dataset.layout);
-    } else {
-      setLayout("calendar");
-    }
-    applyAndRender();
-  });
-}
-
 for (const button of themeButtons) {
   button.addEventListener("click", () => {
     if (button.dataset.theme === "light" || button.dataset.theme === "dark") {
@@ -813,7 +813,7 @@ for (const control of [
   subscribeThemeSelect,
   subscribeLangSelect,
   ...subscribeShowCheckboxes,
-  ...subscribeConvertCheckboxes,
+  ...subscribeSourceInputs,
 ]) {
   control.addEventListener("input", applySubscribeAndRender);
   control.addEventListener("change", applySubscribeAndRender);
@@ -970,6 +970,63 @@ sourceResetButton.addEventListener("click", () => {
 
 feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim() || storedFeed() || EXAMPLE_FEED;
 onFeedChanged();
+
+for (const column of document.querySelectorAll<HTMLElement>(".controls-column")) {
+  setupControlTabs(column);
+}
+
+/*
+ * Presets are rendered rather than written out in the HTML: the buttons and
+ * the configurations are one list, so a preset cannot be added with no
+ * button or a button left pointing at nothing.
+ */
+const eventsColumn = document.querySelector<HTMLElement>("#tab-panel-events .controls-column")!;
+const presetButtons = document.querySelector<HTMLElement>("#event-presets")!;
+for (const preset of EVENT_PRESETS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "preset-button";
+  button.textContent = preset.label;
+  button.title = preset.description;
+  button.addEventListener("click", () => {
+    // Reset first: two presets in a row must not compose into a third
+    // configuration nobody chose.
+    resetToDefaults(eventsColumn);
+    applyPreset(eventsColumn, preset, () => {
+      applyAndRender();
+      eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+  presetButtons.append(button);
+}
+
+document.querySelector<HTMLButtonElement>("#event-reset")!.addEventListener("click", () => {
+  resetToDefaults(eventsColumn);
+  applyAndRender();
+  eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
+/**
+ * The sticky preview column has to clear the sticky feed/tabs strip, and the
+ * strip's height is not a constant: its controls wrap at narrow widths and
+ * the status line can run to a second row. So it is measured and published
+ * as `--sticky-top`.
+ *
+ * No ResizeObserver loop here, unlike the widget's own header
+ * (apps/embed/CLAUDE.md): the strip's height does not depend on the property
+ * being written, so observing it cannot re-trigger itself.
+ */
+const pageStrip = document.querySelector<HTMLElement>(".page-strip");
+if (pageStrip) {
+  const publishStripHeight = (): void => {
+    document.documentElement.style.setProperty(
+      "--sticky-top",
+      `${Math.round(pageStrip.getBoundingClientRect().height)}px`,
+    );
+  };
+  publishStripHeight();
+  new ResizeObserver(publishStripHeight).observe(pageStrip);
+}
 
 applyAndRender();
 applySubscribeAndRender();
