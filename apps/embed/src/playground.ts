@@ -51,6 +51,9 @@ const themeButtons = Array.from(
 const langSelect = document.querySelector<HTMLSelectElement>("#lang-select")!;
 const showPastCheckbox = document.querySelector<HTMLInputElement>("#show-past-checkbox")!;
 const cardWidthSelect = document.querySelector<HTMLSelectElement>("#card-width-select")!;
+const maxPerDayInput = document.querySelector<HTMLInputElement>("#max-per-day-input")!;
+const initialDateSelect = document.querySelector<HTMLSelectElement>("#initial-date-select")!;
+const responsiveCheckbox = document.querySelector<HTMLInputElement>("#responsive-checkbox")!;
 const previewFieldCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".field-key-preview-checkbox"),
 );
@@ -89,6 +92,7 @@ const tabPanels: Record<string, HTMLElement> = {
 };
 
 const cardWidthField = document.querySelector<HTMLElement>("#card-width-field")!;
+const calendarField = document.querySelector<HTMLElement>("#calendar-field")!;
 const groupEventsField = document.querySelector<HTMLElement>("#group-events-field")!;
 const fieldsMatrixField = document.querySelector<HTMLElement>("#fields-matrix-field")!;
 
@@ -183,6 +187,9 @@ function buildSnippet(config: {
   lang: string;
   showPast: boolean;
   cardWidth: string | undefined;
+  maxPerDay: string | undefined;
+  initialDate: string | undefined;
+  responsive: boolean;
   fieldsPreview: string | undefined;
   fieldsDetail: string | undefined;
   groupEvents: string | undefined;
@@ -212,6 +219,9 @@ function buildSnippet(config: {
   if (config.eventActions) elementLines.push(`  event-actions="${attr(config.eventActions)}"`);
   if (!config.showPast) elementLines.push(`  show-past="false"`);
   if (config.cardWidth) elementLines.push(`  card-width="${attr(config.cardWidth)}"`);
+  if (config.maxPerDay) elementLines.push(`  max-per-day="${attr(config.maxPerDay)}"`);
+  if (config.initialDate) elementLines.push(`  initial-date="${attr(config.initialDate)}"`);
+  if (!config.responsive) elementLines.push(`  responsive="off"`);
   if (config.fieldsPreview) elementLines.push(`  fields-preview="${attr(config.fieldsPreview)}"`);
   if (config.fieldsDetail) elementLines.push(`  fields-detail="${attr(config.fieldsDetail)}"`);
   if (config.groupEvents) elementLines.push(`  group-events="${attr(config.groupEvents)}"`);
@@ -409,6 +419,11 @@ function setControlDisabled(
 
 function updateControlAvailability(layout: Layout): void {
   setControlDisabled(cardWidthField, [cardWidthSelect], layout !== "cards");
+  setControlDisabled(
+    calendarField,
+    [maxPerDayInput, initialDateSelect, responsiveCheckbox],
+    layout !== "calendar",
+  );
   setControlDisabled(groupEventsField, groupEventsCheckboxes, layout !== "cards");
   setControlDisabled(
     fieldsMatrixField,
@@ -496,6 +511,9 @@ function applyAndRender(): void {
   const showPast = showPastCheckbox.checked;
   const cardWidth = cardWidthSelect.value;
   const cardWidthAttr = cardWidth === "medium" ? undefined : cardWidth;
+  const maxPerDayAttr = maxPerDayInput.value.trim() || undefined;
+  const initialDateAttr = initialDateSelect.value === "next-event" ? undefined : initialDateSelect.value;
+  const responsive = responsiveCheckbox.checked;
   const previewFields = currentPreviewFields();
   const previewFieldsAttr = matchesFieldSet(previewFields, DEFAULT_FIELDS) ? undefined : previewFields.join(",");
   const detailFields = currentDetailFields();
@@ -555,6 +573,12 @@ function applyAndRender(): void {
   else widget.setAttribute("show-past", "false");
   if (cardWidthAttr) widget.setAttribute("card-width", cardWidthAttr);
   else widget.removeAttribute("card-width");
+  if (maxPerDayAttr) widget.setAttribute("max-per-day", maxPerDayAttr);
+  else widget.removeAttribute("max-per-day");
+  if (initialDateAttr) widget.setAttribute("initial-date", initialDateAttr);
+  else widget.removeAttribute("initial-date");
+  if (responsive) widget.removeAttribute("responsive");
+  else widget.setAttribute("responsive", "off");
   if (previewFieldsAttr) widget.setAttribute("fields-preview", previewFieldsAttr);
   else widget.removeAttribute("fields-preview");
   if (detailFieldsAttr) widget.setAttribute("fields-detail", detailFieldsAttr);
@@ -589,6 +613,9 @@ function applyAndRender(): void {
     lang,
     showPast,
     cardWidth: cardWidthAttr,
+    maxPerDay: maxPerDayAttr,
+    initialDate: initialDateAttr,
+    responsive,
     fieldsPreview: previewFieldsAttr,
     fieldsDetail: detailFieldsAttr,
     groupEvents: groupEventsAttr,
@@ -609,6 +636,9 @@ for (const control of [
   langSelect,
   showPastCheckbox,
   cardWidthSelect,
+  maxPerDayInput,
+  initialDateSelect,
+  responsiveCheckbox,
   ...previewFieldCheckboxes,
   ...detailFieldCheckboxes,
   ...groupEventsCheckboxes,

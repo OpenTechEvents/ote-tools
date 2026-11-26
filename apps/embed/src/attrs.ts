@@ -219,3 +219,111 @@ export function parseCardWidth(value: string | null): string {
   if (/^\d+(\.\d+)?(px|rem|em|ch|vw|%)$/.test(trimmed)) return trimmed;
   return CARD_WIDTH_PRESETS.medium!;
 }
+
+export const DEFAULT_MAX_PER_DAY = 3;
+
+/**
+ * `max-per-day` — how many events a day cell shows in `layout="calendar"`
+ * before the rest collapse into the library's `+N more` popover. A positive
+ * integer, or `"off"` for the pre-0.9.0 behaviour of stacking every event.
+ * Default `3`: the library's own default is `false` (never collapse), which
+ * let one busy day grow a 15-event column and pushed the widget to 1570px
+ * inside an 866px dialog (#167).
+ *
+ * The cap is a *height*, not a count, because `@event-calendar/core`'s
+ * `dayMaxEvents` only accepts `true` ("as many as fit the day cell") —
+ * `calendar-layout.ts#dayRowHeight()` turns the number into the row height
+ * that fits it, so an unusual font can land on one event either side. The
+ * popover is exact regardless: whatever does not fit is in it.
+ */
+export function parseMaxPerDay(value: string | null): number | "off" {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) return DEFAULT_MAX_PER_DAY;
+  if (trimmed === "off" || trimmed === "none" || trimmed === "false") return "off";
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_PER_DAY;
+}
+
+export type InitialDate =
+  | { kind: "next-event" }
+  | { kind: "today" }
+  | { kind: "date"; date: string };
+
+/**
+ * `initial-date` — which month `layout="calendar"` opens on:
+ * `"next-event"` (default), `"today"`, or a fixed `YYYY-MM`/`YYYY-MM-DD`.
+ *
+ * The default is deliberately *not* "today": the library opens on the current
+ * month, so a feed whose events start next March opened empty and read as
+ * broken (#167). An unparseable value falls back to `"next-event"` rather
+ * than to today — a typo in a date should not land on the one behaviour the
+ * default exists to avoid.
+ */
+export function parseInitialDate(value: string | null): InitialDate {
+  const trimmed = value?.trim();
+  if (!trimmed) return { kind: "next-event" };
+  const lower = trimmed.toLowerCase();
+  if (lower === "today" || lower === "now") return { kind: "today" };
+  if (lower === "next-event") return { kind: "next-event" };
+  if (/^\d{4}-\d{2}$/.test(trimmed) && isCalendarDate(`${trimmed}-01`)) {
+    return { kind: "date", date: `${trimmed}-01` };
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) && isCalendarDate(trimmed)) {
+    return { kind: "date", date: trimmed };
+  }
+  return { kind: "next-event" };
+}
+
+/**
+ * `responsive` — whether `layout="calendar"` degrades to the library's list
+ * view when its **container** is too narrow for a seven-column month grid
+ * (see `calendar-layout.ts`). On by default; `responsive="off"` keeps the
+ * grid at every width for a host that really wants it.
+ *
+ * Container width, not viewport: the widget is usually embedded in a column,
+ * so a `matchMedia` test answers a question nobody asked — which is also why
+ * opentechevents.org's own `layout="list"` workaround was the wrong shape to
+ * copy into the component (#169).
+ */
+/** A shape-only regex would accept `"2026-13"` and `"2026-02-30"`; this round-trips the value through `Date` so it has to be a day that exists. */
+function isCalendarDate(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+export function parseResponsive(value: string | null): boolean {
+  const trimmed = value?.trim().toLowerCase();
+  return !(trimmed === "off" || trimmed === "false" || trimmed === "none");
+}
+
+export interface CalendarAttributes {
+  maxPerDay: number | "off";
+  initialDate: InitialDate;
+  responsive: boolean;
+}
+
+/**
+ * The three calendar-only attributes, read together — `element.ts` has no
+ * other reason to know their names, and this keeps attrs.ts DOM-free (it
+ * takes a getter, not an element).
+ *
+ * `rememberedDate` is the month the visitor last paged to, and it outranks
+ * `initial-date`: the attribute says where the calendar *opens*, not where it
+ * returns to. Every re-render remounts the calendar (see `element.ts`), so
+ * without this, opening a detail modal would snap the view back.
+ */
+export function parseCalendarAttributes(
+  getAttribute: (name: string) => string | null,
+  rememberedDate?: string,
+): CalendarAttributes {
+  return {
+    maxPerDay: parseMaxPerDay(getAttribute("max-per-day")),
+    initialDate: rememberedDate
+      ? { kind: "date", date: rememberedDate }
+      : parseInitialDate(getAttribute("initial-date")),
+    responsive: parseResponsive(getAttribute("responsive")),
+  };
+}

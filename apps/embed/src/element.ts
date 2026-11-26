@@ -9,6 +9,7 @@ import type {
 import {
   parseCardWidth,
   parseDetailFields,
+  parseCalendarAttributes,
   parseFields,
   parseFeedsAttr,
   parseEventActions,
@@ -37,7 +38,7 @@ import {
 import { WIDGET_CSS } from "./theme.css.js";
 
 type Status = "idle" | "loading" | "loaded" | "error";
-type CalendarHandle = { destroy(): void };
+type CalendarHandle = { destroy(): void; currentDate(): string | undefined };
 
 export interface OteEventsFeedObject extends Omit<OteJsonFeed, "events"> {
   events?: OriginalOteEvent[];
@@ -86,6 +87,9 @@ export class OteEventsElement extends HTMLElement {
     "event-actions",
     "sort",
     "empty-message",
+    "max-per-day",
+    "initial-date",
+    "responsive",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -107,6 +111,12 @@ export class OteEventsElement extends HTMLElement {
   #calendarHandle: CalendarHandle | undefined;
   #calendarRequestId = 0;
   #calendarCssInjected = false;
+  // The month the visitor last paged to. Every #renderNow() replaces
+  // `.calendar-host` and so remounts the calendar — opening a detail modal
+  // included — and without this the calendar would snap back to its
+  // `initial-date` each time, which `initial-date="next-event"` makes very
+  // visible: page to June, click an event, land back in March.
+  #calendarDate: string | undefined;
 
   constructor() {
     super();
@@ -130,6 +140,7 @@ export class OteEventsElement extends HTMLElement {
   attributeChangedCallback(name: string): void {
     if (!this.isConnected) return;
     if (name === "feed" || name === "feeds") {
+      this.#calendarDate = undefined;
       void this.#load();
     } else {
       this.#renderNow();
@@ -384,6 +395,7 @@ export class OteEventsElement extends HTMLElement {
       host.replaceChildren(); // clear the "Loading…" placeholder before mounting
       this.#calendarHandle = module.renderCalendar(host, events, {
         lang,
+        ...parseCalendarAttributes((name) => this.getAttribute(name), this.#calendarDate),
         onEventClick: (event) => {
           const eventClick = parseEventClick(this.getAttribute("event-click"));
           this.dispatchEvent(new CustomEvent("ote-event-open", { detail: this.#domEventDetail(undefined, event) }));
@@ -431,6 +443,7 @@ export class OteEventsElement extends HTMLElement {
 
   #teardownCalendar(): void {
     this.#calendarRequestId++;
+    this.#calendarDate = this.#calendarHandle?.currentDate() ?? this.#calendarDate;
     this.#calendarHandle?.destroy();
     this.#calendarHandle = undefined;
   }

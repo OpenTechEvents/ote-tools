@@ -1951,4 +1951,29 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.querySelector(".calendar-host")).toBeTruthy();
     expect(el.shadowRoot!.querySelector("ul.events")).toBeNull();
   });
+
+  // The calendar's own behaviour is covered in calendar-layout/calendar-render:
+  // `calendar-layout.js` is loaded by a runtime URL that jsdom cannot resolve
+  // (`Only URLs with a scheme in: file and data are supported`), so what is
+  // testable here is that the three calendar attributes reach it at all —
+  // i.e. that they are observed and re-render the mount point.
+  it("re-renders the calendar when its own attributes change", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = document.createElement("ote-events");
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    for (const [name, value] of [
+      ["max-per-day", "1"],
+      ["initial-date", "today"],
+      ["responsive", "off"],
+    ]) {
+      const before = el.shadowRoot!.querySelector(".calendar-host");
+      el.setAttribute(name!, value!);
+      const after = el.shadowRoot!.querySelector(".calendar-host");
+      expect(after, `${name} is not observed`).toBeTruthy();
+      expect(after, `${name} did not re-render the calendar`).not.toBe(before);
+    }
+  });
 });

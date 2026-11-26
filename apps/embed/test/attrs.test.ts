@@ -11,10 +11,14 @@ import {
   parseEventId,
   parseFeedsAttr,
   parseFields,
+  parseCalendarAttributes,
   parseGroupEvents,
+  parseInitialDate,
   parseLangAttr,
   parseLayout,
   parseLimit,
+  parseMaxPerDay,
+  parseResponsive,
   parseShowPast,
   parseSort,
   resolveLang,
@@ -233,5 +237,84 @@ describe("parseFeedsAttr", () => {
 
   it("returns a single-element array for one URL, same as a bare feed attribute would", () => {
     expect(parseFeedsAttr("https://a.org/feed.json")).toEqual(["https://a.org/feed.json"]);
+  });
+});
+
+describe("parseMaxPerDay", () => {
+  it("defaults to 3 — the library's own default is 'never collapse'", () => {
+    for (const value of [null, "", "   ", "0", "-2", "many"]) {
+      expect(parseMaxPerDay(value)).toBe(3);
+    }
+  });
+
+  it("takes a positive integer", () => {
+    expect(parseMaxPerDay("1")).toBe(1);
+    expect(parseMaxPerDay(" 5 ")).toBe(5);
+  });
+
+  it("keeps the old stack-everything behaviour available", () => {
+    expect(parseMaxPerDay("off")).toBe("off");
+    expect(parseMaxPerDay("NONE")).toBe("off");
+    expect(parseMaxPerDay("false")).toBe("off");
+  });
+});
+
+describe("parseInitialDate", () => {
+  it("defaults to the next event's month, including for a typo", () => {
+    // Not today: landing on today is the behaviour the default exists to
+    // avoid, so an unparseable value must not fall back to it.
+    for (const value of [null, "", "2026-13", "2026-02-30", "soon", "2026/03"]) {
+      expect(parseInitialDate(value)).toEqual({ kind: "next-event" });
+    }
+  });
+
+  it("accepts today, a month, and a day", () => {
+    expect(parseInitialDate("today")).toEqual({ kind: "today" });
+    expect(parseInitialDate("next-event")).toEqual({ kind: "next-event" });
+    expect(parseInitialDate("2026-03")).toEqual({ kind: "date", date: "2026-03-01" });
+    expect(parseInitialDate("2026-03-17")).toEqual({ kind: "date", date: "2026-03-17" });
+  });
+});
+
+describe("parseResponsive", () => {
+  it("is on unless explicitly switched off", () => {
+    expect(parseResponsive(null)).toBe(true);
+    expect(parseResponsive("auto")).toBe(true);
+    expect(parseResponsive("on")).toBe(true);
+    expect(parseResponsive("off")).toBe(false);
+    expect(parseResponsive("false")).toBe(false);
+    expect(parseResponsive("none")).toBe(false);
+  });
+});
+
+describe("parseCalendarAttributes", () => {
+  const attributes = (map: Record<string, string>) => (name: string) => map[name] ?? null;
+
+  it("reads the three calendar attributes together", () => {
+    expect(
+      parseCalendarAttributes(
+        attributes({ "max-per-day": "off", "initial-date": "2026-03", responsive: "off" }),
+      ),
+    ).toEqual({
+      maxPerDay: "off",
+      initialDate: { kind: "date", date: "2026-03-01" },
+      responsive: false,
+    });
+  });
+
+  it("defaults to a 3-event cap, the next event's month, and the narrow fallback on", () => {
+    expect(parseCalendarAttributes(() => null)).toEqual({
+      maxPerDay: 3,
+      initialDate: { kind: "next-event" },
+      responsive: true,
+    });
+  });
+
+  it("lets the month the visitor paged to outrank initial-date", () => {
+    // Every re-render remounts the calendar, so without this, opening a
+    // detail modal would snap the view back to `initial-date`.
+    expect(
+      parseCalendarAttributes(attributes({ "initial-date": "today" }), "2026-06-01").initialDate,
+    ).toEqual({ kind: "date", date: "2026-06-01" });
   });
 });
