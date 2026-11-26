@@ -938,7 +938,7 @@ a {
 }
 
 /* ---------------------------------------------------------------------- *
- * Help behind an icon (#192)
+ * Help behind an icon (#199)
  *
  * These hints are reference material read *while* editing a value, which is
  * why they are popovers and not modals: a modal steals focus, covers the
@@ -1037,7 +1037,7 @@ a {
 }
 
 /* ---------------------------------------------------------------------- *
- * Control tabs (#192)
+ * Control tabs (#199)
  *
  * Deliberately a different shape from `.site-tabs`: those are dark pills
  * and choose a widget, these are underlined and lighter and choose a group

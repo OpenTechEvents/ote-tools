@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **The playground is reorganised** (#192). The page's own markup only —
+- **The playground is reorganised** (#199). The page's own markup only —
   `ote-events.js` and `ote-subscribe.js` build byte-identical to the previous
   commit, so no version bump.
 

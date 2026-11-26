@@ -1,5 +1,5 @@
 /**
- * Whole configurations, one click each (#192).
+ * Whole configurations, one click each (#199).
  *
  * The form has ~25 controls across four tabs, which is a poor way to find
  * out what the widget can do: every individual setting is a small change,

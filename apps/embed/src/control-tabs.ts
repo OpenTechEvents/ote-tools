@@ -1,5 +1,5 @@
 /**
- * Control tabs and their non-default badges (#192).
+ * Control tabs and their non-default badges (#199).
  *
  * Imported by `playground.ts` only — never by `main.ts`, which must not grow
  * demo-page code (see apps/embed/CLAUDE.md on the entry points).
