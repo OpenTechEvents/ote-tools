@@ -1,12 +1,16 @@
 # @opentechevents/embed changelog
 
-## Unreleased
+## 0.11.0 — 2026-11-26
+
+`<ote-events>` now includes a view switcher and a feed footer by default.
+Set `views="none"` to keep the widget on the configured layout and
+`footer="off"` to hide the footer. Both widgets can generate missing ICS
+and RSS subscription links from a public OTE JSON feed. Set `convert="off"`
+to use only publisher-supplied subscription feed URLs.
 
 ### Changed
 
-- **The playground is reorganised** (#199). The page's own markup only —
-  `ote-events.js` and `ote-subscribe.js` build byte-identical to the previous
-  commit, so no version bump.
+- **The playground is reorganised** (#199).
 
   - **Tabs instead of accordions** in both controls columns, each tab
     carrying a badge counting the settings inside it that are not at their
@@ -103,8 +107,7 @@
   - The visitor's view lives in memory only — nothing is written to
     `localStorage` or to the host page's URL; that question is the open half
     of #176. A host that wants to remember it has the new
-    **`ote-view-change`** event (`detail: { view, previousView }`), which
-    the playground uses to keep its own layout toolbar in step. A host app
+    **`ote-view-change`** event (`detail: { view, previousView }`). A host app
     driving the widget by property (`.events = […]`) gets **no** switcher
     unless it sets `views`: OTE Reader owns its own view chrome.
 
@@ -229,6 +232,8 @@
 
 ### Fixed
 
+- The `<ote-subscribe>` menu opens in the browser's top layer so it can
+  extend beyond clipping containers, including a height-limited event widget.
 - `layout="calendar"`: clicking an event inside the `+N more` popover now
   opens its detail modal. The popover used to close on that click and do
   nothing else: `@event-calendar/core` detects a pointerdown "outside" the

@@ -91,7 +91,7 @@ stale when events change.
 Two of them, and organizers want different ones. To **render** the events on the page:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.10.0/ote-events.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.11.0/ote-events.js"></script>
 <ote-events feed="https://yourcommunity.dev/events.json"></ote-events>
 ```
 
@@ -102,7 +102,7 @@ To offer a **subscribe** button instead — Google Calendar / `webcal:` / ICS, R
 and the OTE feed:
 
 ```html
-<script type="module" src="https://tools.opentechevents.org/embed/v0.10.0/ote-subscribe.js"></script>
+<script type="module" src="https://tools.opentechevents.org/embed/v0.11.0/ote-subscribe.js"></script>
 <ote-subscribe feed-ics="https://yourcommunity.dev/feed.ics"
                feed-rss="https://yourcommunity.dev/feed.xml"
                feed-json="https://yourcommunity.dev/events.json"></ote-subscribe>
