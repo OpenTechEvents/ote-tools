@@ -9,7 +9,8 @@ import {
   type Layout,
   type NativeEventAction,
 } from "./attrs.js";
-import { setupControlTabs } from "./control-tabs.js";
+import { resetToDefaults, setupControlTabs } from "./control-tabs.js";
+import { applyPreset, EVENT_PRESETS } from "./presets.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
 import { ALL_CONVERT_TOKENS, ALL_SHOW_TOKENS, type ConvertToken, type ShowToken } from "./subscribe-attrs.js";
@@ -973,6 +974,37 @@ onFeedChanged();
 for (const column of document.querySelectorAll<HTMLElement>(".controls-column")) {
   setupControlTabs(column);
 }
+
+/*
+ * Presets are rendered rather than written out in the HTML: the buttons and
+ * the configurations are one list, so a preset cannot be added with no
+ * button or a button left pointing at nothing.
+ */
+const eventsColumn = document.querySelector<HTMLElement>("#tab-panel-events .controls-column")!;
+const presetButtons = document.querySelector<HTMLElement>("#event-presets")!;
+for (const preset of EVENT_PRESETS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "preset-button";
+  button.textContent = preset.label;
+  button.title = preset.description;
+  button.addEventListener("click", () => {
+    // Reset first: two presets in a row must not compose into a third
+    // configuration nobody chose.
+    resetToDefaults(eventsColumn);
+    applyPreset(eventsColumn, preset, () => {
+      applyAndRender();
+      eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+  presetButtons.append(button);
+}
+
+document.querySelector<HTMLButtonElement>("#event-reset")!.addEventListener("click", () => {
+  resetToDefaults(eventsColumn);
+  applyAndRender();
+  eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
+});
 
 /**
  * The sticky preview column has to clear the sticky feed/tabs strip, and the

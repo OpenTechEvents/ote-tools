@@ -107,3 +107,22 @@ export function setupControlTabs(column: HTMLElement): void {
   column.addEventListener("change", refresh);
   refresh();
 }
+
+/**
+ * Put every control under `root` back to the value its markup shipped with.
+ *
+ * Same source of truth as the badge: if a control counts as changed, this is
+ * what it changes back to. A preset resets before it applies, so two presets
+ * in a row cannot compose into a third configuration nobody chose.
+ */
+export function resetToDefaults(root: ParentNode): void {
+  for (const control of root.querySelectorAll<FormControl>("input, select, textarea")) {
+    if (control instanceof HTMLSelectElement) {
+      for (const option of control.options) option.selected = option.defaultSelected;
+    } else if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+      control.checked = control.defaultChecked;
+    } else {
+      control.value = control.defaultValue;
+    }
+  }
+}

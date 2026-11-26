@@ -1136,3 +1136,53 @@ a {
   display: block;
   margin-bottom: 0.3rem;
 }
+
+/* Whole configurations, above the tabs because they outrank them: a tab
+   chooses a group of settings, a preset replaces all of them. */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.presets-label {
+  flex: none;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.presets-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.preset-button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.preset-button:hover,
+.preset-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.preset-reset {
+  margin-left: auto;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.7rem;
+}

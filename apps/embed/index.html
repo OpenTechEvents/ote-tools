@@ -127,6 +127,15 @@
              from their default, derived from the DOM's own `defaultChecked` /
              `defaultValue` / `defaultSelected` rather than from a table of
              defaults kept beside the markup. -->
+        <!-- Whole configurations, one click each. Twenty-five individual
+             controls are a poor way to find out what the widget can do:
+             each is a small change and nothing shows the range. -->
+        <div class="presets">
+          <span class="presets-label">Start from</span>
+          <div class="presets-buttons" id="event-presets"></div>
+          <button type="button" class="btn btn-ghost preset-reset" id="event-reset">Reset</button>
+        </div>
+
         <div class="control-tabs" role="tablist" aria-label="Events widget settings">
           <button
             type="button"
@@ -309,7 +318,7 @@
                 <span class="field-head"><label for="max-per-day-input">max-per-day</label><button type="button" class="info-button" popovertarget="max-per-day-info" aria-label="About max-per-day">i</button></span>
                 <input type="number" id="max-per-day-input" aria-describedby="max-per-day-info" min="1" step="1" placeholder="3 (default)" />
                 <div class="info-popover" popover id="max-per-day-info">
-                  <p>Calendar layout only. How many events a day cell shows before the
+                  <p>How many events a day cell shows before the
                   rest collapse into a <code>+N more</code> popover.
                   <code>max-per-day="off"</code> stacks every event, which is what
                   a busy day did before this attribute existed.</p>
@@ -375,7 +384,7 @@
                   <option value="large">large (320px)</option>
                 </select>
                 <div class="info-popover" popover id="card-width-info">
-                  <p>Cards layout only. Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
+                  <p>Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
                 </div>
               </div>
             </div>
@@ -607,11 +616,11 @@
 
               <span class="field-head"><span class="fields-legend">group-events</span><button type="button" class="info-button" popovertarget="group-events-info" aria-label="About group-events">i</button></span>
               <div class="fields-checkboxes">
-                <label><input type="checkbox" class="group-key-checkbox" value="series" checked /> series</label>
-                <label><input type="checkbox" class="group-key-checkbox" value="multipart" checked /> multipart</label>
+                <label><input type="checkbox" class="group-key-checkbox" value="series" /> series</label>
+                <label><input type="checkbox" class="group-key-checkbox" value="multipart" /> multipart</label>
               </div>
               <div class="info-popover" popover id="group-events-info">
-                <p>Cards layout only. Collapses events that share the same <code>partOf.id</code> into one stacked card with a badge; the detail modal gains prev/next between occurrences. Off by default. To try it, switch to JSON source mode above and paste events whose <code>partOf</code> field shares an <code>id</code>, e.g. <code>"partOf": {"id": "https://example.org/series/monthly", "type": "series"}</code>.</p>
+                <p>Collapses events that share the same <code>partOf.id</code> into one stacked card with a badge; the detail modal gains prev/next between occurrences. Off by default. To try it, switch to JSON source mode above and paste events whose <code>partOf</code> field shares an <code>id</code>, e.g. <code>"partOf": {"id": "https://example.org/series/monthly", "type": "series"}</code>.</p>
               </div>
             </div>
 
