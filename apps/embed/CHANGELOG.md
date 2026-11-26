@@ -5,8 +5,11 @@
 ### Added
 
 - **`max-height` gives the host a vertical budget for the widget** (#168).
-  Any CSS length (`600px`, `60vh`, `40rem`; a bare number is read as pixels),
-  and it applies to all three layouts. Previously the rendered height was
+  A length in `px`/`rem`/`em`/`ch`/`vh`/`dvh`/`svh`/`vmin`/`vmax` (a bare
+  number is read as pixels), and it applies to all three layouts. Anything
+  else leaves the widget unbounded — including `calc()`, and including `%`,
+  which parses but resolves against an auto-height containing block and so
+  would mark the widget bounded while bounding nothing. Previously the rendered height was
   whatever the feed happened to need — `layout="calendar"` hardcoded the
   library's `height: "auto"` — so embedding `<ote-events>` in a dialog, a
   card or a sidebar meant letting somebody else's feed decide the layout.
@@ -24,11 +27,25 @@
   Now the weekday header and `layout="list"`'s column header both stay put
   while their rows scroll.
 
-  In `layout="calendar"` the budget **composes with `max-per-day` instead of
-  overriding it**: the day cap still pins the row height, so a day still
-  shows exactly that many events and sends the rest to the `+N more`
-  popover, and the weeks that no longer fit the budget scroll. Neither cap
-  wins over the other and nothing is clipped.
+  In `layout="calendar"` the weeks **share the budget instead of each
+  reserving `max-per-day` events' worth of height**. The cap is implemented
+  as a flat row height, which sizes every week for that many events
+  including the empty ones, so a sparse month scrolled through roughly 750px
+  of mostly blank rows inside a 400px budget. Bounded rows shrink to an
+  equal share of what the budget leaves — on a real 25-event feed that took
+  the same month from ~750px to 588px, with the events still visible.
+
+  Rows will not shrink below the height of **a day showing one event beside
+  a `+N more` link**. The library's own sizing has no such floor, and
+  without one a 400px budget over a six-week month produced 52px rows that
+  held the date and nothing else: every single-event day rendered as
+  `+1 more` and the calendar showed no events at all. Where even the floor
+  does not fit, the weeks stop shrinking and the grid scrolls with the
+  weekday header pinned.
+
+  The trade is that **`max-per-day` stops being an exact count while a
+  budget is set** and becomes "as many as fit" — a host that asked for a
+  height asked for it first.
 
 ## 0.9.0 — 2026-11-26
 

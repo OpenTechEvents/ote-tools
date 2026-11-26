@@ -69,6 +69,29 @@ export function dayRowHeight(maxPerDay: number): string {
   return `calc(${DAY_HEAD_EM}em + ${maxPerDay} * ${EVENT_ROW_EM}em + ${DAY_FOOT_EM}em)`;
 }
 
+/**
+ * The row height for a calendar under a `max-height` budget: at least a
+ * one-event day, otherwise an equal share of whatever the budget leaves.
+ *
+ * `1fr` alone is what the library does natively, and it is wrong at the
+ * small end — a 400px budget over a six-week month gives 52px rows, which
+ * hold the date and nothing else, so every single-event day rendered as
+ * "+1 more" and the calendar showed no events at all. The `minmax()` floor
+ * is `dayRowHeight(1)`, the height of a day showing one event *and* a
+ * "+N more" link, so a row can always show one event even when it has
+ * others. Below that the weeks stop shrinking and `.ec-main` scrolls (the
+ * safety valve in theme.css.ts).
+ *
+ * The pin is not used here because it reserves `max-per-day` events' worth
+ * of height in *every* week including the empty ones, which is what made a
+ * sparse month scroll through ~750px of blank rows inside a 400px budget.
+ * So a bounded day shows as many events as fit rather than exactly
+ * `max-per-day` — see renderCalendar().
+ */
+export function boundedRowHeight(): string {
+  return `minmax(${dayRowHeight(1)}, 1fr)`;
+}
+
 // Measured in Chrome at the widget's 17px base: .ec-day-head 38.4px (2.4em),
 // an .ec-event chip plus its 1px gap 25.4px (1.6em), and .ec-day-foot 28.2px
 // (1.8em) once it holds a "+N more" link. Re-measure these if the calendar
@@ -261,12 +284,28 @@ export function renderCalendar(
   // property is set on the container and read by a rule in theme.css.ts,
   // because `.ec-main` is the library's element and sets `--ec-row-height`
   // on itself, which beats inheritance.
+  //
+  // Under a height budget the pin is deliberately *not* applied. It sizes
+  // every week for `maxPerDay` events, including the empty ones, so a sparse
+  // month reserved ~750px of mostly blank rows inside a 400px budget and
+  // scrolled through the gaps. Leaving it off lets the library's own
+  // `ec-uniform` sizing (`minmax(0, 1fr)`) share the budget across the weeks:
+  // the whole month fits, with no scrollbar, and `dayMaxEvents: true` still
+  // sends whatever does not fit a day to the `+N more` popover.
+  //
+  // The trade is that `max-per-day` stops being an exact count while bounded
+  // and becomes "as many as fit" — the host asked for a height first. With
+  // `max-per-day="off"` there is no uniform sizing to fall back on, so that
+  // combination keeps its natural row heights and scrolls instead.
   if (maxPerDay === "off") {
     container.removeAttribute("data-day-rows");
     container.style.removeProperty("--ote-calendar-row-height");
   } else {
     container.setAttribute("data-day-rows", String(maxPerDay));
-    container.style.setProperty("--ote-calendar-row-height", dayRowHeight(maxPerDay));
+    container.style.setProperty(
+      "--ote-calendar-row-height",
+      bounded ? boundedRowHeight() : dayRowHeight(maxPerDay),
+    );
   }
 
   let view = calendarViewForWidth(container.clientWidth, responsive);
@@ -277,10 +316,8 @@ export function renderCalendar(
     ...(date ? { date } : {}),
     events: toCalendarEvents(events),
     // "100%" fills the budget `.calendar-host` hands down; "auto" grows to
-    // the content. The two caps compose rather than override each other:
-    // `max-per-day` keeps pinning the row height, so a day still shows
-    // exactly that many events, and the weeks that no longer fit the budget
-    // scroll instead of being clipped (see theme.css.ts).
+    // the content. Filling it is what lets the weeks share a definite height
+    // rather than each reserving `max-per-day`'s worth of room.
     height: bounded ? "100%" : "auto",
     dayMaxEvents: maxPerDay !== "off",
     // "Next event" earns its place on a 460-event feed, where paging month

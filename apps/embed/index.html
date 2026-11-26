@@ -146,7 +146,13 @@
               <label for="max-height-input">max-height</label>
               <input type="text" id="max-height-input" placeholder="600px, 60vh, 40rem..." />
               <p class="hint">
-                Optional height budget for the widget, in any CSS length. What
+                Optional height budget for the widget:
+                <code>px</code>, <code>rem</code>, <code>em</code>,
+                <code>ch</code>, <code>vh</code>, <code>dvh</code>,
+                <code>svh</code>, <code>vmin</code> or <code>vmax</code> (a
+                bare number is read as pixels). Anything else, including
+                <code>calc()</code> and <code>%</code>, leaves the widget
+                unbounded. What
                 does not fit scrolls <em>inside</em> the widget, so you no
                 longer need to wrap it in your own
                 <code>max-height</code>/<code>overflow</code> container — a
@@ -154,9 +160,13 @@
                 calendar's weekday header and the list's column header away
                 with it. It is a maximum, not a fixed height: a short feed
                 still renders at its natural height. In
-                <code>layout="calendar"</code> it combines with
-                <code>max-per-day</code> rather than overriding it — the day
-                cap still holds and the weeks that no longer fit scroll.
+                <code>layout="calendar"</code> the weeks share the budget
+                instead of each reserving <code>max-per-day</code> events'
+                worth of height, so empty weeks stop taking room they do not
+                use. Rows never shrink below a day showing one event beside a
+                <code>+N more</code> link; past that the grid scrolls with
+                the weekday header pinned. So <code>max-per-day</code> is
+                "as many as fit" while a budget is set.
               </p>
             </div>
 

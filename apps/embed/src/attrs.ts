@@ -235,14 +235,21 @@ export function parseCardWidth(value: string | null): string {
  * the calendar's own sticky weekday header out of view (#168).
  *
  * The value is written straight into a CSS custom property, so the accepted
- * shapes are deliberately a closed list rather than "whatever CSS parses".
+ * grammar is a closed list rather than "whatever CSS parses": a number with
+ * one of px/rem/em/ch/vh/dvh/svh/vmin/vmax, or a bare number read as px.
+ * Anything else - including `calc()` - is refused and leaves the widget
+ * unbounded. `%` is refused for a different reason: it parses, but a
+ * percentage max-height resolves against a containing block of auto height
+ * and computes to `none`, so accepting it would mark the widget bounded
+ * (turning on the scroll plumbing, and the cards inset with it) while
+ * bounding nothing.
  */
 export function parseMaxHeight(value: string | null): string | undefined {
   const trimmed = value?.trim().toLowerCase();
   if (!trimmed) return undefined;
   if (trimmed === "none" || trimmed === "off" || trimmed === "auto") return undefined;
   if (/^\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}px`;
-  if (/^\d+(\.\d+)?(px|rem|em|ch|vh|dvh|svh|vmin|vmax|%)$/.test(trimmed)) return trimmed;
+  if (/^\d+(\.\d+)?(px|rem|em|ch|vh|dvh|svh|vmin|vmax)$/.test(trimmed)) return trimmed;
   return undefined;
 }
 

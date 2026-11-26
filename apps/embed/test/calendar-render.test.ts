@@ -17,7 +17,7 @@
 // browser, and #162 tracks it.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { dayRowHeight, renderCalendar, type CalendarHandle } from "../src/calendar-layout.js";
+import { boundedRowHeight, dayRowHeight, renderCalendar, type CalendarHandle } from "../src/calendar-layout.js";
 import type { PreviewEvent } from "@opentechevents/preview-feed";
 
 const timed: PreviewEvent = {
@@ -222,16 +222,36 @@ describe("the calendar the widget mounts", () => {
     expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("auto");
   });
 
-  it("keeps the max-per-day row pin under a height budget instead of dropping it", () => {
-    // max-height and max-per-day compose rather than override each other: the
-    // budget bounds the widget, the pin still caps the day, and the weeks
-    // that no longer fit scroll (theme.css.ts turns .ec-uniform's
-    // overflow: hidden back to auto). Dropping the pin here would silently
-    // turn a numeric cap into "however many fit the budget".
+  it("lets the weeks share a height budget instead of each reserving max-per-day", () => {
+    // The flat pin sizes every week for max-per-day events, empty ones
+    // included, so a sparse month scrolled through ~750px of blank rows
+    // inside a 400px budget. Bounded, the rows share what the budget leaves.
     render([timed], "en", { maxPerDay: 4, bounded: true });
+    expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(boundedRowHeight());
+    expect(container.style.getPropertyValue("--ote-calendar-row-height")).not.toBe(dayRowHeight(4));
+    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("100%");
+    // The rule that reads the property is gated on this attribute, so the
+    // shared sizing only reaches the grid while it is set.
+    expect(container.getAttribute("data-day-rows")).toBe("4");
+    expect(container.querySelector(".ec-uniform")).not.toBeNull();
+  });
+
+  it("never shrinks a bounded row below a day showing one event", () => {
+    // Pure 1fr is the library's native sizing and it fails at the small end:
+    // a 400px budget over a six-week month gave 52px rows, which hold the
+    // date and nothing else, so every single-event day rendered as "+1 more"
+    // and the calendar showed no events at all. The floor is the height of a
+    // day showing one event beside a "+N more" link.
+    expect(boundedRowHeight()).toBe(`minmax(${dayRowHeight(1)}, 1fr)`);
+    expect(boundedRowHeight()).toContain("1fr");
+  });
+
+  it("still pins the row height when there is no budget", () => {
+    // Unbounded, 1fr tracks grow to the tallest row's content, so without
+    // the pin one busy day makes every week that tall and nothing is capped.
+    render([timed], "en", { maxPerDay: 4, bounded: false });
     expect(container.getAttribute("data-day-rows")).toBe("4");
     expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(dayRowHeight(4));
-    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("100%");
   });
 
   it("degrades to the list view in a narrow container, and not when responsive is off", async () => {

@@ -344,6 +344,15 @@ describe("parseMaxHeight", () => {
     expect(parseMaxHeight("600 px")).toBeUndefined();
   });
 
+  it("refuses a percentage, which would claim to bound without bounding", () => {
+    // A percentage max-height resolves against a containing block of auto
+    // height and computes to none. Accepting it would set data-bounded -
+    // turning on the scroll plumbing and the cards inset - around a widget
+    // that is still exactly as tall as its feed.
+    expect(parseMaxHeight("50%")).toBeUndefined();
+    expect(parseMaxHeight("100%")).toBeUndefined();
+  });
+
   it("refuses a CSS expression rather than letting it reach the stylesheet", () => {
     // The value is written into a custom property, so anything accepted here
     // lands in CSS verbatim.

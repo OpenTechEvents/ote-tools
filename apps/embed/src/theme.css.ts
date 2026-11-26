@@ -149,10 +149,12 @@ ul.events.layout-cards {
  * scroll. Cards have no sticky header, so nothing is lost by scrolling the
  * outer element here - which is exactly why list and calendar must not.
  *
- * The padding is room for .event-stacked's box-shadow (group-events): the
- * 1rem grid gap absorbs it between cards, but the rightmost column and the
- * last row sit flush against the scrollport's edge, which clips. Nothing
- * needed it before because an unbounded grid never clipped anything.
+ * The padding is room for .event-stacked's box-shadow (group-events), which
+ * reaches about 10px: the 1rem grid gap absorbs it between cards, but the
+ * rightmost column and the last row sit flush against the scrollport's
+ * edge, which clips. Nothing needed it before because an unbounded grid
+ * never clipped anything. It is symmetric left/right so the grid does not
+ * sit visibly off-centre against the scrollbar.
  */
 .ote-events[data-bounded="cards"] {
   overflow-y: auto;
@@ -160,7 +162,7 @@ ul.events.layout-cards {
 
 .ote-events[data-bounded="cards"] ul.events {
   flex: none;
-  padding: 0 0.75rem 0.75rem 0;
+  padding: 0 0.75rem 0.75rem;
 }
 
 /*
@@ -198,14 +200,13 @@ ul.events.layout-cards {
 
 /*
  * .ec-main is the library's scroll container and holds its sticky .ec-header,
- * but dayMaxEvents:true adds .ec-uniform, which sets overflow: hidden -
- * sensible when the grid is free to grow, fatal under a budget, where it
- * would silently clip the last weeks of the month with nothing to scroll.
+ * but dayMaxEvents:true adds .ec-uniform, which sets overflow: hidden.
  *
- * Turning it back to auto is what makes max-per-day and max-height compose
- * instead of fight: the row height pin stays, so a day still shows exactly
- * max-per-day events, and the weeks that no longer fit the budget scroll.
- * Neither cap overrides the other and nothing is lost.
+ * A bounded calendar normally has nothing to scroll: calendar-layout.ts
+ * drops the row pin so the weeks share the budget and the month fits. This
+ * is the safety valve for the budgets where that is not enough - small
+ * enough that even the day headers do not fit their share - where the
+ * library would otherwise clip them silently with no way to reach them.
  *
  * One class more specific than the library's rule, same technique (and same
  * reason) as the row-height pin below - never !important.
