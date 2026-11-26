@@ -37,8 +37,11 @@ export const EVENT_PRESETS: readonly Preset[] = [
   {
     id: "cards",
     label: "Cards grid",
-    description: "Wide cards with images, and repeat events collapsed into one card.",
-    values: { "#layout-select": "cards", "#card-width-select": "large" },
+    description: "An image-led grid, with repeat events collapsed into one card.",
+    // No `card-width`: the default 220px gives two columns in the preview
+    // column, and a preset called "grid" that renders one card wide is not
+    // showing what it names. `large` (320px) does exactly that here.
+    values: { "#layout-select": "cards" },
     groups: { ".view-key-checkbox": ["cards"], ".group-key-checkbox": ["series", "multipart"] },
   },
   {

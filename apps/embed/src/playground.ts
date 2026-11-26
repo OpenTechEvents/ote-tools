@@ -11,7 +11,7 @@ import {
 } from "./attrs.js";
 import { resetToDefaults, setupControlTabs } from "./control-tabs.js";
 import { parseAdopterRegistry } from "./adopters.js";
-import { applyPreset, EVENT_PRESETS } from "./presets.js";
+import { applyPreset, EVENT_PRESETS, type Preset } from "./presets.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
 import { ALL_CONVERT_TOKENS, ALL_SHOW_TOKENS, type ConvertToken, type ShowToken } from "./subscribe-attrs.js";
@@ -480,6 +480,7 @@ function setTheme(theme: Theme): void {
 }
 
 function setActiveTab(tab: string): void {
+  writeParam("tab", tab === "events" ? null : tab);
   for (const button of siteTabButtons) {
     const isActive = button.dataset.tab === tab;
     button.setAttribute("aria-selected", String(isActive));
@@ -878,11 +879,21 @@ function storedFeed(): string | null {
   }
 }
 
-function rememberFeed(value: string): void {
+/**
+ * The page's shareable state lives in its own address (#146): `feed`, `tab`
+ * and `preset`. One writer, reading the current URL each time, so adding a
+ * parameter cannot drop another — and a value at its default is *absent*
+ * rather than written out, which keeps a plain link to the playground plain.
+ */
+function writeParam(name: string, value: string | null): void {
   const url = new URL(window.location.href);
-  if (value && value !== EXAMPLE_FEED) url.searchParams.set("feed", value);
-  else url.searchParams.delete("feed");
+  if (value) url.searchParams.set(name, value);
+  else url.searchParams.delete(name);
   window.history.replaceState(null, "", url);
+}
+
+function rememberFeed(value: string): void {
+  writeParam("feed", value && value !== EXAMPLE_FEED ? value : null);
   try {
     if (value && value !== EXAMPLE_FEED) localStorage.setItem(FEED_STORAGE_KEY, value);
     else localStorage.removeItem(FEED_STORAGE_KEY);
@@ -1028,6 +1039,16 @@ feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim()
 onFeedChanged();
 void loadAdopters();
 
+/*
+ * Open on what the link asked for. Both are validated against what this page
+ * actually has, and an unknown value is ignored rather than treated as an
+ * error: a link outliving a renamed preset should still open the playground.
+ */
+const openingParams = new URL(window.location.href).searchParams;
+const openingTab = openingParams.get("tab");
+if (openingTab && Object.hasOwn(tabPanels, openingTab)) setActiveTab(openingTab);
+else writeParam("tab", null);
+
 for (const column of document.querySelectorAll<HTMLElement>(".controls-column")) {
   setupControlTabs(column);
 }
@@ -1039,29 +1060,51 @@ for (const column of document.querySelectorAll<HTMLElement>(".controls-column"))
  */
 const eventsColumn = document.querySelector<HTMLElement>("#tab-panel-events .controls-column")!;
 const presetButtons = document.querySelector<HTMLElement>("#event-presets")!;
+/**
+ * `?preset=` names the configuration the form is *in*, so it survives only
+ * while that stays true: touching any control clears it. A link that claims
+ * "Cards grid" and opens something else is worse than a link with no claim.
+ */
+let applyingPreset = false;
+
+function usePreset(preset: Preset | null): void {
+  applyingPreset = true;
+  // Reset first: two presets in a row must not compose into a third
+  // configuration nobody chose.
+  resetToDefaults(eventsColumn);
+  const finish = (): void => {
+    applyAndRender();
+    eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
+    applyingPreset = false;
+    writeParam("preset", preset?.id ?? null);
+  };
+  if (preset) applyPreset(eventsColumn, preset, finish);
+  else finish();
+}
+
 for (const preset of EVENT_PRESETS) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "preset-button";
   button.textContent = preset.label;
   button.title = preset.description;
-  button.addEventListener("click", () => {
-    // Reset first: two presets in a row must not compose into a third
-    // configuration nobody chose.
-    resetToDefaults(eventsColumn);
-    applyPreset(eventsColumn, preset, () => {
-      applyAndRender();
-      eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  });
+  button.addEventListener("click", () => usePreset(preset));
   presetButtons.append(button);
 }
 
-document.querySelector<HTMLButtonElement>("#event-reset")!.addEventListener("click", () => {
-  resetToDefaults(eventsColumn);
-  applyAndRender();
-  eventsColumn.dispatchEvent(new Event("change", { bubbles: true }));
-});
+document.querySelector<HTMLButtonElement>("#event-reset")!.addEventListener("click", () => usePreset(null));
+
+for (const event of ["input", "change"]) {
+  eventsColumn.addEventListener(event, () => {
+    if (!applyingPreset) writeParam("preset", null);
+  });
+}
+
+// Read after the handler exists, so a link opens on a configured widget
+// rather than on the default calendar.
+const openingPreset = EVENT_PRESETS.find((preset) => preset.id === openingParams.get("preset"));
+if (openingPreset) usePreset(openingPreset);
+else writeParam("preset", null);
 
 /**
  * The sticky preview column has to clear the sticky feed/tabs strip, and the

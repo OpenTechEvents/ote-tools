@@ -109,6 +109,15 @@ describe("the event presets", () => {
     },
   );
 
+  it("has ids that are unique and safe to put in a query string", () => {
+    // `?preset=<id>` is a shareable link (#146), so an id is public API: a
+    // duplicate makes one preset unreachable, and anything needing escaping
+    // makes the link ugly and easy to mangle.
+    const ids = EVENT_PRESETS.map((preset) => preset.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(/^[a-z0-9-]+$/);
+  });
+
   it("states a whole checkbox group rather than adding to what was there", () => {
     const doc = page();
     const root = column(doc);
