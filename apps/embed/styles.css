@@ -121,8 +121,8 @@ h1 {
   outline: none;
 }
 
-header > p {
-  max-width: 52rem;
+.intro {
+  margin: 0 0 1.1rem;
   color: var(--muted);
 }
 
@@ -139,36 +139,47 @@ a {
   color: var(--accent);
 }
 
+/* Written for an agent reading the DOM, and a duplicate of the Reference
+   tab for anyone reading the page. `display: none` keeps it in the source,
+   where an agent still finds it, and out of the render. It also drops it
+   from the accessibility tree — deliberate: the same ground is covered
+   visibly in Reference. */
 .agent-index {
-  list-style: none;
-  margin: 0 0 1.15rem;
-  padding: 0.9rem 1.1rem;
-  display: grid;
-  gap: 0.55rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.agent-index li strong {
-  color: var(--text);
+  display: none;
 }
 
 /* The shared feed field (#186 made one URL drive every widget on this
-   page). It sits above the tabs because it outranks them: the tabs choose a
-   widget, this chooses whose events you are looking at. */
-.feed-source {
-  margin: 1.5rem 0 1.25rem;
-  padding: 1rem 1.1rem 1.1rem;
+   page) and the widget tabs, in one sticky strip. The feed outranks the
+   tabs — they choose a widget, it chooses whose events you are looking at —
+   and both have to survive a scroll: see the comment in index.html.
+
+   `--sticky-top` is written by playground.ts from the strip's measured
+   height, because the strip wraps at narrow widths and the sticky preview
+   column has to clear whatever it actually became. */
+.page-strip {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -1.5rem;
+  padding: 0.75rem 1.5rem 0;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.feed-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.6rem;
+  margin-bottom: 0.7rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.feed-source h2 {
-  margin: 0 0 0.6rem;
+.feed-bar-label {
+  flex: none;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -176,17 +187,11 @@ a {
   color: var(--muted);
 }
 
-.feed-source-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.feed-source-row input {
-  flex: 1 1 22rem;
+.feed-bar input {
+  flex: 1 1 18rem;
   min-width: 0;
-  font-size: 1rem;
-  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  padding: 0.45rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
@@ -194,12 +199,12 @@ a {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.feed-source-row input:focus-visible {
+.feed-bar input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
-.feed-source-row .btn {
+.feed-bar .btn {
   flex: 0 0 auto;
 }
 
@@ -207,8 +212,9 @@ a {
    it is the one place that can tell "no events yet" apart from "the file
    could not be read", which render identically in the widget. */
 .source-status {
-  margin: 0.55rem 0 0;
-  font-size: 0.9rem;
+  flex: 0 1 auto;
+  margin: 0;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 
@@ -867,6 +873,92 @@ a {
     display: grid;
     gap: 1.5rem;
     position: sticky;
-    top: 1rem;
+    top: calc(var(--sticky-top, 1rem) + 0.75rem);
+  }
+}
+
+/* ---------------------------------------------------------------------- *
+ * Help behind an icon (#192)
+ *
+ * These hints are reference material read *while* editing a value, which is
+ * why they are popovers and not modals: a modal steals focus, covers the
+ * preview, and has to be dismissed before you can type. `popover` gives the
+ * top layer and light dismiss with no focus trap, and it will not stack
+ * badly against the modal the widget itself opens.
+ *
+ * Positioning uses the *implicit* anchor: an element invoked through
+ * `popovertarget` is the popover's anchor with no `anchor-name` to declare,
+ * so fifteen popovers need no fifteen names. Where `position-area` is
+ * missing the popover stays a centred sheet — the UA default — which is why
+ * the anchored rules are the @supports branch and not the base.
+ * ---------------------------------------------------------------------- */
+
+.info-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: ui-serif, Georgia, serif;
+  line-height: 1;
+  cursor: help;
+}
+
+.info-button:hover,
+.info-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.info-popover {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(24rem, calc(100vh - 2rem));
+  overflow-y: auto;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.info-popover p {
+  margin: 0 0 0.6rem;
+}
+
+.info-popover p:last-child {
+  margin-bottom: 0;
+}
+
+.info-popover::backdrop {
+  background: rgba(16, 19, 26, 0.25);
+}
+
+@supports (position-area: bottom) {
+  .info-popover {
+    position-area: bottom span-inline-end;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    margin: 0.4rem 0;
+    width: min(26rem, calc(100vw - 2rem));
+  }
+
+  /* Anchored, so no scrim: the popover points at its own control and the
+     page behind it stays readable, which is the point of not using a
+     modal. */
+  .info-popover::backdrop {
+    background: transparent;
   }
 }

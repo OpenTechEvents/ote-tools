@@ -971,6 +971,28 @@ sourceResetButton.addEventListener("click", () => {
 feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim() || storedFeed() || EXAMPLE_FEED;
 onFeedChanged();
 
+/**
+ * The sticky preview column has to clear the sticky feed/tabs strip, and the
+ * strip's height is not a constant: its controls wrap at narrow widths and
+ * the status line can run to a second row. So it is measured and published
+ * as `--sticky-top`.
+ *
+ * No ResizeObserver loop here, unlike the widget's own header
+ * (apps/embed/CLAUDE.md): the strip's height does not depend on the property
+ * being written, so observing it cannot re-trigger itself.
+ */
+const pageStrip = document.querySelector<HTMLElement>(".page-strip");
+if (pageStrip) {
+  const publishStripHeight = (): void => {
+    document.documentElement.style.setProperty(
+      "--sticky-top",
+      `${Math.round(pageStrip.getBoundingClientRect().height)}px`,
+    );
+  };
+  publishStripHeight();
+  new ResizeObserver(publishStripHeight).observe(pageStrip);
+}
+
 applyAndRender();
 applySubscribeAndRender();
 highlightStaticCodeBlocks();

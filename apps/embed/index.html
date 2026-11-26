@@ -26,13 +26,11 @@
         </a>
       </div>
     </div>
-    <p>
+    <p class="intro">
       Two Web Components that render or link to events from any
       <a href="https://github.com/OpenTechEvents/opentechevents-spec" target="_blank" rel="noopener">OTE</a>
       JSON feed. No framework, no build step, no package to install — one
-      <code>&lt;script&gt;</code> tag and one element. Try each widget below;
-      the snippet panel always reflects exactly what you're seeing. Switch to
-      <strong>Reference</strong> for versioning and host-app integration docs.
+      <code>&lt;script&gt;</code> tag and one element.
     </p>
 
     <ul class="agent-index" aria-label="Page contents">
@@ -64,10 +62,16 @@
          converter derives ICS and RSS from the OTE JSON feed, `feed` (events)
          and `feed-json` (subscribe) are the same document seen by two
          widgets — asking for it twice taught that a publisher needs three
-         files, which is the opposite of what OTE says. -->
-    <section class="feed-source" aria-labelledby="feed-source-heading">
-      <h2 id="feed-source-heading">Your OTE feed</h2>
-      <div class="feed-source-row">
+         files, which is the opposite of what OTE says.
+
+         The strip is sticky because everything on the page depends on it and
+         because its status line reports a real fetch: if it scrolls away, a
+         404 verdict scrolls away with it and an empty widget reads as a
+         broken widget. The tabs ride along — they are how you switch widget,
+         so losing them to the scroll costs the same thing. -->
+    <div class="page-strip">
+      <div class="feed-bar">
+        <label class="feed-bar-label" for="source-feed-input">Your OTE feed</label>
         <input
           type="url"
           id="source-feed-input"
@@ -75,27 +79,38 @@
           placeholder="https://example.org/events/feed.json"
           aria-describedby="source-status source-feed-hint"
         />
-        <button type="button" class="btn btn-ghost" id="source-reset-button">Use the example feed</button>
+        <p class="source-status" id="source-status" role="status">Checking the feed…</p>
+        <button type="button" class="btn btn-ghost" id="source-reset-button">Example feed</button>
+        <button
+          type="button"
+          class="info-button"
+          popovertarget="source-feed-hint"
+          aria-label="About the feed URL"
+        >i</button>
       </div>
-      <p class="source-status" id="source-status" role="status">Checking the feed…</p>
-      <p class="hint" id="source-feed-hint">
-        Both widgets below read this one URL, and it is the only file you have to publish: the
-        <a href="https://convert.opentechevents.org" target="_blank" rel="noopener">OTE converter</a> derives the
-        calendar (ICS) and RSS feeds from it. Several URLs, comma-separated, combine into one events widget. The
-        page keeps it in its address, so you can share a playground already pointed at your own feed.
-      </p>
-    </section>
+      <div class="info-popover" popover id="source-feed-hint">
+        <p>
+          Both widgets read this one URL, and it is the only file you have to publish: the
+          <a href="https://convert.opentechevents.org" target="_blank" rel="noopener">OTE converter</a> derives the
+          calendar (ICS) and RSS feeds from it.
+        </p>
+        <p>
+          Several URLs, comma-separated, combine into one events widget. The page keeps the value in its address, so
+          you can share a playground already pointed at your own feed.
+        </p>
+      </div>
 
-    <div class="site-tabs" role="tablist" aria-label="Playground sections">
-      <button type="button" class="site-tab" data-tab="events" role="tab" id="tab-btn-events" aria-controls="tab-panel-events" aria-selected="true">
-        Events widget
-      </button>
-      <button type="button" class="site-tab" data-tab="subscribe" role="tab" id="tab-btn-subscribe" aria-controls="tab-panel-subscribe" aria-selected="false" tabindex="-1">
-        Subscribe widget
-      </button>
-      <button type="button" class="site-tab" data-tab="reference" role="tab" id="tab-btn-reference" aria-controls="tab-panel-reference" aria-selected="false" tabindex="-1">
-        Reference
-      </button>
+      <div class="site-tabs" role="tablist" aria-label="Playground sections">
+        <button type="button" class="site-tab" data-tab="events" role="tab" id="tab-btn-events" aria-controls="tab-panel-events" aria-selected="true">
+          Events widget
+        </button>
+        <button type="button" class="site-tab" data-tab="subscribe" role="tab" id="tab-btn-subscribe" aria-controls="tab-panel-subscribe" aria-selected="false" tabindex="-1">
+          Subscribe widget
+        </button>
+        <button type="button" class="site-tab" data-tab="reference" role="tab" id="tab-btn-reference" aria-controls="tab-panel-reference" aria-selected="false" tabindex="-1">
+          Reference
+        </button>
+      </div>
     </div>
   </header>
 
