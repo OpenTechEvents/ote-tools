@@ -44,6 +44,40 @@ proxying them breaks Pages' certificate issuance.
 Read before touching the validator: `apps/validator/README.md`,
 `workers/validator/README.md`, and the validator bullet in `CLAUDE.md`.
 
+## Picking up the footer (#68) — what a fresh session needs
+
+Everything decided is already in the repo or the issues; this is only the
+part that is not written anywhere yet.
+
+- **`main` is ahead of `origin/main` and unpushed** — #186 (the conversion
+  fallback), the playground's shared feed field, and #187's top-layer
+  popover. Pushing is the owner's call, not a step to take without asking.
+
+  ```sh
+  git log origin/main..main --oneline   # what has not been pushed
+  ```
+- **#187 is done and was the prerequisite.** The popover is in the top
+  layer, so no ancestor clips it — that is what makes it safe to mount
+  `<ote-subscribe>` inside `<ote-events>`'s bounded container. Re-check it
+  there when the footer exists, since that is a configuration nothing has
+  rendered yet.
+- **Two acceptance items of #186 are still unverified and need a human**:
+  whether Google Calendar and Feedly accept the *generated* URL shape
+  (no file extension, nested query string), and a real `webcal://`
+  subscription in a calendar client. The exact URLs are in the issue
+  thread. A failure there is a URL-shape fix in `subscribe-urls.ts`, not
+  a redesign.
+- **The playground rework and the popover's ARIA restructure have not
+  been through adversarial review**, unlike the rest of #186. Worth one
+  pass before publishing.
+- **Design calls already taken, with the reasoning in the issues** — do
+  not re-open them without new information: the footer uses
+  `layout="badges"` (#68); the converter's involvement is *not* disclosed
+  to the visitor, only to the publisher (`apps/embed/CLAUDE.md`);
+  `<ote-subscribe>`'s destination ranking is deferred and reaches the
+  footer for free when it lands, because the footer mounts the element
+  (#171); the next release is **0.11.0**, a minor.
+
 ## Traps that cost time — do not rediscover them
 
 1. **Never pass the global `fetch` by reference.** `fetchImpl: fetch` throws
