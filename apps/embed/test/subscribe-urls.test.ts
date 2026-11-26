@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { checkUrl } from "../../../workers/validator/src/ssrf.js";
 import {
+  buildConvertIcsUrl,
+  buildConvertRssUrl,
   buildFeedlyUrl,
   buildGoogleCalendarUrl,
   buildOtePreviewUrl,
   buildOteReaderUrl,
+  isConvertibleFeedUrl,
   toFeedProtocolUrl,
   toWebcalUrl,
 } from "../src/subscribe-urls.js";
@@ -159,5 +163,136 @@ describe("buildGoogleCalendarUrl: a feed URL that carries its own query string (
     expect(cidOf(buildGoogleCalendarUrl("https://example.org/feed.ics#x"))).toBe(
       "webcal://example.org/feed.ics#x",
     );
+  });
+});
+
+describe("the conversion-service builders (#186)", () => {
+  it("URL-encodes the JSON feed under convert.opentechevents.org/ics", () => {
+    expect(buildConvertIcsUrl(JSON_URL)).toBe(
+      "https://convert.opentechevents.org/ics?feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json",
+    );
+  });
+
+  it("URL-encodes the JSON feed under convert.opentechevents.org/rss", () => {
+    expect(buildConvertRssUrl(JSON_URL)).toBe(
+      "https://convert.opentechevents.org/rss?feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json",
+    );
+  });
+
+  // The #166 shape, now one layer in: a feed URL carrying its own query
+  // string is nested in `feed=`, and that URL is then nested again in
+  // Google's `cid=`. Asserted on what the services receive, not on how the
+  // string looks.
+  describe("a feed URL that carries its own query string", () => {
+    const QUERY_FEED = "https://example.org/api/events?org=pycamp&format=ote";
+
+    it("round-trips through the converter's own feed parameter", () => {
+      for (const build of [buildConvertIcsUrl, buildConvertRssUrl]) {
+        const url = new URL(build(QUERY_FEED));
+        expect(url.searchParams.get("feed")).toBe(QUERY_FEED);
+        expect([...url.searchParams.keys()]).toEqual(["feed"]);
+      }
+    });
+
+    it("survives being nested again inside Google's cid", () => {
+      const url = buildGoogleCalendarUrl(buildConvertIcsUrl(QUERY_FEED));
+      const cid = cidOf(url);
+      expect(otherParams(url)).toEqual([]);
+      expect(cid).toBe(
+        "webcal://convert.opentechevents.org/ics?feed=https%3A%2F%2Fexample.org%2Fapi%2Fevents%3Forg%3Dpycamp%26format%3Dote",
+      );
+      // What the converter itself then parses out of that cid.
+      expect(new URL(cid!.replace("webcal://", "https://")).searchParams.get("feed")).toBe(QUERY_FEED);
+    });
+  });
+
+  describe("isConvertibleFeedUrl", () => {
+    it("accepts an absolute http(s) URL", () => {
+      expect(isConvertibleFeedUrl(JSON_URL)).toBe(true);
+      expect(isConvertibleFeedUrl("http://example.org/feed.json")).toBe(true);
+      expect(isConvertibleFeedUrl("https://example.org:8443/feed.json")).toBe(true);
+    });
+
+    it("rejects a URL only the host page's browser could resolve", () => {
+      // A relative or protocol-relative feed-json is valid for the OTE
+      // group's own links — the browser resolves it against the page — but
+      // the conversion service resolves the URL itself, so handing it one of
+      // these produces a link guaranteed to fail.
+      for (const value of ["/events/feed.json", "events/feed.json", "//example.org/feed.json", ""]) {
+        expect(isConvertibleFeedUrl(value)).toBe(false);
+      }
+    });
+
+    it("rejects a non-http scheme", () => {
+      for (const value of ["file:///tmp/feed.json", "data:application/json,{}", "webcal://example.org/f.ics"]) {
+        expect(isConvertibleFeedUrl(value)).toBe(false);
+      }
+    });
+
+    it("rejects credentials rather than handing them to Google and Feedly", () => {
+      // The service refuses these outright (blocked-credentials), so the
+      // link cannot work — and building it anyway would percent-encode a
+      // publisher's password into a URL that a calendar client then stores
+      // for years.
+      expect(isConvertibleFeedUrl("https://user:pass@example.org/feed.json")).toBe(false);
+      expect(isConvertibleFeedUrl("https://user@example.org/feed.json")).toBe(false);
+    });
+
+    it("rejects a host that is not publicly routable", () => {
+      for (const value of [
+        "http://localhost:4000/feed.json",
+        "http://app.localhost/feed.json",
+        "http://metadata.google.internal/feed.json",
+        "http://registry.internal/feed.json",
+        "http://127.0.0.1:8080/feed.json",
+        "http://[::1]/feed.json",
+        "http://192.168.1.1/feed.json",
+        "http://169.254.169.254/feed.json",
+        "https://example.org:22/feed.json",
+      ]) {
+        expect(isConvertibleFeedUrl(value)).toBe(false);
+      }
+    });
+  });
+
+  // The gate above is a copy of the service's own syntactic checks, kept in
+  // this bundle because importing Worker code into a widget is not an
+  // option. A copy with nothing holding it to the original is how it stops
+  // matching, so this imports the real decider and compares verdicts.
+  describe("the gate agrees with the service it is predicting", () => {
+    const CASES = [
+      "https://communitybuilders.dev/events/feed.json",
+      "http://example.org/feed.json",
+      "https://example.org:8443/feed.json",
+      "https://example.org:22/feed.json",
+      "https://user:pass@example.org/feed.json",
+      "http://localhost:4000/feed.json",
+      "http://app.localhost/feed.json",
+      "http://metadata.google.internal/feed.json",
+      "http://registry.internal/feed.json",
+      "http://127.0.0.1:8080/feed.json",
+      "http://[::1]/feed.json",
+      "http://192.168.1.1/feed.json",
+      "http://169.254.169.254/feed.json",
+      "file:///tmp/feed.json",
+      "data:application/json,{}",
+      "not a url",
+      "/events/feed.json",
+    ];
+
+    it("refuses everything checkUrl refuses", () => {
+      const disagreements = CASES.filter((value) => isConvertibleFeedUrl(value) && !checkUrl(value).ok);
+      expect(disagreements).toEqual([]);
+    });
+
+    it("has exactly one documented divergence: public IP literals", () => {
+      // Re-implementing the service's IPv4/IPv6 parsers in a page bundle to
+      // rescue a feed published on a bare public IP is not worth the bytes.
+      // That publisher can still declare feed-ics by hand.
+      const stricter = CASES.concat("http://93.184.216.34/feed.json").filter(
+        (value) => !isConvertibleFeedUrl(value) && checkUrl(value).ok,
+      );
+      expect(stricter).toEqual(["http://93.184.216.34/feed.json"]);
+    });
   });
 });

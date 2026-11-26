@@ -50,7 +50,7 @@
         <code>webcal://</code>, ICS), RSS (Feedly, <code>feed://</code>), and
         OTE feed links. Key attributes: <code>feed-ics</code>,
         <code>feed-rss</code>, <code>feed-json</code>, <code>show</code>,
-        <code>layout</code>.
+        <code>convert</code>, <code>layout</code>.
       </li>
       <li>
         <strong>Reference</strong> — versioned script URLs, SemVer policy, the
@@ -526,6 +526,21 @@
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="json-download" checked /> json-download</label>
               </div>
               <p class="hint">Which subscribe links to render. Defaults to everything valid for the feed URLs above.</p>
+            </div>
+
+            <div class="field">
+              <span class="fields-legend">convert</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="subscribe-convert-checkbox" value="ics" checked /> ics</label>
+                <label><input type="checkbox" class="subscribe-convert-checkbox" value="rss" checked /> rss</label>
+              </div>
+              <p class="hint">
+                When <code>feed-json</code> is set and <code>feed-ics</code>/<code>feed-rss</code> are not, build those
+                groups from <code>convert.opentechevents.org</code> instead of omitting them — so a publisher who hosts
+                only the OTE JSON feed still offers "add to calendar" and a feed-reader link. A declared
+                <code>feed-ics</code>/<code>feed-rss</code> always wins. Untick both for <code>convert="off"</code>, which
+                builds no third-party URL at all.
+              </p>
             </div>
 
             <div class="field">

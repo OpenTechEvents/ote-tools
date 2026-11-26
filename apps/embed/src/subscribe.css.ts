@@ -152,21 +152,44 @@ export const SUBSCRIBE_CSS = `
   outline: none;
 }
 
-.menu {
+/* The popover box. It owns the positioning and the chrome; the
+   role="menu" inside owns only the links, so the generated note can sit in
+   the box without being an illegal child of the menu (subscribe-render.ts
+   #buildPopover).
+
+   max-height is not decoration. With the conversion fallback on, a
+   JSON-only publisher's combined menu carries three groups — nine links —
+   and measured 523px tall against a 568px phone viewport, running past the
+   fold and making a previously unscrollable page scroll. Capping it scrolls
+   the links instead of the host's page. */
+.popover {
   position: absolute;
   inset-block-start: calc(100% + 0.25rem);
   inset-inline-start: 0;
   z-index: 4;
-  display: grid;
-  gap: 0.3rem;
+  display: flex;
+  flex-direction: column;
   min-width: 13rem;
   max-width: calc(100vw - 3rem);
+  max-height: min(60vh, 26rem);
   margin: 0;
-  padding: 0.3rem;
   border: 1px solid var(--ote-border);
   border-radius: var(--ote-radius);
   background: var(--ote-surface);
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.12);
+}
+
+.menu {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+  overflow-y: auto;
+  padding: 0.3rem;
+}
+
+.menu-section {
+  display: grid;
+  gap: 0.3rem;
 }
 
 .menu-group-label {
@@ -176,6 +199,22 @@ export const SUBSCRIBE_CSS = `
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* The service-generated disclosure (#186). Sits under the group's links,
+   muted and smaller: it is provenance, not an action, and must not compete
+   with the links a visitor came to click. It wraps rather than widening the
+   popover — .menu's min-width is the floor, and a one-line note at this
+   size would otherwise set the popover's width on narrow viewports. */
+.menu-note {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.8rem 0.45rem;
+  max-width: 17rem;
+  border-top: 1px solid var(--ote-border);
+  color: var(--ote-muted);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  text-wrap: pretty;
 }
 
 .menu a {

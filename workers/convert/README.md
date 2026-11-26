@@ -86,6 +86,26 @@ shape.
 Fetching is bounded separately and earlier: 5 MB decoded, 60 s, three
 redirects, each revalidated (`workers/validator/src/fetch-document.ts`).
 
+## `<ote-subscribe>` points subscribers here by default
+
+`apps/embed`'s subscribe widget builds `/ics` and `/rss` links from a
+publisher's JSON feed whenever that publisher declared no ICS/RSS URL of
+their own (issue #186, `apps/embed/src/subscribe-urls.ts`), which is the
+common case in the public adopters registry — `apps/embed/CLAUDE.md` has the
+command that counts it. So the traffic this
+service sees is no longer only people who typed a URL into the landing page:
+it is calendar clients and feed readers polling on **their** schedule, for as
+long as a subscription lives, from pages the service never hears about.
+
+That changes the operational reading of the two bounds above rather than the
+numbers in them. The 15-minute shared cache TTL is what keeps repeat polling
+of one popular feed cheap; the 30-requests-a-minute-per-IP limiter is what
+bounds a page that mounts several widgets. Neither is a reason to move the
+event cap — a visitor who subscribes through a generated link is converting
+the same feed the landing page would. Re-measure before raising anything, and
+note that `<ote-subscribe convert="off">` is the publisher-side opt-out if a
+site would rather not send its visitors here at all.
+
 ## Caching and administration
 
 Successful responses use a 15-minute shared cache TTL. Errors and

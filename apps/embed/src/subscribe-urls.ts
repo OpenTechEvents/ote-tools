@@ -69,3 +69,85 @@ export function buildOteReaderUrl(jsonUrl: string): string {
 export function buildOtePreviewUrl(jsonUrl: string): string {
   return `https://tools.opentechevents.org/preview/?feed=${encodeURIComponent(jsonUrl)}`;
 }
+
+/**
+ * The hosted conversion service (`workers/convert`), which fetches a public
+ * OTE JSON feed and returns iCalendar or RSS for it. This is what lets a
+ * publisher who hosts only `feed.json` still offer "add to calendar" and a
+ * feed-reader link: see `isConvertibleFeedUrl` for the one precondition.
+ *
+ * The feed URL is percent-encoded, for the reason #166 cost us once: a raw
+ * URL nested in a query parameter ends at its first `&`, so any publisher
+ * whose feed carries a query string would have had a different URL fetched
+ * from the one they published.
+ */
+export function buildConvertIcsUrl(jsonUrl: string): string {
+  return `https://convert.opentechevents.org/ics?feed=${encodeURIComponent(jsonUrl)}`;
+}
+
+/** The RSS half of `buildConvertIcsUrl`. */
+export function buildConvertRssUrl(jsonUrl: string): string {
+  return `https://convert.opentechevents.org/rss?feed=${encodeURIComponent(jsonUrl)}`;
+}
+
+/**
+ * Ports the conversion service refuses outright, and hostnames that resolve
+ * inside a network by convention rather than by DNS record. Mirrored from
+ * `workers/validator/src/ssrf.ts#checkUrl`, which is what actually decides:
+ * duplicated rather than imported because that module is Worker code and
+ * this one is bundled into every consumer's page.
+ * `test/subscribe-urls.test.ts` imports the real gate and asserts the two
+ * agree, so the copy cannot drift silently.
+ */
+const SERVICE_BLOCKED_PORTS = new Set([22, 23, 25, 465, 587, 110, 143, 993, 995, 445, 3306, 5432, 6379, 9200, 11211, 27017]);
+const SERVICE_BLOCKED_HOSTS = new Set(["localhost", "metadata.google.internal"]);
+
+/**
+ * Whether the conversion service could actually fetch this feed URL.
+ *
+ * The service is a third party on the public internet: it resolves the URL
+ * itself and refuses anything that is not publicly routable, so a link built
+ * from a URL it will reject is guaranteed to fail. Absent beats broken —
+ * a Calendar group whose every entry 400s is worse than no Calendar group,
+ * and worse still once a visitor has `webcal://`-subscribed to it.
+ *
+ * What is refused here, and why each one is not theoretical:
+ *
+ * - **Anything but absolute `http:`/`https:`.** A relative
+ *   `feed-json="/events/feed.json"` is perfectly valid for the OTE group's
+ *   own links — the browser resolves it against the host page — but the
+ *   service has no page to resolve it against. Same for a bare
+ *   `//host/path`, `file:`, `data:`.
+ * - **Credentials in the URL.** The service refuses these
+ *   (`blocked-credentials`), and building the link anyway would
+ *   percent-encode a publisher's basic-auth password into a URL handed to
+ *   Google Calendar and Feedly — and then stored for years in whatever
+ *   calendar client subscribed to it. For a link that cannot work.
+ * - **Hosts that are not publicly routable**: `localhost`, `*.localhost`,
+ *   `*.internal`, the cloud metadata name, and the blocked ports. An
+ *   organizer developing against `http://localhost:4000/feed.json` would
+ *   otherwise be shown two groups of dead links.
+ *
+ * One deliberate divergence from the service: **every IP literal is
+ * refused here**, where the service refuses only the private and loopback
+ * ranges. Re-implementing its IPv4/IPv6 parsers in a widget bundle to
+ * rescue the vanishingly rare feed published on a bare public IP is not
+ * worth the bytes; that publisher can still declare `feed-ics` by hand.
+ */
+export function isConvertibleFeedUrl(jsonUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(jsonUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  if (url.port && SERVICE_BLOCKED_PORTS.has(Number(url.port))) return false;
+
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (SERVICE_BLOCKED_HOSTS.has(host) || host.endsWith(".localhost") || host.endsWith(".internal")) return false;
+  // An IP literal in either family, bracketed or not.
+  if (/^\[|^[0-9.]+$|^[0-9a-f:]*:[0-9a-f:]*$/i.test(host)) return false;
+  return true;
+}

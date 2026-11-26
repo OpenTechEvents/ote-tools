@@ -1,12 +1,12 @@
 import { parseLangAttr, resolveLang } from "./attrs.js";
-import { parseShow, parseSubscribeLayout } from "./subscribe-attrs.js";
+import { parseConvert, parseShow, parseSubscribeLayout } from "./subscribe-attrs.js";
 import { renderSubscribe, type SubscribeState } from "./subscribe-render.js";
 import { SUBSCRIBE_CSS } from "./subscribe.css.js";
 
 let instanceCounter = 0;
 
 /**
- * `<ote-subscribe feed-ics="..." feed-rss="..." feed-json="..." name="..." show="..." layout="menu" theme="auto" lang="auto">`
+ * `<ote-subscribe feed-ics="..." feed-rss="..." feed-json="..." name="..." show="..." convert="ics,rss" layout="menu" theme="auto" lang="auto">`
  *
  * A trigger + popover menu of "subscribe to this feed" links (Google
  * Calendar, webcal://, ICS download, Feedly, feed://, RSS download, OTE
@@ -17,13 +17,19 @@ let instanceCounter = 0;
  * `feed-rss` is set, and an OTE feed group when `feed-json` is set; any
  * combination may be present.
  *
+ * When `feed-json` is set and `feed-ics`/`feed-rss` are not, the Calendar
+ * and RSS groups are built from convert.opentechevents.org instead of being
+ * omitted — the common case for an adopter who publishes only JSON (#186).
+ * `convert="off"` disables that, and a declared `feed-ics`/`feed-rss` is
+ * never replaced by a generated URL. See subscribe-attrs.ts#parseConvert.
+ *
  * `layout="menu"` (default) is a single trigger whose popover lists every
  * available group. `layout="badges"` renders one small trigger per
  * available group instead — the three-badge layout (ICS / RSS / OTE feed)
  * this element was ported from. See apps/embed/CLAUDE.md.
  */
 export class OteSubscribeElement extends HTMLElement {
-  static observedAttributes = ["feed-ics", "feed-rss", "feed-json", "name", "show", "layout", "theme", "lang"];
+  static observedAttributes = ["feed-ics", "feed-rss", "feed-json", "name", "show", "convert", "layout", "theme", "lang"];
 
   #container: HTMLElement;
   /** `"menu"` or a group key ("ics"/"rss"/"ote"), whichever popover is open; null when none is — see subscribe-render.ts's SubscribeState. */
@@ -102,6 +108,7 @@ export class OteSubscribeElement extends HTMLElement {
       jsonUrl: this.getAttribute("feed-json")?.trim() || undefined,
       name: this.getAttribute("name")?.trim() || undefined,
       show: parseShow(this.getAttribute("show")),
+      convert: parseConvert(this.getAttribute("convert")),
       lang,
       layout: parseSubscribeLayout(this.getAttribute("layout")),
       openGroup: this.#openGroup,

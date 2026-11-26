@@ -11,7 +11,7 @@ import {
 } from "./attrs.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
-import { ALL_SHOW_TOKENS, type ShowToken } from "./subscribe-attrs.js";
+import { ALL_CONVERT_TOKENS, ALL_SHOW_TOKENS, type ConvertToken, type ShowToken } from "./subscribe-attrs.js";
 import type { OteSubscribeElement } from "./subscribe-element.js";
 
 declare const __EMBED_VERSION__: string;
@@ -77,6 +77,9 @@ const subscribeJsonInput = document.querySelector<HTMLInputElement>("#subscribe-
 const subscribeNameInput = document.querySelector<HTMLInputElement>("#subscribe-name-input")!;
 const subscribeShowCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".subscribe-show-checkbox"),
+);
+const subscribeConvertCheckboxes = Array.from(
+  document.querySelectorAll<HTMLInputElement>(".subscribe-convert-checkbox"),
 );
 const subscribeLayoutSelect = document.querySelector<HTMLSelectElement>("#subscribe-layout-select")!;
 const subscribeThemeSelect = document.querySelector<HTMLSelectElement>("#subscribe-theme-select")!;
@@ -282,6 +285,12 @@ function currentShow(): ShowToken[] {
     .map((checkbox) => checkbox.value as ShowToken);
 }
 
+function currentConvert(): ConvertToken[] {
+  return subscribeConvertCheckboxes
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => checkbox.value as ConvertToken);
+}
+
 function isAllShowTokens(tokens: ShowToken[]): boolean {
   return tokens.length === ALL_SHOW_TOKENS.length && ALL_SHOW_TOKENS.every((token) => tokens.includes(token));
 }
@@ -292,6 +301,7 @@ function buildSubscribeSnippet(config: {
   jsonUrl: string;
   name: string;
   show: string | undefined;
+  convert: string | undefined;
   layout: string;
   theme: string;
   lang: string;
@@ -303,6 +313,7 @@ function buildSubscribeSnippet(config: {
   if (config.jsonUrl) elementLines.push(`  feed-json="${attr(config.jsonUrl)}"`);
   if (config.name) elementLines.push(`  name="${attr(config.name)}"`);
   if (config.show !== undefined) elementLines.push(`  show="${attr(config.show)}"`);
+  if (config.convert !== undefined) elementLines.push(`  convert="${attr(config.convert)}"`);
   if (config.layout !== "menu") elementLines.push(`  layout="${attr(config.layout)}"`);
   elementLines.push(`  theme="${attr(config.theme)}"`, `  lang="${attr(config.lang)}"`, `></ote-subscribe>`);
   lines.push(...elementLines);
@@ -322,6 +333,13 @@ function applySubscribeAndRender(): void {
   const name = subscribeNameInput.value.trim();
   const show = currentShow();
   const showAttr = show.length === 0 ? "none" : isAllShowTokens(show) ? undefined : show.join(",");
+  const convert = currentConvert();
+  const convertAttr =
+    convert.length === 0
+      ? "off"
+      : convert.length === ALL_CONVERT_TOKENS.length
+        ? undefined
+        : convert.join(",");
   const layout = subscribeLayoutSelect.value;
   const theme = subscribeThemeSelect.value;
   const lang = subscribeLangSelect.value;
@@ -336,11 +354,15 @@ function applySubscribeAndRender(): void {
   else subscribeWidget.removeAttribute("name");
   if (showAttr) subscribeWidget.setAttribute("show", showAttr);
   else subscribeWidget.removeAttribute("show");
+  if (convertAttr) subscribeWidget.setAttribute("convert", convertAttr);
+  else subscribeWidget.removeAttribute("convert");
   subscribeWidget.setAttribute("layout", layout);
   subscribeWidget.setAttribute("theme", theme);
   subscribeWidget.setAttribute("lang", lang);
 
-  setSubscribeSnippet(buildSubscribeSnippet({ icsUrl, rssUrl, jsonUrl, name, show: showAttr, layout, theme, lang }));
+  setSubscribeSnippet(
+    buildSubscribeSnippet({ icsUrl, rssUrl, jsonUrl, name, show: showAttr, convert: convertAttr, layout, theme, lang }),
+  );
 }
 
 function setSnippet(text: string): void {
@@ -715,6 +737,7 @@ for (const control of [
   subscribeThemeSelect,
   subscribeLangSelect,
   ...subscribeShowCheckboxes,
+  ...subscribeConvertCheckboxes,
 ]) {
   control.addEventListener("input", applySubscribeAndRender);
   control.addEventListener("change", applySubscribeAndRender);

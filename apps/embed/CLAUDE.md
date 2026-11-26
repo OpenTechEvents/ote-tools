@@ -482,6 +482,67 @@ for in the sizes above; no extra esbuild config is needed for it beyond the
 `.css` loader, since `svelte` resolves normally through `node_modules` as a
 transitive dependency.
 
+## `<ote-subscribe>`'s ICS/RSS groups can come from the converter, not the publisher
+
+`convert="ics,rss"` (the default) builds `/ics` and `/rss` links on
+`convert.opentechevents.org` whenever `feed-json` is set and the matching
+`feed-ics`/`feed-rss` is not. It is default-on because the registry case is the
+common case — count it rather than trusting this sentence, and note the file
+is an object with an `adopters` array, not an array (a measurement that
+skipped that check once reported 4 of 7 feeds):
+
+```sh
+curl -s https://opentechevents.org/data/adopters.json \
+  | node --input-type=module -e 'const d=JSON.parse(await new Response(process.stdin).text()); const a=d.adopters??[]; console.log(`${a.length} adopters, ${a.filter(x=>x.feed).length} with a feed, ${a.filter(x=>x.ics||x.rss).length} with their own ICS/RSS`)'
+```
+
+Default-off would have made the one action most visitors can actually use
+something each adopter had to discover.
+
+Four rules hold it together, and each is a test in
+`test/subscribe-element.test.ts`:
+
+- **A declared URL is never replaced.** The service is a fallback for a
+  missing URL, not an override of a published one — including the mixed case,
+  where a publisher's own `feed-ics` sits next to a generated RSS link.
+- **`convert="off"` and `convert="none"` are both the opt-out.** `show` has
+  only `"none"`, but an attribute whose job is to stop third-party URLs from
+  being built must not read a host's `"off"` as an unrecognized token and
+  then generate everything.
+- **A feed URL the service would refuse generates nothing.**
+  `subscribe-urls.ts#isConvertibleFeedUrl` predicts that refusal, and it has
+  to predict the whole of it, not just the scheme: the first draft checked
+  only `http(s)` and happily built links for `http://localhost:4000`,
+  `http://192.168.1.1` and — worst — `https://user:pass@host`, which would
+  have percent-encoded a publisher's password into a URL handed to Google
+  Calendar and stored for years in a subscriber's client. The gate mirrors
+  `workers/validator/src/ssrf.ts#checkUrl`, duplicated because that is
+  Worker code and this is bundled into every consumer's page;
+  `test/subscribe-urls.test.ts` imports the real `checkUrl` and asserts the
+  two agree, with one documented divergence (public IP literals, refused
+  here, allowed there). Absent beats broken.
+- **Generated groups say so, to everyone.** A `.menu-note` in the popover,
+  `data-generated` on the trigger, and the disclosure in the trigger's
+  accessible name. The note sits **outside** the `role="menu"` element, in a
+  `.popover` wrapper: `role="menu"` accepts only
+  `menuitem`/`group`/`separator` children and assistive technology skips the
+  rest, so a note inside it is visible to sighted users and silently dropped
+  for the people most dependent on being told where a link points. Same
+  reason the group headings are now `role="group"` with an `aria-label` and
+  an `aria-hidden` visible label. A visitor subscribing `webcal://` to a
+  generated URL is making this service long-lived infrastructure in their
+  calendar client; that is worth one muted line.
+
+The feed URL is percent-encoded, and the nesting is two deep for Google:
+`cid=` wraps `/ics?feed=` wraps the publisher's URL, which may carry its own
+query string. `test/subscribe-urls.test.ts` asserts what each service parses
+back out rather than how the string looks — the #166 defect was a raw URL
+ending at its first `&`, and the three tests that missed it all compared
+strings.
+
+The operational half lives in `workers/convert/README.md`: default-on turns
+that Worker's caps into something real calendar clients poll on a schedule.
+
 ## Testing the custom element needs jsdom, not the default Node environment
 
 `element.test.ts` uses a `// @vitest-environment jsdom` pragma (kept
