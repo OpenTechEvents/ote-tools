@@ -96,7 +96,7 @@ Read before touching the validator: `apps/validator/README.md`,
     verification check is "revert the fix at the headlined surface and watch
     it fail". Apps consume workspace packages through `dist/`, so reverting
     only the source and re-running the app's suite tests the **still-fixed
-    build** and reports a false clean: `apps/embed` kept all 164 tests green
+    build** and reports a false clean: `apps/embed` kept its whole suite green
     with `packages/preview-feed`'s pricing reverted, until
     `pnpm --filter @opentechevents/preview-feed build` ran in between. Revert,
     rebuild, then measure — and if a fix spans two packages, do it in both.
