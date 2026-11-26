@@ -166,7 +166,11 @@
                 use. Rows never shrink below a day showing one event beside a
                 <code>+N more</code> link; past that the grid scrolls with
                 the weekday header pinned. So <code>max-per-day</code> is
-                "as many as fit" while a budget is set.
+                "as many as fit" while a budget is set. For a sparse feed try
+                <code>max-per-day="off"</code> with it: that mode sizes each
+                week to its own content, so empty weeks collapse instead of
+                reserving room — often enough to drop the scrollbar
+                entirely.
               </p>
             </div>
 

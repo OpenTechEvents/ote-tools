@@ -46,6 +46,17 @@ describe("the max-height stylesheet", () => {
     expect(WIDGET_CSS).toContain('.ote-events[data-bounded="cards"] ul.events {\n  flex: none;');
   });
 
+  it("lets empty weeks collapse when the rows are not uniform", () => {
+    // The library floors every day cell at 5em and lifts that floor only in
+    // uniform mode, so max-per-day="off" - the mode that sizes each week to
+    // its own content - still gave every empty week 80px under a budget.
+    // The :not(.ec-uniform) scope matters: in uniform mode the library
+    // already drops the floor, and the capped rows have their own sizing.
+    expect(WIDGET_CSS).toContain(
+      ".ec-day-grid .ec-main:not(.ec-uniform) .ec-day {\n  min-block-size: 2.2em;\n}",
+    );
+  });
+
   it("pins both headers that would otherwise scroll away", () => {
     expect(WIDGET_CSS).toContain(".event-list-header {\n  position: sticky;");
   });

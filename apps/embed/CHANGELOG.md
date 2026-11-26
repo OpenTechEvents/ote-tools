@@ -47,6 +47,24 @@
   budget is set** and becomes "as many as fit" — a host that asked for a
   height asked for it first.
 
+- **`max-per-day="off"` now lets empty weeks collapse under a budget**, so a
+  sparse month stops reserving room it does not use. The library floors
+  every day cell at 5em and lifts that floor only in its uniform (capped)
+  mode, so the one mode that sizes each week to its own content still gave
+  every empty week 80px. On a real 25-event feed at `max-height="400px"`
+  that is six uniform 80px rows scrolling 511px, versus `60/37/37/37/60/36`
+  that does not scroll at all and leaves the widget at 354px inside its
+  400px budget.
+
+  This is the reason the two modes exist, and it is a genuine either/or
+  rather than an oversight: a capped row needs a fixed height to cap
+  against, while an auto-sized row grows to its content — so nothing ever
+  overflows and the `+N more` popover never fires. Measured, not assumed:
+  every `minmax(auto, <cap>)` and `minmax(min-content, <cap>)` variant
+  rendered all nine events of a busy day with no popover at all, because CSS
+  ignores a `minmax()` max that is smaller than its min. So **a busy feed
+  wants the default cap, and a sparse one wants `max-per-day="off"`.**
+
 ## 0.9.0 — 2026-11-26
 
 ### Changed

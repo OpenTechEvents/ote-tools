@@ -215,6 +215,29 @@ ul.events.layout-cards {
   overflow: auto;
 }
 
+/*
+ * Empty weeks collapse under a budget, but only with max-per-day="off".
+ *
+ * The library floors every day cell at 5em (.ec-day-grid .ec-day), and
+ * removes that floor only in uniform mode. So the non-uniform mode - the one
+ * that actually sizes each week to its own content - still gave every empty
+ * week 80px. Relaxing the floor to roughly the height of the date number
+ * lets a week with no events shrink to it: measured on a real 25-event feed
+ * at max-height="400px", the month went from six uniform 80px rows that
+ * scrolled (511px) to 60/37/37/37/60/36 that does not scroll at all, with
+ * the widget settling at 354px inside its 400px budget.
+ *
+ * Only while bounded, because unbounded there is no height to reclaim and
+ * 5em is a better-looking month grid. Only with max-per-day="off", because
+ * uniform mode already drops the floor itself - and the two cannot be
+ * combined: a capped row needs a fixed height to cap against, while an auto
+ * row grows to its content, so nothing ever overflows and the "+N more"
+ * popover never triggers. That is the trade max-per-day="off" names.
+ */
+.ote-events[data-bounded] .calendar-host .ec-day-grid .ec-main:not(.ec-uniform) .ec-day {
+  min-block-size: 2.2em;
+}
+
 .event {
   position: relative;
   border: 1px solid var(--ote-border);

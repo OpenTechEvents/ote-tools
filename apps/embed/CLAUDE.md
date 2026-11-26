@@ -409,10 +409,21 @@ here, and both cost a measurement cycle:
    in a grid of indefinite height grow to the tallest row's content — so one
    15-event day makes *every* week 15 events tall. Pinning the row height is
    what actually caps a day.
-2. **`minmax(0, …)` and `minmax(min-content, …)` do not buy collapsing empty
-   weeks.** Both were tried: the event overlay subgrid spans every row, so
-   each track still resolves to the maximum. Week rows are uniform, which is
-   also what every other month grid does.
+2. **Empty weeks collapse only in the *uncapped* mode, and the cap is why —
+   not the subgrid.** An earlier note here blamed the event overlay subgrid
+   for forcing every track to the maximum; re-measuring in Chrome disproved
+   that. With `max-per-day="off"` the rows are `auto` and genuinely
+   non-uniform (measured 187/80/80/80/80 — the busy week, then the empty
+   ones), and dropping the library's 5em `.ec-day` floor takes the empty
+   ones to 37px. What is *not* available is collapsing **and** capping at
+   once. A capped row needs a fixed height to cap against, while an auto row
+   grows to its content, so nothing overflows and `+N more` never fires —
+   every `minmax(auto, <cap>)` / `minmax(min-content, <cap>)` variant
+   rendered all nine events of a busy day with no popover, because CSS
+   ignores a `minmax()` max smaller than its min. So the choice is a cap
+   (uniform weeks) or content-sized weeks (no cap), and `max-per-day` is
+   already the attribute that selects between them — do not add a second
+   one.
 
 The `em` constants are measured in Chrome, not reasoned about. To re-measure
 after a library or stylesheet change, serve `dist/` and have the page report
