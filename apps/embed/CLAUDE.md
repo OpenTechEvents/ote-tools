@@ -22,7 +22,16 @@ same esbuild pattern as `apps/editor`/`apps/preview`.
   only when a consumer actually requests that layout. See "The calendar
   layout" below for why.
 
-If you add code that more than one entry point needs, put it in a fourth
+`src/subscribe-main.ts` → `dist/ote-subscribe.js` is the fourth: the
+standalone `<ote-subscribe>` deliverable, for a page that wants the
+subscribe menu without the events widget. Since #68, `ote-events.js`
+**does** contain the subscribe element too — `footer.ts` imports
+`subscribe-element.ts` statically, because the footer is default-on (see
+the footer section below). That is the one entry point that shares code
+with another by design; `main.ts` must still never pull in
+`playground.ts` or `calendar-layout.ts`.
+
+If you add code that more than one entry point needs, put it in a fifth
 module they all import — don't import one entry point from another.
 
 ## Static `index.html`/`styles.css` are copied once, not watched
@@ -551,6 +560,70 @@ strings.
 
 The operational half lives in `workers/convert/README.md`: default-on turns
 that Worker's caps into something real calendar clients poll on a schedule.
+
+## The footer is `<ote-events>`'s only non-event surface — and it mounts the other element
+
+`footer` (#68, default `"on"`) renders a strip under the events: feed name,
+the time zone, `<ote-subscribe>`, the OTE mark. `src/footer.ts` builds it;
+`render.ts` only decides where it goes. What is worth keeping:
+
+- **It reuses `<ote-subscribe>`, statically imported.** `footer.ts` calls
+  `defineOteSubscribe()` and creates the tag, so `subscribe-urls.ts` stays
+  the one implementation of those URLs and #171's deferred destination
+  ranking reaches the footer for free. It is *not* lazy-loaded like
+  `calendar-layout.js`: that pattern is right for an opt-in layout and wrong
+  for a default-on surface, where it would cost every consumer a second
+  request and would fail silently — a missing subscribe control, nothing in
+  the page to say why — for anyone self-hosting `ote-events.js` alone. The
+  price is in the comment at the call site, measured.
+
+- **`.events-scroll` exists only when the footer does.** The footer is chrome
+  inside the `max-height` budget, so the events have to scroll *under* it. In
+  `layout="cards"` the scrollport is `.ote-events` itself (theme.css.ts says
+  why the grid cannot be the flex item), which would carry the footer below
+  the fold of a widget the host deliberately bounded. The wrapper takes over
+  as the scrollport — and it is conditional precisely so `footer="off"` is
+  the pre-#68 tree, node for node. Verified in Chrome in all three layouts at
+  a 300px budget: the footer sits inside the widget's box and does not move
+  when the event area is scrolled to its end.
+
+- **The popover was re-checked in this configuration, which is what #187 was
+  raised for.** `<ote-subscribe>` inside `<ote-events>`'s shadow root, inside
+  a bounded widget, inside a host `overflow: hidden` box: the popover opens
+  in the top layer, escapes the clipping ancestor and stays in the viewport.
+  If anything ever moves it back out of the top layer, this is the case that
+  breaks first.
+
+- **The footer reads the *document*, not `PreviewFeed`.** `title`, `url` and
+  `alternates` are feed-level fields `@opentechevents/preview-feed` does not
+  carry. Adding them there would have made this change wait on that package
+  being republished before a snapshot could show it — CLAUDE.md's fifth
+  verification check, avoided rather than paid.
+
+- **A feed-declared URL is filtered to `http(s)`; a host attribute is not.**
+  `feed.url` and `alternates[].url` land in an `href` on someone else's page
+  and come from a stranger's JSON, so `footer.ts#httpUrl` gates them. The
+  spec constrains both to `^https?://` anyway, so nothing valid is refused.
+  `feed-ics`/`feed-rss` on `<ote-events>` come from whoever wrote the embed
+  and are passed through, same trust level as `<ote-subscribe>`'s own
+  attributes.
+
+- **Precedence is attribute > `alternates` > converter**, and `convert` is
+  forwarded verbatim — including `convert=""` — because `parseConvert`
+  distinguishes "absent or empty means default" from "a value naming no
+  format means off". Re-deciding that in the footer would give it a
+  different opt-out from the standalone element's.
+
+- **The time-zone line names the visitor's zone**, because that is the zone
+  the widget's times are rendered in: every formatter here and in
+  `preview-feed` passes `undefined` for the locale's zone. It is omitted
+  entirely when no visible event has a clock time. **Known contradiction:**
+  `formatReadableDate()` appends the event's *declared* zone — `(Europe/
+  Madrid)` — beside a time it has already converted, so a visitor outside
+  that zone is told the wrong thing per event. That defect predates the
+  footer, lives in `packages/preview-feed`'s `formatDate` too (so it reaches
+  `apps/preview`), and is filed separately — do not "fix" the footer line to
+  agree with it.
 
 ## The playground has one feed field, above the tabs, shared by both widgets
 

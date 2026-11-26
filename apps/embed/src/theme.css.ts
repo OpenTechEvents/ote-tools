@@ -183,6 +183,34 @@ ul.events.layout-cards {
 }
 
 /*
+ * The event area as its own scrollport, mounted only when there is a
+ * footer (#68) — render.ts explains why its presence is conditional.
+ *
+ * It exists for layout="cards" and for nothing else: cards scroll
+ * .ote-events itself (see above), so a footer appended inside it would
+ * scroll away with the grid, and in a bounded widget the subscribe badges
+ * would sit below the fold of a box the host deliberately shortened. With
+ * the wrapper absorbing the budget, .ote-events has nothing left to
+ * scroll and the footer stays put.
+ *
+ * list and calendar need nothing new: the rules above reach ul.events
+ * and .calendar-host as descendants, so the row list and the month grid
+ * still absorb the budget themselves, one level deeper. The footer is the
+ * flex sibling that the budget is spent on before they see it, which is
+ * what "subtracted from the budget, not drawn over the last row" means.
+ */
+.events-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.ote-events[data-layout="cards"] > .events-scroll {
+  overflow-y: auto;
+}
+
+/*
  * layout="list" sets overflow: hidden to clip its own border radius. The
  * longhand above wins on overflow-y only, which is what we want: the rows
  * scroll vertically and the rounded corners still clip horizontally.
@@ -1253,6 +1281,98 @@ a.price:focus-visible {
     padding-bottom: 0.85rem;
     border-inline-start: 0;
     border-bottom: 1px solid var(--ote-border);
+  }
+}
+
+/*
+ * The footer (#68): feed name and time zone on one side, <ote-subscribe>
+ * and the OTE mark on the other.
+ *
+ * flex: none is load-bearing — it is chrome, so it keeps its height and
+ * the event area absorbs the budget. No background, for the same reason
+ * :host has none: the strip has to sit on whatever the host page is
+ * painted with, and only its top border separates it from the events.
+ */
+.footer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-block-start: 0.75rem;
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--ote-border);
+  font-size: 0.8125rem;
+  color: var(--ote-muted);
+}
+
+.footer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.75rem;
+  min-width: 0;
+}
+
+.footer-feed {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ote-text);
+}
+
+a.footer-feed {
+  color: var(--ote-accent);
+  text-decoration: none;
+}
+
+a.footer-feed:hover,
+a.footer-feed:focus-visible {
+  color: var(--ote-accent-hover);
+  text-decoration: underline;
+  outline: none;
+}
+
+.footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-inline-start: auto;
+}
+
+/* The mark is the quietest thing in the strip on purpose: it is provenance,
+   not an action competing with the subscribe badges next to it. */
+.footer-mark {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--ote-border);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ote-muted);
+  text-decoration: none;
+}
+
+.footer-mark:hover,
+.footer-mark:focus-visible {
+  border-color: var(--ote-accent);
+  color: var(--ote-accent);
+  outline: none;
+}
+
+@media (max-width: 480px) {
+  /* Two lines rather than a name truncated to nothing: the strip's left
+     side is the only part that can be long. */
+  .footer {
+    justify-content: flex-start;
+  }
+
+  .footer-actions {
+    margin-inline-start: 0;
   }
 }
 `;

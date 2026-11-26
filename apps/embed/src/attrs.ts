@@ -398,3 +398,35 @@ export function parseCalendarAttributes(
     responsive: parseResponsive(getAttribute("responsive")),
   };
 }
+
+export type FooterMode = "on" | "auto" | "off";
+
+/**
+ * `footer` — the provenance strip under the events (#68): feed name, the
+ * time zone the times are rendered in, `<ote-subscribe>`, and the OTE mark.
+ *
+ * Default `"on"`, which changes the rendered output of every embed that
+ * moves its pin — the reason #68 is a minor and not a patch. Embeds pinned
+ * to a committed `versions/v<x.y.z>/` URL are untouched.
+ *
+ * `"auto"` is for a host app that drives the widget through `.events = […]`:
+ * there is no feed URL, no feed title and nothing to subscribe to, so the
+ * footer would be a time zone and a logo bolted under someone else's UI.
+ * `auto` renders it only when the widget knows *something* about where the
+ * data came from; `"on"` always renders it. With a fetched feed the two are
+ * identical, which is why the default is the simpler of them.
+ *
+ * Anything unrecognized falls through to the default, same as `theme` —
+ * except `"off"`/`"none"`/`"false"`, all spelled out, because an attribute
+ * whose job is to *remove* chrome must not read a host's "false" as a typo
+ * and render it anyway (the `parseConvert` lesson, one step weaker: nothing
+ * here builds a third-party URL that the publisher did not already get from
+ * `<ote-subscribe>`'s own defaults).
+ */
+export function parseFooter(value: string | null): FooterMode {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) return "on";
+  if (trimmed === "off" || trimmed === "none" || trimmed === "false") return "off";
+  if (trimmed === "auto") return "auto";
+  return "on";
+}
