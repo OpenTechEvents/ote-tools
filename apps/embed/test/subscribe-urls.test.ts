@@ -13,6 +13,13 @@ const ICS_URL = "https://communitybuilders.dev/events/feed.ics";
 const RSS_URL = "https://communitybuilders.dev/events/feed.xml";
 const JSON_URL = "https://communitybuilders.dev/events/feed.json";
 
+/** What Google actually receives, rather than how the string looks. */
+const cidOf = (url: string): string | null => new URL(url).searchParams.get("cid");
+
+/** Query parameters other than `cid` — a raw nested URL leaks into these. */
+const otherParams = (url: string): string[] =>
+  [...new URL(url).searchParams.keys()].filter((key) => key !== "cid");
+
 describe("toWebcalUrl", () => {
   it("replaces the https:// scheme with webcal://, unencoded", () => {
     expect(toWebcalUrl(ICS_URL)).toBe("webcal://communitybuilders.dev/events/feed.ics");
@@ -24,9 +31,6 @@ describe("toWebcalUrl", () => {
 });
 
 describe("buildGoogleCalendarUrl", () => {
-  /** What Google actually receives, rather than how the string looks. */
-  const cidOf = (url: string): string | null => new URL(url).searchParams.get("cid");
-
   it("percent-encodes the webcal:// URL in the cid query param", () => {
     expect(buildGoogleCalendarUrl(ICS_URL)).toBe(
       "https://www.google.com/calendar/render?cid=webcal%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.ics",
@@ -98,18 +102,11 @@ describe("a non-ASCII feed URL", () => {
     expect(url).toBe(
       "https://www.google.com/calendar/render?cid=webcal%3A%2F%2Fejemplo.org%2Feventos%2Fpycamp-espa%C3%B1a%2Ffeed.ics",
     );
-    expect(new URL(url).searchParams.get("cid")).toBe(
-      "webcal://ejemplo.org/eventos/pycamp-españa/feed.ics",
-    );
+    expect(cidOf(url)).toBe("webcal://ejemplo.org/eventos/pycamp-españa/feed.ics");
   });
 });
 
 describe("buildGoogleCalendarUrl: a feed URL that carries its own query string (#166)", () => {
-  /** What Google actually receives, rather than how the string looks. */
-  const cidOf = (url: string): string | null => new URL(url).searchParams.get("cid");
-  const otherParams = (url: string): string[] =>
-    [...new URL(url).searchParams.keys()].filter((key) => key !== "cid");
-
   // Live shape: the hosted converter turns any OTE feed into ICS, and its URL
   // is two query parameters. Ordered `lang` first so that a truncated cid
   // loses the feed entirely — the converter answers 400, which is how this
