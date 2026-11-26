@@ -28,6 +28,16 @@
   service could not fetch — relative, protocol-relative, or any non-`http(s)`
   scheme — generates nothing rather than a link that would fail.
 
+- Playground: one **Your OTE feed** field above the tabs replaces the four
+  URL inputs the page used to carry, both widgets read it, and `?feed=` and
+  `localStorage` persist it — so a configured playground is a shareable
+  link. A live status line reports the feed's event count and spec version,
+  or names why it could not be read (404, not JSON, no CORS), which the
+  widget's own empty state cannot distinguish. `feed-ics`/`feed-rss` moved
+  into a closed "Do you host your own ICS or RSS?" group and are no longer
+  pre-filled: with them filled, the conversion fallback never fired in the
+  page that exists to demonstrate it.
+
 ### Fixed
 
 - `layout="calendar"`: clicking an event inside the `+N more` popover now

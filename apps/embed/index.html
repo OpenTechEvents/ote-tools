@@ -59,6 +59,32 @@
       </li>
     </ul>
 
+    <!-- One feed URL, above the tabs, because it is one fact. Since the
+         converter derives ICS and RSS from the OTE JSON feed, `feed` (events)
+         and `feed-json` (subscribe) are the same document seen by two
+         widgets — asking for it twice taught that a publisher needs three
+         files, which is the opposite of what OTE says. -->
+    <section class="feed-source" aria-labelledby="feed-source-heading">
+      <h2 id="feed-source-heading">Your OTE feed</h2>
+      <div class="feed-source-row">
+        <input
+          type="url"
+          id="source-feed-input"
+          spellcheck="false"
+          placeholder="https://example.org/events/feed.json"
+          aria-describedby="source-status source-feed-hint"
+        />
+        <button type="button" class="btn btn-ghost" id="source-reset-button">Use the example feed</button>
+      </div>
+      <p class="source-status" id="source-status" role="status">Checking the feed…</p>
+      <p class="hint" id="source-feed-hint">
+        Both widgets below read this one URL, and it is the only file you have to publish: the
+        <a href="https://convert.opentechevents.org" target="_blank" rel="noopener">OTE converter</a> derives the
+        calendar (ICS) and RSS feeds from it. Several URLs, comma-separated, combine into one events widget. The
+        page keeps it in its address, so you can share a playground already pointed at your own feed.
+      </p>
+    </section>
+
     <div class="site-tabs" role="tablist" aria-label="Playground sections">
       <button type="button" class="site-tab" data-tab="events" role="tab" id="tab-btn-events" aria-controls="tab-panel-events" aria-selected="true">
         Events widget
@@ -87,12 +113,10 @@
             </div>
 
             <div class="field" id="feed-source-field">
-              <label for="feed-input">feed / feeds</label>
-              <input type="text" id="feed-input" value="https://communitybuilders.dev/events/feed.json" />
+              <span class="fields-legend">feed / feeds</span>
               <p class="hint">
-                The URL of an OTE <code>feed.json</code> document. Enter several,
-                comma-separated, to combine them (uses the <code>feeds</code>
-                attribute instead of <code>feed</code>).
+                Taken from <a href="#source-feed-input">Your OTE feed</a> at the top of the page. One URL emits
+                <code>feed</code>; several comma-separated emit <code>feeds</code>.
               </p>
             </div>
 
@@ -461,21 +485,11 @@
           <summary>Basics</summary>
           <div class="group-body">
             <div class="field">
-              <label for="subscribe-ics-input">feed-ics</label>
-              <input type="text" id="subscribe-ics-input" value="https://communitybuilders.dev/events/feed.ics" />
-              <p class="hint">Enables the Calendar group (Google Calendar, webcal://, ICS download). Leave blank to omit it.</p>
-            </div>
-
-            <div class="field">
-              <label for="subscribe-rss-input">feed-rss</label>
-              <input type="text" id="subscribe-rss-input" value="https://communitybuilders.dev/events/feed.xml" />
-              <p class="hint">Enables the RSS group (Feedly, feed://, RSS download). Leave blank to omit it.</p>
-            </div>
-
-            <div class="field">
-              <label for="subscribe-json-input">feed-json</label>
-              <input type="text" id="subscribe-json-input" value="https://communitybuilders.dev/events/feed.json" />
-              <p class="hint">Enables the OTE feed group (OTE Reader, OTE Tools preview, JSON download). Leave blank to omit it.</p>
+              <span class="fields-legend">feed-json</span>
+              <p class="hint">
+                Taken from <a href="#source-feed-input">Your OTE feed</a> at the top of the page. It is also what the
+                Calendar and RSS links below are generated from.
+              </p>
             </div>
 
             <div class="field">
@@ -483,6 +497,35 @@
               <input type="text" id="subscribe-name-input" placeholder="Optional calendar name" />
               <p class="hint">Used only for the trigger's accessible label ("Subscribe to &lt;name&gt;").</p>
             </div>
+          </div>
+        </details>
+
+        <details class="control-group">
+          <summary>Do you host your own ICS or RSS?</summary>
+          <div class="group-body">
+            <p class="hint">
+              Most publishers do not, and do not need to — left blank, these are generated from your OTE feed. Fill
+              one in only if you publish that file yourself, and it wins over the generated one.
+            </p>
+
+            <div class="field">
+              <label for="subscribe-ics-input">feed-ics</label>
+              <input type="text" id="subscribe-ics-input" placeholder="https://example.org/events/feed.ics" />
+              <p class="hint">
+                Your own ICS file, if you publish one. It replaces the generated Calendar group (Google Calendar,
+                <code>webcal://</code>, ICS download).
+              </p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-rss-input">feed-rss</label>
+              <input type="text" id="subscribe-rss-input" placeholder="https://example.org/events/feed.xml" />
+              <p class="hint">
+                Your own RSS file, if you publish one. It replaces the generated RSS group (Feedly,
+                <code>feed://</code>, RSS download).
+              </p>
+            </div>
+
           </div>
         </details>
 

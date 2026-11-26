@@ -543,6 +543,38 @@ strings.
 The operational half lives in `workers/convert/README.md`: default-on turns
 that Worker's caps into something real calendar clients poll on a schedule.
 
+## The playground has one feed field, above the tabs, shared by both widgets
+
+`<ote-events feed>` and `<ote-subscribe feed-json>` name the same document,
+and since the converter derives ICS and RSS from it, that document is the
+only file a publisher has to have. The playground used to ask for the URL
+four times — `feed`, `feed-ics`, `feed-rss`, `feed-json`, in two tabs — which
+taught the opposite of what OTE says: that you need three files. It also
+meant the subscribe tab shipped `feed-ics`/`feed-rss` pre-filled, so the
+conversion fallback never fired in the page that exists to demonstrate it.
+
+`#source-feed-input` is now the single input. `playground.ts` aliases
+`subscribeJsonInput` to it, the per-widget panels carry a pointer rather
+than a field, and `feed-ics`/`feed-rss` live in a closed "Do you host your
+own ICS or RSS?" group — they are exceptions now, not inputs. The snippets
+still emit per-widget attributes: sharing the input must not blur that
+`feed` and `feed-json` are different attributes.
+
+Two things that are load-bearing:
+
+- **`?feed=` round-trips, and the value is also kept in `localStorage`.**
+  Same parameter `apps/preview` and `apps/validator` use, so a URL moves
+  between the tools unchanged, and a configured playground is a link you can
+  send someone with their own feed already loaded. Both reads are wrapped in
+  `try`/`catch`: `localStorage` throws outright in a third-party iframe or
+  with cookies blocked, and a playground has to work there.
+- **The status line reports a real fetch, not the URL's shape.** A feed that
+  404s, is not JSON, or is served without CORS looks identical to a healthy
+  one in an address bar, and all three render an empty widget — which reads
+  as "this widget is broken". The widget's own empty state cannot tell them
+  apart; that line can, and it names CORS explicitly because a browser
+  cannot distinguish it from a dead host.
+
 ## Testing the custom element needs jsdom, not the default Node environment
 
 `element.test.ts` uses a `// @vitest-environment jsdom` pragma (kept

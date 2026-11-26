@@ -19,7 +19,15 @@ declare const __EMBED_VERSION__: string;
 const EMBED_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_VERSION__}/ote-events.js`;
 const SUBSCRIBE_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_VERSION__}/ote-subscribe.js`;
 
-const feedInput = document.querySelector<HTMLInputElement>("#feed-input")!;
+/**
+ * One input for both widgets. `<ote-events feed>` and `<ote-subscribe
+ * feed-json>` name the same document — and since the converter derives ICS
+ * and RSS from it (#186), it is the only URL a publisher has to have. Asking
+ * for it once per widget taught the opposite.
+ */
+const feedInput = document.querySelector<HTMLInputElement>("#source-feed-input")!;
+const sourceStatus = document.querySelector<HTMLElement>("#source-status")!;
+const sourceResetButton = document.querySelector<HTMLButtonElement>("#source-reset-button")!;
 const feedDataInput = document.querySelector<HTMLTextAreaElement>("#feed-data-input")!;
 const feedSourceField = document.querySelector<HTMLElement>("#feed-source-field")!;
 const jsonSourceField = document.querySelector<HTMLElement>("#json-source-field")!;
@@ -73,7 +81,7 @@ const dataError = document.querySelector<HTMLElement>("#data-error")!;
 
 const subscribeIcsInput = document.querySelector<HTMLInputElement>("#subscribe-ics-input")!;
 const subscribeRssInput = document.querySelector<HTMLInputElement>("#subscribe-rss-input")!;
-const subscribeJsonInput = document.querySelector<HTMLInputElement>("#subscribe-json-input")!;
+const subscribeJsonInput = feedInput;
 const subscribeNameInput = document.querySelector<HTMLInputElement>("#subscribe-name-input")!;
 const subscribeShowCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".subscribe-show-checkbox"),
@@ -329,7 +337,11 @@ function setSubscribeSnippet(text: string): void {
 function applySubscribeAndRender(): void {
   const icsUrl = subscribeIcsInput.value.trim();
   const rssUrl = subscribeRssInput.value.trim();
-  const jsonUrl = subscribeJsonInput.value.trim();
+  // The shared field accepts several comma-separated feeds, which only the
+  // events widget can combine. <ote-subscribe> links to one document, so it
+  // takes the first — rather than emitting a comma-separated string as a
+  // URL, which is what reading the raw field would do.
+  const jsonUrl = parseFeedsAttr(subscribeJsonInput.value.trim())[0] ?? "";
   const name = subscribeNameInput.value.trim();
   const show = currentShow();
   const showAttr = show.length === 0 ? "none" : isAllShowTokens(show) ? undefined : show.join(",");
@@ -768,6 +780,132 @@ siteTabsContainer.addEventListener("keydown", (event) => {
   if (nextButton.dataset.tab) setActiveTab(nextButton.dataset.tab);
   nextButton.focus();
 });
+
+/**
+ * The feed lives in the page's own address, so a configured playground is a
+ * link: `?feed=https://saraoia.com/eventos-ote.json` opens both widgets
+ * pointed at that feed. Same parameter name `apps/preview` and
+ * `apps/validator` already use, so a URL moves between the tools unchanged.
+ */
+const EXAMPLE_FEED = "https://communitybuilders.dev/events/feed.json";
+const FEED_STORAGE_KEY = "ote-embed-playground-feed";
+
+function storedFeed(): string | null {
+  try {
+    return localStorage.getItem(FEED_STORAGE_KEY);
+  } catch {
+    // Storage can throw outright in a third-party iframe or with cookies
+    // blocked. A playground must still work there.
+    return null;
+  }
+}
+
+function rememberFeed(value: string): void {
+  const url = new URL(window.location.href);
+  if (value && value !== EXAMPLE_FEED) url.searchParams.set("feed", value);
+  else url.searchParams.delete("feed");
+  window.history.replaceState(null, "", url);
+  try {
+    if (value && value !== EXAMPLE_FEED) localStorage.setItem(FEED_STORAGE_KEY, value);
+    else localStorage.removeItem(FEED_STORAGE_KEY);
+  } catch {
+    // See storedFeed().
+  }
+}
+
+/**
+ * What the status line says, and why it says it from a real fetch rather
+ * than from the URL's shape. A feed that 404s, is not JSON, or is served
+ * without CORS looks identical to a healthy one in an address bar, and all
+ * three render an empty widget — which reads as "the widget is broken"
+ * rather than "the feed could not be read". The widget's own empty state
+ * cannot tell them apart either; this line can.
+ */
+async function describeFeed(value: string, token: number): Promise<void> {
+  const urls = parseFeedsAttr(value);
+  if (urls.length === 0) {
+    setStatus(token, "Paste the URL of your OTE feed.json to point both widgets at it.", "");
+    return;
+  }
+  setStatus(token, urls.length > 1 ? `Checking ${urls.length} feeds…` : "Checking the feed…", "");
+
+  const results = await Promise.all(urls.map(async (url) => readFeed(url)));
+  const failed = results.filter((result) => result.error);
+  if (failed.length > 0) {
+    setStatus(token, failed.map((result) => result.error).join(" · "), "warn");
+    return;
+  }
+  const events = results.reduce((total, result) => total + result.events, 0);
+  const versions = [...new Set(results.map((result) => result.specVersion).filter(Boolean))];
+  const parts = [
+    `${events} event${events === 1 ? "" : "s"}`,
+    versions.length > 0 ? `spec ${versions.join(", ")}` : null,
+    "calendar and RSS generated from it",
+  ].filter(Boolean);
+  setStatus(token, `✓ ${parts.join(" · ")}`, "ok");
+}
+
+async function readFeed(url: string): Promise<{ events: number; specVersion: string; error?: string }> {
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { accept: "application/json" } });
+  } catch {
+    // A CORS rejection and a dead host are indistinguishable from here by
+    // design, so the message names both rather than guessing.
+    return { events: 0, specVersion: "", error: `${hostOf(url)} could not be fetched — it may be offline, or served without CORS, which the widget needs.` };
+  }
+  if (!response.ok) return { events: 0, specVersion: "", error: `${hostOf(url)} answered ${response.status}.` };
+  try {
+    const document = (await response.json()) as { specVersion?: unknown; events?: unknown };
+    if (!Array.isArray(document.events)) {
+      return { events: 0, specVersion: "", error: `${hostOf(url)} is JSON, but has no "events" array — is it an OTE feed?` };
+    }
+    return { events: document.events.length, specVersion: typeof document.specVersion === "string" ? document.specVersion : "" };
+  } catch {
+    return { events: 0, specVersion: "", error: `${hostOf(url)} did not return JSON.` };
+  }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * `token` is the guard against a slow feed overwriting a fast one: typing
+ * starts a request per keystroke-ish, and only the newest may report.
+ */
+let statusToken = 0;
+function setStatus(token: number, text: string, kind: "ok" | "warn" | ""): void {
+  if (token !== statusToken) return;
+  sourceStatus.textContent = text;
+  sourceStatus.dataset.kind = kind;
+}
+
+let describeTimer: ReturnType<typeof setTimeout> | undefined;
+function onFeedChanged(): void {
+  const value = feedInput.value.trim();
+  rememberFeed(value);
+  const token = ++statusToken;
+  clearTimeout(describeTimer);
+  describeTimer = setTimeout(() => void describeFeed(value, token), 400);
+}
+
+feedInput.addEventListener("input", onFeedChanged);
+feedInput.addEventListener("change", onFeedChanged);
+sourceResetButton.addEventListener("click", () => {
+  feedInput.value = EXAMPLE_FEED;
+  onFeedChanged();
+  applyAndRender();
+  applySubscribeAndRender();
+  feedInput.focus();
+});
+
+feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim() || storedFeed() || EXAMPLE_FEED;
+onFeedChanged();
 
 applyAndRender();
 applySubscribeAndRender();
