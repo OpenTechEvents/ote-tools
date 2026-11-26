@@ -73,7 +73,9 @@ describe("the max-height stylesheet", () => {
     expect(WIDGET_CSS).toContain('.calendar-host[data-density="compact"]');
     expect(WIDGET_CSS).toContain('[data-density="compact"] .ec-event');
     expect(WIDGET_CSS).toContain('[data-density="compact"] .ec-day-foot');
-    expect(WIDGET_CSS).toContain('.calendar-host[data-density="compact"]');
+    // The weekday header was the one box compact never shrank: it stayed at
+    // 31px in both densities, on a layout that is short of room by definition.
+    expect(WIDGET_CSS).toContain('[data-density="compact"] .ec-col-head');
   });
 
   it("sizes month weeks from a track list rather than one shared row height", () => {

@@ -113,15 +113,35 @@ export function weekRowTracks(
   rangeEnd: Date,
   maxPerDay: number,
   compact: boolean,
+  fillsHeight = false,
 ): string {
   const { head, row, foot } = compact ? CALENDAR_DENSITY.compact : CALENDAR_DENSITY.comfortable;
   const perDay = eventsPerDay(events);
   const tracks: string[] = [];
   for (const week of weeksIn(rangeStart, rangeEnd)) {
     const busiest = Math.max(0, ...week.map((day) => perDay.get(day) ?? 0));
-    if (busiest === 0) tracks.push(`${head}em`);
-    else if (busiest <= maxPerDay) tracks.push(`calc(${head}em + ${busiest} * ${row}em)`);
-    else tracks.push(`calc(${head}em + ${maxPerDay} * ${row}em + ${foot}em)`);
+    // An empty week never grows: spare room is worth more to a week that
+    // has something to show in it, and a 96px row holding one date number
+    // is the waste this whole mechanism exists to remove.
+    if (busiest === 0) {
+      tracks.push(`${head}em`);
+      continue;
+    }
+    const content =
+      busiest <= maxPerDay
+        ? `calc(${head}em + ${busiest} * ${row}em)`
+        : `calc(${head}em + ${maxPerDay} * ${row}em + ${foot}em)`;
+    // `1fr` only where there is room to share. Against an auto height it
+    // resolves against the tallest week's content instead and blows the
+    // month up — measured at 4867px for one that should be 529px.
+    //
+    // The floor is the date row, not the content: a week that cannot have
+    // the height it wants should give its cells up to the "+N more" link
+    // rather than make the month scroll, which is what Google Calendar's
+    // month view does in a short container. Measured on a 158-event feed in
+    // 400px: a content floor kept 144px rows and scrolled, showing 7 chips;
+    // the date-row floor fits 80px rows with no scrollbar and shows 16.
+    tracks.push(fillsHeight ? `minmax(${head}em, 1fr)` : content);
   }
   // `max-content` is the library's own first track, the weekday header.
   return `max-content ${tracks.join(" ")}`;
@@ -372,6 +392,12 @@ export interface RenderCalendarOptions {
   bounded: boolean;
   /** Resolved `density`: `true` uses the compact cell metrics (#170). */
   compact: boolean;
+  /**
+   * Whether the host gave the element a definite height, so the weeks may
+   * grow into whatever it leaves over. A `max-height` does not count: it is
+   * a ceiling, so a short month stays short rather than stretching to it.
+   */
+  fillsHeight: boolean;
   /** `Date.now()` by default; a seam for tests, which must not depend on the real clock. */
   now?: Date;
 }
@@ -381,7 +407,7 @@ export function renderCalendar(
   events: PreviewEvent[],
   options: RenderCalendarOptions,
 ): CalendarHandle {
-  const { lang, maxPerDay, responsive, bounded, compact } = options;
+  const { lang, maxPerDay, responsive, bounded, compact, fillsHeight } = options;
   const now = options.now ?? new Date();
   const strings = CALENDAR_STRINGS[lang];
   const date = resolveCalendarDate(events, options.initialDate, now);
@@ -434,7 +460,7 @@ export function renderCalendar(
     container.setAttribute("data-week-rows", "");
     container.style.setProperty(
       "--ote-calendar-week-rows",
-      weekRowTracks(events, rangeStart, rangeEnd, maxPerDay, compact),
+      weekRowTracks(events, rangeStart, rangeEnd, maxPerDay, compact, fillsHeight),
     );
   };
 

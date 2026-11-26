@@ -203,6 +203,40 @@ describe("weekRowTracks", () => {
     for (const track of raised) expect(track).toBe("calc(2.4em + 1 * 1.6em)");
   });
 
+  it("lets weeks with events grow into a definite height, and never the empty ones", () => {
+    // Spare room is worth more to a week that has something to show. An
+    // empty week growing to share it is the waste this whole mechanism
+    // exists to remove, so it stays at its date row either way.
+    const tracks = weeks([ev("a", "2026-11-26T09:00")], start, end, 3, false, true);
+    expect(tracks).toContain("minmax(2.4em, 1fr)");
+    expect(tracks.filter((t) => t === "2.4em").length).toBe(tracks.length - 1);
+  });
+
+  it("floors a growing week at the date row, so a short month degrades instead of scrolling", () => {
+    // What Google Calendar's month view does in a short container: the
+    // cells give themselves up to the "+N more" link rather than make the
+    // month scroll. Flooring at the content height instead kept 144px rows
+    // and scrolled, showing 7 chips where this shows 16.
+    const events = Array.from({ length: 9 }, (_, i) => ev(`e${i}`, "2026-11-26T09:00"));
+    const tracks = weeks(events, start, end, 3, false, true);
+    const growing = tracks.filter((t) => t.includes("fr"));
+    expect(growing.length).toBe(1);
+    expect(growing[0]).toBe("minmax(2.4em, 1fr)");
+    // Not the content height: that is the floor that scrolls.
+    expect(growing[0]).not.toContain("1.6em");
+  });
+
+  it("uses no fr track when the height is not definite", () => {
+    // The trap apps/embed/CLAUDE.md warns about: against an auto height an
+    // fr track resolves against the tallest week's content rather than
+    // against spare room, so every week becomes as tall as the busiest one.
+    // Measured at 4867px for a month that should be 529px, which is why
+    // this is asserted rather than left to the caller to remember.
+    const events = Array.from({ length: 9 }, (_, i) => ev(`e${i}`, "2026-11-26T09:00"));
+    const tracks = weeks(events, start, end, 3, false, false);
+    for (const track of tracks) expect(track).not.toContain("fr");
+  });
+
   it("follows the density, because the cell metrics are what it measures", () => {
     const events = [ev("a", "2026-11-26T09:00")];
     expect(weeks(events, start, end, 3, true)).toContain("calc(1.25em + 1 * 1.2em)");

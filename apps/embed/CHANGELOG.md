@@ -4,6 +4,45 @@
 
 ### Added
 
+- **`density="auto"` now follows a definite CSS height too, not only the
+  `max-height` attribute.** They are the same statement made two ways — the
+  host deciding the widget's height — and keying off only the attribute left
+  a full-viewport calendar on the comfortable metrics, spending 31px of
+  weekday header and 38px of date row on a layout that was short of room by
+  definition. The compact metrics also shrink the weekday header now, which
+  they had not been doing at all: it stayed at 31px in both densities.
+
+- **A calendar given a definite height fills it, and shows more per day for
+  the room.** Weeks that have events grow into whatever the height leaves
+  over, so a full-viewport calendar has no dead band at the bottom and its
+  day cells show as many events as actually fit — on a 158-event feed in a
+  757px viewport, `+27 more` becomes `+22 more` because the cells grew.
+  Empty weeks never grow: spare room is worth more to a week with something
+  in it, and a tall row holding one date number is the waste this mechanism
+  exists to remove.
+
+  Growth is only offered where there is room to share. Against an
+  auto-height host the same track resolves against the tallest week's
+  content instead, which took a month that should be 529px to **4867px** —
+  the trap `apps/embed/CLAUDE.md` documents. Since CSS cannot be asked
+  whether a height is definite, and `getComputedStyle` answers with the used
+  value either way, the element probes it: it collapses its root and sees
+  whether the host still has a height of its own, synchronously, with the
+  inline style restored before anything can paint.
+
+  `max-height` deliberately does **not** count as definite. It is a ceiling,
+  so a month shorter than the budget stays short rather than stretching to
+  fill it.
+
+  A week that cannot have the height it wants gives its cells up to the
+  `+N more` link rather than making the month scroll, which is what Google
+  Calendar's month view does in a short container. Measured on a 158-event
+  feed in 400px: flooring at the content height kept 144px rows and
+  scrolled, showing 7 events; flooring at the date row fits 80px rows with
+  no scrollbar and shows 16. Together with the two changes above, the same
+  feed in a 757px viewport goes from 21 events visible to **73**, and its
+  busiest day from `+27 more` to `+17 more`.
+
 - **The widget fits the height it is given, however the host gives it.** A
   CSS height on the element — `ote-events { height: 400px }`, or a flex or
   grid parent handing it a track — now sizes the contents, not just the box.

@@ -379,11 +379,40 @@ export class OteEventsElement extends HTMLElement {
     if (state.layout === "calendar" && state.status === "loaded") {
       const events = selectVisibleEvents(state);
       if (events.length > 0) {
-        void this.#mountCalendar(events, state.lang, maxHeight !== undefined);
+        void this.#mountCalendar(events, state.lang, maxHeight !== undefined, this.#hasDefiniteHeight());
         return;
       }
     }
     this.#teardownCalendar();
+  }
+
+  /**
+   * Whether the host has given this element a **definite** height — a CSS
+   * `height`, or a flex/grid parent handing it a track — rather than
+   * letting it size to its content.
+   *
+   * It cannot be asked of CSS and it cannot be read off `getComputedStyle`,
+   * which reports the used value and so answers with the content height in
+   * both cases. So it is probed: collapse the root and see whether the host
+   * still has a height of its own. Synchronous, with the inline style put
+   * back before anything can paint.
+   *
+   * It decides whether a month's weeks may *grow* into spare room. Only a
+   * definite height has spare room to share; against an auto height the
+   * same `1fr` track resolves against the tallest week's content and blows
+   * the calendar up — measured at 4867px for a month that should be 529px,
+   * which is the trap apps/embed/CLAUDE.md warns about.
+   *
+   * `max-height` deliberately reads as *not* definite: it is a ceiling, not
+   * a height, so a month shorter than the budget must stay short rather
+   * than stretch to fill it.
+   */
+  #hasDefiniteHeight(): boolean {
+    const previous = this.#container.style.height;
+    this.#container.style.height = "0px";
+    const height = this.clientHeight;
+    this.#container.style.height = previous;
+    return height > 1;
   }
 
   /**
@@ -396,6 +425,7 @@ export class OteEventsElement extends HTMLElement {
     events: ReturnType<typeof selectVisibleEvents>,
     lang: WidgetState["lang"],
     bounded: boolean,
+    fillsHeight: boolean,
   ): Promise<void> {
     this.#teardownCalendar();
     const requestId = ++this.#calendarRequestId;
@@ -421,7 +451,8 @@ export class OteEventsElement extends HTMLElement {
       this.#calendarHandle = module.renderCalendar(host, events, {
         lang,
         bounded,
-        compact: resolveCompact(parseDensity(this.getAttribute("density")), bounded),
+        fillsHeight,
+        compact: resolveCompact(parseDensity(this.getAttribute("density")), bounded || fillsHeight),
         ...parseCalendarAttributes((name) => this.getAttribute(name), this.#calendarDate),
         onEventClick: (event) => {
           const eventClick = parseEventClick(this.getAttribute("event-click"));

@@ -893,6 +893,11 @@ a.price:focus-visible {
   line-height: 1.35;
 }
 
+.calendar-host[data-density="compact"] .ec-col-head {
+  padding: 0.15rem 0.2rem;
+  font-size: 0.72em;
+}
+
 .calendar-host[data-density="compact"] .ec-day-foot {
   padding: 0 0.25rem 0.1rem;
   font-size: 0.72em;

@@ -278,9 +278,17 @@ export function parseDensity(value: string | null): Density {
   return "auto";
 }
 
-/** Whether `density` resolves to the compact metrics for this render. */
-export function resolveCompact(density: Density, bounded: boolean): boolean {
-  return density === "compact" || (density === "auto" && bounded);
+/**
+ * Whether `density` resolves to the compact metrics for this render.
+ *
+ * `constrained` is "the host decided this widget's height" — a `max-height`
+ * attribute or a definite CSS height, which are the same statement made two
+ * ways. Keying `auto` off only the attribute left a full-viewport calendar
+ * on the comfortable metrics, spending 31px of weekday header and 38px of
+ * date row on a layout that was short of room by definition.
+ */
+export function resolveCompact(density: Density, constrained: boolean): boolean {
+  return density === "compact" || (density === "auto" && constrained);
 }
 
 export const DEFAULT_MAX_PER_DAY = 3;

@@ -109,6 +109,7 @@ const render = (events: PreviewEvent[], lang: "en" | "es" = "en", overrides: Ren
     responsive: true,
     bounded: false,
     compact: false,
+    fillsHeight: false,
     ...overrides,
   });
   return onEventClick;
