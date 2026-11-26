@@ -253,6 +253,36 @@ export function parseMaxHeight(value: string | null): string | undefined {
   return undefined;
 }
 
+export type Density = "auto" | "comfortable" | "compact";
+
+/**
+ * `density` — how much room a `layout="calendar"` cell gives each event.
+ * `"comfortable"` is the look every embed had before this attribute;
+ * `"compact"` roughly halves the day header and the event chip, which is
+ * what lets a month fit a height budget with its events still readable.
+ *
+ * `"auto"` (the default) resolves to `compact` exactly when the host set a
+ * `max-height`, and to `comfortable` otherwise — the same shape as
+ * `theme="auto"`. The reasoning is that a budget is the host saying height
+ * is scarce: at the comfortable metrics a day needs ~68px to show one event,
+ * so a 400px budget over a six-week month had nothing but `+N more` links.
+ * Google Calendar's embed fits the same month because its equivalent is
+ * ~36px, not because it sizes rows differently — measured, see
+ * `CALENDAR_DENSITY` in `calendar-layout.ts`.
+ *
+ * An unrecognized value falls through to `"auto"`, matching `theme`.
+ */
+export function parseDensity(value: string | null): Density {
+  const trimmed = value?.trim().toLowerCase();
+  if (trimmed === "compact" || trimmed === "comfortable") return trimmed;
+  return "auto";
+}
+
+/** Whether `density` resolves to the compact metrics for this render. */
+export function resolveCompact(density: Density, bounded: boolean): boolean {
+  return density === "compact" || (density === "auto" && bounded);
+}
+
 export const DEFAULT_MAX_PER_DAY = 3;
 
 /**

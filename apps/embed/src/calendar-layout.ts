@@ -65,8 +65,9 @@ export function calendarViewForWidth(width: number, responsive: boolean): Calend
  * tallest row's content — so one 15-event day would make *every* week 15
  * events tall and still hide nothing.
  */
-export function dayRowHeight(maxPerDay: number): string {
-  return `calc(${DAY_HEAD_EM}em + ${maxPerDay} * ${EVENT_ROW_EM}em + ${DAY_FOOT_EM}em)`;
+export function dayRowHeight(maxPerDay: number, compact = false): string {
+  const { head, row, foot } = compact ? CALENDAR_DENSITY.compact : CALENDAR_DENSITY.comfortable;
+  return `calc(${head}em + ${maxPerDay} * ${row}em + ${foot}em)`;
 }
 
 /**
@@ -88,17 +89,41 @@ export function dayRowHeight(maxPerDay: number): string {
  * So a bounded day shows as many events as fit rather than exactly
  * `max-per-day` — see renderCalendar().
  */
-export function boundedRowHeight(): string {
-  return `minmax(${dayRowHeight(1)}, 1fr)`;
+export function boundedRowHeight(compact = false): string {
+  return `minmax(${dayRowHeight(1, compact)}, 1fr)`;
 }
 
-// Measured in Chrome at the widget's 17px base: .ec-day-head 38.4px (2.4em),
-// an .ec-event chip plus its 1px gap 25.4px (1.6em), and .ec-day-foot 28.2px
-// (1.8em) once it holds a "+N more" link. Re-measure these if the calendar
-// stylesheet changes — apps/embed/CLAUDE.md says how.
-const DAY_HEAD_EM = 2.4;
-const EVENT_ROW_EM = 1.6;
-const DAY_FOOT_EM = 1.8;
+/**
+ * The box heights a day cell spends, per density, in `em` at the widget's
+ * base size. **Measured in Chrome, not reasoned about** — they have to agree
+ * with what `theme.css.ts` actually renders, or `max-per-day` caps a day at
+ * the wrong number. Re-measure both together; apps/embed/CLAUDE.md says how.
+ *
+ * `comfortable` is the original look: `.ec-day-head` 38.4px, an `.ec-event`
+ * chip plus its 1px gap 25.4px, `.ec-day-foot` 28.2px once it holds a
+ * "+N more" link.
+ *
+ * `compact` is the same three boxes under the `[data-density="compact"]`
+ * rules, measured the same way: `.ec-day-head` 19.8px, `.ec-event` 18.2px,
+ * `.ec-day-foot` 14.6px at a 16px base, each rounded up slightly so the
+ * reservation is never short of what the cell renders.
+ *
+ * It exists because one event cost ~5.8em of cell at the comfortable
+ * metrics, so a month could not fit a small height budget without falling
+ * back to "+N more" everywhere — Google Calendar's embed does the same job
+ * in ~36px (20px date box, 16px chip, measured on its public embed).
+ * Compact brings the one-event floor to 3.5em, which is what lets a bounded
+ * month fit with its events still readable.
+ *
+ * These are a *reservation*: the library decides the final count by
+ * measuring the cell at runtime, so an unusual font can still land on one
+ * event either side — the same caveat `max-per-day` already carries. What
+ * must hold is that the reservation is not smaller than the boxes above.
+ */
+export const CALENDAR_DENSITY = {
+  comfortable: { head: 2.4, row: 1.6, foot: 1.8 },
+  compact: { head: 1.25, row: 1.2, foot: 0.95 },
+} as const;
 
 /** The date portion of an OTE start/end value, which is already ISO-ordered — `"2026-08-12T19:00"` and `"2026-08-12"` both give `"2026-08-12"`. */
 function datePart(value: string): string {
@@ -265,6 +290,8 @@ export interface RenderCalendarOptions {
    * pins itself once there is a scrollport for it to pin to.
    */
   bounded: boolean;
+  /** Resolved `density`: `true` uses the compact cell metrics (#170). */
+  compact: boolean;
   /** `Date.now()` by default; a seam for tests, which must not depend on the real clock. */
   now?: Date;
 }
@@ -274,7 +301,7 @@ export function renderCalendar(
   events: PreviewEvent[],
   options: RenderCalendarOptions,
 ): CalendarHandle {
-  const { lang, maxPerDay, responsive, bounded } = options;
+  const { lang, maxPerDay, responsive, bounded, compact } = options;
   const now = options.now ?? new Date();
   const strings = CALENDAR_STRINGS[lang];
   const date = resolveCalendarDate(events, options.initialDate, now);
@@ -297,6 +324,11 @@ export function renderCalendar(
   // and becomes "as many as fit" — the host asked for a height first. With
   // `max-per-day="off"` there is no uniform sizing to fall back on, so that
   // combination keeps its natural row heights and scrolls instead.
+  // The marker drives the compact rules in theme.css.ts; the constants below
+  // have to match them, which is why both are set from the same flag.
+  if (compact) container.setAttribute("data-density", "compact");
+  else container.removeAttribute("data-density");
+
   if (maxPerDay === "off") {
     container.removeAttribute("data-day-rows");
     container.style.removeProperty("--ote-calendar-row-height");
@@ -304,7 +336,7 @@ export function renderCalendar(
     container.setAttribute("data-day-rows", String(maxPerDay));
     container.style.setProperty(
       "--ote-calendar-row-height",
-      bounded ? boundedRowHeight() : dayRowHeight(maxPerDay),
+      bounded ? boundedRowHeight(compact) : dayRowHeight(maxPerDay, compact),
     );
   }
 

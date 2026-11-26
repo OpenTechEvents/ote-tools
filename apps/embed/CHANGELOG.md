@@ -4,6 +4,31 @@
 
 ### Added
 
+- **`density` controls how much room a `layout="calendar"` cell gives each
+  event** (#170). `auto` (the default), `comfortable` or `compact`.
+
+  Comfortably a day needs about `5.8em` of cell to show one event; compact
+  brings that to `3.4em` by roughly halving the day header and the event
+  chip. The numbers are measured in Chrome and live in `CALENDAR_DENSITY`
+  beside the CSS that produces them, because `max-per-day`'s row maths has
+  to agree with what the cell actually renders.
+
+  `auto` resolves to compact exactly when the host set a `max-height`, and
+  to comfortable otherwise — the same shape as `theme="auto"`. **An embed
+  with no height budget is unchanged**, so this is additive rather than a
+  default moving again.
+
+  The reason it is tied to the budget: at the comfortable metrics a six-week
+  month in a 400px budget left 52px per week, which holds a date and nothing
+  else, so every day rendered as a `+N more` link and the calendar showed no
+  events at all. Google Calendar's embed fits the same month because its
+  equivalent cell is ~36px (20px date box, 16px chip, measured on its public
+  embed), not because it sizes its rows differently — it uses uniform week
+  rows too. On a real 25-event feed at `max-height="400px"` this takes the
+  month from 588px of content scrolling 244px, with two events visible, to
+  367px scrolling 23px with four. Unbounded, `density="compact"` renders the
+  same 27 events in 559px instead of 807px.
+
 - **`max-height` gives the host a vertical budget for the widget** (#168).
   A length in `px`/`rem`/`em`/`ch`/`vh`/`dvh`/`svh`/`vmin`/`vmax` (a bare
   number is read as pixels), and it applies to all three layouts. Anything

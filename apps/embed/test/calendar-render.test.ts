@@ -17,7 +17,7 @@
 // browser, and #162 tracks it.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { boundedRowHeight, dayRowHeight, renderCalendar, type CalendarHandle } from "../src/calendar-layout.js";
+import { CALENDAR_DENSITY, boundedRowHeight, dayRowHeight, renderCalendar, type CalendarHandle } from "../src/calendar-layout.js";
 import type { PreviewEvent } from "@opentechevents/preview-feed";
 
 const timed: PreviewEvent = {
@@ -108,6 +108,7 @@ const render = (events: PreviewEvent[], lang: "en" | "es" = "en", overrides: Ren
     initialDate: { kind: "next-event" },
     responsive: true,
     bounded: false,
+    compact: false,
     ...overrides,
   });
   return onEventClick;
@@ -252,6 +253,42 @@ describe("the calendar the widget mounts", () => {
     render([timed], "en", { maxPerDay: 4, bounded: false });
     expect(container.getAttribute("data-day-rows")).toBe("4");
     expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(dayRowHeight(4));
+  });
+
+  it("marks the container compact and reserves the compact metrics", () => {
+    // The marker drives the rules in theme.css.ts and the constants drive the
+    // row maths; both come from the same flag because a reservation that
+    // disagrees with what the cell renders caps a day at the wrong number.
+    render([timed], "en", { maxPerDay: 3, compact: true });
+    expect(container.getAttribute("data-density")).toBe("compact");
+    expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(dayRowHeight(3, true));
+    handle!.destroy();
+    container.innerHTML = "";
+    render([timed], "en", { maxPerDay: 3, compact: false });
+    expect(container.hasAttribute("data-density")).toBe(false);
+    expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(dayRowHeight(3, false));
+  });
+
+  it("gives a compact day a smaller floor, which is the point of it", () => {
+    // Measured in Chrome: 5.8em of cell to show one event comfortably
+    // against 3.4em compact, which is what takes a sparse month in a 400px
+    // budget from 588px of content down to 367px.
+    expect(boundedRowHeight(true)).toBe(`minmax(${dayRowHeight(1, true)}, 1fr)`);
+    expect(boundedRowHeight(true)).not.toBe(boundedRowHeight(false));
+    const compactFloor = CALENDAR_DENSITY.compact.head + CALENDAR_DENSITY.compact.row + CALENDAR_DENSITY.compact.foot;
+    const comfyFloor =
+      CALENDAR_DENSITY.comfortable.head + CALENDAR_DENSITY.comfortable.row + CALENDAR_DENSITY.comfortable.foot;
+    expect(compactFloor).toBeLessThan(comfyFloor);
+  });
+
+  it("never reserves less than the boxes the stylesheet renders", () => {
+    // The constants are measured box heights (apps/embed/CLAUDE.md says how
+    // to re-measure). Reserving less than the cell actually draws is the one
+    // way these can be wrong without any test noticing, so the measured
+    // floor is asserted rather than left as a comment.
+    expect(CALENDAR_DENSITY.compact.head).toBeGreaterThanOrEqual(1.238);
+    expect(CALENDAR_DENSITY.compact.row).toBeGreaterThanOrEqual(1.139);
+    expect(CALENDAR_DENSITY.compact.foot).toBeGreaterThanOrEqual(0.912);
   });
 
   it("degrades to the list view in a narrow container, and not when responsive is off", async () => {

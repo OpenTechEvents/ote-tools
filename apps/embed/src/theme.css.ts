@@ -853,6 +853,34 @@ a.price:focus-visible {
   --ec-row-height: var(--ote-calendar-row-height);
 }
 
+/*
+ * density="compact" (#170). The comfortable metrics give a day cell a 41px
+ * header and a 27px chip, so showing one event costs ~68px; Google
+ * Calendar's embed does the same job in ~36px (measured: 20px date box,
+ * 16px chip), which is why its month fits a small container with its events
+ * still readable while ours fell back to "+N more" links.
+ *
+ * These three rules are the whole difference, and the numbers they produce
+ * are measured in Chrome rather than reasoned about - CALENDAR_DENSITY in
+ * calendar-layout.ts carries them, because the max-per-day row maths has to
+ * agree with what the cell actually renders. Re-measure both together.
+ */
+.calendar-host[data-density="compact"] .ec-day-grid.ec-month-view .ec-day-head {
+  padding: 0.12rem 0.25rem;
+  font-size: 0.82em;
+}
+
+.calendar-host[data-density="compact"] .ec-event {
+  padding: 0 2px;
+  font-size: 0.76em;
+  line-height: 1.35;
+}
+
+.calendar-host[data-density="compact"] .ec-day-foot {
+  padding: 0 0.25rem 0.1rem;
+  font-size: 0.72em;
+}
+
 /* Four controls plus a month title do not fit a phone-width toolbar on one line. */
 .calendar-host .ec-toolbar {
   flex-wrap: wrap;

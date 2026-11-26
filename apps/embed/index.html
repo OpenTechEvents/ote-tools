@@ -194,6 +194,22 @@
                 a busy day did before this attribute existed.
               </p>
 
+              <label for="density-select">density</label>
+              <select id="density-select">
+                <option value="auto" selected>auto (default)</option>
+                <option value="comfortable">comfortable</option>
+                <option value="compact">compact</option>
+              </select>
+              <p class="hint">
+                How much room a day cell gives each event.
+                <code>auto</code> uses the compact metrics when
+                <code>max-height</code> is set and the comfortable ones
+                otherwise — a budget means height is scarce, and comfortably
+                a single event costs about <code>5.8em</code> of cell against
+                <code>3.4em</code> compact. Set it explicitly to override
+                either way.
+              </p>
+
               <label for="initial-date-select">initial-date</label>
               <select id="initial-date-select">
                 <option value="next-event" selected>next-event (default)</option>

@@ -61,6 +61,14 @@ describe("the max-height stylesheet", () => {
     expect(WIDGET_CSS).toContain(".event-list-header {\n  position: sticky;");
   });
 
+  it("carries compact cell metrics behind the density marker", () => {
+    // These three rules are the whole of density="compact" (#170), and the
+    // measured constants in calendar-layout.ts have to agree with them.
+    expect(WIDGET_CSS).toContain('.calendar-host[data-density="compact"]');
+    expect(WIDGET_CSS).toContain('[data-density="compact"] .ec-event');
+    expect(WIDGET_CSS).toContain('[data-density="compact"] .ec-day-foot');
+  });
+
   it("overrides the vendor stylesheet by specificity, never with !important", () => {
     // apps/embed/CLAUDE.md: the widget themes through --ote-* custom
     // properties and beats the library's own rules with one extra class,

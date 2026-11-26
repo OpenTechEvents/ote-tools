@@ -8,7 +8,9 @@ import type {
 
 import {
   parseCardWidth,
+  parseDensity,
   parseMaxHeight,
+  resolveCompact,
   parseDetailFields,
   parseCalendarAttributes,
   parseFields,
@@ -92,6 +94,7 @@ export class OteEventsElement extends HTMLElement {
     "initial-date",
     "responsive",
     "max-height",
+    "density",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -415,6 +418,7 @@ export class OteEventsElement extends HTMLElement {
       this.#calendarHandle = module.renderCalendar(host, events, {
         lang,
         bounded,
+        compact: resolveCompact(parseDensity(this.getAttribute("density")), bounded),
         ...parseCalendarAttributes((name) => this.getAttribute(name), this.#calendarDate),
         onEventClick: (event) => {
           const eventClick = parseEventClick(this.getAttribute("event-click"));

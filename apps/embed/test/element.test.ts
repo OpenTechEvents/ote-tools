@@ -2,6 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineOteEvents, type OteEventsElement } from "../src/element.js";
+
+const OteEventsElementClass = (() => {
+  defineOteEvents();
+  return customElements.get("ote-events") as unknown as { observedAttributes: string[] };
+})();
 import { renderWidget, type WidgetState } from "../src/render.js";
 
 defineOteEvents();
@@ -192,6 +197,17 @@ describe("<ote-events>", () => {
     await flush();
     expect(container.hasAttribute("data-bounded")).toBe(false);
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("");
+  });
+
+  it("density is observed, so a host can switch it without re-creating the widget", async () => {
+    // Calendar-only, like max-per-day/initial-date/responsive, but it has to
+    // be in observedAttributes or a host toggling it gets nothing.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+    expect(OteEventsElementClass.observedAttributes).toContain("density");
   });
 
   it("event-id renders only the event with that OTE id", async () => {
