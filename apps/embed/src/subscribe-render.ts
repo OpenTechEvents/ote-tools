@@ -32,8 +32,6 @@ const STRINGS = {
     oteReader: "Subscribe with OTE Reader",
     otePreview: "Preview in OTE Tools",
     jsonDownload: "Open/download JSON",
-    generatedTag: "generated",
-    generatedNote: "Generated from the OTE feed by the OTE converter.",
   },
   es: {
     subscribe: "Suscribirse",
@@ -53,8 +51,6 @@ const STRINGS = {
     oteReader: "Suscribirse con OTE Reader",
     otePreview: "Vista previa en OTE Tools",
     jsonDownload: "Abrir/descargar JSON",
-    generatedTag: "generado",
-    generatedNote: "Generado desde el feed OTE por el conversor de OTE.",
   },
 } as const;
 
@@ -70,7 +66,7 @@ interface RenderGroup {
   key: GroupKey;
   label: string;
   items: RenderItem[];
-  /** True when this group's URLs come from convert.opentechevents.org rather than from the publisher (#186). Drives the popover note and the trigger's `data-generated` marker. */
+  /** True when this group's URLs come from convert.opentechevents.org rather than from the publisher (#186). Surfaced only as the trigger's `data-generated` marker — see renderTrigger. */
   generated: boolean;
 }
 
@@ -171,42 +167,21 @@ function menuLink(item: RenderItem): HTMLAnchorElement {
 }
 
 /**
- * The "this came from the converter, not from the publisher" disclosure
- * (#186). Honest about the third party a visitor is about to subscribe to,
- * and it doubles as advertising for the escape hatch. Rendered once per
- * popover: in `layout="badges"` a popover holds one group, and in
- * `layout="menu"` the generated groups are marked in their own labels.
+ * The popover box: the `role="menu"` in its own positioned container.
  *
- * Plain text with no role, matching `.menu-group-label`: an interactive
- * element inside `role="menu"` that is not a `menuitem` would break the
- * menu's accessibility contract, so the converter is named rather than
- * linked.
- */
-function generatedNote(strings: (typeof STRINGS)[Lang]): HTMLElement {
-  return withText(el("div", "menu-note"), strings.generatedNote);
-}
-
-/**
- * The popover box: a `role="menu"` plus, when there is one, the generated
- * note **outside** it.
- *
- * The note cannot live inside the menu. `role="menu"` accepts only
+ * `.menu` deliberately holds only the links. The box is a separate element
+ * because `role="menu"` accepts just
  * `menuitem`/`menuitemcheckbox`/`menuitemradio`/`group`/`separator`
- * children, and assistive technology in menu mode routinely skips anything
- * else — so a disclosure placed in there is visible to sighted users and
- * silently dropped for everyone else, which is the opposite of disclosing
- * it. The trigger's accessible name carries it as well, for the same
- * reason: that is the only part a screen-reader user hears before deciding
- * to open the thing.
+ * children, so anything else the popover ever needs to carry has to live
+ * outside it rather than being skipped by assistive technology.
  */
-function buildPopover(menuId: string, group: RenderGroup, strings: (typeof STRINGS)[Lang]): HTMLElement {
+function buildPopover(menuId: string, group: RenderGroup): HTMLElement {
   const popover = el("div", "popover");
   const menu = el("div", "menu");
   menu.id = menuId;
   menu.setAttribute("role", "menu");
   menu.append(...group.items.map(menuLink));
   popover.append(menu);
-  if (group.generated) popover.append(generatedNote(strings));
   return popover;
 }
 
@@ -222,7 +197,20 @@ function renderTrigger(
     open: boolean;
     menuId: string;
     iconSvg?: string;
-    /** Marks a trigger whose URLs the conversion service generated, as a styling/test hook. Not an aria concern: the disclosure lives in the popover text. */
+    /**
+     * Marks a trigger whose URLs the conversion service generated, for a
+     * host that wants to style or detect it.
+     *
+     * Deliberately not surfaced to the visitor, and not in the accessible
+     * name. An earlier draft put "Generated from the OTE feed by the OTE
+     * converter." in the popover and in the trigger's `aria-label`, which
+     * aimed the disclosure at the wrong audience: who generated the ICS is
+     * the *publisher's* decision to make — they are the one who can set
+     * `convert="off"` — and the playground and `apps/embed/CLAUDE.md` tell
+     * them. A visitor came to add events to their calendar, the target
+     * domain is already visible in the link, and a two-line footnote in a
+     * three-item menu competes with the action they came for.
+     */
     generated?: boolean;
     buildMenuContent: () => HTMLElement;
     onClick: () => void;
@@ -266,10 +254,7 @@ export function renderSubscribe(container: HTMLElement, state: SubscribeState): 
   container.replaceChildren();
   const strings = STRINGS[state.lang];
   const groups = buildGroups(state, strings);
-  const baseAriaLabel = state.name ? strings.subscribeTo(state.name) : strings.subscribe;
-  const ariaLabel = groups.some((group) => group.generated)
-    ? `${baseAriaLabel} (${strings.generatedNote})`
-    : baseAriaLabel;
+  const ariaLabel = state.name ? strings.subscribeTo(state.name) : strings.subscribe;
 
   if (groups.length === 0) {
     renderTrigger(container, {
@@ -297,13 +282,13 @@ export function renderSubscribe(container: HTMLElement, state: SubscribeState): 
         groupKey: group.key,
         slotName: `${group.key}-trigger`,
         fallbackLabel: badgeLabel[group.key],
-        ariaLabel: group.generated ? `${group.label} (${strings.generatedTag})` : group.label,
+        ariaLabel: group.label,
         disabled: false,
         open: state.openGroup === group.key,
         menuId: `menu-${state.instanceId}-${group.key}`,
         iconSvg: ICONS[group.key],
         generated: group.generated,
-        buildMenuContent: () => buildPopover(`menu-${state.instanceId}-${group.key}`, group, strings),
+        buildMenuContent: () => buildPopover(`menu-${state.instanceId}-${group.key}`, group),
         onClick: () => state.onToggle(group.key),
       });
     }
@@ -324,12 +309,8 @@ export function renderSubscribe(container: HTMLElement, state: SubscribeState): 
       const menu = el("div", "menu");
       menu.id = `menu-${state.instanceId}`;
       menu.setAttribute("role", "menu");
-      // One note for the whole popover, not one per generated group: the
-      // common case (a JSON-only publisher) generates both Calendar and
-      // RSS, and the same sentence twice in one menu reads as a glitch.
-      // Which groups it refers to is carried by their labels instead.
       for (const group of groups) {
-        const label = group.generated ? `${group.label} · ${strings.generatedTag}` : group.label;
+        const label = group.label;
         // role="group" with an accessible name is what makes the section
         // heading reach assistive technology: a bare <div> inside
         // role="menu" is not a permitted child and gets skipped, so the
@@ -343,7 +324,6 @@ export function renderSubscribe(container: HTMLElement, state: SubscribeState): 
         menu.append(section);
       }
       popover.append(menu);
-      if (groups.some((group) => group.generated)) popover.append(generatedNote(strings));
       return popover;
     },
     onClick: () => state.onToggle("menu"),

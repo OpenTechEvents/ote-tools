@@ -201,22 +201,6 @@ export const SUBSCRIBE_CSS = `
   letter-spacing: 0.04em;
 }
 
-/* The service-generated disclosure (#186). Sits under the group's links,
-   muted and smaller: it is provenance, not an action, and must not compete
-   with the links a visitor came to click. It wraps rather than widening the
-   popover — .menu's min-width is the floor, and a one-line note at this
-   size would otherwise set the popover's width on narrow viewports. */
-.menu-note {
-  flex: 0 0 auto;
-  padding: 0.4rem 0.8rem 0.45rem;
-  max-width: 17rem;
-  border-top: 1px solid var(--ote-border);
-  color: var(--ote-muted);
-  font-size: 0.6875rem;
-  line-height: 1.4;
-  text-wrap: pretty;
-}
-
 .menu a {
   display: block;
   padding: 0.4rem 0.5rem;

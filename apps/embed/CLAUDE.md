@@ -521,17 +521,26 @@ Four rules hold it together, and each is a test in
   `test/subscribe-urls.test.ts` imports the real `checkUrl` and asserts the
   two agree, with one documented divergence (public IP literals, refused
   here, allowed there). Absent beats broken.
-- **Generated groups say so, to everyone.** A `.menu-note` in the popover,
-  `data-generated` on the trigger, and the disclosure in the trigger's
-  accessible name. The note sits **outside** the `role="menu"` element, in a
-  `.popover` wrapper: `role="menu"` accepts only
+- **The visitor is told nothing; the publisher is.** Only
+  `data-generated` on the trigger, for a host that wants to style or detect
+  it. An earlier draft put "Generated from the OTE feed by the OTE
+  converter." in the popover, in the group labels and in the trigger's
+  accessible name — and aimed the disclosure at the wrong audience. Who
+  generated the ICS is the *publisher's* call, since they are the only one
+  who can set `convert="off"`; the playground's feed panel and this file
+  tell them. A visitor came to add events to a calendar, the target domain
+  is already visible in the link, and a two-line footnote in a three-item
+  menu competes with the action they came for. The residual risk is real
+  and belongs to the publisher: if the converter went away, subscribers'
+  calendars would stop refreshing and the organizer would be blamed.
+
+  What survived from that draft is worth keeping for its own sake: the
+  popover box is a `.popover` element *around* the `role="menu"`, and the
+  group headings are `role="group"` with an `aria-label` and an
+  `aria-hidden` visible label. `role="menu"` accepts only
   `menuitem`/`group`/`separator` children and assistive technology skips the
-  rest, so a note inside it is visible to sighted users and silently dropped
-  for the people most dependent on being told where a link points. Same
-  reason the group headings are now `role="group"` with an `aria-label` and
-  an `aria-hidden` visible label. A visitor subscribing `webcal://` to a
-  generated URL is making this service long-lived infrastructure in their
-  calendar client; that is worth one muted line.
+  rest, so anything the popover ever carries besides links has to live
+  outside the menu rather than be silently dropped.
 
 The feed URL is percent-encoded, and the nesting is two deep for Google:
 `cid=` wraps `/ics?feed=` wraps the publisher's URL, which may carry its own
