@@ -1,6 +1,23 @@
 # @opentechevents/embed changelog
 
-## Unreleased
+## 0.10.0 — 2026-11-26
+
+### Changed
+
+- **`layout="calendar"` lays a month out differently, so an embed that sets
+  no attribute renders differently after this release.** Nothing is lost and
+  no option is removed; the month gets shorter and shows the same events.
+  A calendar tuned around the old shape is worth a look once:
+
+  | before | now |
+  | --- | --- |
+  | every week the same height, empty ones included | each week sized to its busiest day, empty ones down to their date row |
+  | a CSS height on the element sized the box only | a CSS height sizes the contents too |
+
+  On a 158-event feed with no attributes at all, November goes from 951px to
+  **529px** with the same events visible and the same `+N more` links.
+  `max-per-day` still caps a day exactly, and `max-per-day="off"` still
+  stacks everything.
 
 ### Added
 
