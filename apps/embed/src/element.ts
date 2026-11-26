@@ -318,16 +318,19 @@ export class OteEventsElement extends HTMLElement {
     // the scroll plumbing on — a stylesheet cannot test whether a custom
     // property is set, and the plumbing must stay off by default so an
     // unbounded widget keeps laying out exactly as it did before.
+    // The layout always travels to the stylesheet, because layout="cards"
+    // scrolls a different element from the other two and CSS cannot ask
+    // which layout rendered. It is not gated on the budget: a host that
+    // sizes the element with plain CSS (`ote-events { height: 400px }`)
+    // gets the same treatment as one that sets `max-height`.
+    this.#container.setAttribute("data-layout", parseLayout(this.getAttribute("layout")));
     const maxHeight = parseMaxHeight(this.getAttribute("max-height"));
     if (maxHeight === undefined) {
       this.style.removeProperty("--ote-max-height");
       this.#container.removeAttribute("data-bounded");
     } else {
       this.style.setProperty("--ote-max-height", maxHeight);
-      // The layout is the value, not just a marker: layout="cards" scrolls a
-      // different element from the other two (see theme.css.ts), and a
-      // stylesheet cannot ask which layout rendered without it.
-      this.#container.setAttribute("data-bounded", parseLayout(this.getAttribute("layout")));
+      this.#container.setAttribute("data-bounded", "");
     }
     const lang = resolveLang(parseLangAttr(this.getAttribute("lang")), navigator.language);
     const state: WidgetState = {

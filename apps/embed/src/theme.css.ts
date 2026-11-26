@@ -63,9 +63,26 @@ export const WIDGET_CSS = `
   box-sizing: border-box;
 }
 
+/*
+ * height: 100% is what lets a host size the widget with plain CSS -
+ * ote-events { height: 400px }, or a flex/grid parent handing it a track -
+ * and not just with the max-height attribute. Before it, the element obeyed
+ * while its contents did not: the box took the height and the content kept
+ * its own, so it either left dead space inside or spilled out of the
+ * element (measured: a 400px element with 529px of calendar overflowing).
+ *
+ * It is safe precisely because it is a percentage. Against an auto-height
+ * host - every embed that sets no height, which is most of them - it
+ * resolves to auto and the widget lays out exactly as it did before. Only
+ * a host that gives a definite height sees any change, which is the host
+ * that asked for one.
+ */
 .ote-events {
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .message {
@@ -121,14 +138,14 @@ ul.events.layout-cards {
  * way (verified in Chrome: backdrop height equals viewport height, top 0),
  * there is no reason to clip a box whose children handle their own overflow.
  */
+/* The attribute is only the budget itself now; the fitting is unconditional. */
 .ote-events[data-bounded] {
-  display: flex;
-  flex-direction: column;
   max-height: var(--ote-max-height);
 }
 
 /* min-height: 0 is what lets a flex item shrink below its content and scroll. */
-.ote-events[data-bounded] ul.events {
+.ote-events[data-layout="list"] ul.events,
+.ote-events[data-layout="calendar"] ul.events {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -156,11 +173,11 @@ ul.events.layout-cards {
  * never clipped anything. It is symmetric left/right so the grid does not
  * sit visibly off-centre against the scrollbar.
  */
-.ote-events[data-bounded="cards"] {
+.ote-events[data-layout="cards"] {
   overflow-y: auto;
 }
 
-.ote-events[data-bounded="cards"] ul.events {
+.ote-events[data-layout="cards"] ul.events {
   flex: none;
   padding: 0 0.75rem 0.75rem;
 }
@@ -175,7 +192,7 @@ ul.events.layout-cards {
  * this attribute exists for, where "When" scrolling out of sight leaves
  * three unlabelled columns.
  */
-.ote-events[data-bounded] ul.events.layout-list .event-list-header {
+.ote-events[data-layout="list"] ul.events.layout-list .event-list-header {
   position: sticky;
   inset-block-start: 0;
   z-index: 1;
@@ -186,14 +203,14 @@ ul.events.layout-cards {
  * from the height option (calendar-layout.ts#bounded), so .calendar-host
  * has to hand it a definite height to resolve against.
  */
-.ote-events[data-bounded] .calendar-host {
+.ote-events[data-layout="calendar"] .calendar-host {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-.ote-events[data-bounded] .calendar-host .ec {
+.ote-events[data-layout="calendar"] .calendar-host .ec {
   flex: 1;
   min-height: 0;
 }
@@ -211,7 +228,7 @@ ul.events.layout-cards {
  * One class more specific than the library's rule, same technique (and same
  * reason) as the row-height pin below - never !important.
  */
-.ote-events[data-bounded] .calendar-host .ec-day-grid .ec-main.ec-uniform {
+.ote-events[data-layout="calendar"] .calendar-host .ec-day-grid .ec-main.ec-uniform {
   overflow: auto;
 }
 
@@ -234,7 +251,7 @@ ul.events.layout-cards {
  * row grows to its content, so nothing ever overflows and the "+N more"
  * popover never triggers. That is the trade max-per-day="off" names.
  */
-.ote-events[data-bounded] .calendar-host .ec-day-grid .ec-main:not(.ec-uniform) .ec-day {
+.ote-events[data-layout="calendar"] .calendar-host .ec-day-grid .ec-main:not(.ec-uniform) .ec-day {
   min-block-size: 2.2em;
 }
 

@@ -4,6 +4,28 @@
 
 ### Added
 
+- **The widget fits the height it is given, however the host gives it.** A
+  CSS height on the element — `ote-events { height: 400px }`, or a flex or
+  grid parent handing it a track — now sizes the contents, not just the box.
+  Before, the element obeyed while its contents kept their own height: a
+  400px element held 529px of calendar that spilled straight out of it, and
+  a taller container left dead space inside. `max-height` was the only
+  height the widget understood, which is not how a custom element is
+  normally styled.
+
+  The fitting is a percentage height on the widget's root, so it is inert
+  where it should be: against an auto-height host — every embed that sets no
+  height — it resolves to `auto` and the layout is exactly what it was.
+  Verified in Chrome across all three layouts, with and without the
+  attribute: an embed with no height set renders to the same pixel as
+  before.
+
+  One asymmetry worth knowing: `density="auto"` still keys off the
+  `max-height` *attribute*, not off a CSS height, because the attribute is
+  the declarative signal and measuring the box to decide would feed layout
+  back into itself. A CSS-sized host that wants the compact metrics can ask
+  for them with `density="compact"`.
+
 - **`layout="calendar"` sizes each week to its own content, keeping
   `max-per-day`** (#170). A month used to give every week the same height,
   reserving room for `max-per-day` events in the empty ones too. Each

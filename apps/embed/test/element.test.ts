@@ -142,7 +142,8 @@ describe("<ote-events>", () => {
 
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("600px");
     const container = el.shadowRoot!.querySelector(".ote-events")!;
-    expect(container.getAttribute("data-bounded")).toBe("list");
+    expect(container.hasAttribute("data-bounded")).toBe(true);
+    expect(container.getAttribute("data-layout")).toBe("list");
   });
 
   it("max-height carries the cards layout, which scrolls the container rather than the grid", async () => {
@@ -158,7 +159,9 @@ describe("<ote-events>", () => {
     await flush();
 
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("50vh");
-    expect(el.shadowRoot!.querySelector(".ote-events")!.getAttribute("data-bounded")).toBe("cards");
+    const container = el.shadowRoot!.querySelector(".ote-events")!;
+    expect(container.getAttribute("data-layout")).toBe("cards");
+    expect(container.hasAttribute("data-bounded")).toBe(true);
   });
 
   it("leaves the widget unbounded when max-height is absent or unparseable", async () => {
@@ -191,11 +194,16 @@ describe("<ote-events>", () => {
     await flush();
 
     const container = el.shadowRoot!.querySelector(".ote-events")!;
-    expect(container.getAttribute("data-bounded")).toBe("list");
+    expect(container.hasAttribute("data-bounded")).toBe(true);
+    // The layout marker is not the budget: it stays, because a host can
+    // size the element with plain CSS and the plumbing must still know
+    // which element scrolls.
+    expect(container.getAttribute("data-layout")).toBe("list");
 
     el.removeAttribute("max-height");
     await flush();
     expect(container.hasAttribute("data-bounded")).toBe(false);
+    expect(container.getAttribute("data-layout")).toBe("list");
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("");
   });
 

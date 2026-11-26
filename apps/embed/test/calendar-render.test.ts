@@ -210,17 +210,20 @@ describe("the calendar the widget mounts", () => {
     expect(container.querySelector(".ec-uniform")).toBeNull();
   });
 
-  it("fills a height budget instead of growing to the feed when bounded", () => {
+  it("fills whatever height it is given, budget or not", () => {
     // The library writes its `height` option as an inline style on its own
-    // root. "100%" is what makes .ec-main a bounded scroll container - and
-    // .ec-main is where the library puts its sticky weekday header, so this
-    // single option is what lets the header pin itself (#168).
+    // root, and "100%" is what makes .ec-main a scroll container with the
+    // sticky weekday header inside it. It is unconditional because a host
+    // sizing the element with plain CSS asks for the same thing as one
+    // setting max-height, and against an auto-height ancestor a percentage
+    // height resolves to auto — the behaviour of every embed that sets no
+    // height at all.
     render([timed], "en", { bounded: true });
     expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("100%");
     handle!.destroy();
     container.innerHTML = "";
     render([timed], "en", { bounded: false });
-    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("auto");
+    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("100%");
   });
 
   it("lets the weeks share a height budget instead of each reserving max-per-day", () => {

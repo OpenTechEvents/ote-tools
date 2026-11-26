@@ -445,10 +445,12 @@ export function renderCalendar(
     view,
     ...(date ? { date } : {}),
     events: toCalendarEvents(events),
-    // "100%" fills the budget `.calendar-host` hands down; "auto" grows to
-    // the content. Filling it is what lets the weeks share a definite height
-    // rather than each reserving `max-per-day`'s worth of room.
-    height: bounded ? "100%" : "auto",
+    // Always "100%": it fills whatever `.calendar-host` hands down, and
+    // against an auto-height ancestor - every embed that sets no height - a
+    // percentage height resolves to auto, so it is the old behaviour. That
+    // is what lets a host size the element with plain CSS rather than only
+    // with the `max-height` attribute.
+    height: "100%",
     dayMaxEvents: maxPerDay !== "off",
     datesSet(info) {
       // Fires on mount and on every month/view change. The list fallback has
