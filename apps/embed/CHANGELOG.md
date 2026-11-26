@@ -2,20 +2,6 @@
 
 ## Unreleased
 
-### Changed
-
-- The bundle now declares `oteSpecVersion: "0.6.0"` (was `0.4.0`), which is
-  the version this repo pins and the one the version table and the
-  playground header link to. Verified by rendering the spec's own
-  `feed-alternates.json` at 0.6.0 in Chrome: it renders, and its declared
-  `alternates` reach the footer's subscribe links instead of generated ones.
-  0.5 and 0.6 add no event field the widget reads differently — the event
-  schema moved only its IANA tzdata and ISO 4217 snapshots between them —
-  but they do add fields it does not render at all yet (`speakers`,
-  `recordings`, `contributing`, and the feed's `covers`), which is a
-  renderer gap filed as #190, not a reason to keep declaring 0.4.0 while
-  the footer reads a 0.5 field.
-
 ### Added
 
 - `<ote-events footer>` (#68): a strip under the events carrying the feed's
