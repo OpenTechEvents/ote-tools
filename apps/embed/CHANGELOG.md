@@ -26,6 +26,24 @@
   - **Long help moves behind an info button and a popover** (eighteen hints,
     the longest 199 words). Hints of 20 words or fewer stay where they are.
   - **Four one-click presets** and a Reset.
+  - **An example picker from the public adopters registry** (#185) replaces
+    the "Example feed" button: one control that reaches an example *and* the
+    other eight. It shares its shape check with the converter's landing page
+    rather than keeping a second copy. Degrades quietly — a registry that is
+    down or malformed leaves a disabled select saying so, and the text field
+    keeps working.
+  - **The default feed changes to HackBarna Digest**, on measured grounds: a
+    demo whose calendar is mostly empty months and whose cards have no images
+    teaches that the widget is thin. 216 events, 77 upcoming, 214 with an
+    image, spec 0.6.0 — against the previous default's 0.3.0, which has
+    fallen out of the support window.
+  - **`?tab=` and `?preset=` join `?feed=`** (#146), so a link can open the
+    playground on a configured widget rather than on the default calendar.
+    Both are validated against what the page has, and an unknown value is
+    ignored rather than treated as an error. `?preset=` names the
+    configuration the form is *in*, so touching any control clears it: a link
+    that claims "Cards grid" and opens something else is worse than a link
+    with no claim.
   - Page chrome above the preview is roughly 160px shorter: a two-sentence
     intro, the page index hidden, and the feed field and tabs in one sticky
     strip.

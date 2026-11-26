@@ -209,8 +209,12 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   whatever a stranger publishes. Both are asserted in
   `workers/convert/test/hardening.test.ts` and `test/cap.test.ts`, so change
   them there or not at all. It shares the validator's fetcher by relative
-  import across a package boundary — the one thing in this repo that does —
-  which is why `fetchDocument` takes a `userAgent`.
+  import across a package boundary, which is why `fetchDocument` takes a
+  `userAgent` — and it is **one of two** such imports, not the only one: the
+  landing page's adopters picker shares its registry shape check with
+  `apps/embed` the same way. Both reach from a worker into an app's `src/`,
+  which is the direction a fix has to cover; #158 is where that decision
+  lives. Do not add a third without saying so there.
 - `apps/publish` (Broadcast) has its own `CLAUDE.md` too — the pinned-event
   rule, the generated/guided/planned ladder that lets its destination
   catalogue be wide without becoming a wall of promises, and the
