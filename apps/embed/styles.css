@@ -1151,32 +1151,27 @@ a {
 }
 
 /* Whole configurations, above the tabs because they outrank them: a tab
-   chooses a group of settings, a preset replaces all of them. */
+   chooses a group of settings, a preset replaces all of them.
+
+   One flowing row, no label and no pushed-right Reset. "START FROM" spent a
+   line on a heading for four self-evident buttons, and `margin-left: auto`
+   stranded Reset on a second row of its own as soon as the presets wrapped —
+   which at this column width they always do. Reset is quieter than a preset
+   (it undoes rather than chooses), so it is borderless and trails them. */
 .presets {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   margin-bottom: 0.9rem;
 }
 
-.presets-label {
-  flex: none;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 .presets-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  display: contents;
 }
 
 .preset-button {
-  padding: 0.35rem 0.7rem;
+  padding: 0.35rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface);
@@ -1195,7 +1190,18 @@ a {
 }
 
 .preset-reset {
-  margin-left: auto;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
   font-size: 0.82rem;
-  padding: 0.35rem 0.7rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
+
+.preset-reset:hover,
+.preset-reset:focus-visible {
+  color: var(--accent);
+}
+
