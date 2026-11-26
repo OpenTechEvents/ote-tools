@@ -996,10 +996,23 @@ a {
 
 @supports (position-area: bottom) {
   .info-popover {
-    position-area: bottom span-inline-end;
-    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    position-area: block-end span-inline-end;
+    /* Explicit fallbacks rather than `flip-*`: flipping inline from a
+       control near the left edge slams the box against x=0, where it reads
+       as floating chrome rather than as this control's help.
+       `most-block-size` picks the side with the room instead of the first
+       side that technically fits. */
+    position-try-fallbacks:
+      block-start span-inline-end,
+      block-end span-inline-start,
+      block-start span-inline-start;
+    position-try-order: most-block-size;
     margin: 0.4rem 0;
-    width: min(26rem, calc(100vw - 2rem));
+    width: min(24rem, calc(100vw - 2rem));
+    /* Short enough to land beside its control instead of being flipped
+       across the page. The longest hints scroll, which is correct: they are
+       reference, read in place. */
+    max-height: min(19rem, calc(100vh - 2rem));
   }
 
   /* Anchored, so no scrim: the popover points at its own control and the
@@ -1093,4 +1106,17 @@ a {
 .control-panel:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Label and its info button on one line. The label still names the control;
+   the icon only says there is more to read. */
+.field-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field-head label,
+.field-head .fields-legend {
+  margin-bottom: 0;
 }
