@@ -737,38 +737,82 @@
 
     <section id="tab-panel-subscribe" class="playground-layout" role="tabpanel" aria-labelledby="tab-btn-subscribe" tabindex="0" hidden>
       <div class="controls-column" aria-label="Subscribe widget controls">
-        <details class="control-group" open>
-          <summary>Basics</summary>
-          <div class="group-body">
-            <div class="field">
-              <span class="field-head"><span class="fields-legend">feed-json</span><button type="button" class="info-button" popovertarget="feed-json-info" aria-label="About feed-json">i</button></span>
-              <div class="info-popover" popover id="feed-json-info">
-                <p>Taken from <a href="#source-feed-input">Your OTE feed</a> at the top of the page. It is also what the
-                Calendar and RSS links below are generated from.</p>
-              </div>
-            </div>
+        <div class="control-tabs" role="tablist" aria-label="Subscribe widget settings">
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="sub-tab-sources"
+            aria-controls="sub-panel-sources"
+            aria-selected="true"
+          >Sources<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="sub-tab-appearance"
+            aria-controls="sub-panel-appearance"
+            aria-selected="false"
+            tabindex="-1"
+          >Appearance<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="sub-tab-behavior"
+            aria-controls="sub-panel-behavior"
+            aria-selected="false"
+            tabindex="-1"
+          >Behavior<span class="tab-badge" hidden aria-hidden="true"></span></button>
+        </div>
 
-            <div class="field">
-              <span class="field-head"><label for="subscribe-name-input">name</label><button type="button" class="info-button" popovertarget="subscribe-name-info" aria-label="About name">i</button></span>
-              <input type="text" id="subscribe-name-input" aria-describedby="subscribe-name-info" placeholder="Optional calendar name" />
-              <p class="hint">Used only for the trigger's accessible label ("Subscribe to &lt;name&gt;").</p>
+        <!-- "Where do the Calendar and RSS links come from" was spread over
+             two groups and three controls: a closed "Do you host your own
+             ICS or RSS?" group, and a `convert` pair of checkboxes in
+             Behavior whose "untick both" meant the same thing as "no links
+             at all". One question, one radio. -->
+        <div
+          class="control-panel"
+          id="sub-panel-sources"
+          role="tabpanel"
+          aria-labelledby="sub-tab-sources"
+          tabindex="0"
+        >
+          <div class="field">
+            <span class="field-head"><span class="fields-legend">calendar and RSS links</span><button
+              type="button"
+              class="info-button"
+              popovertarget="subscribe-source-info"
+              aria-label="About calendar and RSS links"
+            >i</button></span>
+            <div class="source-options source-options-stacked">
+              <label><input type="radio" name="subscribe-source" value="generated" checked /> Generated from your OTE feed</label>
+              <label><input type="radio" name="subscribe-source" value="own" /> You host your own ICS or RSS</label>
+              <label><input type="radio" name="subscribe-source" value="none" /> No calendar or RSS links</label>
+            </div>
+            <div class="info-popover" popover id="subscribe-source-info">
+              <p>
+                Most publishers host only the OTE JSON feed, and do not need
+                more: <code>convert.opentechevents.org</code> derives the
+                calendar and the RSS feed from it, so "add to calendar" and a
+                feed-reader link work with one published file.
+              </p>
+              <p>
+                A declared <code>feed-ics</code>/<code>feed-rss</code> always
+                wins over a generated one. The third option is
+                <code>convert="off"</code>: no third-party URL is built for
+                your visitors at all, and the widget offers the OTE feed
+                alone.
+              </p>
             </div>
           </div>
-        </details>
 
-        <details class="control-group">
-          <summary>Do you host your own ICS or RSS?</summary>
-          <div class="group-body">
-            <div class="info-popover" popover id="subscribe-name-info">
-              <p>Most publishers do not, and do not need to — left blank, these are generated from your OTE feed. Fill
-              one in only if you publish that file yourself, and it wins over the generated one.</p>
-            </div>
-
+          <div class="field-group" id="subscribe-own-feeds" hidden>
             <div class="field">
               <label for="subscribe-ics-input">feed-ics</label>
               <input type="text" id="subscribe-ics-input" placeholder="https://example.org/events/feed.ics" />
               <p class="hint">
-                Your own ICS file, if you publish one. It replaces the generated Calendar group (Google Calendar,
+                Replaces the generated Calendar group (Google Calendar,
                 <code>webcal://</code>, ICS download).
               </p>
             </div>
@@ -777,83 +821,131 @@
               <label for="subscribe-rss-input">feed-rss</label>
               <input type="text" id="subscribe-rss-input" placeholder="https://example.org/events/feed.xml" />
               <p class="hint">
-                Your own RSS file, if you publish one. It replaces the generated RSS group (Feedly,
-                <code>feed://</code>, RSS download).
+                Replaces the generated RSS group (Feedly, <code>feed://</code>,
+                RSS download).
               </p>
             </div>
 
+            <p class="hint">Leave either blank to keep generating that one.</p>
           </div>
-        </details>
 
-        <details class="control-group">
-          <summary>Appearance</summary>
-          <div class="group-body">
-            <div class="field">
-              <span class="field-head"><label for="subscribe-layout-select">layout</label><button type="button" class="info-button" popovertarget="subscribe-layout-info" aria-label="About layout">i</button></span>
-              <select id="subscribe-layout-select" aria-describedby="subscribe-layout-info">
-                <option value="menu" selected>menu</option>
-                <option value="badges">badges</option>
-              </select>
-              <div class="info-popover" popover id="subscribe-layout-info">
-                <p><code>menu</code>: one trigger, one popover listing every group. <code>badges</code>: one small trigger per group (Calendar / RSS / OTE feed), each with its own popover.</p>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="subscribe-theme-select">theme</label>
-              <select id="subscribe-theme-select">
-                <option value="auto" selected>auto</option>
-                <option value="light">light</option>
-                <option value="dark">dark</option>
-              </select>
+          <div class="field">
+            <span class="field-head"><span class="fields-legend">feed-json</span><button
+              type="button"
+              class="info-button"
+              popovertarget="feed-json-info"
+              aria-label="About feed-json"
+            >i</button></span>
+            <p class="hint">
+              Taken from <a href="#source-feed-input">Your OTE feed</a> at the top of the page.
+            </p>
+            <div class="info-popover" popover id="feed-json-info">
+              <p>
+                One URL, shared with the events widget, because it is one
+                document: <code>&lt;ote-events feed&gt;</code> and
+                <code>&lt;ote-subscribe feed-json&gt;</code> name the same
+                file. It is also what the Calendar and RSS links are generated
+                from.
+              </p>
             </div>
           </div>
-        </details>
 
-        <details class="control-group">
-          <summary>Behavior</summary>
-          <div class="group-body">
-            <div class="field">
-              <span class="fields-legend">show</span>
+          <div class="field">
+            <label for="subscribe-name-input">name</label>
+            <input type="text" id="subscribe-name-input" placeholder="Optional calendar name" />
+            <p class="hint">Used only for the trigger's accessible label ("Subscribe to &lt;name&gt;").</p>
+          </div>
+        </div>
+
+        <div
+          class="control-panel"
+          id="sub-panel-appearance"
+          role="tabpanel"
+          aria-labelledby="sub-tab-appearance"
+          tabindex="0"
+          hidden
+        >
+          <div class="field">
+            <span class="field-head"><label for="subscribe-layout-select">layout</label><button
+              type="button"
+              class="info-button"
+              popovertarget="subscribe-layout-info"
+              aria-label="About layout"
+            >i</button></span>
+            <select id="subscribe-layout-select" aria-describedby="subscribe-layout-info">
+              <option value="menu" selected>menu</option>
+              <option value="badges">badges</option>
+            </select>
+            <div class="info-popover" popover id="subscribe-layout-info">
+              <p>
+                <code>menu</code>: one trigger, one popover listing every
+                group. <code>badges</code>: one small trigger per group
+                (Calendar / RSS / OTE feed), each with its own popover.
+              </p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="subscribe-theme-select">theme</label>
+            <select id="subscribe-theme-select">
+              <option value="auto" selected>auto</option>
+              <option value="light">light</option>
+              <option value="dark">dark</option>
+            </select>
+          </div>
+        </div>
+
+        <div
+          class="control-panel"
+          id="sub-panel-behavior"
+          role="tabpanel"
+          aria-labelledby="sub-tab-behavior"
+          tabindex="0"
+          hidden
+        >
+          <!-- Grouped the way the widget renders them, so unticking a box
+               and looking at the preview is one mapping rather than nine. -->
+          <div class="field">
+            <span class="fields-legend">show</span>
+            <p class="hint">Which subscribe links to render. Defaults to everything valid for the feed above.</p>
+
+            <div class="show-group">
+              <span class="field-group-label">Calendar</span>
               <div class="fields-checkboxes">
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="google" checked /> google</label>
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="webcal" checked /> webcal</label>
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="ics-download" checked /> ics-download</label>
+              </div>
+            </div>
+
+            <div class="show-group">
+              <span class="field-group-label">RSS</span>
+              <div class="fields-checkboxes">
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="feedly" checked /> feedly</label>
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="feed-protocol" checked /> feed-protocol</label>
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="rss-download" checked /> rss-download</label>
+              </div>
+            </div>
+
+            <div class="show-group">
+              <span class="field-group-label">OTE feed</span>
+              <div class="fields-checkboxes">
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-reader" checked /> ote-reader</label>
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-preview" checked /> ote-preview</label>
                 <label><input type="checkbox" class="subscribe-show-checkbox" value="json-download" checked /> json-download</label>
               </div>
-              <p class="hint">Which subscribe links to render. Defaults to everything valid for the feed URLs above.</p>
-            </div>
-
-            <div class="field">
-              <span class="field-head"><span class="fields-legend">convert</span><button type="button" class="info-button" popovertarget="convert-info" aria-label="About convert">i</button></span>
-              <div class="fields-checkboxes">
-                <label><input type="checkbox" class="subscribe-convert-checkbox" value="ics" checked /> ics</label>
-                <label><input type="checkbox" class="subscribe-convert-checkbox" value="rss" checked /> rss</label>
-              </div>
-              <div class="info-popover" popover id="convert-info">
-                <p>When <code>feed-json</code> is set and <code>feed-ics</code>/<code>feed-rss</code> are not, build those
-                groups from <code>convert.opentechevents.org</code> instead of omitting them — so a publisher who hosts
-                only the OTE JSON feed still offers "add to calendar" and a feed-reader link. A declared
-                <code>feed-ics</code>/<code>feed-rss</code> always wins. Untick both for <code>convert="off"</code>, which
-                builds no third-party URL at all.</p>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="subscribe-lang-select">lang</label>
-              <select id="subscribe-lang-select">
-                <option value="auto" selected>auto</option>
-                <option value="en">en</option>
-                <option value="es">es</option>
-              </select>
             </div>
           </div>
-        </details>
+
+          <div class="field">
+            <label for="subscribe-lang-select">lang</label>
+            <select id="subscribe-lang-select">
+              <option value="auto" selected>auto</option>
+              <option value="en">en</option>
+              <option value="es">es</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div class="output-column">

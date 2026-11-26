@@ -1120,3 +1120,19 @@ a {
 .field-head .fields-legend {
   margin-bottom: 0;
 }
+
+/* The three source options read as a decision, one per line, rather than as
+   a row of toggles. */
+.source-options-stacked {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.show-group {
+  margin-top: 0.7rem;
+}
+
+.show-group .field-group-label {
+  display: block;
+  margin-bottom: 0.3rem;
+}

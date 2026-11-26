@@ -25,9 +25,25 @@ export function isAtDefault(control: FormControl): boolean {
   return control.value === control.defaultValue;
 }
 
+/**
+ * Whether a control is inside a hidden part of its panel — a group the form
+ * has switched off, such as the custom ICS/RSS fields under a `generated`
+ * radio. The panel's own `hidden` (the tab is not the open one) does not
+ * count, or every badge would read zero exactly when it is needed.
+ */
+function isInHiddenGroup(control: Element, panel: HTMLElement): boolean {
+  for (let node = control.parentElement; node && node !== panel; node = node.parentElement) {
+    if (node.hidden) return true;
+  }
+  return false;
+}
+
 export function countChangedControls(panel: HTMLElement): number {
   let changed = 0;
   for (const control of panel.querySelectorAll<FormControl>("input, select, textarea")) {
+    // A switched-off group contributes nothing to the snippet, so it must
+    // contribute nothing to the count either.
+    if (isInHiddenGroup(control, panel)) continue;
     // Only the *checked* radio of a group is counted: a group that moved
     // has one radio newly checked and one newly unchecked, which is one
     // decision, not two.

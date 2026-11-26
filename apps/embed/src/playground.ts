@@ -89,9 +89,10 @@ const subscribeNameInput = document.querySelector<HTMLInputElement>("#subscribe-
 const subscribeShowCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".subscribe-show-checkbox"),
 );
-const subscribeConvertCheckboxes = Array.from(
-  document.querySelectorAll<HTMLInputElement>(".subscribe-convert-checkbox"),
+const subscribeSourceInputs = Array.from(
+  document.querySelectorAll<HTMLInputElement>('input[name="subscribe-source"]'),
 );
+const subscribeOwnFeeds = document.querySelector<HTMLElement>("#subscribe-own-feeds")!;
 const subscribeLayoutSelect = document.querySelector<HTMLSelectElement>("#subscribe-layout-select")!;
 const subscribeThemeSelect = document.querySelector<HTMLSelectElement>("#subscribe-theme-select")!;
 const subscribeLangSelect = document.querySelector<HTMLSelectElement>("#subscribe-lang-select")!;
@@ -316,10 +317,24 @@ function currentShow(): ShowToken[] {
     .map((checkbox) => checkbox.value as ShowToken);
 }
 
+type SubscribeSource = "generated" | "own" | "none";
+
+function subscribeSource(): SubscribeSource {
+  const value = subscribeSourceInputs.find((input) => input.checked)?.value;
+  return value === "own" || value === "none" ? value : "generated";
+}
+
+/**
+ * Where the Calendar and RSS groups come from, as one question.
+ *
+ * It used to be three controls: a closed "Do you host your own ICS or RSS?"
+ * group, and a `convert` checkbox pair whose "untick both" said the same
+ * thing as "no links at all". `convert="ics"` alone — generate the calendar
+ * but not the feed — is no longer reachable from the form; `show` already
+ * drops a whole group, which is what anyone wanting that was after.
+ */
 function currentConvert(): ConvertToken[] {
-  return subscribeConvertCheckboxes
-    .filter((checkbox) => checkbox.checked)
-    .map((checkbox) => checkbox.value as ConvertToken);
+  return subscribeSource() === "none" ? [] : [...ALL_CONVERT_TOKENS];
 }
 
 function isAllShowTokens(tokens: ShowToken[]): boolean {
@@ -358,8 +373,13 @@ function setSubscribeSnippet(text: string): void {
 }
 
 function applySubscribeAndRender(): void {
-  const icsUrl = subscribeIcsInput.value.trim();
-  const rssUrl = subscribeRssInput.value.trim();
+  const source = subscribeSource();
+  // The two fields are the exception, so they are only on screen when the
+  // radio says they apply — and their values stop counting when it does not,
+  // rather than silently outranking a generated feed from a hidden input.
+  subscribeOwnFeeds.hidden = source !== "own";
+  const icsUrl = source === "own" ? subscribeIcsInput.value.trim() : "";
+  const rssUrl = source === "own" ? subscribeRssInput.value.trim() : "";
   // The shared field accepts several comma-separated feeds, which only the
   // events widget can combine. <ote-subscribe> links to one document, so it
   // takes the first — rather than emitting a comma-separated string as a
@@ -792,7 +812,7 @@ for (const control of [
   subscribeThemeSelect,
   subscribeLangSelect,
   ...subscribeShowCheckboxes,
-  ...subscribeConvertCheckboxes,
+  ...subscribeSourceInputs,
 ]) {
   control.addEventListener("input", applySubscribeAndRender);
   control.addEventListener("change", applySubscribeAndRender);

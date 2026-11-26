@@ -24,7 +24,9 @@ function column(): HTMLElement {
           <option value="b">b</option>
         </select>
       </div>
-      <div class="control-panel" id="p-c" role="tabpanel" hidden></div>
+      <div class="control-panel" id="p-c" role="tabpanel" hidden>
+        <div id="off-group" hidden><input id="in-hidden-group" type="text" value="" /></div>
+      </div>
     </div>`;
   return document.querySelector<HTMLElement>(".controls-column")!;
 }
@@ -75,6 +77,27 @@ describe("countChangedControls", () => {
     el<HTMLInputElement>('input[value="url"]').checked = false;
     el<HTMLInputElement>('input[value="json"]').checked = true;
     expect(countChangedControls(el("#p-a"))).toBe(1);
+  });
+
+  it("ignores a control the form has switched off", () => {
+    // A hidden group contributes nothing to the snippet, so counting it
+    // would point at a setting that changes nothing.
+    const panel = el<HTMLElement>("#p-c");
+    const input = el<HTMLInputElement>("#in-hidden-group");
+    input.value = "https://example.org/a.ics";
+    expect(countChangedControls(panel)).toBe(0);
+
+    el<HTMLElement>("#off-group").hidden = false;
+    expect(countChangedControls(panel)).toBe(1);
+  });
+
+  it("still counts controls in a panel that is merely the closed tab", () => {
+    // #p-b is hidden because its tab is not open. That must not zero its
+    // badge — the badge exists precisely to speak for a closed tab.
+    const select = el<HTMLSelectElement>("#pick");
+    select.value = "b";
+    expect(el<HTMLElement>("#p-b").hidden).toBe(true);
+    expect(countChangedControls(el("#p-b"))).toBe(1);
   });
 
   it("adds up controls of different kinds", () => {
