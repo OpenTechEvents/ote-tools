@@ -414,8 +414,9 @@ export interface RenderCalendarOptions {
  *
  * The popover closes itself on a pointerdown outside its dialog, detected
  * with a capturing `document` listener and `el.contains(jsEvent.target)`
- * (`outsideEvent()` in `@event-calendar/core`, unchanged in 5.22.0, the
- * latest at the time of writing). Inside a shadow root that test can never
+ * (`outsideEvent()` in `@event-calendar/core`, unchanged through every
+ * version this repo has pinned — `calendar-render.test.ts` asserts the
+ * contract this fix hangs on, so a bump that changes it fails there). Inside a shadow root that test can never
  * pass: a `document`-level listener sees the event **retargeted** to the
  * host — measured here as `OTE-EVENTS`, with the real `<a>` only in
  * `composedPath()[0]`. So every pointerdown read as outside, and clicking an

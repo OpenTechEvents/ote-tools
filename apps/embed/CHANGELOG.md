@@ -48,6 +48,20 @@
     driving the widget by property (`.events = […]`) gets **no** switcher
     unless it sets `views`: OTE Reader owns its own view chrome.
 
+### Changed
+
+- `@event-calendar/core` 5.18.1 → 5.22.0, **with Svelte moved from 5.57.3 to
+  5.59.1 in the same change**. The library's 5.21.2+ bundle imports
+  `svelte/internal/init-operations`, a subpath Svelte 5.57.3 does not
+  export, so bumping the library alone fails the build (#192) — the two
+  move together, and `pnpm-workspace.yaml` records which pairs were
+  measured to render. `dist/calendar-layout.js` grows 143.9KB → 157.6KB;
+  only `layout="calendar"` loads it. Verified in a real browser against the
+  previous pair with the same probe: events drawn, `+N more` popover
+  opening and a click inside it still opening the modal (the Shadow DOM
+  retargeting fix), the bounded month's row sizing, the narrow list
+  fallback, and no console errors — identical output on both.
+
 ### Removed
 
 - **The calendar's "Next event" button.** It existed because a sparse feed
