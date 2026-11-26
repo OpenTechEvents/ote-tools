@@ -24,9 +24,12 @@ describe("toWebcalUrl", () => {
 });
 
 describe("buildGoogleCalendarUrl", () => {
-  it("embeds an unencoded webcal:// URL in the cid query param", () => {
+  /** What Google actually receives, rather than how the string looks. */
+  const cidOf = (url: string): string | null => new URL(url).searchParams.get("cid");
+
+  it("percent-encodes the webcal:// URL in the cid query param", () => {
     expect(buildGoogleCalendarUrl(ICS_URL)).toBe(
-      "https://www.google.com/calendar/render?cid=webcal://communitybuilders.dev/events/feed.ics",
+      "https://www.google.com/calendar/render?cid=webcal%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.ics",
     );
   });
 });
@@ -83,10 +86,56 @@ describe("a non-ASCII feed URL", () => {
   });
 
   it("keeps its literal spelling in the scheme-swapping links", () => {
+    // `webcal://` and `feed://` are handed to the OS as-is, so they keep the
+    // publisher's spelling. The Google link is a query parameter and does
+    // not — see the assertion below it.
     expect(toWebcalUrl(NON_ASCII_ICS)).toBe("webcal://ejemplo.org/eventos/pycamp-españa/feed.ics");
     expect(toFeedProtocolUrl(NON_ASCII_RSS)).toBe("feed://ejemplo.org/eventos/pycamp-españa/feed.xml");
-    expect(buildGoogleCalendarUrl(NON_ASCII_ICS)).toBe(
-      "https://www.google.com/calendar/render?cid=webcal://ejemplo.org/eventos/pycamp-españa/feed.ics",
+  });
+
+  it("encodes a non-ASCII path for Google, and Google decodes it back", () => {
+    const url = buildGoogleCalendarUrl(NON_ASCII_ICS);
+    expect(url).toBe(
+      "https://www.google.com/calendar/render?cid=webcal%3A%2F%2Fejemplo.org%2Feventos%2Fpycamp-espa%C3%B1a%2Ffeed.ics",
+    );
+    expect(new URL(url).searchParams.get("cid")).toBe(
+      "webcal://ejemplo.org/eventos/pycamp-españa/feed.ics",
+    );
+  });
+});
+
+describe("buildGoogleCalendarUrl: a feed URL that carries its own query string (#166)", () => {
+  /** What Google actually receives, rather than how the string looks. */
+  const cidOf = (url: string): string | null => new URL(url).searchParams.get("cid");
+  const otherParams = (url: string): string[] =>
+    [...new URL(url).searchParams.keys()].filter((key) => key !== "cid");
+
+  // Live shape: the hosted converter turns any OTE feed into ICS, and its URL
+  // is two query parameters. Ordered `lang` first so that a truncated cid
+  // loses the feed entirely — the converter answers 400, which is how this
+  // bug was made to fail loudly rather than silently serve the wrong feed.
+  const CONVERTED_ICS =
+    "https://convert.opentechevents.org/ics?lang=es&feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json";
+
+  it("delivers the whole feed URL, including everything after the first &", () => {
+    const url = buildGoogleCalendarUrl(CONVERTED_ICS);
+    expect(cidOf(url)).toBe(
+      "webcal://convert.opentechevents.org/ics?lang=es&feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json",
+    );
+  });
+
+  it("leaks nothing into a sibling query parameter", () => {
+    // The defect: an unencoded cid ended at the feed's own `&`, and the rest
+    // arrived as separate parameters that Google ignores.
+    expect(otherParams(buildGoogleCalendarUrl(CONVERTED_ICS))).toEqual([]);
+  });
+
+  it("survives a space and a fragment character in the path", () => {
+    expect(cidOf(buildGoogleCalendarUrl("https://example.org/my feed.ics"))).toBe(
+      "webcal://example.org/my feed.ics",
+    );
+    expect(cidOf(buildGoogleCalendarUrl("https://example.org/feed.ics#x"))).toBe(
+      "webcal://example.org/feed.ics#x",
     );
   });
 });

@@ -4,6 +4,20 @@
 
 ### Fixed
 
+- **`<ote-subscribe>`'s Google Calendar link, for any feed whose ICS URL
+  carries a query string** (#166). The `cid` parameter nested the feed URL
+  raw, so it ended at that URL's first `&`: Google received a truncated
+  address and the organizer saw a broken feed rather than a broken link. A
+  hosted-converter URL — `…/ics?lang=es&feed=…`, which is what a publisher
+  without a static `.ics` file uses — arrived as `…/ics?lang=es`, with the
+  feed itself dropped into a sibling parameter Google ignores. The value is
+  now percent-encoded; the `webcal://` scheme swap is unchanged. Both the
+  encoded and the unencoded form were checked against a real Google account
+  on 2026-11-26 and both subscribe, so this costs nothing for feeds that
+  were already working. The comment claiming Google requires the unencoded
+  form, and the three tests pinning that spelling, were never executed
+  against Google — they compared strings.
+
 - **A multi-part event's price.** A conference published one document per
   session prices them through `partOf.offers` (OTE Spec 0.5's D032), and the
   widget read neither that nor `offers[].scope`: a covered session showed no

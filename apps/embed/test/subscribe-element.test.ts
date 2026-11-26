@@ -50,7 +50,7 @@ describe("<ote-subscribe>", () => {
 
     const hrefs = menuLinks(el).map((a) => a.href);
     expect(hrefs).toEqual([
-      "https://www.google.com/calendar/render?cid=webcal://communitybuilders.dev/events/feed.ics",
+      "https://www.google.com/calendar/render?cid=webcal%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.ics",
       "webcal://communitybuilders.dev/events/feed.ics",
       ICS_URL,
     ]);
