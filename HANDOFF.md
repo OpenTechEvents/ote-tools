@@ -58,9 +58,11 @@ Read before touching the validator: `apps/validator/README.md`,
   in a calendar client. The exact URLs are in the issue thread. A failure
   there is a URL-shape fix in `subscribe-urls.ts`, not a redesign. The
   `<ote-events>` footer mounts the same element, so a fix reaches both.
-- **The playground rework and the popover's ARIA restructure have not been
-  through adversarial review**, unlike the rest of #186. Worth one pass
-  before publishing.
+- **The playground rework, the popover's ARIA restructure and the whole
+  `<ote-events>` footer (#68) have not been through adversarial review.**
+  The footer is the biggest of the three: it is default-on chrome on a
+  versioned public widget, it mounts a second custom element inside the
+  first, and it adds four attributes. Worth one pass before publishing.
 
 ## Traps that cost time — do not rediscover them
 
@@ -135,6 +137,27 @@ Read before touching the validator: `apps/validator/README.md`,
     and npm publishing alike. `wrangler deploy --dry-run` is allowed and does
     confirm the bundle builds.
 
+13. **`apps/embed`'s `oteSpecVersion` is deliberately behind the repo's spec
+    pin, and it looks exactly like a stale value someone should fix.** The
+    repo pins `@opentechevents/schema@0.6.0`; the embed declares `0.4.0`
+    because the widget renders none of the four fields 0.5 added, and the
+    playground header and version table are where a publisher reads that
+    claim. #115 holds the decision and the remaining work; the bump belongs
+    in the commit that closes it. This cost a commit and a revert in one
+    session — check the issue before "correcting" the field. The same shape
+    of trap applies to any version literal whose reason lives in an issue.
+
+14. **Two things make a headless measurement of the embed measure the wrong
+    page.** A feed served from `localhost` is refused by
+    `subscribe-urls.ts#isConvertibleFeedUrl`, so `<ote-subscribe>` renders
+    only the OTE group and a check expecting ICS/RSS badges silently tests
+    nothing — use a public feed (the adopter one below) or assert against
+    the group that can exist. And a **backtick in a comment inside
+    `theme.css.ts`'s template literal** breaks the esbuild build while
+    `tsc --noEmit` on the app can still pass, so the page keeps serving the
+    *previous* bundle and the measurement reports the old layout. Check
+    `node build.mjs` printed its sizes before believing a number.
+
 ## Verifying a release on npm — three things that will mislead you
 
 `CLAUDE.md` says a fix is not shipped until the published artifact shows it.
@@ -200,6 +223,11 @@ pnpm install --frozen-lockfile && pnpm lint && pnpm build && pnpm typecheck && p
   wrong.
 - `https://opentechevents.org/` — declares no feed (the `ote+json` string on
   it is inside a code sample). Must report "not discovered", never "invalid".
+- `packages/validate/fixtures/valid/feed-alternates.json` — a 0.6.0 feed
+  declaring both `alternates` and `speakers`. The one fixture that exercises
+  the `<ote-events>` footer's "a declared ICS/RSS beats a generated one"
+  path end to end, and the one that shows `speakers` rendering nowhere
+  (#115).
 - `packages/validate/fixtures/valid|invalid/` — the same corpus CI validates.
 - `packages/validate/fixtures/versioned/` — documents that exist to pin
   *version handling* rather than spec rules: an absent `specVersion`, a
