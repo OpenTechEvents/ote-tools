@@ -10,7 +10,7 @@ import {
   type NativeEventAction,
 } from "./attrs.js";
 import { resetToDefaults, setupControlTabs } from "./control-tabs.js";
-import { parseAdopterRegistry } from "./adopters.js";
+import { type Adopter, parseAdopterRegistry } from "./adopters.js";
 import { applyPreset, EVENT_PRESETS, type Preset } from "./presets.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
@@ -995,7 +995,10 @@ feedInput.addEventListener("change", onFeedChanged);
  * working. A playground whose example list is down is still a playground.
  */
 async function loadAdopters(): Promise<void> {
-  let adopters: ReturnType<typeof parseAdopterRegistry> = [];
+  // No initialiser: the catch returns, so the only way past the block is
+  // through the assignment, and seeding it with [] would be a value nothing
+  // ever reads.
+  let adopters: Adopter[];
   try {
     const response = await fetch("https://opentechevents.org/data/adopters.json");
     if (!response.ok) throw new Error(`Registry answered ${response.status}`);
