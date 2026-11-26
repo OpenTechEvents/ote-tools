@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Changed
+
+- `<ote-subscribe convert="ics,rss">`: when `feed-json` is set and
+  `feed-ics`/`feed-rss` are not, the Calendar and RSS groups are now built
+  from `convert.opentechevents.org` instead of being omitted. A publisher who
+  hosts only the OTE JSON feed therefore offers "add to calendar", Google
+  Calendar, `webcal://`, Feedly and `feed://` links with no edit to their
+  embed — which is every entry in the public adopters registry.
+
+  **This changes the rendered output of an existing `feed-json`-only
+  embed**: groups that used to be absent now appear. `convert="ics"` /
+  `convert="rss"` enable one format only, and any value naming no format at
+  all — `"off"`, `"none"`, `"false"`, `"no"`, `"0"` — reproduces the
+  previous output exactly. The attribute fails closed on purpose, unlike
+  `show`/`fields`: an attribute whose job is to stop third-party URLs from
+  being built must not read a host's `"false"` as a typo and then generate
+  everything.
+
+  A URL the publisher declared is never replaced by a generated one; the
+  service is a fallback for a missing URL. A generated group's trigger
+  carries a `data-generated` attribute for host styling; nothing is said to
+  the visitor, since whether to route subscribers through the converter is
+  the publisher's decision and they are the one who can set `convert="off"`.
+  A `feed-json` the
+  service could not fetch — relative, protocol-relative, or any non-`http(s)`
+  scheme — generates nothing rather than a link that would fail.
+
+- Playground: one **Your OTE feed** field above the tabs replaces the four
+  URL inputs the page used to carry, both widgets read it, and `?feed=` and
+  `localStorage` persist it — so a configured playground is a shareable
+  link. A live status line reports the feed's event count and spec version,
+  or names why it could not be read (404, not JSON, no CORS), which the
+  widget's own empty state cannot distinguish. `feed-ics`/`feed-rss` moved
+  into a closed "Do you host your own ICS or RSS?" group and are no longer
+  pre-filled: with them filled, the conversion fallback never fired in the
+  page that exists to demonstrate it.
+
 ### Fixed
 
 - `layout="calendar"`: clicking an event inside the `+N more` popover now

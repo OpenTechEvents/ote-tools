@@ -482,6 +482,108 @@ for in the sizes above; no extra esbuild config is needed for it beyond the
 `.css` loader, since `svelte` resolves normally through `node_modules` as a
 transitive dependency.
 
+## `<ote-subscribe>`'s ICS/RSS groups can come from the converter, not the publisher
+
+`convert="ics,rss"` (the default) builds `/ics` and `/rss` links on
+`convert.opentechevents.org` whenever `feed-json` is set and the matching
+`feed-ics`/`feed-rss` is not. It is default-on because the registry case is the
+common case — count it rather than trusting this sentence, and note the file
+is an object with an `adopters` array, not an array (a measurement that
+skipped that check once reported 4 of 7 feeds):
+
+```sh
+curl -s https://opentechevents.org/data/adopters.json \
+  | node --input-type=module -e 'const d=JSON.parse(await new Response(process.stdin).text()); const a=d.adopters??[]; console.log(`${a.length} adopters, ${a.filter(x=>x.feed).length} with a feed, ${a.filter(x=>x.ics||x.rss).length} with their own ICS/RSS`)'
+```
+
+Default-off would have made the one action most visitors can actually use
+something each adopter had to discover.
+
+Four rules hold it together, and each is a test in
+`test/subscribe-element.test.ts`:
+
+- **A declared URL is never replaced.** The service is a fallback for a
+  missing URL, not an override of a published one — including the mixed case,
+  where a publisher's own `feed-ics` sits next to a generated RSS link.
+- **`convert="off"` and `convert="none"` are both the opt-out.** `show` has
+  only `"none"`, but an attribute whose job is to stop third-party URLs from
+  being built must not read a host's `"off"` as an unrecognized token and
+  then generate everything.
+- **A feed URL the service would refuse generates nothing.**
+  `subscribe-urls.ts#isConvertibleFeedUrl` predicts that refusal, and it has
+  to predict the whole of it, not just the scheme: the first draft checked
+  only `http(s)` and happily built links for `http://localhost:4000`,
+  `http://192.168.1.1` and — worst — `https://user:pass@host`, which would
+  have percent-encoded a publisher's password into a URL handed to Google
+  Calendar and stored for years in a subscriber's client. The gate mirrors
+  `workers/validator/src/ssrf.ts#checkUrl`, duplicated because that is
+  Worker code and this is bundled into every consumer's page;
+  `test/subscribe-urls.test.ts` imports the real `checkUrl` and asserts the
+  two agree, with one documented divergence (public IP literals, refused
+  here, allowed there). Absent beats broken.
+- **The visitor is told nothing; the publisher is.** Only
+  `data-generated` on the trigger, for a host that wants to style or detect
+  it. An earlier draft put "Generated from the OTE feed by the OTE
+  converter." in the popover, in the group labels and in the trigger's
+  accessible name — and aimed the disclosure at the wrong audience. Who
+  generated the ICS is the *publisher's* call, since they are the only one
+  who can set `convert="off"`; the playground's feed panel and this file
+  tell them. A visitor came to add events to a calendar, the target domain
+  is already visible in the link, and a two-line footnote in a three-item
+  menu competes with the action they came for. The residual risk is real
+  and belongs to the publisher: if the converter went away, subscribers'
+  calendars would stop refreshing and the organizer would be blamed.
+
+  What survived from that draft is worth keeping for its own sake: the
+  popover box is a `.popover` element *around* the `role="menu"`, and the
+  group headings are `role="group"` with an `aria-label` and an
+  `aria-hidden` visible label. `role="menu"` accepts only
+  `menuitem`/`group`/`separator` children and assistive technology skips the
+  rest, so anything the popover ever carries besides links has to live
+  outside the menu rather than be silently dropped.
+
+The feed URL is percent-encoded, and the nesting is two deep for Google:
+`cid=` wraps `/ics?feed=` wraps the publisher's URL, which may carry its own
+query string. `test/subscribe-urls.test.ts` asserts what each service parses
+back out rather than how the string looks — the #166 defect was a raw URL
+ending at its first `&`, and the three tests that missed it all compared
+strings.
+
+The operational half lives in `workers/convert/README.md`: default-on turns
+that Worker's caps into something real calendar clients poll on a schedule.
+
+## The playground has one feed field, above the tabs, shared by both widgets
+
+`<ote-events feed>` and `<ote-subscribe feed-json>` name the same document,
+and since the converter derives ICS and RSS from it, that document is the
+only file a publisher has to have. The playground used to ask for the URL
+four times — `feed`, `feed-ics`, `feed-rss`, `feed-json`, in two tabs — which
+taught the opposite of what OTE says: that you need three files. It also
+meant the subscribe tab shipped `feed-ics`/`feed-rss` pre-filled, so the
+conversion fallback never fired in the page that exists to demonstrate it.
+
+`#source-feed-input` is now the single input. `playground.ts` aliases
+`subscribeJsonInput` to it, the per-widget panels carry a pointer rather
+than a field, and `feed-ics`/`feed-rss` live in a closed "Do you host your
+own ICS or RSS?" group — they are exceptions now, not inputs. The snippets
+still emit per-widget attributes: sharing the input must not blur that
+`feed` and `feed-json` are different attributes.
+
+Two things that are load-bearing:
+
+- **`?feed=` round-trips, and the value is also kept in `localStorage`.**
+  Same parameter `apps/preview` and `apps/validator` use, so a URL moves
+  between the tools unchanged, and a configured playground is a link you can
+  send someone with their own feed already loaded. Both reads are wrapped in
+  `try`/`catch`: `localStorage` throws outright in a third-party iframe or
+  with cookies blocked, and a playground has to work there.
+- **The status line reports a real fetch, not the URL's shape.** A feed that
+  404s, is not JSON, or is served without CORS looks identical to a healthy
+  one in an address bar, and all three render an empty widget — which reads
+  as "this widget is broken". The widget's own empty state cannot tell them
+  apart; that line can, and it names CORS explicitly because a browser
+  cannot distinguish it from a dead host.
+
 ## Testing the custom element needs jsdom, not the default Node environment
 
 `element.test.ts` uses a `// @vitest-environment jsdom` pragma (kept

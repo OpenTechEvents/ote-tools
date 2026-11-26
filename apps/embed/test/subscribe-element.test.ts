@@ -32,6 +32,10 @@ function menuLinksFor(el: OteSubscribeElement, group: string): HTMLAnchorElement
   return Array.from(item.querySelectorAll<HTMLAnchorElement>(".menu a"));
 }
 
+function groupLabels(el: OteSubscribeElement): string[] {
+  return Array.from(el.shadowRoot!.querySelectorAll(".menu-group-label")).map((node) => node.textContent ?? "");
+}
+
 describe("<ote-subscribe>", () => {
   afterEach(() => {
     document.body.replaceChildren();
@@ -78,8 +82,8 @@ describe("<ote-subscribe>", () => {
     expect(menuLinks(el)).toHaveLength(9);
   });
 
-  it("renders only the OTE feed group when only feed-json is set", () => {
-    const el = createElement({ "feed-json": JSON_URL });
+  it('renders only the OTE feed group when only feed-json is set and convert="off"', () => {
+    const el = createElement({ "feed-json": JSON_URL, convert: "off" });
     document.body.append(el);
     trigger(el).click();
 
@@ -89,6 +93,7 @@ describe("<ote-subscribe>", () => {
       "https://tools.opentechevents.org/preview/?feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json",
       JSON_URL,
     ]);
+    expect(groupLabels(el)).toEqual(["OTE feed"]);
   });
 
   it('"show" filters which links appear, as a full replacement', () => {
@@ -156,7 +161,10 @@ describe("<ote-subscribe>", () => {
 
   describe('layout="badges"', () => {
     it("renders one badge per available group, and none for groups without a feed URL", () => {
-      const el = createElement({ "feed-ics": ICS_URL, "feed-json": JSON_URL, layout: "badges" });
+      // convert="off" so that this stays a test of "a group needs a URL":
+      // with the conversion fallback on, feed-json alone supplies RSS too
+      // (see "the conversion-service fallback" below).
+      const el = createElement({ "feed-ics": ICS_URL, "feed-json": JSON_URL, layout: "badges", convert: "off" });
       document.body.append(el);
 
       const groups = Array.from(el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".trigger")).map(
@@ -201,4 +209,163 @@ describe("<ote-subscribe>", () => {
       expect(el.shadowRoot!.activeElement).toBe(badge(el, "rss"));
     });
   });
+
+  // #186: convert.opentechevents.org generates ICS and RSS from an OTE JSON
+  // feed, so a publisher who hosts only feed.json still offers "add to
+  // calendar" and a feed-reader link. Every entry in the public adopters
+  // registry is JSON-only, which is why this is on by default.
+  describe("the conversion-service fallback", () => {
+    const CONVERT_ICS = "https://convert.opentechevents.org/ics?feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json";
+    const CONVERT_RSS = "https://convert.opentechevents.org/rss?feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json";
+
+    it("builds the Calendar and RSS groups from the JSON feed alone", () => {
+      const el = createElement({ "feed-json": JSON_URL });
+      document.body.append(el);
+      trigger(el).click();
+
+      expect(groupLabels(el)).toEqual(["Calendar", "RSS", "OTE feed"]);
+      expect(menuLinks(el).map((a) => a.href)).toEqual([
+        `https://www.google.com/calendar/render?cid=${encodeURIComponent(CONVERT_ICS.replace("https://", "webcal://"))}`,
+        CONVERT_ICS.replace("https://", "webcal://"),
+        CONVERT_ICS,
+        `https://feedly.com/i/subscription/feed/${encodeURIComponent(CONVERT_RSS)}`,
+        CONVERT_RSS.replace("https://", "feed://"),
+        CONVERT_RSS,
+        "https://reader.opentechevents.org/?subscribe=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json",
+        "https://tools.opentechevents.org/preview/?feed=https%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.json",
+        JSON_URL,
+      ]);
+    });
+
+    it("never replaces a URL the publisher declared", () => {
+      const el = createElement({ "feed-ics": ICS_URL, "feed-json": JSON_URL });
+      document.body.append(el);
+      trigger(el).click();
+
+      const hrefs = menuLinks(el).map((a) => a.href);
+      expect(hrefs).toContain(ICS_URL);
+      expect(hrefs.filter((href) => href.includes("convert.opentechevents.org/ics"))).toEqual([]);
+      // The RSS half is still missing, so that one is generated.
+      expect(hrefs).toContain(CONVERT_RSS);
+    });
+
+    it("is per-format: convert=\"ics\" leaves RSS absent", () => {
+      const el = createElement({ "feed-json": JSON_URL, convert: "ics" });
+      document.body.append(el);
+      trigger(el).click();
+
+      expect(groupLabels(el)).toEqual(["Calendar", "OTE feed"]);
+    });
+
+    // The visitor is told nothing: who generated the ICS is the publisher's
+    // decision, and they are the one who can set convert="off". The marker
+    // is for a host that wants to style or detect it.
+    it("marks the generated groups without saying anything to the visitor", () => {
+      const el = createElement({ "feed-ics": ICS_URL, "feed-json": JSON_URL });
+      document.body.append(el);
+      trigger(el).click();
+
+      expect(groupLabels(el)).toEqual(["Calendar", "RSS", "OTE feed"]);
+      // Scoped to the rendered UI rather than the shadow root, which also
+      // holds the stylesheet.
+      expect(el.shadowRoot!.querySelector(".subscribe")!.textContent).not.toMatch(/generat|convert/i);
+      expect(Array.from(el.shadowRoot!.querySelector(".popover")!.children).map((n) => n.className)).toEqual(["menu"]);
+    });
+
+    it("marks a generated badge and builds its popover from the service", () => {
+      const el = createElement({ "feed-json": JSON_URL, layout: "badges" });
+      document.body.append(el);
+
+      expect(badge(el, "ics").dataset.generated).toBe("");
+      expect(badge(el, "rss").dataset.generated).toBe("");
+      expect(badge(el, "ote").dataset.generated).toBeUndefined();
+
+      badge(el, "ics").click();
+      expect(menuLinksFor(el, "ics").map((a) => a.href)).toContain(CONVERT_ICS);
+      expect(el.shadowRoot!.querySelector(".menu-note")).toBeNull();
+    });
+
+    it("generates nothing from a feed URL the service could not fetch", () => {
+      // A relative feed-json works for the OTE group (the browser resolves
+      // it) but the converter resolves the URL itself, so a generated link
+      // would be guaranteed to 400. Absent beats broken.
+      const el = createElement({ "feed-json": "/events/feed.json" });
+      document.body.append(el);
+      trigger(el).click();
+
+      expect(groupLabels(el)).toEqual(["OTE feed"]);
+    });
+
+    it("stays disabled when there is no feed at all", () => {
+      const el = createElement();
+      document.body.append(el);
+      expect(trigger(el).disabled).toBe(true);
+    });
+
+    it("re-renders when convert is toggled at runtime", () => {
+      const el = createElement({ "feed-json": JSON_URL });
+      document.body.append(el);
+      trigger(el).click();
+      expect(groupLabels(el)).toEqual(["Calendar", "RSS", "OTE feed"]);
+
+      // The popover stays open across the re-render, so its contents are
+      // what changed — no second click, which would close it.
+      el.setAttribute("convert", "off");
+      expect(groupLabels(el)).toEqual(["OTE feed"]);
+      expect(trigger(el).getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("honours show as a full replacement over generated groups too", () => {
+      const el = createElement({ "feed-json": JSON_URL, show: "google,json-download" });
+      document.body.append(el);
+      trigger(el).click();
+
+      expect(menuLinks(el).map((a) => a.textContent)).toEqual([
+        "Subscribe with Google Calendar",
+        "Open/download JSON",
+      ]);
+    });
+
+    // role="menu" accepts only menuitem/menuitemcheckbox/menuitemradio/
+    // group/separator children; assistive technology skips the rest, which
+    // is why the group headings are a named role="group" rather than bare
+    // divs and why the popover box is a separate element from the menu.
+    describe("the menu's ARIA contract", () => {
+      it("admits only permitted children into role=menu", () => {
+        const el = createElement({ "feed-json": JSON_URL });
+        document.body.append(el);
+        trigger(el).click();
+
+        const roles = Array.from(el.shadowRoot!.querySelectorAll('[role="menu"] > *')).map((node) =>
+          node.getAttribute("role"),
+        );
+        expect(roles).toEqual(["group", "group", "group"]);
+        for (const section of el.shadowRoot!.querySelectorAll('[role="group"]')) {
+          // The visible heading is hidden from AT and its text given to the
+          // group, which is the part a screen reader announces.
+          expect(section.getAttribute("aria-label")).toBeTruthy();
+          expect(section.querySelector(".menu-group-label")!.getAttribute("aria-hidden")).toBe("true");
+          const itemRoles = Array.from(section.children)
+            .filter((node) => !node.hasAttribute("aria-hidden"))
+            .map((node) => node.getAttribute("role"));
+          expect(new Set(itemRoles)).toEqual(new Set(["menuitem"]));
+        }
+      });
+
+      // The accessible name names the action and nothing else, whether or
+      // not the links behind it were generated.
+      it("keeps the accessible name free of provenance", () => {
+        const generated = createElement({ "feed-json": JSON_URL, name: "CoruñaJUG" });
+        const declared = createElement({ "feed-ics": ICS_URL, "feed-rss": RSS_URL, name: "CoruñaJUG" });
+        const badges = createElement({ "feed-json": JSON_URL, layout: "badges" });
+        document.body.append(generated, declared, badges);
+
+        expect(trigger(generated).getAttribute("aria-label")).toBe("Subscribe to CoruñaJUG");
+        expect(trigger(declared).getAttribute("aria-label")).toBe("Subscribe to CoruñaJUG");
+        expect(badge(badges, "rss").getAttribute("aria-label")).toBe("RSS");
+        expect(badge(badges, "ote").getAttribute("aria-label")).toBe("OTE feed");
+      });
+    });
+  });
+
 });

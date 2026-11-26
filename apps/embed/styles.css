@@ -156,6 +156,72 @@ a {
   color: var(--text);
 }
 
+/* The shared feed field (#186 made one URL drive every widget on this
+   page). It sits above the tabs because it outranks them: the tabs choose a
+   widget, this chooses whose events you are looking at. */
+.feed-source {
+  margin: 1.5rem 0 1.25rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.feed-source h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.feed-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.feed-source-row input {
+  flex: 1 1 22rem;
+  min-width: 0;
+  font-size: 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.feed-source-row input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.feed-source-row .btn {
+  flex: 0 0 auto;
+}
+
+/* Status of the feed itself, not of the form: it reports a real fetch, so
+   it is the one place that can tell "no events yet" apart from "the file
+   could not be read", which render identically in the widget. */
+.source-status {
+  margin: 0.55rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.source-status[data-kind="ok"] {
+  color: #0f8a5f;
+  font-weight: 600;
+}
+
+.source-status[data-kind="warn"] {
+  color: #b06d00;
+  font-weight: 600;
+}
+
 .site-tabs {
   display: inline-flex;
   flex-wrap: wrap;
