@@ -72,7 +72,7 @@ export function dayRowHeight(maxPerDay: number): string {
 // Measured in Chrome at the widget's 17px base: .ec-day-head 38.4px (2.4em),
 // an .ec-event chip plus its 1px gap 25.4px (1.6em), and .ec-day-foot 28.2px
 // (1.8em) once it holds a "+N more" link. Re-measure these if the calendar
-// stylesheet changes — apps/embed/README.md says how.
+// stylesheet changes — apps/embed/CLAUDE.md says how.
 const DAY_HEAD_EM = 2.4;
 const EVENT_ROW_EM = 1.6;
 const DAY_FOOT_EM = 1.8;
@@ -233,6 +233,15 @@ export interface RenderCalendarOptions {
   initialDate: InitialDate;
   /** Whether the month grid may degrade to the list view in a narrow container. */
   responsive: boolean;
+  /**
+   * Whether the host gave the widget a height budget (`max-height`). It
+   * switches the library's `height` option from `"auto"` to `"100%"`, which
+   * is what makes `.ec-main` a bounded scroll container instead of a box
+   * that grows to whatever the feed needs — and `.ec-main` is where the
+   * library puts its own `position: sticky` weekday header, so the header
+   * pins itself once there is a scrollport for it to pin to.
+   */
+  bounded: boolean;
   /** `Date.now()` by default; a seam for tests, which must not depend on the real clock. */
   now?: Date;
 }
@@ -242,7 +251,7 @@ export function renderCalendar(
   events: PreviewEvent[],
   options: RenderCalendarOptions,
 ): CalendarHandle {
-  const { lang, maxPerDay, responsive } = options;
+  const { lang, maxPerDay, responsive, bounded } = options;
   const now = options.now ?? new Date();
   const strings = CALENDAR_STRINGS[lang];
   const date = resolveCalendarDate(events, options.initialDate, now);
@@ -267,7 +276,12 @@ export function renderCalendar(
     view,
     ...(date ? { date } : {}),
     events: toCalendarEvents(events),
-    height: "auto",
+    // "100%" fills the budget `.calendar-host` hands down; "auto" grows to
+    // the content. The two caps compose rather than override each other:
+    // `max-per-day` keeps pinning the row height, so a day still shows
+    // exactly that many events, and the weeks that no longer fit the budget
+    // scroll instead of being clipped (see theme.css.ts).
+    height: bounded ? "100%" : "auto",
     dayMaxEvents: maxPerDay !== "off",
     // "Next event" earns its place on a 460-event feed, where paging month
     // by month is the only other way to find anything — but only when there

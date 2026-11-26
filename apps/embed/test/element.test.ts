@@ -122,6 +122,78 @@ describe("<ote-events>", () => {
     expect(el.shadowRoot!.textContent).toContain("Past Event");
   });
 
+  it("max-height bounds the widget and names the layout that has to scroll", async () => {
+    // jsdom lays nothing out, so what is asserted here is the wiring: the
+    // budget reaches CSS as a custom property on the host, and the container
+    // carries the layout, because layout="cards" scrolls a different element
+    // from list/calendar (see theme.css.ts). The heights themselves are
+    // verified in a real browser - apps/embed/CLAUDE.md says how.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("max-height", "600px");
+    document.body.append(el);
+    await flush();
+
+    expect(el.style.getPropertyValue("--ote-max-height")).toBe("600px");
+    const container = el.shadowRoot!.querySelector(".ote-events")!;
+    expect(container.getAttribute("data-bounded")).toBe("list");
+  });
+
+  it("max-height carries the cards layout, which scrolls the container rather than the grid", async () => {
+    // A grid handed a definite height sizes its auto rows against that
+    // height, which squashed every card to a fraction of its content in
+    // Chrome. The value of data-bounded is what lets the stylesheet treat
+    // cards differently, so it is not cosmetic.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("max-height", "50vh");
+    document.body.append(el);
+    await flush();
+
+    expect(el.style.getPropertyValue("--ote-max-height")).toBe("50vh");
+    expect(el.shadowRoot!.querySelector(".ote-events")!.getAttribute("data-bounded")).toBe("cards");
+  });
+
+  it("leaves the widget unbounded when max-height is absent or unparseable", async () => {
+    // The scroll plumbing is gated on data-bounded precisely so an embed
+    // without the attribute lays out exactly as it did before it existed.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+
+    const container = el.shadowRoot!.querySelector(".ote-events")!;
+    expect(container.hasAttribute("data-bounded")).toBe(false);
+    expect(el.style.getPropertyValue("--ote-max-height")).toBe("");
+
+    el.setAttribute("max-height", "potato");
+    await flush();
+    expect(container.hasAttribute("data-bounded")).toBe(false);
+    expect(el.style.getPropertyValue("--ote-max-height")).toBe("");
+  });
+
+  it("drops the budget again when max-height is removed at runtime", async () => {
+    // max-height is observed, so a host toggling it (a dialog that expands,
+    // a responsive breakpoint) must not leave the widget stuck bounded.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    el.setAttribute("max-height", "400px");
+    document.body.append(el);
+    await flush();
+
+    const container = el.shadowRoot!.querySelector(".ote-events")!;
+    expect(container.getAttribute("data-bounded")).toBe("list");
+
+    el.removeAttribute("max-height");
+    await flush();
+    expect(container.hasAttribute("data-bounded")).toBe(false);
+    expect(el.style.getPropertyValue("--ote-max-height")).toBe("");
+  });
+
   it("event-id renders only the event with that OTE id", async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => ID_FEED });
     const el = createListElement();

@@ -1,5 +1,35 @@
 # @opentechevents/embed changelog
 
+## Unreleased
+
+### Added
+
+- **`max-height` gives the host a vertical budget for the widget** (#168).
+  Any CSS length (`600px`, `60vh`, `40rem`; a bare number is read as pixels),
+  and it applies to all three layouts. Previously the rendered height was
+  whatever the feed happened to need — `layout="calendar"` hardcoded the
+  library's `height: "auto"` — so embedding `<ote-events>` in a dialog, a
+  card or a sidebar meant letting somebody else's feed decide the layout.
+
+  It is a **maximum, not a fixed height**: a feed shorter than the budget
+  renders at its natural height rather than padding the box out. An absent,
+  `none`/`off`, or unparseable value leaves the widget unbounded, and all of
+  the scrolling behaviour below is gated on the attribute parsing, so an
+  existing embed lays out exactly as it did before.
+
+  What overflows scrolls **inside** the widget. That is the part the
+  host-side `max-height` + `overflow-y` workaround could not do: a wrapper
+  scrolls the widget from the outside, so the calendar's own sticky weekday
+  header has no scrollport to pin against and rides away with the content.
+  Now the weekday header and `layout="list"`'s column header both stay put
+  while their rows scroll.
+
+  In `layout="calendar"` the budget **composes with `max-per-day` instead of
+  overriding it**: the day cap still pins the row height, so a day still
+  shows exactly that many events and sends the rest to the `+N more`
+  popover, and the weeks that no longer fit the budget scroll. Neither cap
+  wins over the other and nothing is clipped.
+
 ## 0.9.0 — 2026-11-26
 
 ### Changed

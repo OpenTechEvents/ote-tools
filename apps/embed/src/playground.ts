@@ -51,6 +51,7 @@ const themeButtons = Array.from(
 const langSelect = document.querySelector<HTMLSelectElement>("#lang-select")!;
 const showPastCheckbox = document.querySelector<HTMLInputElement>("#show-past-checkbox")!;
 const cardWidthSelect = document.querySelector<HTMLSelectElement>("#card-width-select")!;
+const maxHeightInput = document.querySelector<HTMLInputElement>("#max-height-input")!;
 const maxPerDayInput = document.querySelector<HTMLInputElement>("#max-per-day-input")!;
 const initialDateSelect = document.querySelector<HTMLSelectElement>("#initial-date-select")!;
 const responsiveCheckbox = document.querySelector<HTMLInputElement>("#responsive-checkbox")!;
@@ -187,6 +188,7 @@ function buildSnippet(config: {
   lang: string;
   showPast: boolean;
   cardWidth: string | undefined;
+  maxHeight: string | undefined;
   maxPerDay: string | undefined;
   initialDate: string | undefined;
   responsive: boolean;
@@ -219,6 +221,7 @@ function buildSnippet(config: {
   if (config.eventActions) elementLines.push(`  event-actions="${attr(config.eventActions)}"`);
   if (!config.showPast) elementLines.push(`  show-past="false"`);
   if (config.cardWidth) elementLines.push(`  card-width="${attr(config.cardWidth)}"`);
+  if (config.maxHeight) elementLines.push(`  max-height="${attr(config.maxHeight)}"`);
   if (config.maxPerDay) elementLines.push(`  max-per-day="${attr(config.maxPerDay)}"`);
   if (config.initialDate) elementLines.push(`  initial-date="${attr(config.initialDate)}"`);
   if (!config.responsive) elementLines.push(`  responsive="off"`);
@@ -511,6 +514,7 @@ function applyAndRender(): void {
   const showPast = showPastCheckbox.checked;
   const cardWidth = cardWidthSelect.value;
   const cardWidthAttr = cardWidth === "medium" ? undefined : cardWidth;
+  const maxHeightAttr = maxHeightInput.value.trim() || undefined;
   const maxPerDayAttr = maxPerDayInput.value.trim() || undefined;
   const initialDateAttr = initialDateSelect.value === "next-event" ? undefined : initialDateSelect.value;
   const responsive = responsiveCheckbox.checked;
@@ -573,6 +577,8 @@ function applyAndRender(): void {
   else widget.setAttribute("show-past", "false");
   if (cardWidthAttr) widget.setAttribute("card-width", cardWidthAttr);
   else widget.removeAttribute("card-width");
+  if (maxHeightAttr) widget.setAttribute("max-height", maxHeightAttr);
+  else widget.removeAttribute("max-height");
   if (maxPerDayAttr) widget.setAttribute("max-per-day", maxPerDayAttr);
   else widget.removeAttribute("max-per-day");
   if (initialDateAttr) widget.setAttribute("initial-date", initialDateAttr);
@@ -613,6 +619,7 @@ function applyAndRender(): void {
     lang,
     showPast,
     cardWidth: cardWidthAttr,
+    maxHeight: maxHeightAttr,
     maxPerDay: maxPerDayAttr,
     initialDate: initialDateAttr,
     responsive,
@@ -636,6 +643,7 @@ for (const control of [
   langSelect,
   showPastCheckbox,
   cardWidthSelect,
+  maxHeightInput,
   maxPerDayInput,
   initialDateSelect,
   responsiveCheckbox,

@@ -107,6 +107,7 @@ const render = (events: PreviewEvent[], lang: "en" | "es" = "en", overrides: Ren
     maxPerDay: 3,
     initialDate: { kind: "next-event" },
     responsive: true,
+    bounded: false,
     ...overrides,
   });
   return onEventClick;
@@ -206,6 +207,31 @@ describe("the calendar the widget mounts", () => {
     render([timed], "en", { maxPerDay: "off" });
     expect(container.hasAttribute("data-day-rows")).toBe(false);
     expect(container.querySelector(".ec-uniform")).toBeNull();
+  });
+
+  it("fills a height budget instead of growing to the feed when bounded", () => {
+    // The library writes its `height` option as an inline style on its own
+    // root. "100%" is what makes .ec-main a bounded scroll container - and
+    // .ec-main is where the library puts its sticky weekday header, so this
+    // single option is what lets the header pin itself (#168).
+    render([timed], "en", { bounded: true });
+    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("100%");
+    handle!.destroy();
+    container.innerHTML = "";
+    render([timed], "en", { bounded: false });
+    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("auto");
+  });
+
+  it("keeps the max-per-day row pin under a height budget instead of dropping it", () => {
+    // max-height and max-per-day compose rather than override each other: the
+    // budget bounds the widget, the pin still caps the day, and the weeks
+    // that no longer fit scroll (theme.css.ts turns .ec-uniform's
+    // overflow: hidden back to auto). Dropping the pin here would silently
+    // turn a numeric cap into "however many fit the budget".
+    render([timed], "en", { maxPerDay: 4, bounded: true });
+    expect(container.getAttribute("data-day-rows")).toBe("4");
+    expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(dayRowHeight(4));
+    expect(container.querySelector<HTMLElement>(".ec")?.style.height).toBe("100%");
   });
 
   it("degrades to the list view in a narrow container, and not when responsive is off", async () => {

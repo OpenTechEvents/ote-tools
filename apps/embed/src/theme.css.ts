@@ -102,6 +102,118 @@ ul.events.layout-cards {
   gap: 1rem;
 }
 
+/*
+ * The max-height height budget (#168). Everything here is gated on
+ * [data-bounded], set by element.ts only when the attribute parses, so an
+ * embed without it lays out exactly as it did before.
+ *
+ * The widget becomes a flex column that is at most --ote-max-height tall,
+ * and the *event area* is what scrolls - not the whole component. That
+ * distinction is the whole point: the host-side workaround this replaces
+ * wrapped <ote-events> in its own overflow container, which scrolled the
+ * widget from the outside and so carried the calendar's own sticky weekday
+ * header away with the content. Scrolling an inner element leaves the
+ * headers a scrollport to pin against.
+ *
+ * No overflow on .ote-events itself except for cards, deliberately: the
+ * detail modal is appended here as a sibling of the event area (render.ts),
+ * and while a position: fixed backdrop is out of flow and survives either
+ * way (verified in Chrome: backdrop height equals viewport height, top 0),
+ * there is no reason to clip a box whose children handle their own overflow.
+ */
+.ote-events[data-bounded] {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--ote-max-height);
+}
+
+/* min-height: 0 is what lets a flex item shrink below its content and scroll. */
+.ote-events[data-bounded] ul.events {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * layout="cards" scrolls the container instead of the event area, which is
+ * the one place this breaks symmetry with the other two layouts.
+ *
+ * The reason is that a grid given a definite height sizes its implicit auto
+ * rows against that height rather than against their content. Making the
+ * grid the flex item that absorbs the budget squashed every card to ~85px -
+ * verified in Chrome against an unbounded control rendering the same feed at
+ * 297px, with .event's own overflow: hidden hiding everything below the
+ * placeholder image, so the cards looked merely empty rather than clipped.
+ * align-content: start does not prevent it. Keeping the grid at flex: none
+ * leaves its rows content-sized, and the overflow becomes the container's to
+ * scroll. Cards have no sticky header, so nothing is lost by scrolling the
+ * outer element here - which is exactly why list and calendar must not.
+ *
+ * The padding is room for .event-stacked's box-shadow (group-events): the
+ * 1rem grid gap absorbs it between cards, but the rightmost column and the
+ * last row sit flush against the scrollport's edge, which clips. Nothing
+ * needed it before because an unbounded grid never clipped anything.
+ */
+.ote-events[data-bounded="cards"] {
+  overflow-y: auto;
+}
+
+.ote-events[data-bounded="cards"] ul.events {
+  flex: none;
+  padding: 0 0.75rem 0.75rem 0;
+}
+
+/*
+ * layout="list" sets overflow: hidden to clip its own border radius. The
+ * longhand above wins on overflow-y only, which is what we want: the rows
+ * scroll vertically and the rounded corners still clip horizontally.
+ *
+ * The column header is already opaque (--ote-accent-soft), so pinning it
+ * needs no extra background - and it earns its place on the 460-event feed
+ * this attribute exists for, where "When" scrolling out of sight leaves
+ * three unlabelled columns.
+ */
+.ote-events[data-bounded] ul.events.layout-list .event-list-header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+}
+
+/*
+ * layout="calendar". The library's root (.ec) takes an inline height: 100%
+ * from the height option (calendar-layout.ts#bounded), so .calendar-host
+ * has to hand it a definite height to resolve against.
+ */
+.ote-events[data-bounded] .calendar-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.ote-events[data-bounded] .calendar-host .ec {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * .ec-main is the library's scroll container and holds its sticky .ec-header,
+ * but dayMaxEvents:true adds .ec-uniform, which sets overflow: hidden -
+ * sensible when the grid is free to grow, fatal under a budget, where it
+ * would silently clip the last weeks of the month with nothing to scroll.
+ *
+ * Turning it back to auto is what makes max-per-day and max-height compose
+ * instead of fight: the row height pin stays, so a day still shows exactly
+ * max-per-day events, and the weeks that no longer fit the budget scroll.
+ * Neither cap overrides the other and nothing is lost.
+ *
+ * One class more specific than the library's rule, same technique (and same
+ * reason) as the row-height pin below - never !important.
+ */
+.ote-events[data-bounded] .calendar-host .ec-day-grid .ec-main.ec-uniform {
+  overflow: auto;
+}
+
 .event {
   position: relative;
   border: 1px solid var(--ote-border);

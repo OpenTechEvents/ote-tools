@@ -142,6 +142,24 @@
               <p class="hint">Optional base font-size for the widget.</p>
             </div>
 
+            <div class="field">
+              <label for="max-height-input">max-height</label>
+              <input type="text" id="max-height-input" placeholder="600px, 60vh, 40rem..." />
+              <p class="hint">
+                Optional height budget for the widget, in any CSS length. What
+                does not fit scrolls <em>inside</em> the widget, so you no
+                longer need to wrap it in your own
+                <code>max-height</code>/<code>overflow</code> container — a
+                wrapper scrolls the widget from the outside, which carries the
+                calendar's weekday header and the list's column header away
+                with it. It is a maximum, not a fixed height: a short feed
+                still renders at its natural height. In
+                <code>layout="calendar"</code> it combines with
+                <code>max-per-day</code> rather than overriding it — the day
+                cap still holds and the weeks that no longer fit scroll.
+              </p>
+            </div>
+
             <div class="field" id="card-width-field">
               <label for="card-width-select">card-width</label>
               <select id="card-width-select">

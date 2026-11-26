@@ -22,6 +22,7 @@ import {
   parseShowPast,
   parseSort,
   resolveLang,
+  parseMaxHeight,
 } from "../src/attrs.js";
 
 describe("parseEventId", () => {
@@ -316,5 +317,38 @@ describe("parseCalendarAttributes", () => {
     expect(
       parseCalendarAttributes(attributes({ "initial-date": "today" }), "2026-06-01").initialDate,
     ).toEqual({ kind: "date", date: "2026-06-01" });
+  });
+});
+
+describe("parseMaxHeight", () => {
+  it("passes through a CSS length and treats a bare number as pixels", () => {
+    expect(parseMaxHeight("600px")).toBe("600px");
+    expect(parseMaxHeight("40rem")).toBe("40rem");
+    expect(parseMaxHeight("60vh")).toBe("60vh");
+    expect(parseMaxHeight("70dvh")).toBe("70dvh");
+    expect(parseMaxHeight("  500  ")).toBe("500px");
+  });
+
+  it("returns undefined for absent, off, or unparseable input", () => {
+    // undefined is the pre-attribute behaviour: grow to fit the feed. An
+    // unparseable value must not become a budget - a typo that silently
+    // bounded the widget to something arbitrary would be worse than a typo
+    // that does nothing.
+    expect(parseMaxHeight(null)).toBeUndefined();
+    expect(parseMaxHeight("")).toBeUndefined();
+    expect(parseMaxHeight("   ")).toBeUndefined();
+    expect(parseMaxHeight("none")).toBeUndefined();
+    expect(parseMaxHeight("off")).toBeUndefined();
+    expect(parseMaxHeight("auto")).toBeUndefined();
+    expect(parseMaxHeight("potato")).toBeUndefined();
+    expect(parseMaxHeight("600 px")).toBeUndefined();
+  });
+
+  it("refuses a CSS expression rather than letting it reach the stylesheet", () => {
+    // The value is written into a custom property, so anything accepted here
+    // lands in CSS verbatim.
+    expect(parseMaxHeight("calc(100vh - 2rem)")).toBeUndefined();
+    expect(parseMaxHeight("600px; background: red")).toBeUndefined();
+    expect(parseMaxHeight("var(--x)")).toBeUndefined();
   });
 });
