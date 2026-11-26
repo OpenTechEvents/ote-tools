@@ -129,13 +129,21 @@ describe("buildGoogleCalendarUrl: a feed URL that carries its own query string (
   // feed and drops the *language*, so the visitor subscribes successfully to
   // the wrong translation — a 200, no error, nothing to report. Both orders
   // are covered because the failure mode differs, not the cause.
+  //
+  // The feed is a registered adopter with real translations (96 events, 36
+  // with `es`, `textLanguage: "en"`), chosen because the degradation is
+  // observable there rather than theoretical. Measured against the live
+  // converter: `&lang=es` returns 230430 b of `SUMMARY;LANGUAGE=es`, while
+  // the truncated URL returns 220534 b of `SUMMARY;LANGUAGE=en` — so a
+  // visitor who asks for Spanish subscribes to the English calendar, and
+  // the ICS itself advertises the wrong language.
   const CONSUMER_ICS =
-    "https://convert.opentechevents.org/ics?feed=https%3A%2F%2Fsaraoia.com%2Feventos-ote.json&lang=es";
+    "https://convert.opentechevents.org/ics?feed=https%3A%2F%2Fconfs.rauljimenez.info%2Fevents.json&lang=es";
 
   it("keeps the chosen language, which truncation dropped silently", () => {
     const url = buildGoogleCalendarUrl(CONSUMER_ICS);
     expect(cidOf(url)).toBe(
-      "webcal://convert.opentechevents.org/ics?feed=https%3A%2F%2Fsaraoia.com%2Feventos-ote.json&lang=es",
+      "webcal://convert.opentechevents.org/ics?feed=https%3A%2F%2Fconfs.rauljimenez.info%2Fevents.json&lang=es",
     );
     expect(cidOf(url)).toContain("lang=es");
   });
