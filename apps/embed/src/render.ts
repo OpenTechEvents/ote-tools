@@ -1482,6 +1482,27 @@ function renderModal(
   return backdrop;
 }
 
+/**
+ * Mount/replace/remove **only** the detail modal, leaving the rendered list
+ * (or the mounted calendar) untouched.
+ *
+ * Opening a modal used to go through `renderWidget()`, which starts with
+ * `container.replaceChildren()` — so a click tore down and rebuilt every
+ * card, and in `layout="calendar"` unmounted and remounted the whole month
+ * behind the backdrop (measured in Chrome: ~18ms of empty `.calendar-host`
+ * between the two). That one-frame gap is the flicker. The modal is an
+ * overlay over unchanged content, so it is rendered as one.
+ */
+export function renderEventModal(container: HTMLElement, state: WidgetState): void {
+  container.querySelector(".event-modal-backdrop")?.remove();
+  if (!state.selectedEvent) return;
+  const strings = STRINGS[state.lang];
+  // Same grouping argument renderWidget() passes per layout: the calendar
+  // renders every occurrence individually, so its modal has no group nav.
+  const groups = state.layout === "calendar" ? undefined : resolveEventGroups(state);
+  container.append(renderModal(state.selectedEvent, strings, state, groups));
+}
+
 export function renderWidget(container: HTMLElement, state: WidgetState): void {
   container.replaceChildren();
   const strings = STRINGS[state.lang];

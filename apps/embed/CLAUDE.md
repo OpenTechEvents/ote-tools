@@ -451,6 +451,31 @@ back with `--virtual-time-budget=6000 --dump-dom`. The same trick drives
 clicks (popover → modal → month preserved), which is how the remount fix was
 verified.
 
+### The library decides "clicked outside" in a way Shadow DOM breaks
+
+`outsideEvent()` in `@event-calendar/core` (still so in 5.22.0) listens on
+`document` and tests `el.contains(jsEvent.target)`. A `document`-level
+listener inside a shadow root sees the event **retargeted to the host** —
+measured here as `OTE-EVENTS`, with the real node only in
+`composedPath()[0]` — so the test can never pass and *every* pointerdown
+reads as outside. The visible bug: clicking an event in the `+N more`
+popover closed the popover and opened nothing, because the dialog was torn
+down before its own click handler ran and `noClick()` swallowed the click.
+
+`calendar-layout.ts#suppressRetargetedOutsideEvents()` corrects the verdict
+rather than the detection: the library announces it as a
+`pointerdownoutside` CustomEvent on the dialog, and a capturing listener on
+the container re-asks with `composedPath()` and
+`stopImmediatePropagation()`s the ones that were really inside. Capture
+reaches the target even though that event does not bubble — that is what
+makes it possible to answer before the library's own handler.
+
+Any other library feature wired through `outsideEvent()` has the same bug
+waiting for it, and none of it is visible to the test suite: jsdom draws no
+`.ec-event`, so the popover never exists there. `calendar-render.test.ts`
+asserts the contract the fix hangs on (the CustomEvent, its `detail.jsEvent`,
+the paths) and the popover itself has to be clicked in a real browser.
+
 `@event-calendar/core`'s compiled `dist/index.js` imports from `svelte`
 at runtime (it's built with Svelte 5 internally) — that's already accounted
 for in the sizes above; no extra esbuild config is needed for it beyond the

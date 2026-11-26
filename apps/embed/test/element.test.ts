@@ -753,6 +753,36 @@ describe("<ote-events>", () => {
     expect(modal!.querySelectorAll(".tags .tag")).toHaveLength(2);
   });
 
+  it("opening and closing the modal leaves the rendered list in place (no flicker rebuild)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
+    const el = createCardsElement();
+    el.setAttribute("feed", "https://example.org/rich.json");
+    document.body.append(el);
+    await flush();
+
+    const root = el.shadowRoot!;
+    const list = root.querySelector(".events");
+    const card = root.querySelector<HTMLElement>("li.event");
+    const image = root.querySelector("img.event-image");
+    expect(list && card && image).toBeTruthy();
+
+    card!.click();
+    expect(root.querySelector(".event-modal")).toBeTruthy();
+    // The same nodes, not equivalent ones: a rebuilt list re-creates its
+    // <img loading="lazy"> elements, and in layout="calendar" the same
+    // re-render unmounts and remounts the month behind the backdrop.
+    expect(root.querySelector(".events")).toBe(list);
+    expect(root.querySelector("li.event")).toBe(card);
+    expect(root.querySelector("img.event-image")).toBe(image);
+
+    root.querySelector<HTMLElement>(".event-modal-close")?.click();
+    expect(root.querySelector(".event-modal")).toBeNull();
+    expect(root.querySelector(".event-modal-backdrop")).toBeNull();
+    expect(root.querySelector(".events")).toBe(list);
+    expect(root.querySelector("li.event")).toBe(card);
+    expect(root.querySelector("img.event-image")).toBe(image);
+  });
+
   it("fields-preview and fields-detail configure the card and modal independently", async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => RICH_FEED });
     const el = createCardsElement();

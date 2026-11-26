@@ -402,6 +402,43 @@ export interface RenderCalendarOptions {
   now?: Date;
 }
 
+/**
+ * Undo the library's "a click inside me happened outside me" verdict, which
+ * is what Shadow DOM does to its `+N more` popover.
+ *
+ * The popover closes itself on a pointerdown outside its dialog, detected
+ * with a capturing `document` listener and `el.contains(jsEvent.target)`
+ * (`outsideEvent()` in `@event-calendar/core`, unchanged in 5.22.0, the
+ * latest at the time of writing). Inside a shadow root that test can never
+ * pass: a `document`-level listener sees the event **retargeted** to the
+ * host — measured here as `OTE-EVENTS`, with the real `<a>` only in
+ * `composedPath()[0]`. So every pointerdown read as outside, and clicking an
+ * event in the popover tore the popover down *before* its own click handler
+ * could run — and `noClick()` swallowed the click on the way out. The
+ * popover closed and nothing opened.
+ *
+ * The library announces the verdict as a `pointerdownoutside` CustomEvent
+ * dispatched *on the dialog*, so the correction goes there: a capturing
+ * listener on an ancestor runs before the target's own handler (capture
+ * reaches the target even for a non-bubbling event, only the bubble phase is
+ * skipped), and `stopImmediatePropagation()` keeps the event from arriving.
+ * The guard re-asks the same question with `composedPath()`, which does not
+ * retarget — a pointerdown genuinely outside still closes the popover,
+ * including one elsewhere in this same widget.
+ */
+function suppressRetargetedOutsideEvents(container: HTMLElement): void {
+  container.addEventListener(
+    "pointerdownoutside",
+    (domEvent) => {
+      const { target } = domEvent;
+      const source = (domEvent as CustomEvent<{ jsEvent?: Event }>).detail?.jsEvent;
+      if (!(target instanceof Node) || !source?.composedPath) return;
+      if (source.composedPath().includes(target)) domEvent.stopImmediatePropagation();
+    },
+    true,
+  );
+}
+
 export function renderCalendar(
   container: HTMLElement,
   events: PreviewEvent[],
@@ -463,6 +500,8 @@ export function renderCalendar(
       weekRowTracks(events, rangeStart, rangeEnd, maxPerDay, compact, fillsHeight),
     );
   };
+
+  suppressRetargetedOutsideEvents(container);
 
   let view = calendarViewForWidth(container.clientWidth, responsive);
 

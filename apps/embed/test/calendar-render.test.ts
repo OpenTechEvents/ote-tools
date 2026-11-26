@@ -126,6 +126,36 @@ describe("the calendar the widget mounts", () => {
     expect(days.length).toBeLessThanOrEqual(42);
   });
 
+  // The library's popover decides "a pointerdown happened outside me" with
+  // `el.contains(jsEvent.target)` on a document-level listener, and inside a
+  // shadow root that target is retargeted to the host — so it closed itself
+  // on a click on one of its own events, and `noClick()` ate the click that
+  // would have opened the modal. The dialog itself only ever renders in a
+  // real browser (jsdom draws no `.ec-event`), so what is asserted here is
+  // the contract the fix depends on: the verdict arrives as a
+  // `pointerdownoutside` CustomEvent on the dialog, carrying the original
+  // event, and the guard answers the question again with `composedPath()`.
+  it("does not let the +N more popover close on a pointerdown that was really inside it", () => {
+    render([timed]);
+
+    const dialog = document.createElement("div");
+    dialog.className = "ec-popup";
+    container.querySelector(".ec-month-view")!.append(dialog);
+    const closePopover = vi.fn();
+    dialog.addEventListener("pointerdownoutside", closePopover);
+
+    const verdict = (path: EventTarget[]) =>
+      new CustomEvent("pointerdownoutside", { detail: { jsEvent: { composedPath: () => path } } });
+
+    // Retargeted: the pointerdown was on an event inside the dialog.
+    dialog.dispatchEvent(verdict([dialog, container, document.body]));
+    expect(closePopover).not.toHaveBeenCalled();
+
+    // Genuinely outside — including elsewhere in this same widget — still closes it.
+    dialog.dispatchEvent(verdict([container, document.body]));
+    expect(closePopover).toHaveBeenCalledTimes(1);
+  });
+
   it("gives the month navigation the requested language", () => {
     render([timed], "es");
     expect(container.querySelector(".ec-prev")?.getAttribute("aria-label")).toBe("Mes anterior");

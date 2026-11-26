@@ -1,5 +1,23 @@
 # @opentechevents/embed changelog
 
+## Unreleased
+
+### Fixed
+
+- `layout="calendar"`: clicking an event inside the `+N more` popover now
+  opens its detail modal. The popover used to close on that click and do
+  nothing else: `@event-calendar/core` detects a pointerdown "outside" the
+  popover with `el.contains(jsEvent.target)` on a `document` listener, and
+  inside a shadow root that target is retargeted to the host element, so
+  every pointerdown — its own events included — counted as outside. Clicks
+  genuinely outside the popover still close it.
+- Opening or closing an event's detail modal no longer re-renders the events
+  behind it. A click used to rebuild the whole list — and in
+  `layout="calendar"` unmount and remount the month, measured in Chrome at
+  ~18ms of empty calendar behind the backdrop — which read as a flicker. The
+  modal is now mounted and removed as an overlay, so cards keep their
+  already-loaded images and the calendar keeps its DOM.
+
 ## 0.10.0 — 2026-11-26
 
 ### Changed

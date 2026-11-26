@@ -27,6 +27,7 @@ import {
   resolveLang,
 } from "./attrs.js";
 import {
+  renderEventModal,
   renderWidget,
   resolveEventGroups,
   selectVisibleEvents,
@@ -117,10 +118,12 @@ export class OteEventsElement extends HTMLElement {
   #calendarRequestId = 0;
   #calendarCssInjected = false;
   // The month the visitor last paged to. Every #renderNow() replaces
-  // `.calendar-host` and so remounts the calendar — opening a detail modal
-  // included — and without this the calendar would snap back to its
-  // `initial-date` each time, which `initial-date="next-event"` makes very
-  // visible: page to June, click an event, land back in March.
+  // `.calendar-host` and so remounts the calendar — any attribute change,
+  // a new feed, a `.events` assignment — and without this the calendar
+  // would snap back to its `initial-date` each time, which
+  // `initial-date="next-event"` makes very visible: page to June, change an
+  // attribute, land back in March. (Opening a detail modal no longer
+  // re-renders at all; see #renderModalNow().)
   #calendarDate: string | undefined;
 
   constructor() {
@@ -332,6 +335,30 @@ export class OteEventsElement extends HTMLElement {
       this.style.setProperty("--ote-max-height", maxHeight);
       this.#container.setAttribute("data-bounded", "");
     }
+    const state = this.#buildState();
+    renderWidget(this.#container, state);
+
+    if (state.layout === "calendar" && state.status === "loaded") {
+      const events = selectVisibleEvents(state);
+      if (events.length > 0) {
+        void this.#mountCalendar(events, state.lang, maxHeight !== undefined, this.#hasDefiniteHeight());
+        return;
+      }
+    }
+    this.#teardownCalendar();
+  }
+
+  /**
+   * Render the detail modal without re-rendering the list or remounting the
+   * calendar. Only safe as a follow-up to a `#renderNow()` whose output is
+   * still on screen, which is exactly where the modal is opened and closed
+   * from. See `renderEventModal()` in `render.ts` for why it exists.
+   */
+  #renderModalNow(): void {
+    renderEventModal(this.#container, this.#buildState());
+  }
+
+  #buildState(): WidgetState {
     const lang = resolveLang(parseLangAttr(this.getAttribute("lang")), navigator.language);
     const state: WidgetState = {
       status: this.#status,
@@ -360,12 +387,12 @@ export class OteEventsElement extends HTMLElement {
         );
         if (parseEventClick(this.getAttribute("event-click")) === "modal") {
           this.#selectedEvent = event;
-          this.#renderNow();
+          this.#renderModalNow();
         }
       },
       onEventClose: () => {
         this.#selectedEvent = undefined;
-        this.#renderNow();
+        this.#renderModalNow();
       },
       onEventAction: (action, event) => {
         const actionId = typeof action === "string" ? action : "type" in action ? action.type : action.id;
@@ -374,16 +401,7 @@ export class OteEventsElement extends HTMLElement {
         );
       },
     };
-    renderWidget(this.#container, state);
-
-    if (state.layout === "calendar" && state.status === "loaded") {
-      const events = selectVisibleEvents(state);
-      if (events.length > 0) {
-        void this.#mountCalendar(events, state.lang, maxHeight !== undefined, this.#hasDefiniteHeight());
-        return;
-      }
-    }
-    this.#teardownCalendar();
+    return state;
   }
 
   /**
@@ -461,7 +479,7 @@ export class OteEventsElement extends HTMLElement {
             window.open(event.link, "_blank", "noopener");
           } else if (eventClick === "modal") {
             this.#selectedEvent = event;
-            this.#renderNow();
+            this.#renderModalNow();
           }
         },
       });
