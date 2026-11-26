@@ -151,6 +151,42 @@
               </select>
               <p class="hint" id="card-width-hint">Cards layout only. Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
             </div>
+
+            <div class="field" id="calendar-field">
+              <label for="max-per-day-input">max-per-day</label>
+              <input type="number" id="max-per-day-input" min="1" step="1" placeholder="3 (default)" />
+              <p class="hint">
+                Calendar layout only. How many events a day cell shows before the
+                rest collapse into a <code>+N more</code> popover.
+                <code>max-per-day="off"</code> stacks every event, which is what
+                a busy day did before this attribute existed.
+              </p>
+
+              <label for="initial-date-select">initial-date</label>
+              <select id="initial-date-select">
+                <option value="next-event" selected>next-event (default)</option>
+                <option value="today">today</option>
+              </select>
+              <p class="hint">
+                Which month the calendar opens on. <code>next-event</code> opens
+                on the next upcoming event — or the most recent past one for a
+                feed that is entirely in the past — so a feed starting next March
+                does not open on an empty current month. The attribute also takes
+                a fixed <code>YYYY-MM</code> or <code>YYYY-MM-DD</code>.
+              </p>
+
+              <label class="checkbox">
+                <input type="checkbox" id="responsive-checkbox" checked />
+                Degrade the month grid to a list in a narrow container
+              </label>
+              <p class="hint">
+                On by default. Below 600px of <strong>container</strong> width
+                (not viewport — the widget is usually in a column) the month grid
+                becomes a list, because seven columns at phone width truncate both
+                the weekday headers and every event title. Unchecking it is
+                <code>responsive="off"</code>.
+              </p>
+            </div>
           </div>
         </details>
 

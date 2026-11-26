@@ -378,9 +378,11 @@ reasons discovered while spiking this:
    `DayGrid`/`TimeGrid`/`List`/etc. — as named exports, no separate
    per-view packages despite what an npm search for
    `@event-calendar/day-grid` suggests; that package is a stale pre-4.x
-   artifact, stuck at 3.12.0) compiles down to ~133KB minified / ~44KB
-   gzip for core+DayGrid — and it's lazy-loaded, so it only costs anything
-   for a consumer who actually sets `layout="calendar"`.
+   artifact, stuck at 3.12.0) compiles down to a fraction of that — and
+   it's lazy-loaded, so it only costs anything for a consumer who actually
+   sets `layout="calendar"`. `node build.mjs` prints the current size of
+   `dist/calendar-layout.js`, which is the number that matters; registering
+   the `List` view for the narrow fallback added about 9KB to it.
 2. **Shadow DOM compatibility.** FullCalendar v5+ injects its CSS into
    `document.head` at runtime — a `<style>` there never reaches into a
    Shadow DOM at all, so it would render completely unstyled inside this
@@ -393,6 +395,34 @@ reasons discovered while spiking this:
    inside the shadow root). Its `createCalendar()` even types its `target`
    parameter as `Element | Document | ShadowRoot`, so Shadow DOM is a
    supported use case, not a lucky accident.
+
+### `max-per-day` is a row height, and the numbers in it were measured
+
+`dayMaxEvents` in this library only accepts `true` — "as many events as fit
+the day cell" — so the numeric cap is implemented as a day-row height
+(`calendar-layout.ts#dayRowHeight`, applied through
+`--ote-calendar-row-height` by a rule in `theme.css.ts`). Two traps live
+here, and both cost a measurement cycle:
+
+1. **`dayMaxEvents: true` alone, with the calendar's `height: "auto"`, hides
+   nothing.** `ec-uniform` sizes its rows `minmax(0, 1fr)`, and `1fr` tracks
+   in a grid of indefinite height grow to the tallest row's content — so one
+   15-event day makes *every* week 15 events tall. Pinning the row height is
+   what actually caps a day.
+2. **`minmax(0, …)` and `minmax(min-content, …)` do not buy collapsing empty
+   weeks.** Both were tried: the event overlay subgrid spans every row, so
+   each track still resolves to the maximum. Week rows are uniform, which is
+   also what every other month grid does.
+
+The `em` constants are measured in Chrome, not reasoned about. To re-measure
+after a library or stylesheet change, serve `dist/` and have the page report
+`.ec-day-head`, `.ec-event` and `.ec-day-foot` box heights for a day with
+more events than the cap, then check that a cap of N shows exactly N chips
+and an `+N more` link. Headless works and needs no CDP: put the measuring
+script in the page itself, write the result into an element, and read it
+back with `--virtual-time-budget=6000 --dump-dom`. The same trick drives
+clicks (popover → modal → month preserved), which is how the remount fix was
+verified.
 
 `@event-calendar/core`'s compiled `dist/index.js` imports from `svelte`
 at runtime (it's built with Svelte 5 internally) — that's already accounted

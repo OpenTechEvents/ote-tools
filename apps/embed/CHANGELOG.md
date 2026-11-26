@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Added
+
+- **`layout="calendar"` caps a day and opens where the events are** (#167).
+  Three new calendar-only attributes:
+
+  - `max-per-day` (default `3`) collapses the rest of a day into the
+    library's `+N more` popover. The library's own default is "never
+    collapse", so one busy day stacked every event it had and grew the
+    component without limit. `max-per-day="off"` is the old behaviour.
+  - `initial-date` (default `next-event`) opens on the month of the next
+    upcoming event, or of the most recent past one when the feed is entirely
+    in the past. Before, the calendar always opened on the current month, so
+    a feed whose events start next March opened empty and read as broken.
+    Also accepts `today` or a fixed `YYYY-MM`/`YYYY-MM-DD`.
+  - `responsive` (default on) degrades the month grid to the library's list
+    view below 600px of **container** width (#169). At phone width a
+    seven-column grid truncates the weekday headers and every event title,
+    and `dayGridMonth` was the only view registered, so there was nothing to
+    fall back to. Container width rather than viewport, because the widget is
+    usually embedded in a column. `responsive="off"` keeps the grid.
+
+  The toolbar gained **Today** and, when the feed has something upcoming,
+  **Next event** — it was `title | prev,next` only, which makes a 460-event
+  feed a month-by-month walk. Both, plus the `+N more` link and the popover's
+  close button, are localized; the library hardcodes English for them.
+
+  The month the visitor paged to now survives a re-render. Opening a detail
+  modal remounts the calendar, which used to snap the view back.
+
+  `layout="calendar"` lazy-loads `calendar-layout.js`, which grows from
+  ~133KB to ~142KB minified with the list view registered. Nothing changes
+  for an embed that does not use that layout. `oteSpecVersion` stays
+  **0.4.0**.
+
 ### Fixed
 
 - **A multi-part event's price.** A conference published one document per

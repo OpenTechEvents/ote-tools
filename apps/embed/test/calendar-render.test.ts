@@ -17,7 +17,7 @@
 // browser, and #162 tracks it.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { renderCalendar, type CalendarHandle } from "../src/calendar-layout.js";
+import { dayRowHeight, renderCalendar, type CalendarHandle } from "../src/calendar-layout.js";
 import type { PreviewEvent } from "@opentechevents/preview-feed";
 
 const timed: PreviewEvent = {
@@ -37,25 +37,58 @@ const allDay: PreviewEvent = {
 let container: HTMLElement;
 let handle: CalendarHandle | undefined;
 
-beforeEach(() => {
-  // The calendar observes its container's size. jsdom has no ResizeObserver,
-  // and without one the library throws on mount — so this stub reports a size
-  // rather than doing nothing.
-  if (!("ResizeObserver" in globalThis)) {
-    class StubResizeObserver implements ResizeObserver {
-      constructor(private readonly callback: ResizeObserverCallback) {}
-      observe(target: Element): void {
-        this.callback(
-          [{ target, contentRect: { width: 800, height: 600 } } as unknown as ResizeObserverEntry],
-          this,
-        );
-      }
-      unobserve(): void {}
-      disconnect(): void {}
-    }
-    Object.defineProperty(globalThis, "ResizeObserver", { value: StubResizeObserver, writable: true });
+// The calendar observes its container's size. jsdom has no ResizeObserver,
+// and without one the library throws on mount — so this stub reports a size
+// rather than doing nothing, and `resizeTo()` can re-report a new one: the
+// narrow fallback follows the *container*, which jsdom never measures on its
+// own (clientWidth is always 0 there).
+const observers = new Set<{ callback: ResizeObserverCallback; target: Element; observer: ResizeObserver }>();
+
+class StubResizeObserver implements ResizeObserver {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+  observe(target: Element): void {
+    observers.add({ callback: this.callback, target, observer: this });
+    this.callback(entriesFor(target), this);
   }
+  unobserve(): void {}
+  disconnect(): void {
+    for (const entry of observers) {
+      if (entry.observer === this) observers.delete(entry);
+    }
+  }
+}
+
+let width = 800;
+
+function entriesFor(target: Element): ResizeObserverEntry[] {
+  return [{ target, contentRect: { width, height: 600 } } as unknown as ResizeObserverEntry];
+}
+
+/** Re-reports the container's size to every observer, the way a browser does on a real resize. */
+function resizeTo(next: number): void {
+  width = next;
+  Object.defineProperty(container, "clientWidth", { value: next, configurable: true });
+  for (const { callback, target, observer } of observers) callback(entriesFor(target), observer);
+}
+
+const todayISO = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
+/** Svelte applies a changed option on a microtask; the DOM is not updated synchronously. */
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+beforeEach(() => {
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    value: StubResizeObserver,
+    writable: true,
+    configurable: true,
+  });
+  observers.clear();
+  width = 800;
   container = document.createElement("div");
+  Object.defineProperty(container, "clientWidth", { value: 800, configurable: true });
   document.body.append(container);
 });
 afterEach(() => {
@@ -64,9 +97,18 @@ afterEach(() => {
   container.remove();
 });
 
-const render = (events: PreviewEvent[], lang: "en" | "es" = "en") => {
+type RenderOverrides = Partial<Omit<Parameters<typeof renderCalendar>[2], "lang" | "onEventClick">>;
+
+const render = (events: PreviewEvent[], lang: "en" | "es" = "en", overrides: RenderOverrides = {}) => {
   const onEventClick = vi.fn();
-  handle = renderCalendar(container, events, { lang, onEventClick });
+  handle = renderCalendar(container, events, {
+    lang,
+    onEventClick,
+    maxPerDay: 3,
+    initialDate: { kind: "next-event" },
+    responsive: true,
+    ...overrides,
+  });
   return onEventClick;
 };
 
@@ -110,6 +152,87 @@ describe("the calendar the widget mounts", () => {
     container.innerHTML = "";
     expect(() => render([{ name: "Date unknown" }, timed])).not.toThrow();
     expect(container.querySelector(".ec-month-view")).not.toBeNull();
+  });
+
+  it("opens on the month of the next event, not on the current month", () => {
+    // The bug: the library opens on today, so a feed starting next March
+    // rendered an empty grid and read as broken (#167).
+    // jsdom renders every library text node empty (see the file header), so
+    // the month on show is read back through the handle rather than from the
+    // toolbar title.
+    render([timed, allDay], "en", { now: new Date(2026, 0, 15) });
+    expect(handle!.currentDate()).toBe("2026-08-10");
+  });
+
+  it("honours initial-date=today and a fixed initial-date", () => {
+    render([timed], "en", { initialDate: { kind: "today" }, now: new Date(2026, 0, 15) });
+    // "today" hands the date back to the library, which uses the real clock.
+    expect(handle!.currentDate()).toBe(todayISO());
+    handle!.destroy();
+    container.innerHTML = "";
+    render([timed], "en", { initialDate: { kind: "date", date: "2026-12-01" } });
+    expect(handle!.currentDate()).toBe("2026-12-01");
+  });
+
+  it("offers Today and Next event in the toolbar, and jumps with them", () => {
+    // Before this, the toolbar was `title | prev,next` only, which makes a
+    // 460-event feed a blind month-by-month walk (#167).
+    render([timed], "en", { initialDate: { kind: "today" }, now: new Date(2026, 0, 15) });
+    expect(container.querySelector(".ec-today")).not.toBeNull();
+    const nextEvent = container.querySelector<HTMLButtonElement>("button.ec-nextEvent");
+    expect(nextEvent).not.toBeNull();
+    nextEvent!.click();
+    expect(handle!.currentDate()).toBe("2026-08-12");
+  });
+
+  it("hides the Next event button when the feed has nothing upcoming", () => {
+    // A button that can only answer "nothing ahead" is worse than no button.
+    render([timed], "en", { now: new Date(2027, 0, 15) });
+    expect(container.querySelector(".ec-today")).not.toBeNull();
+    expect(container.querySelector(".ec-nextEvent")).toBeNull();
+  });
+
+  it("caps a day by pinning the row height, and off removes the cap", () => {
+    // The cap is a height because `dayMaxEvents` only takes `true`; without
+    // this the library stacks every event of a day without limit (#167).
+    render([timed], "en", { maxPerDay: 4 });
+    expect(container.getAttribute("data-day-rows")).toBe("4");
+    // The formula itself is asserted in calendar-layout.test.ts; what
+    // matters here is that the host carries it.
+    expect(container.style.getPropertyValue("--ote-calendar-row-height")).toBe(dayRowHeight(4));
+    expect(container.querySelector(".ec-uniform")).not.toBeNull();
+    handle!.destroy();
+    container.innerHTML = "";
+    render([timed], "en", { maxPerDay: "off" });
+    expect(container.hasAttribute("data-day-rows")).toBe(false);
+    expect(container.querySelector(".ec-uniform")).toBeNull();
+  });
+
+  it("degrades to the list view in a narrow container, and not when responsive is off", async () => {
+    // jsdom lays nothing out, so the width has to be dictated — the real
+    // measurement is the ResizeObserver entry the browser hands over.
+    resizeTo(390);
+    render([timed], "en");
+    await flush();
+    expect(container.querySelector(".ec-list")).not.toBeNull();
+    expect(container.querySelector(".ec-month-view")).not.toBeNull();
+    expect(container.querySelector(".ec-day-grid")).toBeNull();
+    handle!.destroy();
+    container.innerHTML = "";
+    render([timed], "en", { responsive: false });
+    expect(container.querySelector(".ec-day-grid")).not.toBeNull();
+    expect(container.querySelector(".ec-list")).toBeNull();
+  });
+
+  it("switches back to the grid when the container grows", async () => {
+    resizeTo(390);
+    render([timed], "en");
+    await flush();
+    expect(container.querySelector(".ec-list")).not.toBeNull();
+    resizeTo(900);
+    await flush();
+    expect(container.querySelector(".ec-day-grid")).not.toBeNull();
+    expect(container.querySelector(".ec-list")).toBeNull();
   });
 
   it("leaves nothing behind when destroyed", () => {

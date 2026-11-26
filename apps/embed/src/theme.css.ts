@@ -700,6 +700,29 @@ a.price:focus-visible {
   cursor: pointer;
 }
 
+/*
+ * max-per-day (see calendar-layout.ts#dayRowHeight). The library's
+ * dayMaxEvents:true adds .ec-uniform, which sizes rows minmax(0, 1fr) — and
+ * 1fr tracks in a grid of indefinite height grow to the tallest row's
+ * content, so a 15-event day would make every week 15 events tall and hide
+ * nothing. Pinning the row height is what actually caps a day and sends the
+ * rest to the "+N more" popover.
+ *
+ * It has to be a rule rather than an inline style on the host: .ec-main is
+ * the library's own element and sets --ec-row-height on itself, which beats
+ * anything inherited. This stylesheet is injected before the library's in
+ * the shadow root, so the selector is deliberately one class more specific.
+ */
+.calendar-host[data-day-rows] .ec-day-grid .ec-main.ec-uniform {
+  --ec-row-height: var(--ote-calendar-row-height);
+}
+
+/* Four controls plus a month title do not fit a phone-width toolbar on one line. */
+.calendar-host .ec-toolbar {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .event-modal-backdrop {
   position: fixed;
   inset: 0;
