@@ -1205,3 +1205,29 @@ a {
   color: var(--accent);
 }
 
+
+/* The example picker sits where the "Example feed" button was: one control
+   that both reaches an example and offers the other eight, instead of a
+   button that could only ever reach one. */
+.feed-bar select {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 14rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.feed-bar select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.feed-bar select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

@@ -10,6 +10,7 @@ import {
   type NativeEventAction,
 } from "./attrs.js";
 import { resetToDefaults, setupControlTabs } from "./control-tabs.js";
+import { parseAdopterRegistry } from "./adopters.js";
 import { applyPreset, EVENT_PRESETS } from "./presets.js";
 import type { OteEventsElement } from "./element.js";
 import type { EventAction, EventActionPlacement } from "./render.js";
@@ -29,7 +30,7 @@ const SUBSCRIBE_SCRIPT_URL = `https://tools.opentechevents.org/embed/v${__EMBED_
  */
 const feedInput = document.querySelector<HTMLInputElement>("#source-feed-input")!;
 const sourceStatus = document.querySelector<HTMLElement>("#source-status")!;
-const sourceResetButton = document.querySelector<HTMLButtonElement>("#source-reset-button")!;
+const adopterSelect = document.querySelector<HTMLSelectElement>("#adopter-select")!;
 const feedDataInput = document.querySelector<HTMLTextAreaElement>("#feed-data-input")!;
 const feedSourceField = document.querySelector<HTMLElement>("#feed-source-field")!;
 const jsonSourceField = document.querySelector<HTMLElement>("#json-source-field")!;
@@ -851,7 +852,20 @@ siteTabsContainer.addEventListener("keydown", (event) => {
  * pointed at that feed. Same parameter name `apps/preview` and
  * `apps/validator` already use, so a URL moves between the tools unchanged.
  */
-const EXAMPLE_FEED = "https://communitybuilders.dev/events/feed.json";
+/**
+ * The feed the page opens on when nothing else says otherwise.
+ *
+ * Chosen for what it shows rather than for who publishes it: a demo whose
+ * calendar is mostly empty months and whose cards have no images teaches that
+ * the widget is thin. Measured 2026-11-26 across the nine registered feeds —
+ * 216 events, 77 of them upcoming, 214 with an image — and it declares spec
+ * 0.6.0, where the previous default declared 0.3.0, which has since fallen
+ * out of the support window.
+ *
+ * It is one entry of the registry the picker offers; if it goes stale, pick
+ * another from `adopters.json` on the same grounds.
+ */
+const EXAMPLE_FEED = "https://digest.hackbarna.com/events.json";
 const FEED_STORAGE_KEY = "ote-embed-playground-feed";
 
 function storedFeed(): string | null {
@@ -952,6 +966,7 @@ function setStatus(token: number, text: string, kind: "ok" | "warn" | ""): void 
 let describeTimer: ReturnType<typeof setTimeout> | undefined;
 function onFeedChanged(): void {
   const value = feedInput.value.trim();
+  syncAdopterSelection();
   rememberFeed(value);
   const token = ++statusToken;
   clearTimeout(describeTimer);
@@ -960,16 +975,58 @@ function onFeedChanged(): void {
 
 feedInput.addEventListener("input", onFeedChanged);
 feedInput.addEventListener("change", onFeedChanged);
-sourceResetButton.addEventListener("click", () => {
-  feedInput.value = EXAMPLE_FEED;
+/**
+ * Examples from the public adopters registry (#185), the same list the
+ * converter's landing page offers and validated by the same function.
+ *
+ * It degrades quietly: a registry that is unreachable, malformed, or has no
+ * usable entry leaves a disabled select saying so, and the text field keeps
+ * working. A playground whose example list is down is still a playground.
+ */
+async function loadAdopters(): Promise<void> {
+  let adopters: ReturnType<typeof parseAdopterRegistry> = [];
+  try {
+    const response = await fetch("https://opentechevents.org/data/adopters.json");
+    if (!response.ok) throw new Error(`Registry answered ${response.status}`);
+    adopters = parseAdopterRegistry(await response.json());
+  } catch {
+    adopterSelect.options[0].textContent = "Examples unavailable";
+    return;
+  }
+
+  if (adopters.length === 0) {
+    adopterSelect.options[0].textContent = "No examples available";
+    return;
+  }
+
+  adopterSelect.options[0].textContent = "Example feeds";
+  for (const adopter of adopters) {
+    adopterSelect.append(new Option(adopter.name, adopter.feed));
+  }
+  adopterSelect.disabled = false;
+  // The page may already be showing one of them.
+  syncAdopterSelection();
+}
+
+/** Typing a URL by hand drops the selection, as the converter's picker does. */
+function syncAdopterSelection(): void {
+  const current = feedInput.value.trim();
+  adopterSelect.value = [...adopterSelect.options].some((option) => option.value === current)
+    ? current
+    : "";
+}
+
+adopterSelect.addEventListener("change", () => {
+  if (!adopterSelect.value) return;
+  feedInput.value = adopterSelect.value;
   onFeedChanged();
   applyAndRender();
   applySubscribeAndRender();
-  feedInput.focus();
 });
 
 feedInput.value = new URL(window.location.href).searchParams.get("feed")?.trim() || storedFeed() || EXAMPLE_FEED;
 onFeedChanged();
+void loadAdopters();
 
 for (const column of document.querySelectorAll<HTMLElement>(".controls-column")) {
   setupControlTabs(column);
