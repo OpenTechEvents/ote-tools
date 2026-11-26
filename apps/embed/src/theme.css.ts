@@ -1285,6 +1285,89 @@ a.price:focus-visible {
 }
 
 /*
+ * The view switcher (#183): the other chrome row inside the height budget.
+ *
+ * Same flex: none as .footer and for the same reason — it keeps its height
+ * and the event area absorbs what is left of the budget. The segmented look
+ * is the playground's own .segmented-toolbar (apps/embed/styles.css) ported
+ * to the --ote-* tokens, so the control a publisher configures and the one
+ * their visitor clicks are visibly the same control.
+ *
+ * align-self: flex-start, not a full-width row: the group is three short
+ * buttons, and stretching its border across a 1120px embed would draw a
+ * band the widget has no other use for.
+ */
+.view-switcher {
+  display: inline-flex;
+  align-self: flex-start;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-end: 0.75rem;
+  padding: 0.2rem;
+  border: 1px solid var(--ote-border);
+  border-radius: var(--ote-radius);
+}
+
+.view-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--ote-radius) - 2px);
+  background: transparent;
+  color: var(--ote-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.view-button:hover {
+  color: var(--ote-text);
+  border-color: var(--ote-border);
+}
+
+/* Focus is visible on the button itself rather than on the group: with
+   three ordinary tab stops (view-switcher.ts says why they are not a radio
+   group) the ring is the only thing telling a keyboard visitor which of
+   the three they are on. */
+.view-button:focus-visible {
+  color: var(--ote-text);
+  outline: 2px solid var(--ote-accent);
+  outline-offset: 1px;
+}
+
+.view-button[aria-pressed="true"] {
+  background: var(--ote-accent-soft);
+  border-color: var(--ote-border);
+  color: var(--ote-accent);
+  font-weight: 600;
+}
+
+.view-icon {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
+/*
+ * The row wraps rather than hiding its labels at a narrow width.
+ *
+ * An earlier draft collapsed .view-button-label to its icon under
+ * @media (max-width: 360px) — which is the #169 mistake in a new place: a
+ * media query inside a shadow root follows the **viewport**, and this
+ * widget is embedded in a column. Measured in Chrome at a 330px-wide host
+ * in an 800px window, the labels stayed and the rule did nothing; in a
+ * 320px window it would have hidden them in a widget 1120px wide.
+ * Three short words fit a 278px row (measured), so wrapping is the whole
+ * fix, and a container query would be buying a container-type for a
+ * problem that no longer exists.
+ */
+
+/*
  * The footer (#68): feed name and time zone on one side, <ote-subscribe>
  * and the OTE mark on the other.
  *

@@ -447,3 +447,65 @@ export function parseFooterMark(value: string | null): boolean {
   const trimmed = value?.trim().toLowerCase();
   return !(trimmed === "off" || trimmed === "none" || trimmed === "false");
 }
+
+/**
+ * The views the visitor may switch between (#183), in the order the
+ * switcher renders them. `layout` names the one it starts on.
+ *
+ * Canonical order — Calendar, List, Cards — rather than the order the host
+ * wrote: the row is a fixed landmark a returning visitor reads by position,
+ * and letting an attribute reshuffle it buys nothing. Unrecognized tokens
+ * are dropped, same as `fields`, and an input that names nothing valid
+ * falls back to the default; `"none"`/`"off"`/`"false"` is the opt-out, all
+ * three spelled out for the `parseConvert` reason — an attribute whose job
+ * is to *remove* chrome must not read a host's "false" as a typo and render
+ * it anyway.
+ *
+ * A one-view list renders no switcher (`view-switcher.ts`): a chrome row
+ * with a single button is noise, not a choice.
+ */
+export const DEFAULT_VIEWS: readonly Layout[] = ["calendar", "list", "cards"];
+
+function isLayout(value: string): value is Layout {
+  return value === "calendar" || value === "list" || value === "cards";
+}
+
+export function parseViews(value: string | null): Layout[] {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) return [...DEFAULT_VIEWS];
+  if (trimmed === "none" || trimmed === "off" || trimmed === "false") return [];
+  const requested = new Set(
+    trimmed
+      .split(",")
+      .map((token) => token.trim())
+      .filter(isLayout),
+  );
+  if (requested.size === 0) return [...DEFAULT_VIEWS];
+  return DEFAULT_VIEWS.filter((view) => requested.has(view));
+}
+
+/**
+ * Which view this render shows: the visitor's pick, else the host's
+ * `layout`.
+ *
+ * `layout` stays the initial selection, including when a host changes it at
+ * runtime (`element.ts` drops the visitor's pick when the attribute moves —
+ * the host re-asking is a newer statement than the visitor's click).
+ *
+ * The one case that needs a rule: `views="list,cards"` next to
+ * `layout="calendar"` is a host contradicting itself, and a switcher whose
+ * buttons are all unpressed is a worse answer than either half. The
+ * allow-list wins, because it is the attribute that says what the visitor
+ * may choose, and the first of it is where the widget opens. With no
+ * switcher at all (`views="none"`, or a single view) `layout` is
+ * unconditional, so nothing about an existing embed changes.
+ */
+export function resolveActiveView(
+  views: readonly Layout[],
+  layout: Layout,
+  selected: Layout | undefined,
+): Layout {
+  if (views.length < 2) return layout;
+  if (selected && views.includes(selected)) return selected;
+  return views.includes(layout) ? layout : views[0]!;
+}

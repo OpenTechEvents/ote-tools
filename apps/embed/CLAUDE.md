@@ -561,7 +561,7 @@ strings.
 The operational half lives in `workers/convert/README.md`: default-on turns
 that Worker's caps into something real calendar clients poll on a schedule.
 
-## The footer is `<ote-events>`'s only non-event surface — and it mounts the other element
+## The footer is the widget's provenance strip — and it mounts the other element
 
 `footer` (#68, default `"on"`) renders a strip under the events: feed name,
 the time zone, `<ote-subscribe>`, the OTE mark. `src/footer.ts` builds it;
@@ -596,13 +596,15 @@ the time zone, `<ote-subscribe>`, the OTE mark. `src/footer.ts` builds it;
   Measured in Chrome: 43px when the strip fits one line, 82px when it wraps,
   which is at or below roughly 560px wide.
 
-- **`.events-scroll` exists only when the footer does.** The footer is chrome
-  inside the `max-height` budget, so the events have to scroll *under* it. In
+- **`.events-scroll` exists only when there is chrome to keep out of it** —
+  the footer, or the view switcher (#183), whichever is there. The footer is
+  chrome inside the `max-height` budget, so the events have to scroll
+  *under* it. In
   `layout="cards"` the scrollport is `.ote-events` itself (theme.css.ts says
   why the grid cannot be the flex item), which would carry the footer below
   the fold of a widget the host deliberately bounded. The wrapper takes over
-  as the scrollport — and it is conditional precisely so `footer="off"` is
-  the pre-#68 tree, node for node. Verified in Chrome in all three layouts at
+  as the scrollport — and it is conditional precisely so
+  `footer="off" views="none"` is the pre-#68 tree, node for node. Verified in Chrome in all three layouts at
   a 300px budget: the footer sits inside the widget's box and does not move
   when the event area is scrolled to its end.
 
@@ -643,6 +645,66 @@ the time zone, `<ote-subscribe>`, the OTE mark. `src/footer.ts` builds it;
   footer, lives in `packages/preview-feed`'s `formatDate` too (so it reaches
   `apps/preview`), and is filed separately — do not "fix" the footer line to
   agree with it.
+
+## The view switcher is the second chrome row, and the visitor's only state
+
+`views` (#183, default all three) renders Calendar / List / Cards above the
+events; `layout` becomes the view the widget *opens* on. `src/view-switcher.ts`
+builds it, `render.ts` places it, `element.ts` holds the pick. What is worth
+keeping:
+
+- **It cannot live in `ec-toolbar`.** That toolbar belongs to
+  `@event-calendar/core` and exists only inside the lazy-loaded
+  `calendar-layout.ts` — absent in `list` and `cards`, the two views with no
+  other way back to the calendar.
+
+- **The active view is state, not an attribute, so `data-layout` reads the
+  state.** `#renderNow()` builds `WidgetState` *before* it writes
+  `data-layout`, because the stylesheet has to follow the visitor's pick
+  (cards scroll a different element from the other two, and CSS cannot ask
+  which layout rendered). Everything downstream of `#activeView()` sees one
+  `state.layout` and does not know a switcher exists.
+
+- **A write that moves nothing must not reset the pick.**
+  `attributeChangedCallback` fires on every write, including
+  `setAttribute("layout", "list")` when it is already `"list"` — which is
+  what the playground, and any framework re-render, does on an unrelated
+  keystroke. Hence the `oldValue !== newValue` guard; the host *moving*
+  `layout` or `views` still wins, because `layout` is documented as the
+  initial selection.
+
+- **Focus is restored by hand.** `renderWidget()` starts with
+  `replaceChildren()`, so the button the visitor pressed is gone before the
+  new row exists and a keyboard visitor would land back at the top of the
+  document. Three ordinary `aria-pressed` buttons in a labelled
+  `role="group"`, deliberately *not* `role="radiogroup"`: a radio group owes
+  arrow keys and a single tab stop, which means managing `tabindex` across a
+  tree this widget rebuilds on every render.
+
+- **No switcher over an empty feed**, unlike the footer: every view renders
+  the same message, so the row would offer three ways to see nothing. And
+  **no switcher for a host app driving the widget by property** unless it
+  sets `views` — OTE Reader owns its own view chrome (it already sets
+  `event-actions="none"`/`sort="none"`), and it has no feed URL either.
+
+- **`.events-scroll` is now mounted for *either* chrome row**, which is what
+  keeps the switcher out of the scrollport in `layout="cards"`. The
+  byte-identical-to-pre-#68 tree is `footer="off" views="none"`.
+
+- **A media query inside the shadow root follows the viewport, not the
+  widget** — the #169 mistake, which this row re-made and had removed. An
+  earlier draft collapsed the labels to icons under
+  `@media (max-width: 360px)`; measured in Chrome, a 330px-wide host in an
+  800px window kept its labels and a 1120px-wide widget in a 320px window
+  would have lost them. The row wraps instead: 277×36px at a real 320px
+  viewport with all three labels visible.
+
+- **The choice is memory-only, on purpose.** Nothing goes to `localStorage`
+  or to the host page's URL — that question is the open half of #176, and a
+  widget on someone else's page does not get to answer it alone.
+  `ote-view-change` (`{ view, previousView }`, composed) is how a host
+  mirrors it; `playground.ts` listens to it to keep its own layout toolbar
+  in step, which is also the only demonstration of the event.
 
 ## The playground has one feed field, above the tabs, shared by both widgets
 

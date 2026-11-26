@@ -4,6 +4,52 @@
 
 ### Added
 
+- `<ote-events views>` (#183): a **Calendar / List / Cards switcher** rendered
+  above the events, so a visitor can pick the view the embedder guessed.
+  `layout` becomes the view the widget *opens* on rather than the only one
+  available. **On by default, so it changes the rendered output of every
+  embed that moves its pin**; embeds pinned to a committed
+  `versions/v<x.y.z>/` URL are untouched. `views="none"` (or `"off"`/
+  `"false"`) reproduces the previous output exactly, and a narrowed list —
+  `views="calendar,list"` — renders only those; a one-view list renders no
+  row at all, because a chrome row with a single button is noise. Tokens are
+  rendered in the switcher's canonical order whatever order they are written
+  in.
+
+  It is chrome inside the `max-height` budget, like the footer: the event
+  area is its own scrollport and scrolls under both. Measured in Chrome at
+  36px for the row, with the switcher and the footer staying put while the
+  events scroll to their end inside a 300px budget.
+
+  Switching to `calendar` still loads `calendar-layout.js` on demand —
+  verified in Chrome from a cold `list` render: one request, the month
+  styled inside the shadow root, and no second request when the visitor
+  switches away and back. The month the visitor paged to survives the round
+  trip.
+
+  Three ordinary buttons with `aria-pressed` inside a labelled
+  `role="group"`, so Tab and Enter/Space work with no `tabindex` to manage,
+  and focus returns to the pressed button after the re-render. Labels are
+  text (translated: Calendario / Lista / Tarjetas), not tooltips on icons.
+  Themed through the existing `--ote-*` properties.
+
+  The visitor's choice lives in memory only — nothing is written to
+  `localStorage` or to the host page's URL; whether visitor chrome may touch
+  the host's URL is the open half of #176. A host that wants to remember it
+  has the new **`ote-view-change`** event (`detail: { view, previousView }`),
+  which the playground uses to keep its own layout toolbar in step. A host
+  app driving the widget by property (`.events = […]`) gets **no** switcher
+  unless it sets `views`: OTE Reader owns its own view chrome, and a second
+  switcher inside the widget would be a duplicate control.
+
+### Fixed
+
+- `<ote-events>` no longer discards state when a host writes an attribute
+  without changing its value. `attributeChangedCallback` fires on any write,
+  and a host that re-applies its whole configuration on every change — the
+  playground does it, and it is the shape any framework render produces —
+  would otherwise reset the visitor's view on an unrelated keystroke.
+
 - `<ote-events footer>` (#68): a strip under the events carrying the feed's
   name — linked to the publisher's page when the document declares `url` —
   the time zone the times are rendered in, an `<ote-subscribe>`, and the OTE

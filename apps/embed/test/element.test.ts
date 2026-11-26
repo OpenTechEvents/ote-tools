@@ -95,6 +95,10 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     footer: "off",
     footerSubscribeLayout: "badges",
     footerMark: true,
+    // A direct renderWidget() caller with no onViewSelect: the switcher is
+    // the element's chrome, and a row whose buttons do nothing is worse
+    // than none.
+    views: [],
     previewFields: new Set(["location"]),
     detailFields: new Set(["location"]),
     groupEvents: new Set(),
@@ -2169,11 +2173,14 @@ describe("<ote-events>", () => {
       expect(triggers).toEqual(["ics", "rss", "ote"]);
     });
 
-    it("footer=off renders the pre-#68 tree: no footer and no scroll wrapper", async () => {
+    it("footer=off views=none renders the pre-#68 tree: no chrome and no scroll wrapper", async () => {
       fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
       const el = createCardsElement();
       el.setAttribute("feed", "https://pyalmeria.example/feed.json");
       el.setAttribute("footer", "off");
+      // The switcher (#183) is the second chrome row in the same budget,
+      // so "the pre-#68 tree" now needs both of them off.
+      el.setAttribute("views", "none");
       document.body.append(el);
       await flush();
 
@@ -2430,6 +2437,271 @@ describe("<ote-events>", () => {
         );
         el.remove();
       }
+    });
+  });
+  describe("the view switcher (#183)", () => {
+    const VIEW_FEED = JSON.stringify({
+      title: "Sample",
+      events: [
+        { name: "Future Event", startDate: "2999-01-01T19:00:00+01:00" },
+        { name: "Later Event", startDate: "2999-02-01T19:00:00+01:00" },
+      ],
+    });
+
+    function switcherOf(el: OteEventsElement): HTMLElement | null {
+      return el.shadowRoot!.querySelector(".view-switcher");
+    }
+
+    function buttonsOf(el: OteEventsElement): Array<[string | null, string | null]> {
+      return [...el.shadowRoot!.querySelectorAll(".view-switcher .view-button")].map((button) => [
+        button.getAttribute("data-view"),
+        button.getAttribute("aria-pressed"),
+      ]);
+    }
+
+    function pick(el: OteEventsElement, view: string): void {
+      el.shadowRoot!.querySelector<HTMLButtonElement>(`.view-button[data-view="${view}"]`)!.click();
+    }
+
+    async function loaded(layout?: string): Promise<OteEventsElement> {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => VIEW_FEED });
+      const el = document.createElement("ote-events") as OteEventsElement;
+      if (layout) el.setAttribute("layout", layout);
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+      return el;
+    }
+
+    it("observes views", () => {
+      expect(OteEventsElementClass.observedAttributes).toContain("views");
+    });
+
+    it("renders all three views by default, with layout as the pressed one", async () => {
+      const el = await loaded("list");
+      expect(buttonsOf(el)).toEqual([
+        ["calendar", "false"],
+        ["list", "true"],
+        ["cards", "false"],
+      ]);
+    });
+
+    it("labels the group and every button for a screen reader", async () => {
+      const el = await loaded("list");
+      const switcher = switcherOf(el)!;
+      expect(switcher.getAttribute("role")).toBe("group");
+      expect(switcher.getAttribute("aria-label")).toBe("View");
+      // Labelled controls, not three unlabelled glyphs: the icon is
+      // aria-hidden, so the text is the accessible name.
+      const button = switcher.querySelector<HTMLButtonElement>('[data-view="cards"]')!;
+      expect(button.type).toBe("button");
+      expect(button.textContent).toBe("Cards");
+      expect(button.querySelector("svg")!.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("translates the group and the views", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => VIEW_FEED });
+      const el = document.createElement("ote-events") as OteEventsElement;
+      el.setAttribute("lang", "es");
+      el.setAttribute("layout", "list");
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(switcherOf(el)!.getAttribute("aria-label")).toBe("Vista");
+      expect([...switcherOf(el)!.querySelectorAll(".view-button")].map((b) => b.textContent)).toEqual([
+        "Calendario",
+        "Lista",
+        "Tarjetas",
+      ]);
+    });
+
+    it("views=none renders no switcher at all", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => VIEW_FEED });
+      const el = document.createElement("ote-events") as OteEventsElement;
+      el.setAttribute("layout", "list");
+      el.setAttribute("views", "none");
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(switcherOf(el)).toBeNull();
+      expect(el.shadowRoot!.querySelector("ul.events")).not.toBeNull();
+    });
+
+    it("a single-view allow-list renders no row either", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => VIEW_FEED });
+      const el = document.createElement("ote-events") as OteEventsElement;
+      el.setAttribute("layout", "list");
+      el.setAttribute("views", "list");
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(switcherOf(el)).toBeNull();
+    });
+
+    it("narrows to the allow-list the host wrote", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => VIEW_FEED });
+      const el = document.createElement("ote-events") as OteEventsElement;
+      el.setAttribute("layout", "cards");
+      el.setAttribute("views", "cards,list");
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(buttonsOf(el)).toEqual([
+        ["list", "false"],
+        ["cards", "true"],
+      ]);
+    });
+
+    it("switches the rendered layout on a click, without refetching the feed", async () => {
+      const el = await loaded("list");
+      expect(el.shadowRoot!.querySelector("ul.layout-list")).not.toBeNull();
+
+      pick(el, "cards");
+
+      expect(el.shadowRoot!.querySelector("ul.layout-cards")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector("ul.layout-list")).toBeNull();
+      // The stylesheet cannot ask which layout rendered, so data-layout has
+      // to follow the visitor's pick and not the attribute.
+      expect(el.shadowRoot!.querySelector(".ote-events")!.getAttribute("data-layout")).toBe("cards");
+      expect(buttonsOf(el)).toEqual([
+        ["calendar", "false"],
+        ["list", "false"],
+        ["cards", "true"],
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("mounts the calendar when a visitor switches to it from a cold list render", async () => {
+      // The chunk itself is loaded by a runtime URL jsdom cannot resolve
+      // (see the calendar attribute test above), so what is asserted here
+      // is that the switch takes the mounting path at all — the styled
+      // month inside the shadow root is a browser check.
+      const el = await loaded("list");
+      expect(el.shadowRoot!.querySelector(".calendar-host")).toBeNull();
+
+      pick(el, "calendar");
+
+      expect(el.shadowRoot!.querySelector(".calendar-host")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector("ul.events")).toBeNull();
+    });
+
+    it("keeps focus on the button the visitor pressed", async () => {
+      // renderWidget() starts with replaceChildren(), so the focused node
+      // is gone by the time the new row exists: a keyboard visitor would
+      // otherwise land back at the top of the document.
+      const el = await loaded("list");
+      pick(el, "cards");
+      expect(el.shadowRoot!.activeElement).toBe(
+        el.shadowRoot!.querySelector('.view-button[data-view="cards"]'),
+      );
+    });
+
+    it("announces the change to the host, and says nothing when the view did not move", async () => {
+      const el = await loaded("list");
+      const seen: Array<Record<string, unknown>> = [];
+      el.addEventListener("ote-view-change", (event) => {
+        seen.push((event as CustomEvent).detail as Record<string, unknown>);
+      });
+
+      pick(el, "cards");
+      pick(el, "cards");
+
+      expect(seen).toEqual([{ view: "cards", previousView: "list" }]);
+    });
+
+    it("drops the visitor's pick when the host moves layout or views", async () => {
+      const el = await loaded("list");
+      pick(el, "cards");
+      expect(el.shadowRoot!.querySelector("ul.layout-cards")).not.toBeNull();
+
+      // `layout` is documented as the *initial* selection, and the host
+      // moving it is a newer statement than the visitor's click.
+      el.setAttribute("layout", "calendar");
+      expect(el.shadowRoot!.querySelector(".calendar-host")).not.toBeNull();
+
+      pick(el, "cards");
+      // A views list that no longer contains the pick would leave the
+      // switcher with no pressed button.
+      el.setAttribute("views", "calendar,list");
+      expect(el.shadowRoot!.querySelector(".calendar-host")).not.toBeNull();
+      expect(buttonsOf(el)).toEqual([
+        ["calendar", "true"],
+        ["list", "false"],
+      ]);
+    });
+
+    it("keeps the visitor's pick when the host writes the same layout again", async () => {
+      // A host that re-applies its whole configuration on every change —
+      // the playground does it, and it is the shape any framework render
+      // produces — must not throw the visitor back to `layout` on an
+      // unrelated keystroke. The DOM fires attributeChangedCallback for a
+      // write that moves nothing.
+      const el = await loaded("list");
+      pick(el, "cards");
+
+      el.setAttribute("layout", "list");
+
+      expect(el.shadowRoot!.querySelector("ul.layout-cards")).not.toBeNull();
+    });
+
+    it("renders no switcher over an empty feed", async () => {
+      // Every view shows the same message, so the row would be three ways
+      // to see nothing.
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ title: "Sample", events: [] }),
+      });
+      const el = createListElement();
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(switcherOf(el)).toBeNull();
+      expect(el.shadowRoot!.textContent).toContain("No upcoming events.");
+    });
+
+    it("stays off for a host app that drives the widget by property, and opts in with views", async () => {
+      // OTE Reader sets event-actions="none"/sort="none" and owns its own
+      // view chrome; a second switcher inside the widget is a duplicate
+      // control it never asked for.
+      const el = createListElement();
+      document.body.append(el);
+      el.events = [{ name: "Host-driven", startDate: "2999-01-01" }];
+      await flush();
+      expect(switcherOf(el)).toBeNull();
+
+      el.setAttribute("views", "list,cards");
+      expect(buttonsOf(el)).toEqual([
+        ["list", "true"],
+        ["cards", "false"],
+      ]);
+    });
+
+    it("mounts the scrollport for the switcher alone, and keeps it out of it", async () => {
+      // footer="off" isolates the switcher as the only chrome: with the
+      // footer there, the wrapper would be mounted either way and this
+      // would assert nothing.
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => VIEW_FEED });
+      const el = document.createElement("ote-events") as OteEventsElement;
+      el.setAttribute("layout", "cards");
+      el.setAttribute("footer", "off");
+      el.setAttribute("feed", "https://example.org/feed.json");
+      document.body.append(el);
+      await flush();
+
+      const container = el.shadowRoot!.querySelector(".ote-events")!;
+      const switcher = switcherOf(el)!;
+      // Chrome inside the height budget: subtracted from it, not drawn
+      // over the events. The heights are a browser matter (see
+      // apps/embed/CLAUDE.md); the wiring is what is asserted here.
+      expect(container.firstElementChild).toBe(switcher);
+      expect(switcher.nextElementSibling).toBe(container.querySelector(".events-scroll"));
+      expect(container.querySelector(".events-scroll")!.querySelector("ul.events")).not.toBeNull();
     });
   });
 });

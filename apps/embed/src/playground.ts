@@ -76,6 +76,7 @@ const detailFieldCheckboxes = Array.from(
 const groupEventsCheckboxes = Array.from(
   document.querySelectorAll<HTMLInputElement>(".group-key-checkbox"),
 );
+const viewsCheckboxes = Array.from(document.querySelectorAll<HTMLInputElement>(".view-key-checkbox"));
 const widget = document.querySelector<OteEventsElement>("#preview-widget")!;
 const widgetFrame = document.querySelector<HTMLElement>(".widget-frame")!;
 const snippetCode = document.querySelector<HTMLElement>("#snippet-code")!;
@@ -160,6 +161,20 @@ function matchesFieldSet(fields: FieldKey[], reference: readonly FieldKey[]): bo
   return fields.length === reference.length && fields.every((field) => set.has(field));
 }
 
+/**
+ * The `views` attribute (#183) from the three boxes: every box checked is
+ * the default and so emits no attribute, and none checked is `"none"`.
+ *
+ * The order is the checkboxes' own, which is the switcher's canonical one —
+ * `parseViews` re-sorts anyway, so a snippet can never claim an order the
+ * widget will not honour.
+ */
+function currentViewsAttr(): string | undefined {
+  const views = viewsCheckboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+  if (views.length === viewsCheckboxes.length) return undefined;
+  return views.length === 0 ? "none" : views.join(",");
+}
+
 function currentGroupEvents(): GroupKey[] {
   return groupEventsCheckboxes.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value as GroupKey);
 }
@@ -214,6 +229,7 @@ function buildSnippet(config: {
   fieldsPreview: string | undefined;
   fieldsDetail: string | undefined;
   groupEvents: string | undefined;
+  views: string | undefined;
 }): string {
   const lines: string[] = [
     `<script type="module" src="${EMBED_SCRIPT_URL}"></script>`,
@@ -253,6 +269,7 @@ function buildSnippet(config: {
   if (config.fieldsPreview) elementLines.push(`  fields-preview="${attr(config.fieldsPreview)}"`);
   if (config.fieldsDetail) elementLines.push(`  fields-detail="${attr(config.fieldsDetail)}"`);
   if (config.groupEvents) elementLines.push(`  group-events="${attr(config.groupEvents)}"`);
+  if (config.views) elementLines.push(`  views="${attr(config.views)}"`);
   elementLines.push("></ote-events>");
   lines.push(...elementLines);
   if (config.sourceMode === "json" && config.runtimeData) {
@@ -577,6 +594,7 @@ function applyAndRender(): void {
   const detailFieldsAttr = matchesFieldSet(detailFields, ALL_FIELDS) ? undefined : detailFields.join(",");
   const groupEvents = currentGroupEvents();
   const groupEventsAttr = groupEvents.length > 0 ? groupEvents.join(",") : undefined;
+  const viewsAttr = currentViewsAttr();
   const runtimeDataResult = readRuntimeData(mode);
 
   if (mode === "url" && feedUrls.length > 1) {
@@ -652,6 +670,8 @@ function applyAndRender(): void {
   else widget.removeAttribute("fields-detail");
   if (groupEventsAttr) widget.setAttribute("group-events", groupEventsAttr);
   else widget.removeAttribute("group-events");
+  if (viewsAttr) widget.setAttribute("views", viewsAttr);
+  else widget.removeAttribute("views");
   if (mode === "json" && runtimeDataResult.status === "valid") {
     applyRuntimeData(runtimeDataResult.runtimeData);
   } else if (mode === "json" && runtimeDataResult.status === "empty") {
@@ -691,6 +711,7 @@ function applyAndRender(): void {
     fieldsPreview: previewFieldsAttr,
     fieldsDetail: detailFieldsAttr,
     groupEvents: groupEventsAttr,
+    views: viewsAttr,
   }));
 }
 
@@ -719,11 +740,27 @@ for (const control of [
   ...previewFieldCheckboxes,
   ...detailFieldCheckboxes,
   ...groupEventsCheckboxes,
+  ...viewsCheckboxes,
   ...eventActionCheckboxes,
 ]) {
   control.addEventListener("input", applyAndRender);
   control.addEventListener("change", applyAndRender);
 }
+
+/*
+ * The widget's own switcher (#183) and the playground's layout toolbar are
+ * two controls over one thing, so the visitor-facing one reports back: a
+ * click inside the preview leaves the toolbar, the snippet's `layout` and
+ * the frame's own `data-layout` agreeing with what is on screen.
+ *
+ * It is also the demonstration of `ote-view-change` — the only way a host
+ * can mirror a choice the widget deliberately does not persist.
+ */
+widget.addEventListener("ote-view-change", (event) => {
+  const view = (event as CustomEvent<{ view: Layout }>).detail.view;
+  setLayout(view);
+  applyAndRender();
+});
 
 for (const button of layoutButtons) {
   button.addEventListener("click", () => {

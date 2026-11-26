@@ -58,11 +58,13 @@ Read before touching the validator: `apps/validator/README.md`,
   in a calendar client. The exact URLs are in the issue thread. A failure
   there is a URL-shape fix in `subscribe-urls.ts`, not a redesign. The
   `<ote-events>` footer mounts the same element, so a fix reaches both.
-- **The playground rework, the popover's ARIA restructure and the whole
-  `<ote-events>` footer (#68) have not been through adversarial review.**
-  The footer is the biggest of the three: it is default-on chrome on a
-  versioned public widget, it mounts a second custom element inside the
-  first, and it adds four attributes. Worth one pass before publishing.
+- **The playground rework, the popover's ARIA restructure, the
+  `<ote-events>` footer (#68) and the view switcher (#183) have not been
+  through adversarial review.** The last two are the ones that matter: both
+  are default-on chrome on a versioned public widget, the footer mounts a
+  second custom element inside the first, and the switcher gives the widget
+  its first piece of visitor-held state plus a new DOM event
+  (`ote-view-change`). Worth one pass before publishing.
 
 ## Traps that cost time — do not rediscover them
 
@@ -147,7 +149,16 @@ Read before touching the validator: `apps/validator/README.md`,
     session — check the issue before "correcting" the field. The same shape
     of trap applies to any version literal whose reason lives in an issue.
 
-14. **Two things make a headless measurement of the embed measure the wrong
+14. **A media query inside the widget's shadow root follows the viewport,
+    not the widget.** Measured twice now (#169 for the calendar, #183 for
+    the view switcher's labels): a 330px-wide host in an 800px window keeps
+    whatever a `max-width: 360px` rule meant to hide, and a 1120px widget
+    in a phone-width window loses it. Container width needs a container
+    query or JS — or, usually better, a layout that wraps. To judge a
+    phone width at all, see trap 3's iframe note; the embed's own
+    measurements use a 320px `<iframe>`.
+
+15. **Two things make a headless measurement of the embed measure the wrong
     page.** A feed served from `localhost` is refused by
     `subscribe-urls.ts#isConvertibleFeedUrl`, so `<ote-subscribe>` renders
     only the OTE group and a check expecting ICS/RSS badges silently tests

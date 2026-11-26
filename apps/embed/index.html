@@ -40,6 +40,7 @@
         <strong>Events widget</strong> (<code>&lt;ote-events&gt;</code>) — renders
         upcoming events as calendar, list, or cards. Key attributes:
         <code>feed</code>/<code>feeds</code>, <code>layout</code>,
+        <code>views</code>,
         <code>theme</code>, <code>fields-preview</code>/<code>fields-detail</code>,
         <code>event-actions</code>, <code>group-events</code>; JS API:
         <code>el.events</code>, <code>el.eventActions(context)</code>.
@@ -402,6 +403,34 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <div class="field" id="views-field">
+              <span class="fields-legend">views</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="view-key-checkbox" value="calendar" checked /> calendar</label>
+                <label><input type="checkbox" class="view-key-checkbox" value="list" checked /> list</label>
+                <label><input type="checkbox" class="view-key-checkbox" value="cards" checked /> cards</label>
+              </div>
+              <p class="hint">
+                The views a <em>visitor</em> may switch between, as a row of
+                buttons above the events — <code>layout</code> is then only
+                the one it opens on. All three by default, so upgrading a
+                floating <code>/embed/latest/</code> embed changes what the
+                page renders; a pinned
+                <code>/embed/v&lt;x.y.z&gt;/</code> URL is untouched. Clear
+                every box (<code>views="none"</code>) to keep the layout the
+                embedder chose, and note that a one-view list renders no row
+                either. A host app driving the widget through
+                <code>.events = […]</code> gets no switcher unless it asks
+                for one with this attribute: it owns its own view chrome.
+                Like the footer it is chrome inside the
+                <code>max-height</code> budget — the events scroll under it
+                — and the choice lives in memory only: the widget writes
+                nothing to storage or to your page's URL, and reports each
+                change as an <code>ote-view-change</code> event if you want
+                to remember it yourself.
+              </p>
             </div>
 
             <div class="field" id="group-events-field">
@@ -932,6 +961,10 @@ widget.eventBadges = (context) =>
                 <td>Render an in-memory array of OTE events without fetching.</td>
               </tr>
               <tr>
+                <td><code>views</code></td>
+                <td>The views a visitor may switch between. A widget driven through <code>el.events</code> renders no switcher unless this attribute asks for one — a host app owns its own view chrome; <code>views="none"</code> is the opt-out for a fetched feed.</td>
+              </tr>
+              <tr>
                 <td><code>sort="none"</code></td>
                 <td>Keep the host application's ordering instead of widget date sorting.</td>
               </tr>
@@ -958,7 +991,11 @@ widget.eventBadges = (context) =>
           The <code>ote-event-action</code> event includes <code>action</code>,
           <code>previewEvent</code>, <code>originalEvent</code>, <code>index</code>,
           <code>feed</code>, and <code>source</code>. The widget renders only; it
-          does not store favorites, folders, read state, or filters.
+          does not store favorites, folders, read state, or filters — nor the
+          view a visitor picks in the switcher, which it reports as
+          <code>ote-view-change</code>
+          (<code>detail: { view, previousView }</code>) and writes neither to
+          storage nor to your page's URL.
         </p>
       </section>
 

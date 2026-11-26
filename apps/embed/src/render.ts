@@ -13,8 +13,9 @@ import {
 import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/preview-feed";
 
 import type { EventClickMode, FieldKey, FooterMode, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
-import { el, withText } from "./dom.js";
+import { el, svgIcon, withText } from "./dom.js";
 import { renderFooter, type FooterFeedMeta } from "./footer.js";
+import { renderViewSwitcher } from "./view-switcher.js";
 import type { SubscribeLayout } from "./subscribe-attrs.js";
 import { computeEventGroups } from "./grouping.js";
 import type { EventGroupInfo, EventGroups } from "./grouping.js";
@@ -107,6 +108,15 @@ export interface WidgetState {
   footerSubscribeLayout: SubscribeLayout;
   /** `footer-mark`: whether the footer carries the "Powered by OTE" link. */
   footerMark: boolean;
+  /**
+   * `views` (#183): which views the visitor may switch between, already
+   * resolved by element.ts — fewer than two renders no switcher. `layout`
+   * above is the view this render *shows*, visitor's pick included, which
+   * is why nothing downstream of here needs to know a switcher exists.
+   */
+  views: readonly Layout[];
+  /** Called with the view the visitor picked; element.ts holds that state and re-renders. */
+  onViewSelect?(view: Layout): void;
   /** The host's raw `theme` attribute, forwarded to the footer's `<ote-subscribe>`. */
   theme?: string | null;
   eventClick: EventClickMode;
@@ -234,25 +244,6 @@ function renderMarkdownDescription(markdown: string, className = "event-descript
     link.setAttribute("rel", "noopener");
   }
   return wrapper;
-}
-
-function svgIcon(paths: string[], className: string): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("class", className);
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
-  svg.setAttribute("focusable", "false");
-  for (const d of paths) {
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", d);
-    svg.append(path);
-  }
-  return svg;
 }
 
 function attendanceIcon(mode: NonNullable<PreviewEvent["attendanceMode"]>): SVGSVGElement {
@@ -1556,6 +1547,11 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     // With `event-id` set, "empty" means the id matched nothing — a
     // different problem from a feed with no upcoming events, and one the
     // organizer can only fix if we say which it is.
+    //
+    // No switcher here, unlike the footer: with nothing to render, every
+    // view shows this same message, so the row would be three buttons
+    // offering three ways to see nothing. The footer still earns its place
+    // — an empty widget is exactly where a visitor wants to subscribe.
     const emptyText =
       state.emptyMessage ?? (state.eventId !== undefined ? strings.notFound : strings.empty);
     container.append(withText(el("p", "message"), emptyText));
@@ -1563,14 +1559,26 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     return;
   }
 
-  // The footer is chrome inside the height budget, so the events have to
-  // scroll *under* it rather than carry it away: a bounded `layout="cards"`
+  const switcher = state.onViewSelect
+    ? renderViewSwitcher({
+        views: state.views,
+        active: state.layout,
+        lang: state.lang,
+        onSelect: state.onViewSelect,
+      })
+    : undefined;
+
+  // Chrome is inside the height budget, so the events have to scroll
+  // *under* it rather than carry it away: a bounded `layout="cards"`
   // scrolls `.ote-events` itself (theme.css.ts explains why the grid cannot
   // be the flex item), which would put the subscribe badges below the fold
-  // of a widget the host deliberately bounded. `.events-scroll` is the
-  // scrollport instead, and it is mounted **only** when there is a footer —
-  // which is what keeps `footer="off"` byte-identical to the pre-#68 tree.
-  const body = footer ? el("div", "events-scroll") : container;
+  // of a widget the host deliberately bounded, and scroll the switcher out
+  // of reach above it. `.events-scroll` is the scrollport instead, and it
+  // is mounted **only** when there is chrome to keep out of it — which is
+  // what keeps `footer="off" views="none"` byte-identical to the pre-#68
+  // tree.
+  const body = footer || switcher ? el("div", "events-scroll") : container;
+  if (switcher) container.append(switcher);
 
   if (state.layout === "calendar") {
     // Mount point only, with a loading placeholder: element.ts lazy-loads

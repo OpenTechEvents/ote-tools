@@ -26,7 +26,10 @@ import {
   parseLimit,
   parseShowPast,
   parseSort,
+  parseViews,
+  resolveActiveView,
   resolveLang,
+  type Layout,
 } from "./attrs.js";
 import {
   renderEventModal,
@@ -111,6 +114,10 @@ export class OteEventsElement extends HTMLElement {
     "feed-rss",
     "subscribe-layout",
     "footer-mark",
+    // `views` (#183): which views the visitor may switch between. Observed
+    // like any other, so a host can turn the row off — or narrow it — at
+    // runtime.
+    "views",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -143,6 +150,21 @@ export class OteEventsElement extends HTMLElement {
   // re-renders at all; see #renderModalNow().)
   #calendarDate: string | undefined;
 
+  /**
+   * The view the visitor picked in the switcher (#183), outranking the
+   * `layout` attribute until the host re-states it.
+   *
+   * Visitor-held state in a widget that is deliberately stateless from the
+   * host's point of view (apps/embed/CLAUDE.md), and it stays in memory
+   * only: nothing is written to `localStorage` or to the host page's URL.
+   * Whether visitor chrome may touch the host's URL is the open half of
+   * #176, and a widget that answered it unilaterally — on someone else's
+   * page, in a third-party iframe — would be answering for them. A host
+   * that wants the choice remembered has `ote-view-change` and the
+   * `layout` attribute.
+   */
+  #selectedView: Layout | undefined;
+
   constructor() {
     super();
     const root = this.attachShadow({ mode: "open" });
@@ -162,11 +184,24 @@ export class OteEventsElement extends HTMLElement {
     this.#teardownCalendar();
   }
 
-  attributeChangedCallback(name: string): void {
+  attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
     if (!this.isConnected) return;
     if (name === "feed" || name === "feeds") {
       this.#calendarDate = undefined;
       void this.#load();
+    } else if (name === "layout" || name === "views") {
+      // The host *moving* either of these is newer than the visitor's
+      // click, so it wins: `layout` is documented as the *initial*
+      // selection, and a `views` that no longer contains the pick would
+      // leave the switcher with no pressed button.
+      //
+      // Writing the same value again is not moving it, and the DOM fires
+      // this callback either way. A host that re-applies its whole
+      // configuration on every change — the playground does, and it is the
+      // shape any framework render produces — would otherwise throw the
+      // visitor back to `layout` on an unrelated keystroke.
+      if (oldValue !== newValue) this.#selectedView = undefined;
+      this.#renderNow();
     } else {
       this.#renderNow();
     }
@@ -351,7 +386,11 @@ export class OteEventsElement extends HTMLElement {
     // which layout rendered. It is not gated on the budget: a host that
     // sizes the element with plain CSS (`ote-events { height: 400px }`)
     // gets the same treatment as one that sets `max-height`.
-    this.#container.setAttribute("data-layout", parseLayout(this.getAttribute("layout")));
+    // Built before the attributes below because the *active* view is state
+    // now, not just an attribute: with a switcher, `data-layout` has to
+    // name the view the visitor picked (see #activeView()).
+    const state = this.#buildState();
+    this.#container.setAttribute("data-layout", state.layout);
     const maxHeight = parseMaxHeight(this.getAttribute("max-height"));
     if (maxHeight === undefined) {
       this.style.removeProperty("--ote-max-height");
@@ -360,7 +399,6 @@ export class OteEventsElement extends HTMLElement {
       this.style.setProperty("--ote-max-height", maxHeight);
       this.#container.setAttribute("data-bounded", "");
     }
-    const state = this.#buildState();
     renderWidget(this.#container, state);
 
     if (state.layout === "calendar" && state.status === "loaded") {
@@ -394,7 +432,9 @@ export class OteEventsElement extends HTMLElement {
       eventId: parseEventId(this.getAttribute("event-id")),
       showPast: parseShowPast(this.getAttribute("show-past")),
       sort: parseSort(this.getAttribute("sort")),
-      layout: parseLayout(this.getAttribute("layout")),
+      layout: this.#activeView(),
+      views: this.#views(),
+      onViewSelect: (view) => this.#selectView(view),
       previewFields: parseFields(this.getAttribute("fields-preview") ?? this.getAttribute("fields")),
       detailFields: parseDetailFields(this.getAttribute("fields-detail") ?? this.getAttribute("fields")),
       groupEvents: parseGroupEvents(this.getAttribute("group-events")),
@@ -436,6 +476,67 @@ export class OteEventsElement extends HTMLElement {
       },
     };
     return state;
+  }
+
+  /**
+   * The views the switcher offers (#183).
+   *
+   * Absent `views` defaults to all three — which changes the rendered
+   * output of every embed that moves its pin, the reason this is a minor —
+   * **except** for a host app driving the widget through `.events = […]` or
+   * `.event = …`. OTE Reader already sets `event-actions="none"` and
+   * `sort="none"` and owns its own view chrome; a second switcher inside
+   * the widget would be a duplicate control it never asked for, and that
+   * consumer has no feed URL to re-render from either. An explicit `views`
+   * attribute turns it on there, which is what makes the default a default
+   * and not a rule.
+   */
+  #views(): Layout[] {
+    const attr = this.getAttribute("views");
+    if (attr === null) return this.#runtimeDataOverride ? [] : parseViews(null);
+    return parseViews(attr);
+  }
+
+  /** The view this render shows: the visitor's pick, else `layout`. See `resolveActiveView`. */
+  #activeView(): Layout {
+    return resolveActiveView(this.#views(), parseLayout(this.getAttribute("layout")), this.#selectedView);
+  }
+
+  /**
+   * A click (or Enter/Space) on a switcher button.
+   *
+   * Re-renders through the ordinary path, which is what makes
+   * `calendar-layout.js` still load on demand: #renderNow() mounts the
+   * calendar exactly when the active view is `calendar`, so a visitor
+   * switching to it from a cold `list` render fetches the chunk then and
+   * not before. The remembered month survives the round trip
+   * (`#calendarDate`), so switching away and back returns to where the
+   * visitor was.
+   *
+   * Focus is put back on the pressed button because `renderWidget()`
+   * starts with `replaceChildren()`: the node that was focused is gone by
+   * the time the new row exists, and a keyboard visitor who pressed
+   * "List" would otherwise land back at the top of the document.
+   */
+  #selectView(view: Layout): void {
+    const previous = this.#activeView();
+    if (view === previous) return;
+    this.#selectedView = view;
+    this.#renderNow();
+    this.#container
+      .querySelector<HTMLElement>(`.view-switcher .view-button[data-view="${view}"]`)
+      ?.focus();
+    // The widget persists nothing itself, so this event is the only way a
+    // host can mirror the visitor's choice (into its own storage, its URL,
+    // or a second widget). `composed` so it crosses the shadow boundary
+    // like the other two.
+    this.dispatchEvent(
+      new CustomEvent("ote-view-change", {
+        detail: { view, previousView: previous },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   /**

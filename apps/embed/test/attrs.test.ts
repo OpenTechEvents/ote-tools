@@ -10,6 +10,9 @@ import {
   parseEventClick,
   parseEventId,
   parseFeedsAttr,
+  parseViews,
+  resolveActiveView,
+  DEFAULT_VIEWS,
   parseFields,
   parseCalendarAttributes,
   parseGroupEvents,
@@ -388,5 +391,61 @@ describe("resolveCompact", () => {
   it("lets an explicit density override the budget in both directions", () => {
     expect(resolveCompact("compact", false)).toBe(true);
     expect(resolveCompact("comfortable", true)).toBe(false);
+  });
+});
+
+describe("parseViews", () => {
+  it("defaults to all three views, in the switcher's canonical order", () => {
+    expect(parseViews(null)).toEqual(["calendar", "list", "cards"]);
+    expect(parseViews("")).toEqual([...DEFAULT_VIEWS]);
+  });
+
+  it("renders the views in canonical order whatever order the host wrote", () => {
+    // The row is a landmark read by position; an attribute reshuffling it
+    // buys nothing and costs a returning visitor their muscle memory.
+    expect(parseViews("cards,calendar")).toEqual(["calendar", "cards"]);
+    expect(parseViews("list,calendar,cards")).toEqual(["calendar", "list", "cards"]);
+  });
+
+  it("drops unrecognized tokens, de-duplicates, and tolerates whitespace", () => {
+    expect(parseViews(" LIST , list , map ")).toEqual(["list"]);
+  });
+
+  it("falls back to the default when nothing in the value names a view", () => {
+    // Same fallback as `fields`: a typo must not empty the control.
+    expect(parseViews("map,timeline")).toEqual([...DEFAULT_VIEWS]);
+  });
+
+  it("reads all three spellings of no as the opt-out", () => {
+    // The parseConvert lesson: an attribute whose job is to remove chrome
+    // must not read a host's "false" as an unrecognized token and then
+    // render everything.
+    expect(parseViews("none")).toEqual([]);
+    expect(parseViews("off")).toEqual([]);
+    expect(parseViews("false")).toEqual([]);
+  });
+});
+
+describe("resolveActiveView", () => {
+  it("starts on layout and keeps the visitor's pick once they make one", () => {
+    expect(resolveActiveView(DEFAULT_VIEWS, "calendar", undefined)).toBe("calendar");
+    expect(resolveActiveView(DEFAULT_VIEWS, "calendar", "cards")).toBe("cards");
+  });
+
+  it("ignores a pick the current allow-list no longer offers", () => {
+    expect(resolveActiveView(["calendar", "list"], "list", "cards")).toBe("list");
+  });
+
+  it("lets the allow-list win over a layout it excludes", () => {
+    // views="list,cards" next to layout="calendar" is a host contradicting
+    // itself; a switcher with no pressed button is the worse answer.
+    expect(resolveActiveView(["list", "cards"], "calendar", undefined)).toBe("list");
+  });
+
+  it("leaves layout unconditional when there is no switcher", () => {
+    // views="none", and the single-view list that renders no row either:
+    // an existing embed's layout must not move because of this attribute.
+    expect(resolveActiveView([], "calendar", "cards")).toBe("calendar");
+    expect(resolveActiveView(["list"], "calendar", "list")).toBe("calendar");
   });
 });
