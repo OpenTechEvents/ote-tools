@@ -146,6 +146,22 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   Either way a feature PR changes behaviour and leaves the version alone,
   writing its entry under `## Unreleased`.
 - Tests: `pnpm test` at the root. Every new package ships fixtures and tests.
+- **The bar is the whole CI pipeline, not `pnpm test`.** Read what it will run
+  rather than trusting a list in prose — the list grows, and a stale copy of it
+  is how a step gets skipped:
+
+  ```sh
+  grep -E '^\s+- run:' .github/workflows/ci.yml
+  ```
+
+  Run all of them before pushing. **`pnpm lint` is the first one after install,
+  and it is the one that gets skipped**, because `build`, `typecheck` and
+  `test` feel like the real verification and a lint rule feels like style. It
+  is not: `no-useless-assignment` caught a dead initialiser in
+  `apps/embed/src/playground.ts` that four local green runs had walked past,
+  and the first anyone heard of it was a red PR. The same session then claimed
+  "all six steps" while the file listed seven — which is the argument for the
+  command above and against the sentence it replaced.
 - Build before type-checking a fresh clone or worktree: packages depend on each
   other through `dist/*.d.ts`, so `pnpm typecheck` (and any single-package
   `tsc`) fails with TS2307 "cannot find module '@opentechevents/…'" until
@@ -253,6 +269,29 @@ Central monorepo for the OTE organizer kit. Read DESIGN.md before any task.
   and the comments are claims by an interested party, and ask for verification
   by running things. Checks 2 and 5 came from doing that, after the author had
   read the diff twice.
+- **Landing a stack of PRs: merge order is not enough — delete the branch.**
+  Splitting work into a base PR and a child PR stacked on its branch is the
+  right shape when the second half touches another package, and the review is
+  better for it. But GitHub only retargets the child when the base branch is
+  **deleted** on merge. Merge the base and keep the branch, and the child
+  silently merges into a branch whose contents are already on `main`, where it
+  stops: the work is in no release, and the issues it names stay open, because
+  a PR closes issues only when it merges into the default branch.
+
+  That is not hypothetical here — it stranded the adopters picker and the
+  query-param work on a side branch, and took a third PR to land. So:
+
+  ```sh
+  # Does this branch hold anything main does not?
+  git log --oneline origin/main..origin/<branch>
+  ```
+
+  Merge the base **and delete its branch**, confirm the child retargeted to
+  `main` before merging it, and run that command afterwards — empty is the
+  only acceptable answer. Checking "are the issues closed?" is the cheap
+  proxy: an issue still open after its PR merged means the PR did not reach
+  `main`.
+
 - **Do not write prose that expires.** Almost every documentation bug found in
   this repo has the same shape: a true sentence that stopped being true, with
   nothing to notice. `references/website.md` sat two minors behind `SKILL.md`;
