@@ -279,6 +279,19 @@ a {
   gap: 1.5rem;
 }
 
+/* In one column the preview comes first. The page exists to show the widget;
+   putting a 25-control form above it means the thing you came to see is
+   below the fold on exactly the screens with the least of it. */
+.playground-layout > .output-column {
+  order: -1;
+}
+
+@media (min-width: 52rem) {
+  .playground-layout > .output-column {
+    order: 0;
+  }
+}
+
 [role="tabpanel"][hidden] {
   display: none;
 }
