@@ -415,15 +415,31 @@ here, and both cost a measurement cycle:
    that. With `max-per-day="off"` the rows are `auto` and genuinely
    non-uniform (measured 187/80/80/80/80 — the busy week, then the empty
    ones), and dropping the library's 5em `.ec-day` floor takes the empty
-   ones to 37px. What is *not* available is collapsing **and** capping at
-   once. A capped row needs a fixed height to cap against, while an auto row
-   grows to its content, so nothing overflows and `+N more` never fires —
-   every `minmax(auto, <cap>)` / `minmax(min-content, <cap>)` variant
-   rendered all nine events of a busy day with no popover, because CSS
-   ignores a `minmax()` max smaller than its min. So the choice is a cap
-   (uniform weeks) or content-sized weeks (no cap), and `max-per-day` is
-   already the attribute that selects between them — do not add a second
-   one.
+   ones to 37px.
+
+   **Collapsing and capping together is available, but not through
+   `--ec-row-height`.** That variable is a single value shared by every row,
+   so content-sizing it (`auto`) grows each cell to its events and `+N more`
+   never fires — every `minmax(auto, <cap>)` / `minmax(min-content, <cap>)`
+   variant rendered all nine events of a busy day with no popover, because
+   CSS ignores a `minmax()` max smaller than its min. Two earlier notes here
+   concluded from that it was impossible; it is not, the variable was the
+   constraint. `calendar-layout.ts#weekRowTracks()` writes
+   `grid-template-rows` as an explicit track list instead — one track per
+   visible week, sized by that week's busiest day and capped at
+   `max-per-day` — and the library still hides whatever does not fit a given
+   cell. Measured on a 158-event feed: six uniform 93px rows (644px) became
+   26/26/26/26/92/92 (373px) with every `+N more` link unchanged.
+
+   Two traps come with it. The track list must be reached through a custom
+   property read by *our* stylesheet, not set inline on `.ec-main`, because
+   the library rewrites that element's `style` on re-render. And the events
+   the cap hides keep their layout box (`visibility: hidden`), so they
+   inflate `.ec-main`'s `scrollHeight` far past the grid — invisible while
+   it is `overflow: hidden`, but a bounded calendar turns that to `auto` and
+   then a month that fits its budget still grows a scrollbar into blank
+   space. `.ec-body { overflow: hidden }` under `[data-week-rows]` is what
+   keeps both honest.
 
 The `em` constants are measured in Chrome, not reasoned about. To re-measure
 after a library or stylesheet change, serve `dist/` and have the page report

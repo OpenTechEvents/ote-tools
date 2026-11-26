@@ -4,6 +4,117 @@
 
 ### Added
 
+- **`density="auto"` now follows a definite CSS height too, not only the
+  `max-height` attribute.** They are the same statement made two ways — the
+  host deciding the widget's height — and keying off only the attribute left
+  a full-viewport calendar on the comfortable metrics, spending 31px of
+  weekday header and 38px of date row on a layout that was short of room by
+  definition. The compact metrics also shrink the weekday header now, which
+  they had not been doing at all: it stayed at 31px in both densities.
+
+- **A calendar given a definite height fills it, and shows more per day for
+  the room.** Weeks that have events grow into whatever the height leaves
+  over, so a full-viewport calendar has no dead band at the bottom and its
+  day cells show as many events as actually fit — on a 158-event feed in a
+  757px viewport, `+27 more` becomes `+22 more` because the cells grew.
+  Empty weeks never grow: spare room is worth more to a week with something
+  in it, and a tall row holding one date number is the waste this mechanism
+  exists to remove.
+
+  Growth is only offered where there is room to share. Against an
+  auto-height host the same track resolves against the tallest week's
+  content instead, which took a month that should be 529px to **4867px** —
+  the trap `apps/embed/CLAUDE.md` documents. Since CSS cannot be asked
+  whether a height is definite, and `getComputedStyle` answers with the used
+  value either way, the element probes it: it collapses its root and sees
+  whether the host still has a height of its own, synchronously, with the
+  inline style restored before anything can paint.
+
+  `max-height` deliberately does **not** count as definite. It is a ceiling,
+  so a month shorter than the budget stays short rather than stretching to
+  fill it.
+
+  A week that cannot have the height it wants gives its cells up to the
+  `+N more` link rather than making the month scroll, which is what Google
+  Calendar's month view does in a short container. Measured on a 158-event
+  feed in 400px: flooring at the content height kept 144px rows and
+  scrolled, showing 7 events; flooring at the date row fits 80px rows with
+  no scrollbar and shows 16. Together with the two changes above, the same
+  feed in a 757px viewport goes from 21 events visible to **73**, and its
+  busiest day from `+27 more` to `+17 more`.
+
+- **The widget fits the height it is given, however the host gives it.** A
+  CSS height on the element — `ote-events { height: 400px }`, or a flex or
+  grid parent handing it a track — now sizes the contents, not just the box.
+  Before, the element obeyed while its contents kept their own height: a
+  400px element held 529px of calendar that spilled straight out of it, and
+  a taller container left dead space inside. `max-height` was the only
+  height the widget understood, which is not how a custom element is
+  normally styled.
+
+  The fitting is a percentage height on the widget's root, so it is inert
+  where it should be: against an auto-height host — every embed that sets no
+  height — it resolves to `auto` and the layout is exactly what it was.
+  Verified in Chrome across all three layouts, with and without the
+  attribute: an embed with no height set renders to the same pixel as
+  before.
+
+  One asymmetry worth knowing: `density="auto"` still keys off the
+  `max-height` *attribute*, not off a CSS height, because the attribute is
+  the declarative signal and measuring the box to decide would feed layout
+  back into itself. A CSS-sized host that wants the compact metrics can ask
+  for them with `density="compact"`.
+
+- **`layout="calendar"` sizes each week to its own content, keeping
+  `max-per-day`** (#170). A month used to give every week the same height,
+  reserving room for `max-per-day` events in the empty ones too. Each
+  visible week now gets the height its busiest day needs, capped, and a week
+  with no events gets its date row and nothing more. On a 158-event feed
+  that is six uniform 93px rows (644px) against 26/26/26/26/92/92 (373px),
+  with every `+N more` link unchanged, and it is recomputed when the visitor
+  pages to another month.
+
+  Two earlier notes in this repo said collapsing and capping could not be
+  combined. **They were wrong**, and the correction is worth stating because
+  the reasoning looked sound: the constraint was never the calendar library,
+  it was `--ec-row-height` being a *single value shared by every row*.
+  Content-sizing it grows each cell to its events, so nothing overflows and
+  the `+N more` popover stops firing. Writing `grid-template-rows` as an
+  explicit per-week track list has no such limit.
+
+  The events a cap hides keep their layout box, so they inflate the grid's
+  scrollable height well past what it draws. That was invisible while the
+  grid was `overflow: hidden`, but a `max-height` turns it to `auto`: a
+  month that comfortably fits its budget still grew a scrollbar that
+  scrolled 400px into blank space. The event layer is now clipped to the
+  grid, so a month that fits has no scrollbar and one that does not scrolls
+  through its actual weeks.
+
+- **`density` controls how much room a `layout="calendar"` cell gives each
+  event** (#170). `auto` (the default), `comfortable` or `compact`.
+
+  Comfortably a day needs about `5.8em` of cell to show one event; compact
+  brings that to `3.4em` by roughly halving the day header and the event
+  chip. The numbers are measured in Chrome and live in `CALENDAR_DENSITY`
+  beside the CSS that produces them, because `max-per-day`'s row maths has
+  to agree with what the cell actually renders.
+
+  `auto` resolves to compact exactly when the host set a `max-height`, and
+  to comfortable otherwise — the same shape as `theme="auto"`. **An embed
+  with no height budget is unchanged**, so this is additive rather than a
+  default moving again.
+
+  The reason it is tied to the budget: at the comfortable metrics a six-week
+  month in a 400px budget left 52px per week, which holds a date and nothing
+  else, so every day rendered as a `+N more` link and the calendar showed no
+  events at all. Google Calendar's embed fits the same month because its
+  equivalent cell is ~36px (20px date box, 16px chip, measured on its public
+  embed), not because it sizes its rows differently — it uses uniform week
+  rows too. On a real 25-event feed at `max-height="400px"` this takes the
+  month from 588px of content scrolling 244px, with two events visible, to
+  367px scrolling 23px with four. Unbounded, `density="compact"` renders the
+  same 27 events in 559px instead of 807px.
+
 - **`max-height` gives the host a vertical budget for the widget** (#168).
   A length in `px`/`rem`/`em`/`ch`/`vh`/`dvh`/`svh`/`vmin`/`vmax` (a bare
   number is read as pixels), and it applies to all three layouts. Anything
@@ -56,14 +167,8 @@
   that does not scroll at all and leaves the widget at 354px inside its
   400px budget.
 
-  This is the reason the two modes exist, and it is a genuine either/or
-  rather than an oversight: a capped row needs a fixed height to cap
-  against, while an auto-sized row grows to its content — so nothing ever
-  overflows and the `+N more` popover never fires. Measured, not assumed:
-  every `minmax(auto, <cap>)` and `minmax(min-content, <cap>)` variant
-  rendered all nine events of a busy day with no popover at all, because CSS
-  ignores a `minmax()` max that is smaller than its min. So **a busy feed
-  wants the default cap, and a sparse one wants `max-per-day="off"`.**
+  `max-per-day="off"` remains the uncapped mode, for a feed that would
+  rather show a busy day in full than collapse it.
 
 ## 0.9.0 — 2026-11-26
 

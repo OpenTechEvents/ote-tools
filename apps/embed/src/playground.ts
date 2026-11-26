@@ -53,6 +53,7 @@ const showPastCheckbox = document.querySelector<HTMLInputElement>("#show-past-ch
 const cardWidthSelect = document.querySelector<HTMLSelectElement>("#card-width-select")!;
 const maxHeightInput = document.querySelector<HTMLInputElement>("#max-height-input")!;
 const maxPerDayInput = document.querySelector<HTMLInputElement>("#max-per-day-input")!;
+const densitySelect = document.querySelector<HTMLSelectElement>("#density-select")!;
 const initialDateSelect = document.querySelector<HTMLSelectElement>("#initial-date-select")!;
 const responsiveCheckbox = document.querySelector<HTMLInputElement>("#responsive-checkbox")!;
 const previewFieldCheckboxes = Array.from(
@@ -190,6 +191,7 @@ function buildSnippet(config: {
   cardWidth: string | undefined;
   maxHeight: string | undefined;
   maxPerDay: string | undefined;
+  density: string | undefined;
   initialDate: string | undefined;
   responsive: boolean;
   fieldsPreview: string | undefined;
@@ -223,6 +225,7 @@ function buildSnippet(config: {
   if (config.cardWidth) elementLines.push(`  card-width="${attr(config.cardWidth)}"`);
   if (config.maxHeight) elementLines.push(`  max-height="${attr(config.maxHeight)}"`);
   if (config.maxPerDay) elementLines.push(`  max-per-day="${attr(config.maxPerDay)}"`);
+  if (config.density) elementLines.push(`  density="${attr(config.density)}"`);
   if (config.initialDate) elementLines.push(`  initial-date="${attr(config.initialDate)}"`);
   if (!config.responsive) elementLines.push(`  responsive="off"`);
   if (config.fieldsPreview) elementLines.push(`  fields-preview="${attr(config.fieldsPreview)}"`);
@@ -424,7 +427,7 @@ function updateControlAvailability(layout: Layout): void {
   setControlDisabled(cardWidthField, [cardWidthSelect], layout !== "cards");
   setControlDisabled(
     calendarField,
-    [maxPerDayInput, initialDateSelect, responsiveCheckbox],
+    [maxPerDayInput, densitySelect, initialDateSelect, responsiveCheckbox],
     layout !== "calendar",
   );
   setControlDisabled(groupEventsField, groupEventsCheckboxes, layout !== "cards");
@@ -516,6 +519,7 @@ function applyAndRender(): void {
   const cardWidthAttr = cardWidth === "medium" ? undefined : cardWidth;
   const maxHeightAttr = maxHeightInput.value.trim() || undefined;
   const maxPerDayAttr = maxPerDayInput.value.trim() || undefined;
+  const densityAttr = densitySelect.value === "auto" ? undefined : densitySelect.value;
   const initialDateAttr = initialDateSelect.value === "next-event" ? undefined : initialDateSelect.value;
   const responsive = responsiveCheckbox.checked;
   const previewFields = currentPreviewFields();
@@ -579,6 +583,8 @@ function applyAndRender(): void {
   else widget.removeAttribute("card-width");
   if (maxHeightAttr) widget.setAttribute("max-height", maxHeightAttr);
   else widget.removeAttribute("max-height");
+  if (densityAttr) widget.setAttribute("density", densityAttr);
+  else widget.removeAttribute("density");
   if (maxPerDayAttr) widget.setAttribute("max-per-day", maxPerDayAttr);
   else widget.removeAttribute("max-per-day");
   if (initialDateAttr) widget.setAttribute("initial-date", initialDateAttr);
@@ -621,6 +627,7 @@ function applyAndRender(): void {
     cardWidth: cardWidthAttr,
     maxHeight: maxHeightAttr,
     maxPerDay: maxPerDayAttr,
+    density: densityAttr,
     initialDate: initialDateAttr,
     responsive,
     fieldsPreview: previewFieldsAttr,
@@ -645,6 +652,7 @@ for (const control of [
   cardWidthSelect,
   maxHeightInput,
   maxPerDayInput,
+  densitySelect,
   initialDateSelect,
   responsiveCheckbox,
   ...previewFieldCheckboxes,

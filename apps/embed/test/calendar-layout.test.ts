@@ -7,6 +7,7 @@ import {
   calendarLocaleOptions,
   calendarViewForWidth,
   dayRowHeight,
+  weekRowTracks,
   nextEventDate,
   resolveCalendarDate,
   toISODate,
@@ -129,5 +130,116 @@ describe("resolveCalendarDate", () => {
   it("has nothing to say about a feed with no dated events", () => {
     expect(resolveCalendarDate([], { kind: "next-event" }, now)).toBeUndefined();
     expect(resolveCalendarDate([{ name: "Date unknown" }], { kind: "next-event" }, now)).toBeUndefined();
+  });
+});
+
+describe("weekRowTracks", () => {
+  const ev = (id: string, startDate: string, endDate?: string) => ({
+    id,
+    name: id,
+    startDate,
+    ...(endDate ? { endDate } : {}),
+  });
+  // A six-week November 2026 grid starting Sunday 25 Oct.
+  const start = new Date(2026, 9, 25);
+  const end = new Date(2026, 11, 6);
+  /** The per-week tracks, without the library's `max-content` header track. */
+  const weeks = (...args: Parameters<typeof weekRowTracks>) =>
+    weekRowTracks(...args)
+      .replace(/^max-content /, "")
+      .split(/ (?![^(]*\))/);
+
+  it("gives an empty week its date row and nothing more", () => {
+    // The bug this exists for: a flat row height reserved max-per-day
+    // events' worth of room in every week, the empty ones included, so a
+    // sparse month was mostly blank rows. An empty track must therefore be
+    // the bare head — asserting it merely *contains* the head would also
+    // pass for the reserved-for-three value, which is the bug itself.
+    const tracks = weeks([ev("a", "2026-11-26T09:00")], start, end, 3, false);
+    const busyWeek = "calc(2.4em + 1 * 1.6em)";
+    expect(tracks).toContain("2.4em");
+    expect(tracks.filter((t) => t === "2.4em").length).toBe(tracks.length - 1);
+    expect(tracks).toContain(busyWeek);
+    for (const track of tracks) expect(track === "2.4em" || track === busyWeek).toBe(true);
+  });
+
+  it("sizes a week by its busiest day, not by its total", () => {
+    // Three events across three days is a one-event week; three on one day
+    // is a three-event week. A row is as tall as its tallest cell.
+    const spread = weeks(
+      [ev("a", "2026-11-23T09:00"), ev("b", "2026-11-24T09:00"), ev("c", "2026-11-25T09:00")],
+      start,
+      end,
+      3,
+      false,
+    );
+    const stacked = weeks(
+      [ev("a", "2026-11-23T09:00"), ev("b", "2026-11-23T10:00"), ev("c", "2026-11-23T11:00")],
+      start,
+      end,
+      3,
+      false,
+    );
+    expect(spread).toContain("calc(2.4em + 1 * 1.6em)");
+    expect(stacked).toContain("calc(2.4em + 3 * 1.6em)");
+  });
+
+  it("caps a busy week at max-per-day and only then reserves the +N more line", () => {
+    const events = Array.from({ length: 9 }, (_, i) => ev(`e${i}`, "2026-11-26T09:00"));
+    expect(weeks(events, start, end, 3, false)).toContain("calc(2.4em + 3 * 1.6em + 1.8em)");
+    // A week within the cap hides nothing, so it reserves no footer.
+    expect(weeks([ev("a", "2026-11-26T09:00")], start, end, 3, false)).toContain(
+      "calc(2.4em + 1 * 1.6em)",
+    );
+  });
+
+  it("raises every week a multi-day event covers, not just the one it starts in", () => {
+    // Thu 5 Nov to Tue 10 Nov crosses a week boundary. Counting only the
+    // start day leaves the second week reading as empty, which would hide a
+    // congress that is still running that week.
+    const tracks = weeks([ev("congress", "2026-11-05", "2026-11-10")], start, end, 3, false);
+    const raised = tracks.filter((t) => t !== "2.4em");
+    expect(raised.length).toBe(2);
+    for (const track of raised) expect(track).toBe("calc(2.4em + 1 * 1.6em)");
+  });
+
+  it("lets weeks with events grow into a definite height, and never the empty ones", () => {
+    // Spare room is worth more to a week that has something to show. An
+    // empty week growing to share it is the waste this whole mechanism
+    // exists to remove, so it stays at its date row either way.
+    const tracks = weeks([ev("a", "2026-11-26T09:00")], start, end, 3, false, true);
+    expect(tracks).toContain("minmax(2.4em, 1fr)");
+    expect(tracks.filter((t) => t === "2.4em").length).toBe(tracks.length - 1);
+  });
+
+  it("floors a growing week at the date row, so a short month degrades instead of scrolling", () => {
+    // What Google Calendar's month view does in a short container: the
+    // cells give themselves up to the "+N more" link rather than make the
+    // month scroll. Flooring at the content height instead kept 144px rows
+    // and scrolled, showing 7 chips where this shows 16.
+    const events = Array.from({ length: 9 }, (_, i) => ev(`e${i}`, "2026-11-26T09:00"));
+    const tracks = weeks(events, start, end, 3, false, true);
+    const growing = tracks.filter((t) => t.includes("fr"));
+    expect(growing.length).toBe(1);
+    expect(growing[0]).toBe("minmax(2.4em, 1fr)");
+    // Not the content height: that is the floor that scrolls.
+    expect(growing[0]).not.toContain("1.6em");
+  });
+
+  it("uses no fr track when the height is not definite", () => {
+    // The trap apps/embed/CLAUDE.md warns about: against an auto height an
+    // fr track resolves against the tallest week's content rather than
+    // against spare room, so every week becomes as tall as the busiest one.
+    // Measured at 4867px for a month that should be 529px, which is why
+    // this is asserted rather than left to the caller to remember.
+    const events = Array.from({ length: 9 }, (_, i) => ev(`e${i}`, "2026-11-26T09:00"));
+    const tracks = weeks(events, start, end, 3, false, false);
+    for (const track of tracks) expect(track).not.toContain("fr");
+  });
+
+  it("follows the density, because the cell metrics are what it measures", () => {
+    const events = [ev("a", "2026-11-26T09:00")];
+    expect(weeks(events, start, end, 3, true)).toContain("calc(1.25em + 1 * 1.2em)");
+    expect(weeks(events, start, end, 3, false)).toContain("calc(2.4em + 1 * 1.6em)");
   });
 });

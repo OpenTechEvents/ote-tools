@@ -23,6 +23,8 @@ import {
   parseSort,
   resolveLang,
   parseMaxHeight,
+  parseDensity,
+  resolveCompact,
 } from "../src/attrs.js";
 
 describe("parseEventId", () => {
@@ -359,5 +361,32 @@ describe("parseMaxHeight", () => {
     expect(parseMaxHeight("calc(100vh - 2rem)")).toBeUndefined();
     expect(parseMaxHeight("600px; background: red")).toBeUndefined();
     expect(parseMaxHeight("var(--x)")).toBeUndefined();
+  });
+});
+
+describe("parseDensity", () => {
+  it("accepts the two explicit densities and defaults to auto", () => {
+    expect(parseDensity("compact")).toBe("compact");
+    expect(parseDensity("comfortable")).toBe("comfortable");
+    expect(parseDensity("  COMPACT  ")).toBe("compact");
+    expect(parseDensity(null)).toBe("auto");
+    expect(parseDensity("")).toBe("auto");
+    // Same fall-through as `theme`: an unrecognized value is not an error.
+    expect(parseDensity("cosy")).toBe("auto");
+  });
+});
+
+describe("resolveCompact", () => {
+  it("resolves auto from whether the host set a height budget", () => {
+    // A budget is the host saying height is scarce, and at the comfortable
+    // metrics one event costs ~5.8em of cell — enough that a six-week month
+    // in 400px had nothing but "+N more" links.
+    expect(resolveCompact("auto", true)).toBe(true);
+    expect(resolveCompact("auto", false)).toBe(false);
+  });
+
+  it("lets an explicit density override the budget in both directions", () => {
+    expect(resolveCompact("compact", false)).toBe(true);
+    expect(resolveCompact("comfortable", true)).toBe(false);
   });
 });

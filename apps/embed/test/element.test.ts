@@ -2,6 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineOteEvents, type OteEventsElement } from "../src/element.js";
+
+const OteEventsElementClass = (() => {
+  defineOteEvents();
+  return customElements.get("ote-events") as unknown as { observedAttributes: string[] };
+})();
 import { renderWidget, type WidgetState } from "../src/render.js";
 
 defineOteEvents();
@@ -137,7 +142,8 @@ describe("<ote-events>", () => {
 
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("600px");
     const container = el.shadowRoot!.querySelector(".ote-events")!;
-    expect(container.getAttribute("data-bounded")).toBe("list");
+    expect(container.hasAttribute("data-bounded")).toBe(true);
+    expect(container.getAttribute("data-layout")).toBe("list");
   });
 
   it("max-height carries the cards layout, which scrolls the container rather than the grid", async () => {
@@ -153,7 +159,9 @@ describe("<ote-events>", () => {
     await flush();
 
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("50vh");
-    expect(el.shadowRoot!.querySelector(".ote-events")!.getAttribute("data-bounded")).toBe("cards");
+    const container = el.shadowRoot!.querySelector(".ote-events")!;
+    expect(container.getAttribute("data-layout")).toBe("cards");
+    expect(container.hasAttribute("data-bounded")).toBe(true);
   });
 
   it("leaves the widget unbounded when max-height is absent or unparseable", async () => {
@@ -186,12 +194,28 @@ describe("<ote-events>", () => {
     await flush();
 
     const container = el.shadowRoot!.querySelector(".ote-events")!;
-    expect(container.getAttribute("data-bounded")).toBe("list");
+    expect(container.hasAttribute("data-bounded")).toBe(true);
+    // The layout marker is not the budget: it stays, because a host can
+    // size the element with plain CSS and the plumbing must still know
+    // which element scrolls.
+    expect(container.getAttribute("data-layout")).toBe("list");
 
     el.removeAttribute("max-height");
     await flush();
     expect(container.hasAttribute("data-bounded")).toBe(false);
+    expect(container.getAttribute("data-layout")).toBe("list");
     expect(el.style.getPropertyValue("--ote-max-height")).toBe("");
+  });
+
+  it("density is observed, so a host can switch it without re-creating the widget", async () => {
+    // Calendar-only, like max-per-day/initial-date/responsive, but it has to
+    // be in observedAttributes or a host toggling it gets nothing.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => SAMPLE_FEED });
+    const el = createListElement();
+    el.setAttribute("feed", "https://example.org/feed.json");
+    document.body.append(el);
+    await flush();
+    expect(OteEventsElementClass.observedAttributes).toContain("density");
   });
 
   it("event-id renders only the event with that OTE id", async () => {
