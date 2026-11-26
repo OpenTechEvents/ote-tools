@@ -20,6 +20,12 @@
   under it. Measured in Chrome at 43px when the strip fits one line, 65px at
   480px wide and 83px at 360px, where it wraps to three.
 
+  The strip stacks the feed name and the time zone (they answer different
+  questions, and side by side at a typical embed width the zone reads as
+  part of the name), truncating a long name rather than pushing the
+  subscribe row onto a third line. Measured in Chrome: 43px when it fits
+  one line, 82px when it wraps — at or below roughly 560px wide.
+
   It **reuses `<ote-subscribe>`** rather than reimplementing it, so
   `subscribe-urls.ts` stays the one place these URLs are built: the element
   is handed the feed URL the widget already fetched, so a host no longer has
@@ -38,8 +44,17 @@
   ICS/RSS links now that the widget mounts the element for them — a lever
   they cannot reach is not a lever.
 
-- Playground: a `footer` control, with the precedence rules and what `auto`
-  is for.
+- `<ote-events subscribe-layout>`: the shape of the `<ote-subscribe>` the
+  footer mounts. Defaults to `"badges"` here — the standalone element
+  defaults to `"menu"` — and `subscribe-layout="menu"` collapses the three
+  pills a JSON-only publisher gets into one *Subscribe* trigger.
+
+- `<ote-events footer-mark>`: whether the footer carries the "Powered by
+  OTE" link to the spec. On by default, `footer-mark="off"` removes it and
+  keeps the subscribe links, which turning the whole footer off would lose.
+
+- Playground: `footer`, `subscribe-layout` and `footer-mark` controls, with
+  the precedence rules and what `auto` is for.
 
 ### Changed
 

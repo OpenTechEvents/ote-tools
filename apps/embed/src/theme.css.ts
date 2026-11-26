@@ -1307,16 +1307,34 @@ a.price:focus-visible {
   color: var(--ote-muted);
 }
 
+/*
+ * Stacked, not inline: the name and the zone answer different questions
+ * ("whose feed is this" / "whose clock are these times on"), and side by
+ * side at a typical embed width the zone reads as part of the name. Two
+ * short lines also cost less height than one line that wraps — measured at
+ * 360px wide, where the inline version took three lines.
+ */
 .footer-meta {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.15rem 0.75rem;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
   min-width: 0;
 }
 
+.footer-zone {
+  font-size: 0.75rem;
+}
+
+/*
+ * The name truncates rather than pushing the actions onto a third row:
+ * with flex: 1 1 auto on .footer-meta above, a long title shrinks and
+ * ellipsises, keeping the strip two lines at widths where it used to be
+ * three. The full title stays reachable in the tooltip.
+ */
 .footer-feed {
-  max-width: 22rem;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1345,22 +1363,20 @@ a.footer-feed:focus-visible {
 }
 
 /* The mark is the quietest thing in the strip on purpose: it is provenance,
-   not an action competing with the subscribe badges next to it. */
+   not an action. An earlier draft gave it a bordered pill, which read as a
+   fourth button next to the subscribe badges — exactly what it must not
+   be. Plain muted text, underlined only on hover. */
 .footer-mark {
-  padding: 0.1rem 0.45rem;
-  border: 1px solid var(--ote-border);
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 0.75rem;
   color: var(--ote-muted);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .footer-mark:hover,
 .footer-mark:focus-visible {
-  border-color: var(--ote-accent);
   color: var(--ote-accent);
+  text-decoration: underline;
   outline: none;
 }
 

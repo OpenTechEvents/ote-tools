@@ -577,6 +577,25 @@ the time zone, `<ote-subscribe>`, the OTE mark. `src/footer.ts` builds it;
   the page to say why — for anyone self-hosting `ote-events.js` alone. The
   price is in the comment at the call site, measured.
 
+- **Three attributes shape it, and two of them exist because "off" must not
+  be the only way out.** `subscribe-layout` picks the mounted element's
+  shape, defaulting to `"badges"` here while `<ote-subscribe>`'s own default
+  is `"menu"`: the standalone element is a button a host placed
+  deliberately, the footer's is one of four things in a strip. `footer-mark`
+  drops the "Powered by OTE" link on its own — a publisher who can only
+  remove it by setting `footer="off"` loses the subscribe links with it.
+  When every part is absent (mark off, host-provided array, date-only
+  events) `renderFooter` returns `undefined`: a strip that is nothing but a
+  top border is worse than no strip, and that case is reachable.
+
+- **The name and the zone are stacked, and the name truncates.** They answer
+  different questions, and side by side at a typical embed width the zone
+  reads as part of the name. `.footer-meta` is `flex: 1 1 auto` with
+  `min-width: 0` so a long title ellipsises instead of pushing the subscribe
+  row onto a third line; the full title is always in the `title` attribute.
+  Measured in Chrome: 43px when the strip fits one line, 82px when it wraps,
+  which is at or below roughly 560px wide.
+
 - **`.events-scroll` exists only when the footer does.** The footer is chrome
   inside the `max-height` budget, so the events have to scroll *under* it. In
   `layout="cards"` the scrollport is `.ote-events` itself (theme.css.ts says

@@ -93,6 +93,8 @@ function rawLocationState(layout: WidgetState["layout"]): WidgetState {
     sort: "auto",
     layout,
     footer: "off",
+    footerSubscribeLayout: "badges",
+    footerMark: true,
     previewFields: new Set(["location"]),
     detailFields: new Set(["location"]),
     groupEvents: new Set(),
@@ -2363,8 +2365,48 @@ describe("<ote-events>", () => {
       expect(footerOf(el)!.querySelector(".footer-zone")).toBeNull();
     });
 
-    it("observes footer and the three subscribe passthroughs", () => {
-      for (const name of ["footer", "convert", "feed-ics", "feed-rss"]) {
+    it("subscribe-layout=menu collapses the badges into the single trigger", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("subscribe-layout", "menu");
+      document.body.append(el);
+      await flush();
+
+      const subscribe = footerOf(el)!.querySelector("ote-subscribe")!;
+      expect(subscribe.getAttribute("layout")).toBe("menu");
+      const triggers = [...subscribe.shadowRoot!.querySelectorAll("button.trigger")].map((button) =>
+        button.getAttribute("data-group"),
+      );
+      expect(triggers).toEqual(["menu"]);
+    });
+
+    it("defaults the mounted element to badges, not to <ote-subscribe>'s own menu default", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      document.body.append(el);
+      await flush();
+
+      expect(footerOf(el)!.querySelector("ote-subscribe")!.getAttribute("layout")).toBe("badges");
+    });
+
+    it("footer-mark=off removes the mark and leaves the subscribe links", async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => FOOTER_FEED });
+      const el = createListElement();
+      el.setAttribute("feed", "https://pyalmeria.example/feed.json");
+      el.setAttribute("footer-mark", "off");
+      document.body.append(el);
+      await flush();
+
+      const footer = footerOf(el)!;
+      expect(footer.querySelector("a.footer-mark")).toBeNull();
+      expect(footer.querySelector("ote-subscribe")).not.toBeNull();
+      expect(footer.querySelector(".footer-feed")).not.toBeNull();
+    });
+
+    it("observes footer and the five passthroughs", () => {
+      for (const name of ["footer", "convert", "feed-ics", "feed-rss", "subscribe-layout", "footer-mark"]) {
         expect(OteEventsElementClass.observedAttributes, `${name} is not observed`).toContain(name);
       }
     });

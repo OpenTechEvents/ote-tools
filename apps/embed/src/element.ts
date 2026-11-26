@@ -16,6 +16,7 @@ import {
   parseFields,
   parseFeedsAttr,
   parseFooter,
+  parseFooterMark,
   parseEventActions,
   parseEventClick,
   parseGroupEvents,
@@ -41,6 +42,7 @@ import {
   type WidgetState,
 } from "./render.js";
 import { footerMetaFromDocument, type FooterFeedMeta } from "./footer.js";
+import { parseSubscribeLayout } from "./subscribe-attrs.js";
 import { WIDGET_CSS } from "./theme.css.js";
 
 type Status = "idle" | "loading" | "loaded" | "error";
@@ -107,6 +109,8 @@ export class OteEventsElement extends HTMLElement {
     "convert",
     "feed-ics",
     "feed-rss",
+    "subscribe-layout",
+    "footer-mark",
   ];
 
   #styleEl: HTMLStyleElement;
@@ -398,6 +402,12 @@ export class OteEventsElement extends HTMLElement {
       emptyMessage: this.getAttribute("empty-message")?.trim() || undefined,
       footer: parseFooter(this.getAttribute("footer")),
       footerMeta: this.#footerMeta(),
+      // Defaulted to "badges" here, not to <ote-subscribe>'s own "menu":
+      // the standalone element is a button a host places deliberately,
+      // while the footer's is one of four things in a strip, where naming
+      // the formats costs nothing and a single "Subscribe" hides them.
+      footerSubscribeLayout: parseSubscribeLayout(this.getAttribute("subscribe-layout") ?? "badges"),
+      footerMark: parseFooterMark(this.getAttribute("footer-mark")),
       theme: this.getAttribute("theme"),
       eventClick: parseEventClick(this.getAttribute("event-click")),
       eventActions: this.#eventActionsWithAttributeDefaults(),

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 
-import { parseFooter } from "../src/attrs.js";
+import { parseFooter, parseFooterMark } from "../src/attrs.js";
 import {
   alternateFeedUrls,
   footerMetaFromDocument,
@@ -28,6 +28,15 @@ describe("parseFooter", () => {
     expect(parseFooter("auto")).toBe("auto");
     expect(parseFooter("yes")).toBe("on");
     expect(parseFooter("on")).toBe("on");
+  });
+});
+
+describe("parseFooterMark", () => {
+  it("is on unless the host spells out no", () => {
+    expect(parseFooterMark(null)).toBe(true);
+    expect(parseFooterMark("on")).toBe(true);
+    expect(parseFooterMark("anything")).toBe(true);
+    for (const value of ["off", "none", "false", " OFF "]) expect(parseFooterMark(value)).toBe(false);
   });
 });
 
@@ -112,6 +121,9 @@ describe("resolvedTimeZoneLabel", () => {
 });
 
 describe("renderFooter", () => {
+  /** The element's own defaults, so each test states only what it is about. */
+  const BASE = { subscribeLayout: "badges", mark: true } as const;
+
   const META = {
     title: "PyAlmería",
     url: "https://pyalmeria.example/",
@@ -120,6 +132,7 @@ describe("renderFooter", () => {
 
   it("renders the feed name as a link to the publisher's page, the zone, subscribe and the mark", () => {
     const footer = renderFooter({
+      ...BASE,
       mode: "on",
       lang: "en",
       meta: META,
@@ -141,7 +154,7 @@ describe("renderFooter", () => {
   });
 
   it("renders the feed name as plain text when the feed declares no page", () => {
-    const footer = renderFooter({ mode: "on", lang: "en", meta: { title: "No page" }, hasTimes: false })!;
+    const footer = renderFooter({ ...BASE, mode: "on", lang: "en", meta: { title: "No page" }, hasTimes: false })!;
     expect(footer.querySelector("a.footer-feed")).toBeNull();
     expect(footer.querySelector("span.footer-feed")!.textContent).toBe("No page");
   });
@@ -149,12 +162,13 @@ describe("renderFooter", () => {
   it("leaves out the time zone when no rendered event has a clock time", () => {
     // A feed of date-only events shows no times, so naming a zone answers
     // a question the page never raised.
-    const footer = renderFooter({ mode: "on", lang: "en", meta: META, hasTimes: false })!;
+    const footer = renderFooter({ ...BASE, mode: "on", lang: "en", meta: META, hasTimes: false })!;
     expect(footer.querySelector(".footer-zone")).toBeNull();
   });
 
   it("names the source count for a multi-feed render, with the titles in the tooltip and no subscribe", () => {
     const footer = renderFooter({
+      ...BASE,
       mode: "on",
       lang: "en",
       meta: { sources: ["PyAlmería", "ComBuilders"] },
@@ -168,7 +182,7 @@ describe("renderFooter", () => {
   });
 
   it("mounts no subscribe element when there is no feed URL to subscribe to", () => {
-    const footer = renderFooter({ mode: "on", lang: "en", meta: { title: "Host app" }, hasTimes: true })!;
+    const footer = renderFooter({ ...BASE, mode: "on", lang: "en", meta: { title: "Host app" }, hasTimes: true })!;
     expect(footer.querySelector("ote-subscribe")).toBeNull();
     expect(footer.querySelector("a.footer-mark")).not.toBeNull();
   });
@@ -179,6 +193,7 @@ describe("renderFooter", () => {
     // footer a different opt-out from the standalone element's.
     for (const convert of ["off", "", "ics"]) {
       const footer = renderFooter({
+        ...BASE,
         mode: "on",
         lang: "en",
         meta: { ...META, convert },
@@ -190,6 +205,7 @@ describe("renderFooter", () => {
 
   it("hands declared ICS/RSS URLs to <ote-subscribe> so nothing is generated for them", () => {
     const footer = renderFooter({
+      ...BASE,
       mode: "on",
       lang: "en",
       meta: { ...META, icsUrl: "https://pyalmeria.example/events.ics" },
@@ -200,20 +216,52 @@ describe("renderFooter", () => {
     expect(subscribe.hasAttribute("feed-rss")).toBe(false);
   });
 
+  it("renders the subscribe element in the layout the host asked for", () => {
+    const menu = renderFooter({ ...BASE, subscribeLayout: "menu", mode: "on", lang: "en", meta: META, hasTimes: true })!;
+    expect(menu.querySelector("ote-subscribe")!.getAttribute("layout")).toBe("menu");
+    const badges = renderFooter({ ...BASE, mode: "on", lang: "en", meta: META, hasTimes: true })!;
+    expect(badges.querySelector("ote-subscribe")!.getAttribute("layout")).toBe("badges");
+  });
+
+  it("drops the mark with footer-mark off, keeping the rest", () => {
+    const footer = renderFooter({ ...BASE, mark: false, mode: "on", lang: "en", meta: META, hasTimes: true })!;
+    expect(footer.querySelector("a.footer-mark")).toBeNull();
+    expect(footer.querySelector("ote-subscribe")).not.toBeNull();
+    expect(footer.querySelector(".footer-feed")).not.toBeNull();
+  });
+
+  it("names the mark Powered by OTE, translated", () => {
+    const en = renderFooter({ ...BASE, mode: "on", lang: "en", meta: META, hasTimes: true })!;
+    expect(en.querySelector("a.footer-mark")!.textContent).toBe("Powered by OTE");
+    const es = renderFooter({ ...BASE, mode: "on", lang: "es", meta: META, hasTimes: true })!;
+    expect(es.querySelector("a.footer-mark")!.textContent).toBe("Funciona con OTE");
+  });
+
+  it("renders nothing rather than an empty strip when every part is absent", () => {
+    // Reachable: footer-mark="off" on a host-app render of date-only events.
+    // A strip that is nothing but a top border is worse than no strip.
+    expect(renderFooter({ ...BASE, mark: false, mode: "on", lang: "en", hasTimes: false })).toBeUndefined();
+  });
+
+  it("keeps the full feed name in the tooltip, since the visible one can be ellipsised", () => {
+    const footer = renderFooter({ ...BASE, mode: "on", lang: "en", meta: META, hasTimes: true })!;
+    expect((footer.querySelector(".footer-feed") as HTMLElement).title).toBe("PyAlmería");
+  });
+
   it("renders nothing at all with footer=off", () => {
-    expect(renderFooter({ mode: "off", lang: "en", meta: META, hasTimes: true })).toBeUndefined();
+    expect(renderFooter({ ...BASE, mode: "off", lang: "en", meta: META, hasTimes: true })).toBeUndefined();
   });
 
   it("renders nothing with footer=auto when the widget knows nothing about the source", () => {
-    expect(renderFooter({ mode: "auto", lang: "en", hasTimes: true })).toBeUndefined();
-    expect(renderFooter({ mode: "auto", lang: "en", meta: {}, hasTimes: true })).toBeUndefined();
-    expect(renderFooter({ mode: "auto", lang: "en", meta: { title: "Known" }, hasTimes: true })).toBeDefined();
+    expect(renderFooter({ ...BASE, mode: "auto", lang: "en", hasTimes: true })).toBeUndefined();
+    expect(renderFooter({ ...BASE, mode: "auto", lang: "en", meta: {}, hasTimes: true })).toBeUndefined();
+    expect(renderFooter({ ...BASE, mode: "auto", lang: "en", meta: { title: "Known" }, hasTimes: true })).toBeDefined();
   });
 
   it("renders a zone and a mark with footer=on even when the widget knows nothing", () => {
     // The difference between the two modes is exactly this case: a host app
     // driving the widget through .events = […].
-    const footer = renderFooter({ mode: "on", lang: "en", hasTimes: true, timeZone: "UTC" })!;
+    const footer = renderFooter({ ...BASE, mode: "on", lang: "en", hasTimes: true, timeZone: "UTC" })!;
     expect(footer.querySelector(".footer-feed")).toBeNull();
     expect(footer.querySelector(".footer-zone")!.textContent).toBe("Times in UTC (GMT+0)");
     expect(footer.querySelector("a.footer-mark")).not.toBeNull();
@@ -221,6 +269,7 @@ describe("renderFooter", () => {
 
   it("translates its own strings", () => {
     const footer = renderFooter({
+      ...BASE,
       mode: "on",
       lang: "es",
       meta: { sources: ["Uno", "Dos"] },
@@ -233,7 +282,7 @@ describe("renderFooter", () => {
   });
 
   it("forwards the widget's theme and language to the mounted element", () => {
-    const footer = renderFooter({ mode: "on", lang: "es", theme: "dark", meta: META, hasTimes: true })!;
+    const footer = renderFooter({ ...BASE, mode: "on", lang: "es", theme: "dark", meta: META, hasTimes: true })!;
     const subscribe = footer.querySelector("ote-subscribe")!;
     expect(subscribe.getAttribute("theme")).toBe("dark");
     expect(subscribe.getAttribute("lang")).toBe("es");

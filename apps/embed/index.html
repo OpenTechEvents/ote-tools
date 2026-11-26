@@ -236,6 +236,34 @@
               </p>
             </div>
 
+            <div class="field">
+              <label for="subscribe-layout-footer-select">subscribe-layout</label>
+              <select id="subscribe-layout-footer-select">
+                <option value="badges" selected>badges (default in the footer)</option>
+                <option value="menu">menu</option>
+              </select>
+              <p class="hint">
+                The shape of the <code>&lt;ote-subscribe&gt;</code> the footer
+                mounts. <code>badges</code> names the formats on the strip
+                itself; <code>menu</code> is one
+                <em>Subscribe</em> trigger, which is quieter when the
+                converter supplies three groups. Note the default differs
+                from the standalone element's, which is <code>menu</code>.
+              </p>
+
+              <label for="footer-mark-select">footer-mark</label>
+              <select id="footer-mark-select">
+                <option value="on" selected>on (default)</option>
+                <option value="off">off</option>
+              </select>
+              <p class="hint">
+                The "Powered by OTE" link to the spec — the "this is an open
+                feed, you can take it with you" affordance. Off for a site
+                whose own footer already says it; the subscribe links stay
+                either way, which turning the whole footer off would lose.
+              </p>
+            </div>
+
             <div class="field" id="card-width-field">
               <label for="card-width-select">card-width</label>
               <select id="card-width-select">

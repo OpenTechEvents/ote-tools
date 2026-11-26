@@ -430,3 +430,20 @@ export function parseFooter(value: string | null): FooterMode {
   if (trimmed === "auto") return "auto";
   return "on";
 }
+
+/**
+ * `footer-mark` — whether the footer carries the "Powered by OTE" link.
+ *
+ * On by default: it is the "this is an open feed, you can take it with you"
+ * affordance #68 asks for, and the quietest thing in the strip. Off is a
+ * real need all the same — a site whose own footer already says it, or one
+ * whose design forbids a third party's name — and a publisher who cannot
+ * turn it off turns the whole footer off instead, losing the subscribe
+ * links with it.
+ *
+ * Same spellings of "no" as `footer`, for the same reason.
+ */
+export function parseFooterMark(value: string | null): boolean {
+  const trimmed = value?.trim().toLowerCase();
+  return !(trimmed === "off" || trimmed === "none" || trimmed === "false");
+}

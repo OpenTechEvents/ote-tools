@@ -10,6 +10,7 @@
 
 import type { FooterMode, Lang } from "./attrs.js";
 import { el, withText } from "./dom.js";
+import type { SubscribeLayout } from "./subscribe-attrs.js";
 import { defineOteSubscribe } from "./subscribe-element.js";
 
 const SPEC_URL = "https://opentechevents.org/spec/";
@@ -18,13 +19,15 @@ const STRINGS = {
   en: {
     sources: (count: number) => `${count} sources`,
     timesIn: (zone: string) => `Times in ${zone}`,
-    markTitle: "Published as an Open Tech Events feed",
+    mark: "Powered by OTE",
+    markTitle: "Published as an Open Tech Events feed — an open format any OTE tool can read",
     footerLabel: "Feed information",
   },
   es: {
     sources: (count: number) => `${count} fuentes`,
     timesIn: (zone: string) => `Horas en ${zone}`,
-    markTitle: "Publicado como feed Open Tech Events",
+    mark: "Funciona con OTE",
+    markTitle: "Publicado como feed Open Tech Events — un formato abierto que cualquier herramienta OTE puede leer",
     footerLabel: "Información del feed",
   },
 } as const;
@@ -67,6 +70,16 @@ export interface FooterState {
   /** The host's raw `theme` attribute, so the mounted `<ote-subscribe>` follows the widget's theme. */
   theme?: string | null;
   meta?: FooterFeedMeta;
+  /**
+   * `subscribe-layout`: which shape the mounted `<ote-subscribe>` takes.
+   * `"badges"` is the footer's default — in a strip that already carries a
+   * name and a zone, one "Subscribe" button hides which formats exist
+   * behind a click. `"menu"` is for a host who wants the strip quieter, or
+   * who has three generated groups and finds three pills too loud.
+   */
+  subscribeLayout: SubscribeLayout;
+  /** `footer-mark`: whether to render the "Powered by OTE" link. */
+  mark: boolean;
   /**
    * Whether any event being rendered carries a clock time. A feed of
    * date-only events renders no times, and "Times in Europe/Madrid" under
@@ -184,8 +197,15 @@ function feedNameNode(meta: FooterFeedMeta, strings: (typeof STRINGS)[Lang]): HT
   }
   const title = meta.title ?? sources[0];
   if (!title) return undefined;
-  if (!meta.url) return withText(el("span", "footer-feed"), title);
+  // Always titled: the name ellipsises in a narrow strip (theme.css.ts), so
+  // the full one has to stay reachable.
+  if (!meta.url) {
+    const node = withText(el("span", "footer-feed"), title);
+    node.title = title;
+    return node;
+  }
   const link = withText(el("a", "footer-feed"), title);
+  link.title = title;
   link.href = meta.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
@@ -198,10 +218,12 @@ function feedNameNode(meta: FooterFeedMeta, strings: (typeof STRINGS)[Lang]): HT
  * stays the one implementation of these URLs, and the destination ranking
  * deferred in #171 reaches the footer with no work here.
  *
- * `layout="badges"` rather than the single `menu` trigger: in a strip that
- * already carries a name, a zone and a mark, one "Subscribe" button hides
- * which formats exist behind a click, and the badges are what the element
- * was ported from.
+ * `layout` defaults to `"badges"` rather than the single `menu` trigger: in
+ * a strip that already carries a name, a zone and a mark, one "Subscribe"
+ * button hides which formats exist behind a click, and the badges are what
+ * the element was ported from. `subscribe-layout="menu"` is the way back —
+ * a JSON-only publisher gets three generated groups, and three saturated
+ * pills in a footer is a defensible thing to not want.
  *
  * Only with a `jsonUrl`, which means only for a document the widget
  * fetched. A host that assigned `.events = […]` has no feed to subscribe
@@ -209,7 +231,12 @@ function feedNameNode(meta: FooterFeedMeta, strings: (typeof STRINGS)[Lang]): HT
  * document, and inventing a primary among several would be answering for
  * the publisher.
  */
-function subscribeNode(meta: FooterFeedMeta, lang: Lang, theme: string | null | undefined): HTMLElement | undefined {
+function subscribeNode(
+  meta: FooterFeedMeta,
+  lang: Lang,
+  theme: string | null | undefined,
+  layout: SubscribeLayout,
+): HTMLElement | undefined {
   if (!meta.jsonUrl) return undefined;
   // Statically imported, not lazy-loaded like calendar-layout.js: the
   // footer is default-on, so practically every consumer needs the element,
@@ -228,7 +255,7 @@ function subscribeNode(meta: FooterFeedMeta, lang: Lang, theme: string | null | 
   defineOteSubscribe();
   const subscribe = document.createElement("ote-subscribe");
   subscribe.className = "footer-subscribe";
-  subscribe.setAttribute("layout", "badges");
+  subscribe.setAttribute("layout", layout);
   subscribe.setAttribute("feed-json", meta.jsonUrl);
   subscribe.setAttribute("lang", lang);
   if (theme) subscribe.setAttribute("theme", theme);
@@ -247,7 +274,7 @@ function subscribeNode(meta: FooterFeedMeta, lang: Lang, theme: string | null | 
 }
 
 function markNode(strings: (typeof STRINGS)[Lang]): HTMLAnchorElement {
-  const mark = withText(el("a", "footer-mark"), "OTE");
+  const mark = withText(el("a", "footer-mark"), strings.mark);
   mark.href = SPEC_URL;
   mark.target = "_blank";
   mark.rel = "noopener noreferrer";
@@ -282,10 +309,13 @@ export function renderFooter(state: FooterState): HTMLElement | undefined {
   if (meta_.childElementCount > 0) footer.append(meta_);
 
   const actions = el("div", "footer-actions");
-  const subscribe = subscribeNode(meta, state.lang, state.theme);
+  const subscribe = subscribeNode(meta, state.lang, state.theme, state.subscribeLayout);
   if (subscribe) actions.append(subscribe);
-  actions.append(markNode(strings));
-  footer.append(actions);
+  if (state.mark) actions.append(markNode(strings));
+  if (actions.childElementCount > 0) footer.append(actions);
 
-  return footer;
+  // Every part is conditional, so "all of them absent" is reachable:
+  // footer-mark="off" on a host-app render with date-only events. A strip
+  // that is nothing but a top border is worse than no strip.
+  return footer.childElementCount > 0 ? footer : undefined;
 }

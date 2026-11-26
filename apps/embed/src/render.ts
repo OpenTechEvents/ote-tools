@@ -15,6 +15,7 @@ import type { OteJsonEvent, PreviewEvent, PreviewFeed } from "@opentechevents/pr
 import type { EventClickMode, FieldKey, FooterMode, GroupKey, Lang, Layout, NativeEventAction, SortMode } from "./attrs.js";
 import { el, withText } from "./dom.js";
 import { renderFooter, type FooterFeedMeta } from "./footer.js";
+import type { SubscribeLayout } from "./subscribe-attrs.js";
 import { computeEventGroups } from "./grouping.js";
 import type { EventGroupInfo, EventGroups } from "./grouping.js";
 
@@ -102,6 +103,10 @@ export interface WidgetState {
   footer: FooterMode;
   /** What the footer says about where these events came from; see footer.ts. */
   footerMeta?: FooterFeedMeta;
+  /** `subscribe-layout`: the shape of the `<ote-subscribe>` the footer mounts. */
+  footerSubscribeLayout: SubscribeLayout;
+  /** `footer-mark`: whether the footer carries the "Powered by OTE" link. */
+  footerMark: boolean;
   /** The host's raw `theme` attribute, forwarded to the footer's `<ote-subscribe>`. */
   theme?: string | null;
   eventClick: EventClickMode;
@@ -1542,6 +1547,8 @@ export function renderWidget(container: HTMLElement, state: WidgetState): void {
     lang: state.lang,
     theme: state.theme,
     meta: state.footerMeta,
+    subscribeLayout: state.footerSubscribeLayout,
+    mark: state.footerMark,
     hasTimes: events.some(hasClockTime),
   });
 
