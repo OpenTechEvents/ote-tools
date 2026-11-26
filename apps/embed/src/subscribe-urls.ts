@@ -1,17 +1,41 @@
 // Pure "subscribe to this feed" URL builders for <ote-subscribe>. Ported
 // from a real-world fix: the previous hand-rolled versions of these links
-// (Google Calendar via an encodeURIComponent'd https:// cid, and Feedly via
-// the old www.feedly.com/home#subscription/feed/ path) were both silently
-// broken. See apps/embed/CLAUDE.md for the <ote-subscribe> element this
-// module backs.
+// (Google Calendar's cid, and Feedly via the old
+// www.feedly.com/home#subscription/feed/ path) were both silently broken.
+// See apps/embed/CLAUDE.md for the <ote-subscribe> element this module backs.
 
 /**
- * Google Calendar's "add by URL" flow expects an *unencoded* webcal:// URL
- * in `cid` — not a URL-encoded https:// one. Verified against Google's own
- * documented pattern: https://www.google.com/calendar/render?cid=webcal://…
+ * Google Calendar's "add by URL" flow, as `cid` on the `render` endpoint.
+ *
+ * Two decisions, and the second one reverses what this comment used to say.
+ *
+ * **The `webcal://` scheme swap stays.** It is the shape Google documents,
+ * and it is known to work.
+ *
+ * **The value is percent-encoded.** This comment previously asserted that
+ * Google "expects an *unencoded*" URL here, and three tests pinned the
+ * literal spelling — but nothing ever executed either claim: every test in
+ * this module compares strings, so "verified against Google's documented
+ * pattern" was a reading of the docs, not a click. Checked against a real
+ * Google account on 2026-11-26, both of these subscribe successfully:
+ *
+ *     ?cid=webcal://communitybuilders.dev/events/feed.ics
+ *     ?cid=webcal%3A%2F%2Fcommunitybuilders.dev%2Fevents%2Ffeed.ics
+ *
+ * So encoding costs nothing, and not encoding costs correctness: a raw URL
+ * nested in a query parameter ends at its first `&`, which silently
+ * truncated the feed URL of any publisher whose ICS carries a query string
+ * (#166). Google received a different URL from the one the organizer
+ * published, and the failure looked like a broken feed rather than a broken
+ * link.
+ *
+ * What is still untested, and therefore not relied on: whether an encoded
+ * `https://` cid works. That was the other half of the old claim. The
+ * scheme swap makes the question moot here — do not drop it on the
+ * assumption that `https://` is equivalent.
  */
 export function buildGoogleCalendarUrl(icsUrl: string): string {
-  return `https://www.google.com/calendar/render?cid=${toWebcalUrl(icsUrl)}`;
+  return `https://www.google.com/calendar/render?cid=${encodeURIComponent(toWebcalUrl(icsUrl))}`;
 }
 
 /**
