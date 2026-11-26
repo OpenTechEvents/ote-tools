@@ -1,0 +1,1314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OTE embeddable widgets — &lt;ote-events&gt; &amp; &lt;ote-subscribe&gt;</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github-dark.min.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <div class="header-top-row">
+      <div class="brand">
+        <span class="ote-badge" aria-hidden="true">OTE</span>
+        <div class="brand-text">
+          <h1>Embeddable OTE widgets</h1>
+          <a class="brand-home" href="https://opentechevents.org" target="_blank" rel="noopener">opentechevents.org</a>
+        </div>
+      </div>
+      <div class="version-badges" aria-label="Version information">
+        <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.11.0" target="_blank" rel="noopener">
+          Component v0.11.0
+        </a>
+        <a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">
+          OTE Spec v0.4.0
+        </a>
+      </div>
+    </div>
+    <p class="intro">
+      Two Web Components that render or link to events from any
+      <a href="https://github.com/OpenTechEvents/opentechevents-spec" target="_blank" rel="noopener">OTE</a>
+      JSON feed. No framework, no build step, no package to install — one
+      <code>&lt;script&gt;</code> tag and one element.
+    </p>
+
+    <ul class="agent-index" aria-label="Page contents">
+      <li>
+        <strong>Events widget</strong> (<code>&lt;ote-events&gt;</code>) — renders
+        upcoming events as calendar, list, or cards. Key attributes:
+        <code>feed</code>/<code>feeds</code>, <code>layout</code>,
+        <code>views</code>,
+        <code>theme</code>, <code>fields-preview</code>/<code>fields-detail</code>,
+        <code>event-actions</code>, <code>group-events</code>; JS API:
+        <code>el.events</code>, <code>el.eventActions(context)</code>.
+      </li>
+      <li>
+        <strong>Subscribe widget</strong> (<code>&lt;ote-subscribe&gt;</code>) —
+        a "subscribe to this feed" trigger for Calendar (Google Calendar,
+        <code>webcal://</code>, ICS), RSS (Feedly, <code>feed://</code>), and
+        OTE feed links. Key attributes: <code>feed-ics</code>,
+        <code>feed-rss</code>, <code>feed-json</code>, <code>show</code>,
+        <code>convert</code>, <code>layout</code>.
+      </li>
+      <li>
+        <strong>Reference</strong> — versioned script URLs, SemVer policy, the
+        host-app integration API, and the
+        <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">agent-facing guide</a>.
+      </li>
+    </ul>
+
+    <!-- One feed URL, above the tabs, because it is one fact. Since the
+         converter derives ICS and RSS from the OTE JSON feed, `feed` (events)
+         and `feed-json` (subscribe) are the same document seen by two
+         widgets — asking for it twice taught that a publisher needs three
+         files, which is the opposite of what OTE says.
+
+         The strip is sticky because everything on the page depends on it and
+         because its status line reports a real fetch: if it scrolls away, a
+         404 verdict scrolls away with it and an empty widget reads as a
+         broken widget. The tabs ride along — they are how you switch widget,
+         so losing them to the scroll costs the same thing. -->
+    <div class="page-strip">
+      <div class="feed-bar">
+        <label class="feed-bar-label" for="source-feed-input">Your OTE feed</label>
+        <input
+          type="url"
+          id="source-feed-input"
+          spellcheck="false"
+          placeholder="https://example.org/events/feed.json"
+          aria-describedby="source-status source-feed-hint"
+        />
+        <p class="source-status" id="source-status" role="status">Checking the feed…</p>
+        <select id="adopter-select" disabled aria-label="Example feeds from the OTE adopters registry">
+          <option value="">Loading examples…</option>
+        </select>
+        <button
+          type="button"
+          class="info-button"
+          popovertarget="source-feed-hint"
+          aria-label="About the feed URL"
+        >i</button>
+      </div>
+      <div class="info-popover" popover id="source-feed-hint">
+        <p>
+          Both widgets read this one URL, and it is the only file you have to publish: the
+          <a href="https://convert.opentechevents.org" target="_blank" rel="noopener">OTE converter</a> derives the
+          calendar (ICS) and RSS feeds from it.
+        </p>
+        <p>
+          Several URLs, comma-separated, combine into one events widget. The page keeps the value in its address, so
+          you can share a playground already pointed at your own feed.
+        </p>
+      </div>
+
+      <div class="site-tabs" role="tablist" aria-label="Playground sections">
+        <button type="button" class="site-tab" data-tab="events" role="tab" id="tab-btn-events" aria-controls="tab-panel-events" aria-selected="true">
+          Events widget
+        </button>
+        <button type="button" class="site-tab" data-tab="subscribe" role="tab" id="tab-btn-subscribe" aria-controls="tab-panel-subscribe" aria-selected="false" tabindex="-1">
+          Subscribe widget
+        </button>
+        <button type="button" class="site-tab" data-tab="reference" role="tab" id="tab-btn-reference" aria-controls="tab-panel-reference" aria-selected="false" tabindex="-1">
+          Reference
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-panel-events" class="playground-layout" role="tabpanel" aria-labelledby="tab-btn-events" tabindex="0">
+      <div class="controls-column" aria-label="Events widget controls">
+        <!-- Tabs rather than accordions (#199). Four groups and ~25 controls
+             made the column's height change with every open and close, which
+             moved the page under the sticky preview. Tabs keep it constant.
+
+             Their cost is hidden state — a value set in another tab is a
+             value you can forget and then blame the widget for. The badge is
+             the mitigation: it counts the controls in each panel that differ
+             from their default, derived from the DOM's own `defaultChecked` /
+             `defaultValue` / `defaultSelected` rather than from a table of
+             defaults kept beside the markup. -->
+        <!-- Whole configurations, one click each. Twenty-five individual
+             controls are a poor way to find out what the widget can do:
+             each is a small change and nothing shows the range. -->
+        <div class="presets">
+          <div class="presets-buttons" id="event-presets"></div>
+          <button type="button" class="preset-reset" id="event-reset">Reset</button>
+        </div>
+
+        <div class="control-tabs" role="tablist" aria-label="Events widget settings">
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-basics"
+            aria-controls="ev-panel-basics"
+            aria-selected="true"
+          >Basics<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-appearance"
+            aria-controls="ev-panel-appearance"
+            aria-selected="false"
+            tabindex="-1"
+          >Appearance<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-behavior"
+            aria-controls="ev-panel-behavior"
+            aria-selected="false"
+            tabindex="-1"
+          >Behavior<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="ev-tab-actions"
+            aria-controls="ev-panel-actions"
+            aria-selected="false"
+            tabindex="-1"
+          >Actions<span class="tab-badge" hidden aria-hidden="true"></span></button>
+        </div>
+
+        <div
+          class="control-panel"
+          id="ev-panel-basics"
+          role="tabpanel"
+          aria-labelledby="ev-tab-basics"
+          tabindex="0"
+        >
+            <div class="field">
+              <span class="fields-legend">data source</span>
+              <div class="source-options">
+                <label><input type="radio" name="source-mode" value="url" checked /> feed URL</label>
+                <label><input type="radio" name="source-mode" value="json" /> manual JSON</label>
+              </div>
+            </div>
+
+            <div class="field" id="feed-source-field">
+              <span class="field-head"><span class="fields-legend">feed / feeds</span><button type="button" class="info-button" popovertarget="feed-feeds-info" aria-label="About feed / feeds">i</button></span>
+              <div class="info-popover" popover id="feed-feeds-info">
+                <p>Taken from <a href="#source-feed-input">Your OTE feed</a> at the top of the page. One URL emits
+                <code>feed</code>; several comma-separated emit <code>feeds</code>.</p>
+              </div>
+            </div>
+
+            <div class="field" id="json-source-field" hidden>
+              <label for="feed-data-input">feedData / event JSON</label>
+              <textarea id="feed-data-input" rows="9" spellcheck="false" disabled placeholder='{"events":[{"name":"Runtime event","startDate":"2999-01-01"}]}'></textarea>
+              <p class="hint error" id="data-error" hidden></p>
+              <p class="hint">Paste an OTE feed object, an event array, or one OTE event object.</p>
+            </div>
+
+            <div class="field">
+              <span class="field-head"><label for="event-id-input">event-id</label><button type="button" class="info-button" popovertarget="event-id-info" aria-label="About event-id">i</button></span>
+              <input type="text" id="event-id-input" aria-describedby="event-id-info" placeholder="https://example.org/events/2026-06-meetup" />
+              <div class="info-popover" popover id="event-id-info">
+                <p>Optional. Renders only the event with this OTE <code>id</code> — for an
+                event's own page. Ignores <code>show-past</code>, since an id is an
+                explicit request for that event. No match shows "Event not found".</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="limit-input">limit</label>
+              <input type="number" id="limit-input" min="1" step="1" placeholder="No limit" />
+              <p class="hint">Optional maximum number of events to show. Default: no limit.</p>
+            </div>
+        </div>
+        <div
+          class="control-panel"
+          id="ev-panel-appearance"
+          role="tabpanel"
+          aria-labelledby="ev-tab-appearance"
+          tabindex="0"
+          hidden
+        >
+            <div class="field">
+              <span class="field-head"><label for="layout-select">layout</label><button type="button" class="info-button" popovertarget="layout-info" aria-label="About layout">i</button></span>
+              <select id="layout-select" aria-describedby="layout-info">
+                <option value="calendar" selected>calendar</option>
+                <option value="list">list</option>
+                <option value="cards">cards</option>
+              </select>
+              <div class="info-popover" popover id="layout-info">
+                <p>The view the widget <em>opens</em> on. Since #183 the visitor
+                picks from there — which is why this is a one-line setting and
+                not a toolbar over the preview: the widget's own header is that
+                toolbar. Use <code>views</code> under <strong>Behavior</strong>
+                to decide which views they may reach at all.</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="font-family-input">font-family</label>
+              <input type="text" id="font-family-input" placeholder='system default, Inter, "Segoe UI", sans-serif' />
+              <p class="hint">Optional CSS font-family for the widget.</p>
+            </div>
+
+            <div class="field">
+              <label for="font-size-input">font-size</label>
+              <input type="text" id="font-size-input" placeholder="1rem, 16px, 0.95em..." />
+              <p class="hint">Optional base font-size for the widget.</p>
+            </div>
+
+            <div class="field">
+              <span class="field-head"><label for="max-height-input">max-height</label><button type="button" class="info-button" popovertarget="max-height-info" aria-label="About max-height">i</button></span>
+              <input type="text" id="max-height-input" aria-describedby="max-height-info" placeholder="600px, 60vh, 40rem..." />
+              <div class="info-popover" popover id="max-height-info">
+                <p>Optional height budget for the widget:
+                <code>px</code>, <code>rem</code>, <code>em</code>,
+                <code>ch</code>, <code>vh</code>, <code>dvh</code>,
+                <code>svh</code>, <code>vmin</code> or <code>vmax</code> (a
+                bare number is read as pixels). Anything else, including
+                <code>calc()</code> and <code>%</code>, leaves the widget
+                unbounded. What
+                does not fit scrolls <em>inside</em> the widget, so you no
+                longer need to wrap it in your own
+                <code>max-height</code>/<code>overflow</code> container — a
+                wrapper scrolls the widget from the outside, which carries the
+                calendar's weekday header and the list's column header away
+                with it. It is a maximum, not a fixed height: a short feed
+                still renders at its natural height. In
+                <code>layout="calendar"</code> the weeks share the budget
+                instead of each reserving <code>max-per-day</code> events'
+                worth of height, so empty weeks stop taking room they do not
+                use. Rows never shrink below a day showing one event beside a
+                <code>+N more</code> link; past that the grid scrolls with
+                the weekday header pinned. So <code>max-per-day</code> is
+                "as many as fit" while a budget is set. For a sparse feed try
+                <code>max-per-day="off"</code> with it: that mode sizes each
+                week to its own content, so empty weeks collapse instead of
+                reserving room — often enough to drop the scrollbar
+                entirely.</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="placeholder-image-input">placeholder-image override</label>
+              <input type="url" id="placeholder-image-input" placeholder="Optional image URL for cards without images" />
+              <p class="hint">Optional. Cards use a built-in placeholder when an event has no image.</p>
+            </div>
+
+            <!-- Grouped by the view they apply to, and dimmed rather than
+                 disabled when the preview is showing another one. With
+                 `views` the widget renders all three and the visitor moves
+                 between them, so `card-width` is in effect in the finished
+                 embed whatever is on screen here — disabling it hid a live
+                 setting and left a grey control with its reason buried in a
+                 hint. -->
+            <div class="field-group view-scoped" id="calendar-field" data-views="calendar">
+            <div class="field-group-head">
+              <span class="field-group-label">Calendar view</span>
+              <button
+                type="button"
+                class="info-button"
+                popovertarget="view-scope-info"
+                aria-label="About per-view settings"
+              >i</button>
+            </div>
+
+              <div class="field">
+                <span class="field-head"><label for="max-per-day-input">max-per-day</label><button type="button" class="info-button" popovertarget="max-per-day-info" aria-label="About max-per-day">i</button></span>
+                <input type="number" id="max-per-day-input" aria-describedby="max-per-day-info" min="1" step="1" placeholder="3 (default)" />
+                <div class="info-popover" popover id="max-per-day-info">
+                  <p>How many events a day cell shows before the
+                  rest collapse into a <code>+N more</code> popover.
+                  <code>max-per-day="off"</code> stacks every event, which is what
+                  a busy day did before this attribute existed.</p>
+                </div>
+
+                <span class="field-head"><label for="density-select">density</label><button type="button" class="info-button" popovertarget="density-info" aria-label="About density">i</button></span>
+                <select id="density-select" aria-describedby="density-info">
+                  <option value="auto" selected>auto (default)</option>
+                  <option value="comfortable">comfortable</option>
+                  <option value="compact">compact</option>
+                </select>
+                <div class="info-popover" popover id="density-info">
+                  <p>How much room a day cell gives each event.
+                  <code>auto</code> uses the compact metrics when
+                  <code>max-height</code> is set and the comfortable ones
+                  otherwise — a budget means height is scarce, and comfortably
+                  a single event costs about <code>5.8em</code> of cell against
+                  <code>3.4em</code> compact. Set it explicitly to override
+                  either way.</p>
+                </div>
+
+                <span class="field-head"><label for="initial-date-select">initial-date</label><button type="button" class="info-button" popovertarget="initial-date-info" aria-label="About initial-date">i</button></span>
+                <select id="initial-date-select" aria-describedby="initial-date-info">
+                  <option value="next-event" selected>next-event (default)</option>
+                  <option value="today">today</option>
+                </select>
+
+                <label class="checkbox">
+                  <input type="checkbox" id="responsive-checkbox" checked />
+                  Degrade the month grid to a list in a narrow container
+                </label>
+                <div class="info-popover" popover id="initial-date-info">
+                  <p>Which month the calendar opens on. <code>next-event</code> opens
+                  on the next upcoming event — or the most recent past one for a
+                  feed that is entirely in the past — so a feed starting next March
+                  does not open on an empty current month. The attribute also takes
+                  a fixed <code>YYYY-MM</code> or <code>YYYY-MM-DD</code>.</p>
+                  <p>On by default. Below 600px of <strong>container</strong> width
+                  (not viewport — the widget is usually in a column) the month grid
+                  becomes a list, because seven columns at phone width truncate both
+                  the weekday headers and every event title. Unchecking it is
+                  <code>responsive="off"</code>.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="field-group view-scoped" id="card-width-field" data-views="cards">
+            <div class="field-group-head">
+              <span class="field-group-label">Cards view</span>
+              <button
+                type="button"
+                class="info-button"
+                popovertarget="view-scope-info"
+                aria-label="About per-view settings"
+              >i</button>
+            </div>
+
+              <div class="field">
+                <span class="field-head"><label for="card-width-select">card-width</label><button type="button" class="info-button" popovertarget="card-width-info" aria-label="About card-width">i</button></span>
+                <select id="card-width-select" aria-describedby="card-width-info">
+                  <option value="small">small (160px)</option>
+                  <option value="medium" selected>medium (220px, default)</option>
+                  <option value="large">large (320px)</option>
+                </select>
+                <div class="info-popover" popover id="card-width-info">
+                  <p>Minimum card width in the responsive grid — also accepts any raw CSS length via the attribute (e.g. <code>card-width="280px"</code>), or set <code>--ote-card-min-width</code> directly in CSS.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-group-head">
+                <span class="field-group-label">Footer</span>
+              </div>
+
+              <div class="field">
+                <span class="field-head"><label for="footer-select">footer</label><button type="button" class="info-button" popovertarget="footer-info" aria-label="About footer">i</button></span>
+                <select id="footer-select" aria-describedby="footer-info">
+                  <option value="on" selected>on (default)</option>
+                  <option value="auto">auto</option>
+                  <option value="off">off</option>
+                </select>
+                <div class="info-popover" popover id="footer-info">
+                  <p>A strip under the events carrying the feed's name (linked to
+                  the publisher's own page when the document declares
+                  <code>url</code>), the time zone the times are rendered in,
+                  an <code>&lt;ote-subscribe&gt;</code> and the OTE mark. On by
+                  default, so upgrading a floating
+                  <code>/embed/latest/</code> embed changes what the page
+                  renders; a pinned <code>/embed/v&lt;x.y.z&gt;/</code> URL is
+                  untouched. <code>auto</code> renders it only when the widget
+                  knows where the data came from — for a host app driving the
+                  widget through <code>.events = […]</code> that is nothing, so
+                  it renders nothing. It is chrome inside the
+                  <code>max-height</code> budget: the events scroll under it.</p>
+                  <p>The footer's subscribe element gets the feed URL the widget
+                  already fetched, plus the <code>text/calendar</code> and
+                  <code>application/rss+xml</code> entries of the document's
+                  own <code>alternates</code> (OTE Spec 0.5+) — so your own ICS
+                  is offered instead of a generated one. <code>feed-ics</code>,
+                  <code>feed-rss</code> and <code>convert</code> on
+                  <code>&lt;ote-events&gt;</code> are passed straight through
+                  to it and outrank the document;
+                  <code>convert="off"</code> is how you stop
+                  <code>convert.opentechevents.org</code> URLs from being built
+                  for your visitors at all. With
+                  <code>feeds="a,b"</code> there is no single document, so the
+                  strip names the source count and offers no subscribe.</p>
+                </div>
+              </div>
+
+              <div class="field">
+                <span class="field-head"><label for="subscribe-layout-footer-select">subscribe-layout</label><button type="button" class="info-button" popovertarget="subscribe-layout-footer-info" aria-label="About subscribe-layout">i</button></span>
+                <select id="subscribe-layout-footer-select" aria-describedby="subscribe-layout-footer-info">
+                  <option value="badges" selected>badges (default in the footer)</option>
+                  <option value="menu">menu</option>
+                </select>
+                <div class="info-popover" popover id="subscribe-layout-footer-info">
+                  <p>The shape of the <code>&lt;ote-subscribe&gt;</code> the footer
+                  mounts. <code>badges</code> names the formats on the strip
+                  itself; <code>menu</code> is one
+                  <em>Subscribe</em> trigger, which is quieter when the
+                  converter supplies three groups. Note the default differs
+                  from the standalone element's, which is <code>menu</code>.</p>
+                </div>
+
+                <span class="field-head"><label for="footer-mark-select">footer-mark</label><button type="button" class="info-button" popovertarget="footer-mark-info" aria-label="About footer-mark">i</button></span>
+                <select id="footer-mark-select" aria-describedby="footer-mark-info">
+                  <option value="on" selected>on (default)</option>
+                  <option value="off">off</option>
+                </select>
+                <div class="info-popover" popover id="footer-mark-info">
+                  <p>The "Powered by OTE" link to the spec — the "this is an open
+                  feed, you can take it with you" affordance. Off for a site
+                  whose own footer already says it; the subscribe links stay
+                  either way, which turning the whole footer off would lose.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="info-popover" popover id="view-scope-info">
+              <p>
+                These apply to one view. They stay editable whatever the
+                preview is showing, because <code>views</code> lets a visitor
+                reach every view you leave enabled — a setting for a view that
+                is not on screen is still in effect in the embed you copy.
+              </p>
+              <p>Dimmed means the preview is currently showing a different view.</p>
+            </div>
+
+        </div>
+        <div
+          class="control-panel"
+          id="ev-panel-behavior"
+          role="tabpanel"
+          aria-labelledby="ev-tab-behavior"
+          tabindex="0"
+          hidden
+        >
+            <div class="field view-scoped" id="fields-matrix-field" data-views="list cards">
+              <div class="field-group-head">
+                <span class="field-group-label">List and Cards views</span>
+                <button
+                  type="button"
+                  class="info-button"
+                  popovertarget="view-scope-behavior-info"
+                  aria-label="About per-view settings"
+                >i</button>
+                  <div class="info-popover" popover id="view-scope-behavior-info">
+              <p>
+                These apply to one view. They stay editable whatever the
+                preview is showing, because <code>views</code> lets a visitor
+                reach every view you leave enabled — a setting for a view that
+                is not on screen is still in effect in the embed you copy.
+              </p>
+              <p>Dimmed means the preview is currently showing a different view.</p>
+            </div>
+        </div>
+
+              <span class="field-head"><span class="fields-legend">fields — preview / detail</span><button type="button" class="info-button" popovertarget="fields-preview-detail-info" aria-label="About fields — preview / detail">i</button></span>
+              <div class="info-popover" popover id="fields-preview-detail-info">
+                <p>Which optional pieces of each event show on the card
+                (<strong>Preview</strong>) versus the detail modal / list
+                layout's expanded row (<strong>Detail</strong>). Ignored
+                entirely by the calendar layout.</p>
+              </div>
+              <div class="fields-matrix-wrap">
+                <table class="fields-matrix">
+                  <thead>
+                    <tr>
+                      <th scope="col">Field</th>
+                      <th scope="col">Preview</th>
+                      <th scope="col">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">image</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="image" checked aria-label="Show image in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="image" checked aria-label="Show image in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">when</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="when" checked aria-label="Show when in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="when" checked aria-label="Show when in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">location</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="location" checked aria-label="Show location in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="location" checked aria-label="Show location in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">attendance</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="attendance" checked aria-label="Show attendance in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="attendance" checked aria-label="Show attendance in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">description</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="description" checked aria-label="Show description in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="description" checked aria-label="Show description in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">price</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="price" aria-label="Show price in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="price" checked aria-label="Show price in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">tags</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="tags" aria-label="Show tags in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="tags" checked aria-label="Show tags in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">organizer</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="organizer" aria-label="Show organizer in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="organizer" checked aria-label="Show organizer in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">eligibility</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="eligibility" aria-label="Show eligibility in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="eligibility" checked aria-label="Show eligibility in detail" /></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">cfp</th>
+                      <td><input type="checkbox" class="field-key-preview-checkbox" value="cfp" aria-label="Show cfp in preview" /></td>
+                      <td><input type="checkbox" class="field-key-detail-checkbox" value="cfp" checked aria-label="Show cfp in detail" /></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="field" id="views-field">
+              <span class="field-head"><span class="fields-legend">views</span><button type="button" class="info-button" popovertarget="views-info" aria-label="About views">i</button></span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="view-key-checkbox" value="calendar" checked /> calendar</label>
+                <label><input type="checkbox" class="view-key-checkbox" value="list" checked /> list</label>
+                <label><input type="checkbox" class="view-key-checkbox" value="cards" checked /> cards</label>
+              </div>
+              <div class="info-popover" popover id="views-info">
+                <p>The views a <em>visitor</em> may switch between, in the
+                header above the events — which also carries
+                <strong>Today</strong>, the month arrows and the month
+                itself in <code>layout="calendar"</code>, in that order.
+                <code>layout</code> is then only the view the widget opens
+                on. The control shows labels while they fit, icons when
+                they do not, and a native dropdown in a narrow column; the
+                widget measures itself to decide. All three by default, so upgrading a
+                floating <code>/embed/latest/</code> embed changes what the
+                page renders; a pinned
+                <code>/embed/v&lt;x.y.z&gt;/</code> URL is untouched. Clear
+                every box (<code>views="none"</code>) to keep the layout the
+                embedder chose, and note that a one-view list renders no row
+                either. A host app driving the widget through
+                <code>.events = […]</code> gets no switcher unless it asks
+                for one with this attribute: it owns its own view chrome.
+                Like the footer it is chrome inside the
+                <code>max-height</code> budget — the events scroll under it
+                — and the choice lives in memory only: the widget writes
+                nothing to storage or to your page's URL, and reports each
+                change as an <code>ote-view-change</code> event if you want
+                to remember it yourself.</p>
+              </div>
+            </div>
+
+            <div class="field view-scoped" id="group-events-field" data-views="cards">
+              <div class="field-group-head">
+                <span class="field-group-label">Cards view</span>
+                <button
+                  type="button"
+                  class="info-button"
+                  popovertarget="view-scope-behavior-info"
+                  aria-label="About per-view settings"
+                >i</button>
+              </div>
+
+              <span class="field-head"><span class="fields-legend">group-events</span><button type="button" class="info-button" popovertarget="group-events-info" aria-label="About group-events">i</button></span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="group-key-checkbox" value="series" /> series</label>
+                <label><input type="checkbox" class="group-key-checkbox" value="multipart" /> multipart</label>
+              </div>
+              <div class="info-popover" popover id="group-events-info">
+                <p>Collapses events that share the same <code>partOf.id</code> into one stacked card with a badge; the detail modal gains prev/next between occurrences. Off by default. To try it, switch to JSON source mode above and paste events whose <code>partOf</code> field shares an <code>id</code>, e.g. <code>"partOf": {"id": "https://example.org/series/monthly", "type": "series"}</code>.</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="lang-select">lang</label>
+              <select id="lang-select">
+                <option value="auto" selected>auto</option>
+                <option value="en">en</option>
+                <option value="es">es</option>
+              </select>
+              <p class="hint">Language of the widget's own UI text (loading/empty/error messages). "auto" follows the visitor's browser language.</p>
+            </div>
+
+            <div class="field field-checkbox">
+              <label for="show-past-checkbox">
+                <input type="checkbox" id="show-past-checkbox" checked />
+                show-past
+              </label>
+              <p class="hint">Include events whose start date has already passed. Default: on.</p>
+            </div>
+        </div>
+        <div
+          class="control-panel"
+          id="ev-panel-actions"
+          role="tabpanel"
+          aria-labelledby="ev-tab-actions"
+          tabindex="0"
+          hidden
+        >
+            <div class="field">
+              <label for="event-click-select">event-click</label>
+              <select id="event-click-select">
+                <option value="modal" selected>modal</option>
+                <option value="link">link</option>
+                <option value="none">none</option>
+              </select>
+              <p class="hint">What happens when a visitor selects an event. Default: modal.</p>
+            </div>
+
+            <div class="field">
+              <span class="fields-legend">event-actions</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="event-action-checkbox" value="google-calendar" checked /> Google Calendar</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="outlook-calendar" checked /> Outlook</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="yahoo-calendar" checked /> Yahoo</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="ics" checked /> ICS</label>
+                <label><input type="checkbox" class="event-action-checkbox" value="link" checked /> event page</label>
+              </div>
+              <div class="action-placement-options">
+                <label for="native-action-placement-select">placement</label>
+                <select id="native-action-placement-select">
+                  <option value="detail" selected>detail</option>
+                  <option value="preview">preview</option>
+                  <option value="both">both</option>
+                </select>
+              </div>
+              <p class="hint">Native actions. The default placement is the event detail view.</p>
+            </div>
+
+            <div class="field custom-action-demo">
+              <label for="custom-action-checkbox">
+                <input type="checkbox" id="custom-action-checkbox" />
+                custom button example
+              </label>
+              <div class="custom-action-options">
+                <label for="custom-action-placement-select">placement</label>
+                <select id="custom-action-placement-select">
+                  <option value="preview">preview</option>
+                  <option value="detail">detail</option>
+                  <option value="both" selected>both</option>
+                </select>
+              </div>
+              <p class="hint">Adds a custom action with an icon that shows an alert for the selected event.</p>
+            </div>
+        </div>
+      </div>
+
+      <div class="output-column">
+        <section class="panel" aria-labelledby="preview-heading">
+          <h2 id="preview-heading">Live preview</h2>
+          <div class="preview-toolbar">
+            <div class="segmented-toolbar" role="group" aria-label="Preview theme">
+              <button type="button" class="preview-button" data-theme="auto" aria-pressed="true" title="Auto theme">
+                <span class="preview-icon icon-auto" aria-hidden="true"></span>
+                <span>Auto</span>
+              </button>
+              <button type="button" class="preview-button" data-theme="light" aria-pressed="false" title="Light theme">
+                <span class="preview-icon icon-light" aria-hidden="true"></span>
+                <span>Light</span>
+              </button>
+              <button type="button" class="preview-button" data-theme="dark" aria-pressed="false" title="Dark theme">
+                <span class="preview-icon icon-dark" aria-hidden="true"></span>
+                <span>Dark</span>
+              </button>
+            </div>
+          </div>
+          <div class="widget-frame">
+            <ote-events id="preview-widget"></ote-events>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="snippet-heading">
+          <h2 id="snippet-heading">Copy-paste snippet</h2>
+          <p class="hint">This is the exact markup for the configuration above.</p>
+          <p class="hint">
+            The snippet uses a fixed widget version. Use
+            <code>/embed/latest/</code> only when you explicitly want automatic
+            updates.
+          </p>
+          <div class="snippet-box">
+            <div class="snippet-chrome">
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-filename" aria-hidden="true">index.html</span>
+              <button type="button" id="copy-button">Copy</button>
+            </div>
+            <pre><code id="snippet-code" class="language-html"></code></pre>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="tab-panel-subscribe" class="playground-layout" role="tabpanel" aria-labelledby="tab-btn-subscribe" tabindex="0" hidden>
+      <div class="controls-column" aria-label="Subscribe widget controls">
+        <div class="control-tabs" role="tablist" aria-label="Subscribe widget settings">
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="sub-tab-sources"
+            aria-controls="sub-panel-sources"
+            aria-selected="true"
+          >Sources<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="sub-tab-appearance"
+            aria-controls="sub-panel-appearance"
+            aria-selected="false"
+            tabindex="-1"
+          >Appearance<span class="tab-badge" hidden aria-hidden="true"></span></button>
+          <button
+            type="button"
+            class="control-tab"
+            role="tab"
+            id="sub-tab-behavior"
+            aria-controls="sub-panel-behavior"
+            aria-selected="false"
+            tabindex="-1"
+          >Behavior<span class="tab-badge" hidden aria-hidden="true"></span></button>
+        </div>
+
+        <!-- "Where do the Calendar and RSS links come from" was spread over
+             two groups and three controls: a closed "Do you host your own
+             ICS or RSS?" group, and a `convert` pair of checkboxes in
+             Behavior whose "untick both" meant the same thing as "no links
+             at all". One question, one radio. -->
+        <div
+          class="control-panel"
+          id="sub-panel-sources"
+          role="tabpanel"
+          aria-labelledby="sub-tab-sources"
+          tabindex="0"
+        >
+          <div class="field">
+            <span class="field-head"><span class="fields-legend">calendar and RSS links</span><button
+              type="button"
+              class="info-button"
+              popovertarget="subscribe-source-info"
+              aria-label="About calendar and RSS links"
+            >i</button></span>
+            <div class="source-options source-options-stacked">
+              <label><input type="radio" name="subscribe-source" value="generated" checked /> Generated from your OTE feed</label>
+              <label><input type="radio" name="subscribe-source" value="own" /> You host your own ICS or RSS</label>
+              <label><input type="radio" name="subscribe-source" value="none" /> No calendar or RSS links</label>
+            </div>
+            <div class="info-popover" popover id="subscribe-source-info">
+              <p>
+                Most publishers host only the OTE JSON feed, and do not need
+                more: <code>convert.opentechevents.org</code> derives the
+                calendar and the RSS feed from it, so "add to calendar" and a
+                feed-reader link work with one published file.
+              </p>
+              <p>
+                A declared <code>feed-ics</code>/<code>feed-rss</code> always
+                wins over a generated one. The third option is
+                <code>convert="off"</code>: no third-party URL is built for
+                your visitors at all, and the widget offers the OTE feed
+                alone.
+              </p>
+            </div>
+          </div>
+
+          <div class="field-group" id="subscribe-own-feeds" hidden>
+            <div class="field">
+              <label for="subscribe-ics-input">feed-ics</label>
+              <input type="text" id="subscribe-ics-input" placeholder="https://example.org/events/feed.ics" />
+              <p class="hint">
+                Replaces the generated Calendar group (Google Calendar,
+                <code>webcal://</code>, ICS download).
+              </p>
+            </div>
+
+            <div class="field">
+              <label for="subscribe-rss-input">feed-rss</label>
+              <input type="text" id="subscribe-rss-input" placeholder="https://example.org/events/feed.xml" />
+              <p class="hint">
+                Replaces the generated RSS group (Feedly, <code>feed://</code>,
+                RSS download).
+              </p>
+            </div>
+
+            <p class="hint">Leave either blank to keep generating that one.</p>
+          </div>
+
+          <div class="field">
+            <span class="field-head"><span class="fields-legend">feed-json</span><button
+              type="button"
+              class="info-button"
+              popovertarget="feed-json-info"
+              aria-label="About feed-json"
+            >i</button></span>
+            <p class="hint">
+              Taken from <a href="#source-feed-input">Your OTE feed</a> at the top of the page.
+            </p>
+            <div class="info-popover" popover id="feed-json-info">
+              <p>
+                One URL, shared with the events widget, because it is one
+                document: <code>&lt;ote-events feed&gt;</code> and
+                <code>&lt;ote-subscribe feed-json&gt;</code> name the same
+                file. It is also what the Calendar and RSS links are generated
+                from.
+              </p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="subscribe-name-input">name</label>
+            <input type="text" id="subscribe-name-input" placeholder="Optional calendar name" />
+            <p class="hint">Used only for the trigger's accessible label ("Subscribe to &lt;name&gt;").</p>
+          </div>
+        </div>
+
+        <div
+          class="control-panel"
+          id="sub-panel-appearance"
+          role="tabpanel"
+          aria-labelledby="sub-tab-appearance"
+          tabindex="0"
+          hidden
+        >
+          <div class="field">
+            <span class="field-head"><label for="subscribe-layout-select">layout</label><button
+              type="button"
+              class="info-button"
+              popovertarget="subscribe-layout-info"
+              aria-label="About layout"
+            >i</button></span>
+            <select id="subscribe-layout-select" aria-describedby="subscribe-layout-info">
+              <option value="menu" selected>menu</option>
+              <option value="badges">badges</option>
+            </select>
+            <div class="info-popover" popover id="subscribe-layout-info">
+              <p>
+                <code>menu</code>: one trigger, one popover listing every
+                group. <code>badges</code>: one small trigger per group
+                (Calendar / RSS / OTE feed), each with its own popover.
+              </p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="subscribe-theme-select">theme</label>
+            <select id="subscribe-theme-select">
+              <option value="auto" selected>auto</option>
+              <option value="light">light</option>
+              <option value="dark">dark</option>
+            </select>
+          </div>
+        </div>
+
+        <div
+          class="control-panel"
+          id="sub-panel-behavior"
+          role="tabpanel"
+          aria-labelledby="sub-tab-behavior"
+          tabindex="0"
+          hidden
+        >
+          <!-- Grouped the way the widget renders them, so unticking a box
+               and looking at the preview is one mapping rather than nine. -->
+          <div class="field">
+            <span class="fields-legend">show</span>
+            <p class="hint">Which subscribe links to render. Defaults to everything valid for the feed above.</p>
+
+            <div class="show-group">
+              <span class="field-group-label">Calendar</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="google" checked /> google</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="webcal" checked /> webcal</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="ics-download" checked /> ics-download</label>
+              </div>
+            </div>
+
+            <div class="show-group">
+              <span class="field-group-label">RSS</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="feedly" checked /> feedly</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="feed-protocol" checked /> feed-protocol</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="rss-download" checked /> rss-download</label>
+              </div>
+            </div>
+
+            <div class="show-group">
+              <span class="field-group-label">OTE feed</span>
+              <div class="fields-checkboxes">
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-reader" checked /> ote-reader</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="ote-preview" checked /> ote-preview</label>
+                <label><input type="checkbox" class="subscribe-show-checkbox" value="json-download" checked /> json-download</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="subscribe-lang-select">lang</label>
+            <select id="subscribe-lang-select">
+              <option value="auto" selected>auto</option>
+              <option value="en">en</option>
+              <option value="es">es</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="output-column">
+        <section class="panel" aria-labelledby="subscribe-preview-heading">
+          <h2 id="subscribe-preview-heading">Live preview</h2>
+          <div class="widget-frame">
+            <ote-subscribe id="subscribe-preview-widget"></ote-subscribe>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="subscribe-snippet-heading">
+          <h2 id="subscribe-snippet-heading">Copy-paste snippet</h2>
+          <p class="hint">This is the exact markup for the &lt;ote-subscribe&gt; configuration above.</p>
+          <div class="snippet-box">
+            <div class="snippet-chrome">
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-dot" aria-hidden="true"></span>
+              <span class="snippet-filename" aria-hidden="true">index.html</span>
+              <button type="button" id="subscribe-copy-button">Copy</button>
+            </div>
+            <pre><code id="subscribe-snippet-code" class="language-html"></code></pre>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="tab-panel-reference" role="tabpanel" aria-labelledby="tab-btn-reference" tabindex="0" hidden>
+      <section class="panel versioning-guide" aria-labelledby="versioning-heading">
+        <h2 id="versioning-heading">Versioning</h2>
+        <p>
+          Production embeds should use a fixed version URL so future widget
+          changes do not alter existing sites without an explicit upgrade.
+        </p>
+        <dl class="version-url-list">
+          <div>
+            <dt>Recommended</dt>
+            <dd><code>https://tools.opentechevents.org/embed/v0.11.0/ote-events.js</code></dd>
+          </div>
+          <div>
+            <dt>Automatic updates</dt>
+            <dd><code>https://tools.opentechevents.org/embed/latest/ote-events.js</code></dd>
+          </div>
+          <div>
+            <dt>Legacy alias</dt>
+            <dd><code>https://tools.opentechevents.org/embed/ote-events.js</code></dd>
+          </div>
+        </dl>
+        <p>
+          The widget follows semantic versioning: patch releases are compatible
+          fixes, minor releases add compatible features, and major releases may
+          require migration. Check the changelog before changing the version used
+          by a production page.
+        </p>
+        <p>
+          Component versions and OTE Spec versions are independent. The component
+          version tells you which widget bundle you are loading; the OTE Spec
+          version tells you which event/feed shape that bundle is designed to
+          consume.
+        </p>
+        <p>
+          OTE Spec 0.4.0 lets a feed publish an <code>http://</code> image. On an
+          <code>https</code> page the browser blocks such an address as mixed
+          content, so the widget treats that image as absent — cards show their
+          placeholder (or your <code>placeholder-image</code>) and the detail
+          view renders without one, instead of showing a frame that can never
+          load. If an event lists several images, the first
+          <code>https://</code> one is used even when an <code>http://</code>
+          entry comes before it.
+        </p>
+        <div class="version-table-wrap">
+          <table class="version-table">
+            <thead>
+              <tr>
+                <th scope="col">Component</th>
+                <th scope="col">OTE Spec</th>
+                <th scope="col">Links</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>v0.11.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">v0.4.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.11.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.11.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.10.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">v0.4.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.10.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.10.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.9.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">v0.4.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.9.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.9.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.8.2</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">v0.4.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.8.2" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.8.2/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.8.1</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">v0.4.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.8.1" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.8.1/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.8.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.4/event.schema.json" target="_blank" rel="noopener">v0.4.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.8.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.8.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.7.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.7.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.7.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.6.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.6.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.6.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.5.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.5.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.5.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.4.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.4.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.4.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.3.1</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.3.1" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.3.1/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.3.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.3.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.3.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.2.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.2.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.2.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.1.1</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.1.1" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.1.1/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+              <tr>
+                <td><code>v0.1.0</code></td>
+                <td><a href="https://opentechevents.org/schema/v0.3/event.schema.json" target="_blank" rel="noopener">v0.3.0</a></td>
+                <td>
+                  <a href="https://github.com/OpenTechEvents/ote-tools/releases/tag/embed-v0.1.0" target="_blank" rel="noopener">release</a>
+                  <span aria-hidden="true"> · </span>
+                  <a href="https://tools.opentechevents.org/embed/v0.1.0/ote-events.js" target="_blank" rel="noopener">script</a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="resource-links">
+          <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+            View the changelog
+          </a>
+          <a href="https://github.com/OpenTechEvents/ote-tools/releases?q=embed-v&expanded=true" target="_blank" rel="noopener">
+            View embed releases
+          </a>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="host-app-heading">
+        <h2 id="host-app-heading">Host app integration</h2>
+        <p>
+          Apps such as OTE Reader can pass already-filtered events in memory and
+          keep subscriptions, folders, read state, and persistence outside the
+          widget. Use <code>sort="none"</code> when the host app owns ordering.
+        </p>
+        <pre><code class="language-javascript">await customElements.whenDefined("ote-events");
+
+const widget = document.querySelector("ote-events");
+widget.setAttribute("sort", "none");
+widget.setAttribute("event-actions", "none");
+widget.events = filteredEvents.map((event) => ({
+  ...event,
+  _feedUrl: event.feedUrl,
+  _feedTitle: event.feedTitle,
+}));
+
+widget.eventActions = (context) => [{
+  id: "save",
+  label: saved.has(context.originalEvent.id) ? "Saved" : "Save",
+  icon: saved.has(context.originalEvent.id) ? "bookmark" : "star",
+  pressed: saved.has(context.originalEvent.id),
+  placement: "preview",
+  onClick(_previewEvent, actionContext) {
+    saveEvent(actionContext.originalEvent.id, actionContext.feed?.url);
+  },
+}];
+
+widget.eventClassName = (context) =>
+  read.has(context.originalEvent.id) ? "is-read" : "is-unread";
+widget.eventBadges = (context) =>
+  context.originalEvent.cfpOpen ? [{ label: "CFP", icon: "plus" }] : [];</code></pre>
+        <div class="version-table-wrap">
+          <table class="version-table">
+            <thead>
+              <tr>
+                <th scope="col">API</th>
+                <th scope="col">Use</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>el.events</code></td>
+                <td>Render an in-memory array of OTE events without fetching.</td>
+              </tr>
+              <tr>
+                <td><code>views</code></td>
+                <td>The views a visitor may switch between. A widget driven through <code>el.events</code> renders no switcher unless this attribute asks for one — a host app owns its own view chrome; <code>views="none"</code> is the opt-out for a fetched feed.</td>
+              </tr>
+              <tr>
+                <td><code>sort="none"</code></td>
+                <td>Keep the host application's ordering instead of widget date sorting.</td>
+              </tr>
+              <tr>
+                <td><code>empty-message</code></td>
+                <td>Customize the empty state shown after host-side filters.</td>
+              </tr>
+              <tr>
+                <td><code>eventActions(context)</code></td>
+                <td>Return per-event actions with dynamic label, icon, placement, and pressed state.</td>
+              </tr>
+              <tr>
+                <td><code>eventClassName(context)</code></td>
+                <td>Add host-owned state classes such as read, unread, saved, or canceled.</td>
+              </tr>
+              <tr>
+                <td><code>eventBadges(context)</code></td>
+                <td>Add host-owned badges such as folder, collection, CFP, or saved state.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The <code>ote-event-action</code> event includes <code>action</code>,
+          <code>previewEvent</code>, <code>originalEvent</code>, <code>index</code>,
+          <code>feed</code>, and <code>source</code>. The widget renders only; it
+          does not store favorites, folders, read state, or filters — nor the
+          view a visitor picks in the switcher, which it reports as
+          <code>ote-view-change</code>
+          (<code>detail: { view, previousView }</code>) and writes neither to
+          storage nor to your page's URL.
+        </p>
+      </section>
+
+      <section class="panel agent-resource" aria-labelledby="agent-resource-heading">
+        <h2 id="agent-resource-heading">Using AI agents?</h2>
+        <p>
+          The embed package includes an agent-facing guide with the typed
+          <code>eventActions</code> contract, placement rules, and the tests that
+          act as living documentation.
+        </p>
+        <div class="resource-links">
+          <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">
+            Read the agent guide
+          </a>
+          <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+            View the changelog
+          </a>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <p class="hint">
+      This page's full markup (all three tabs) is always present in the HTML
+      source — switch to <strong>Reference</strong> above for the complete
+      versioning table and host-app integration guide, or fetch these docs
+      directly:
+    </p>
+    <div class="resource-links">
+      <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CLAUDE.md" target="_blank" rel="noopener">
+        Agent guide (CLAUDE.md)
+      </a>
+      <a href="https://github.com/OpenTechEvents/ote-tools/blob/main/apps/embed/CHANGELOG.md" target="_blank" rel="noopener">
+        Changelog
+      </a>
+      <a href="https://github.com/OpenTechEvents/ote-tools/releases?q=embed-v&expanded=true" target="_blank" rel="noopener">
+        Releases
+      </a>
+    </div>
+  </footer>
+
+  <script type="module" src="./ote-events.js"></script>
+  <script type="module" src="./ote-subscribe.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js"></script>
+  <script type="module" src="./playground.js"></script>
+</body>
+</html>

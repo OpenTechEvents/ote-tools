@@ -1,0 +1,1233 @@
+:root {
+  --bg: #f5f6f9;
+  --surface: #ffffff;
+  --border: #e2e5eb;
+  --text: #10131a;
+  --muted: #4a5265;
+  --accent: #2b5bd7;
+  --accent-hover: #1f47b0;
+  --accent-soft: #eaf0ff;
+  --ink: #10131a;
+  --radius: 8px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgba(16, 19, 26, 0.06), 0 8px 20px rgba(16, 19, 26, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "system-ui", "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+header,
+main,
+.page-footer {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+header {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.ote-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #ffffff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.brand-text {
+  min-width: 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.brand-home {
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.brand-home:hover,
+.brand-home:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.version-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.version-badges a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.version-badges a:hover,
+.version-badges a:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.intro {
+  margin: 0 0 1.1rem;
+  color: var(--muted);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Written for an agent reading the DOM, and a duplicate of the Reference
+   tab for anyone reading the page. `display: none` keeps it in the source,
+   where an agent still finds it, and out of the render. It also drops it
+   from the accessibility tree — deliberate: the same ground is covered
+   visibly in Reference. */
+.agent-index {
+  display: none;
+}
+
+/* The shared feed field (#186 made one URL drive every widget on this
+   page) and the widget tabs, in one sticky strip. The feed outranks the
+   tabs — they choose a widget, it chooses whose events you are looking at —
+   and both have to survive a scroll: see the comment in index.html.
+
+   `--sticky-top` is written by playground.ts from the strip's measured
+   height, because the strip wraps at narrow widths and the sticky preview
+   column has to clear whatever it actually became. */
+.page-strip {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -1.5rem;
+  padding: 0.75rem 1.5rem 0;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.feed-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.6rem;
+  margin-bottom: 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.feed-bar-label {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.feed-bar input {
+  flex: 1 1 18rem;
+  min-width: 0;
+  font-size: 0.95rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.feed-bar input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.feed-bar .btn {
+  flex: 0 0 auto;
+}
+
+/* Status of the feed itself, not of the form: it reports a real fetch, so
+   it is the one place that can tell "no events yet" apart from "the file
+   could not be read", which render identically in the widget. */
+.source-status {
+  flex: 0 1 auto;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.source-status[data-kind="ok"] {
+  color: #0f8a5f;
+  font-weight: 600;
+}
+
+.source-status[data-kind="warn"] {
+  color: #b06d00;
+  font-weight: 600;
+}
+
+.site-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  padding: 0.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.site-tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.site-tab:hover,
+.site-tab:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+.site-tab[aria-selected="true"] {
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+#tab-panel-reference .panel:last-child {
+  margin-bottom: 0;
+}
+
+.playground-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+/* In one column the preview comes first. The page exists to show the widget;
+   putting a 25-control form above it means the thing you came to see is
+   below the fold on exactly the screens with the least of it. */
+.playground-layout > .output-column {
+  order: -1;
+}
+
+@media (min-width: 52rem) {
+  .playground-layout > .output-column {
+    order: 0;
+  }
+}
+
+[role="tabpanel"][hidden] {
+  display: none;
+}
+
+.controls-column,
+.output-column {
+  min-width: 0;
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.agent-resource {
+  background: #f9fafc;
+}
+
+.agent-resource p,
+.versioning-guide p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.agent-resource a,
+.versioning-guide a {
+  font-weight: 600;
+}
+
+.resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.version-url-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.9rem 0;
+}
+
+.version-url-list div {
+  min-width: 0;
+}
+
+.version-url-list dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.version-url-list dd {
+  margin: 0.15rem 0 0;
+  min-width: 0;
+}
+
+.version-url-list code {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.version-table-wrap {
+  max-width: 100%;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.version-table {
+  width: 100%;
+  min-width: 28rem;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.version-table th,
+.version-table td {
+  padding: 0.45rem 0.55rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.version-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.version-table code {
+  white-space: nowrap;
+}
+
+/* Accordion control groups */
+
+.control-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 0.85rem;
+  overflow: hidden;
+}
+
+.control-group:last-child {
+  margin-bottom: 0;
+}
+
+.control-group summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.1rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.control-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.control-group summary::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: none;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.control-group[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.control-group[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.control-group summary:hover,
+.control-group summary:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.group-body {
+  padding: 1rem 1.1rem;
+}
+
+.field {
+  margin-bottom: 1rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field label {
+  display: block;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 0.25rem;
+}
+
+.field input[type="url"],
+.field input[type="number"],
+.field input[type="text"],
+.field textarea,
+.field select {
+  width: 100%;
+  max-width: 28rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.field input[type="url"]:focus-visible,
+.field input[type="number"]:focus-visible,
+.field input[type="text"]:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.field textarea {
+  max-width: 100%;
+  min-height: 9rem;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.45;
+}
+
+.hint.error {
+  color: #c4302f;
+}
+
+.field textarea[aria-invalid="true"] {
+  border-color: #c4302f;
+  outline-color: #c4302f;
+}
+
+.field-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: inherit;
+}
+
+.custom-action-demo > label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: inherit;
+}
+
+.custom-action-options,
+.action-placement-options {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.custom-action-options label,
+.action-placement-options label {
+  margin: 0;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.custom-action-options select,
+.action-placement-options select {
+  max-width: 10rem;
+}
+
+.fields-legend {
+  display: block;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 0.25rem;
+}
+
+.fields-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.source-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.source-options label,
+.fields-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 400;
+  font-family: inherit;
+  margin-bottom: 0;
+}
+
+.field input:disabled,
+.field input[type="text"]:disabled,
+.field select:disabled,
+.field textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Settings that belong to one view. Dimmed, not disabled: with `views` the
+   visitor reaches every enabled view, so these are in effect in the embed
+   you copy even while the preview shows another one. See
+   updateControlAvailability() in playground.ts. */
+.field-group {
+  margin-bottom: 1.1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.field-group:last-child {
+  margin-bottom: 0;
+}
+
+.field-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.field-group-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.view-scoped[data-active="false"] {
+  opacity: 0.55;
+}
+
+.view-scoped[data-active="false"]:focus-within,
+.view-scoped[data-active="false"]:hover {
+  opacity: 1;
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Fields matrix (preview / detail) */
+
+.fields-matrix-wrap {
+  max-width: 100%;
+  margin-top: 0.6rem;
+  overflow-x: auto;
+}
+
+.fields-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.fields-matrix th,
+.fields-matrix td {
+  padding: 0.4rem 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.fields-matrix thead th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  text-align: left;
+}
+
+.fields-matrix thead th:not(:first-child) {
+  text-align: center;
+}
+
+.fields-matrix tbody th[scope="row"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.fields-matrix td {
+  text-align: center;
+}
+
+.fields-matrix input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.fields-matrix input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.widget-frame {
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.widget-frame[data-theme="dark"] {
+  background: #111318;
+  border-color: #33373f;
+}
+
+.widget-frame[data-theme="dark"][data-layout="calendar"] {
+  background: #14171d;
+  border-color: #3a3f49;
+}
+
+.widget-frame[data-theme="auto"] {
+  background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .widget-frame[data-theme="auto"] {
+    background: #111318;
+    border-color: #33373f;
+  }
+
+  .widget-frame[data-theme="auto"][data-layout="calendar"] {
+    background: #14171d;
+    border-color: #3a3f49;
+  }
+}
+
+.preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.segmented-toolbar {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.preview-button {
+  display: grid;
+  grid-template-columns: 1rem auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.preview-button:hover,
+.preview-button:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  outline: none;
+}
+
+.preview-button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--accent);
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(16, 19, 26, 0.08);
+}
+
+.preview-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  color: currentColor;
+}
+
+.icon-calendar {
+  border: 1.8px solid currentColor;
+  border-radius: 3px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 0.25rem / 100% 1.8px no-repeat,
+    linear-gradient(currentColor, currentColor) 33% 0.48rem / 1px 0.42rem no-repeat,
+    linear-gradient(currentColor, currentColor) 66% 0.48rem / 1px 0.42rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.22rem 0.72rem / 0.25rem 0.18rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.62rem 0.72rem / 0.25rem 0.18rem no-repeat;
+}
+
+.icon-list {
+  background:
+    linear-gradient(currentColor, currentColor) 0 0.15rem / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0.45rem / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0.75rem / 100% 2px no-repeat;
+}
+
+.icon-cards {
+  background:
+    linear-gradient(currentColor, currentColor) 0 0 / 0.43rem 0.43rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.57rem 0 / 0.43rem 0.43rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0 0.57rem / 0.43rem 0.43rem no-repeat,
+    linear-gradient(currentColor, currentColor) 0.57rem 0.57rem / 0.43rem 0.43rem no-repeat;
+  border-radius: 2px;
+}
+
+.icon-light {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  box-shadow:
+    0 -0.38rem 0 -0.28rem currentColor,
+    0 0.38rem 0 -0.28rem currentColor,
+    0.38rem 0 0 -0.28rem currentColor,
+    -0.38rem 0 0 -0.28rem currentColor;
+}
+
+.icon-dark {
+  border-radius: 50%;
+  box-shadow: inset -0.28rem 0 0 currentColor;
+}
+
+.icon-auto {
+  border: 1.8px solid currentColor;
+  border-radius: 50%;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+
+/* Snippet box: dark "browser window" code block */
+
+.snippet-box {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.snippet-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem 0.5rem 0.85rem;
+  background: #14171d;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.snippet-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #3a3f49;
+}
+
+.snippet-dot:nth-child(1) {
+  background: #ff5f57;
+}
+
+.snippet-dot:nth-child(2) {
+  background: #febc2e;
+}
+
+.snippet-dot:nth-child(3) {
+  background: #28c840;
+}
+
+.snippet-filename {
+  margin-left: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  color: #8a919e;
+}
+
+.snippet-box pre {
+  margin: 0;
+  padding: 1rem;
+  background: #1c2128;
+  color: #e6e8eb;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.snippet-box code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+}
+
+#copy-button,
+#subscribe-copy-button {
+  margin-left: auto;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e8eb;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+#copy-button:hover,
+#subscribe-copy-button:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent-hover);
+}
+
+.page-footer {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.page-footer .hint {
+  margin-bottom: 0.6rem;
+}
+
+/* 52rem, not 58rem: at 58 a 1024px tablet — the machine a demo is most
+   likely given — collapsed to one column and put the preview *below* a
+   25-control form, which is the worst layout on the most watched screen. */
+@media (min-width: 52rem) {
+  .playground-layout {
+    /* The preview column is the wide one on purpose. The widget degrades its
+       month grid to a list below 600px of *container*, so a column that
+       leaves it less than that shows a calendar that is never a calendar. */
+    grid-template-columns: minmax(18rem, 0.78fr) minmax(40rem, 1.22fr);
+    align-items: start;
+  }
+
+  .panel {
+    margin-bottom: 0;
+  }
+
+  .output-column {
+    display: grid;
+    gap: 1.5rem;
+    position: sticky;
+    top: calc(var(--sticky-top, 1rem) + 0.75rem);
+  }
+
+  /* A grid item's `min-width` is `auto`, so the preview panel was sized by
+     the calendar's min-content — seven columns wider than the column it
+     sits in — and the whole page scrolled sideways. The widget has its own
+     scroll and its own narrow-container fallback; it does not need the page
+     to widen for it. */
+  .output-column > * {
+    min-width: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------- *
+ * Help behind an icon (#199)
+ *
+ * These hints are reference material read *while* editing a value, which is
+ * why they are popovers and not modals: a modal steals focus, covers the
+ * preview, and has to be dismissed before you can type. `popover` gives the
+ * top layer and light dismiss with no focus trap, and it will not stack
+ * badly against the modal the widget itself opens.
+ *
+ * Positioning uses the *implicit* anchor: an element invoked through
+ * `popovertarget` is the popover's anchor with no `anchor-name` to declare,
+ * so fifteen popovers need no fifteen names. Where `position-area` is
+ * missing the popover stays a centred sheet — the UA default — which is why
+ * the anchored rules are the @supports branch and not the base.
+ * ---------------------------------------------------------------------- */
+
+.info-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: italic;
+  font-family: ui-serif, Georgia, serif;
+  line-height: 1;
+  cursor: help;
+}
+
+.info-button:hover,
+.info-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.info-popover {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(24rem, calc(100vh - 2rem));
+  overflow-y: auto;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.info-popover p {
+  margin: 0 0 0.6rem;
+}
+
+.info-popover p:last-child {
+  margin-bottom: 0;
+}
+
+.info-popover::backdrop {
+  background: rgba(16, 19, 26, 0.25);
+}
+
+@supports (position-area: bottom) {
+  .info-popover {
+    position-area: block-end span-inline-end;
+    /* Explicit fallbacks rather than `flip-*`: flipping inline from a
+       control near the left edge slams the box against x=0, where it reads
+       as floating chrome rather than as this control's help.
+       `most-block-size` picks the side with the room instead of the first
+       side that technically fits. */
+    position-try-fallbacks:
+      block-start span-inline-end,
+      block-end span-inline-start,
+      block-start span-inline-start;
+    position-try-order: most-block-size;
+    margin: 0.4rem 0;
+    width: min(24rem, calc(100vw - 2rem));
+    /* Short enough to land beside its control instead of being flipped
+       across the page. The longest hints scroll, which is correct: they are
+       reference, read in place. */
+    max-height: min(19rem, calc(100vh - 2rem));
+  }
+
+  /* Anchored, so no scrim: the popover points at its own control and the
+     page behind it stays readable, which is the point of not using a
+     modal. */
+  .info-popover::backdrop {
+    background: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------- *
+ * Control tabs (#199)
+ *
+ * Deliberately a different shape from `.site-tabs`: those are dark pills
+ * and choose a widget, these are underlined and lighter and choose a group
+ * of settings within one. Two rows of identical-looking tabs is a known
+ * confusion, and the page has both.
+ * ---------------------------------------------------------------------- */
+
+.control-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.control-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.control-tab:hover,
+.control-tab:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+.control-tab:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 3px var(--accent);
+}
+
+.control-tab[aria-selected="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* How many controls in this panel are not at their default. The one thing
+   that makes hiding settings behind tabs safe. */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.tab-badge[hidden] {
+  display: none;
+}
+
+.control-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+
+.control-panel[hidden] {
+  display: none;
+}
+
+.control-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Label and its info button on one line. The label still names the control;
+   the icon only says there is more to read. */
+.field-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field-head label,
+.field-head .fields-legend {
+  margin-bottom: 0;
+}
+
+/* The three source options read as a decision, one per line, rather than as
+   a row of toggles. */
+.source-options-stacked {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.show-group {
+  margin-top: 0.7rem;
+}
+
+.show-group .field-group-label {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+/* Whole configurations, above the tabs because they outrank them: a tab
+   chooses a group of settings, a preset replaces all of them.
+
+   One flowing row, no label and no pushed-right Reset. "START FROM" spent a
+   line on a heading for four self-evident buttons, and `margin-left: auto`
+   stranded Reset on a second row of its own as soon as the presets wrapped —
+   which at this column width they always do. Reset is quieter than a preset
+   (it undoes rather than chooses), so it is borderless and trails them. */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+}
+
+.presets-buttons {
+  display: contents;
+}
+
+.preset-button {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.preset-button:hover,
+.preset-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.preset-reset {
+  padding: 0.35rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.preset-reset:hover,
+.preset-reset:focus-visible {
+  color: var(--accent);
+}
+
+
+/* The example picker sits where the "Example feed" button was: one control
+   that both reaches an example and offers the other eight, instead of a
+   button that could only ever reach one. */
+.feed-bar select {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 14rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.feed-bar select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.feed-bar select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
