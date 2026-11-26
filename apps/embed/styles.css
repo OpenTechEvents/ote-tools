@@ -563,12 +563,44 @@ a {
   cursor: not-allowed;
 }
 
-.field.is-disabled {
+/* Settings that belong to one view. Dimmed, not disabled: with `views` the
+   visitor reaches every enabled view, so these are in effect in the embed
+   you copy even while the preview shows another one. See
+   updateControlAvailability() in playground.ts. */
+.field-group {
+  margin-bottom: 1.1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.field-group:last-child {
+  margin-bottom: 0;
+}
+
+.field-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.field-group-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.view-scoped[data-active="false"] {
   opacity: 0.55;
 }
 
-.field.is-disabled .hint {
-  font-style: italic;
+.view-scoped[data-active="false"]:focus-within,
+.view-scoped[data-active="false"]:hover {
+  opacity: 1;
 }
 
 .hint {
@@ -859,9 +891,15 @@ a {
   margin-bottom: 0.6rem;
 }
 
-@media (min-width: 58rem) {
+/* 52rem, not 58rem: at 58 a 1024px tablet — the machine a demo is most
+   likely given — collapsed to one column and put the preview *below* a
+   25-control form, which is the worst layout on the most watched screen. */
+@media (min-width: 52rem) {
   .playground-layout {
-    grid-template-columns: minmax(20rem, 0.9fr) minmax(24rem, 1.1fr);
+    /* The preview column is the wide one on purpose. The widget degrades its
+       month grid to a list below 600px of *container*, so a column that
+       leaves it less than that shows a calendar that is never a calendar. */
+    grid-template-columns: minmax(18rem, 0.78fr) minmax(40rem, 1.22fr);
     align-items: start;
   }
 
@@ -874,6 +912,15 @@ a {
     gap: 1.5rem;
     position: sticky;
     top: calc(var(--sticky-top, 1rem) + 0.75rem);
+  }
+
+  /* A grid item's `min-width` is `auto`, so the preview panel was sized by
+     the calendar's min-content — seven columns wider than the column it
+     sits in — and the whole page scrolled sideways. The widget has its own
+     scroll and its own narrow-container fallback; it does not need the page
+     to widen for it. */
+  .output-column > * {
+    min-width: 0;
   }
 }
 

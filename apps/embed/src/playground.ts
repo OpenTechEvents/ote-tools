@@ -37,9 +37,7 @@ const sourceModeInputs = Array.from(
 );
 const eventIdInput = document.querySelector<HTMLInputElement>("#event-id-input")!;
 const limitInput = document.querySelector<HTMLInputElement>("#limit-input")!;
-const layoutButtons = Array.from(
-  document.querySelectorAll<HTMLButtonElement>("[data-layout]"),
-);
+const layoutSelect = document.querySelector<HTMLSelectElement>("#layout-select")!;
 const placeholderImageInput = document.querySelector<HTMLInputElement>("#placeholder-image-input")!;
 const eventClickSelect = document.querySelector<HTMLSelectElement>("#event-click-select")!;
 const eventActionCheckboxes = Array.from(
@@ -109,10 +107,6 @@ const tabPanels: Record<string, HTMLElement> = {
   reference: document.querySelector<HTMLElement>("#tab-panel-reference")!,
 };
 
-const cardWidthField = document.querySelector<HTMLElement>("#card-width-field")!;
-const calendarField = document.querySelector<HTMLElement>("#calendar-field")!;
-const groupEventsField = document.querySelector<HTMLElement>("#group-events-field")!;
-const fieldsMatrixField = document.querySelector<HTMLElement>("#fields-matrix-field")!;
 
 type RuntimeDataKind = "feedData" | "events" | "event";
 
@@ -441,16 +435,13 @@ function sourceMode(): SourceMode {
 }
 
 function currentLayout(): Layout {
-  const pressed = layoutButtons.find((button) => button.getAttribute("aria-pressed") === "true");
-  if (pressed?.dataset.layout === "list") return "list";
-  if (pressed?.dataset.layout === "cards") return "cards";
+  if (layoutSelect.value === "list") return "list";
+  if (layoutSelect.value === "cards") return "cards";
   return "calendar";
 }
 
 function setLayout(layout: Layout): void {
-  for (const button of layoutButtons) {
-    button.setAttribute("aria-pressed", String(button.dataset.layout === layout));
-  }
+  layoutSelect.value = layout;
 }
 
 function currentTheme(): Theme {
@@ -477,28 +468,25 @@ function setActiveTab(tab: string): void {
   }
 }
 
-function setControlDisabled(
-  field: HTMLElement,
-  controls: Array<HTMLInputElement | HTMLSelectElement>,
-  disabled: boolean,
-): void {
-  field.classList.toggle("is-disabled", disabled);
-  for (const control of controls) control.disabled = disabled;
-}
-
+/**
+ * Controls that belong to one view are dimmed when the preview is showing
+ * another — and stay editable.
+ *
+ * They used to be disabled, which was wrong twice over. `views` (#183) means
+ * the widget renders all three and the visitor moves between them, so
+ * `card-width` is in effect in the embed you copy whatever is on screen
+ * here; disabling it hid a live setting. And with the controls behind tabs,
+ * a greyed control's reason is no longer anywhere near it — it was buried in
+ * the hint ("Cards layout only").
+ *
+ * The scope is declared in the markup as `data-views`, so a control added to
+ * one of these groups is covered without a matching edit here.
+ */
 function updateControlAvailability(layout: Layout): void {
-  setControlDisabled(cardWidthField, [cardWidthSelect], layout !== "cards");
-  setControlDisabled(
-    calendarField,
-    [maxPerDayInput, densitySelect, initialDateSelect, responsiveCheckbox],
-    layout !== "calendar",
-  );
-  setControlDisabled(groupEventsField, groupEventsCheckboxes, layout !== "cards");
-  setControlDisabled(
-    fieldsMatrixField,
-    [...previewFieldCheckboxes, ...detailFieldCheckboxes],
-    layout === "calendar",
-  );
+  for (const group of document.querySelectorAll<HTMLElement>(".view-scoped")) {
+    const views = (group.dataset.views ?? "").split(/\s+/).filter(Boolean);
+    group.dataset.active = String(views.includes(layout));
+  }
 }
 
 function applyRuntimeData(runtimeData: RuntimeData | undefined): void {
@@ -720,6 +708,7 @@ for (const control of [
   feedInput,
   eventIdInput,
   limitInput,
+  layoutSelect,
   placeholderImageInput,
   eventClickSelect,
   nativeActionPlacementSelect,
@@ -762,17 +751,6 @@ widget.addEventListener("ote-view-change", (event) => {
   setLayout(view);
   applyAndRender();
 });
-
-for (const button of layoutButtons) {
-  button.addEventListener("click", () => {
-    if (button.dataset.layout === "list" || button.dataset.layout === "cards") {
-      setLayout(button.dataset.layout);
-    } else {
-      setLayout("calendar");
-    }
-    applyAndRender();
-  });
-}
 
 for (const button of themeButtons) {
   button.addEventListener("click", () => {
