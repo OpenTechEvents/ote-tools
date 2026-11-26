@@ -462,7 +462,8 @@ verified.
 
 ### The library decides "clicked outside" in a way Shadow DOM breaks
 
-`outsideEvent()` in `@event-calendar/core` (still so in 5.22.0) listens on
+`outsideEvent()` in `@event-calendar/core` (still so in the version this
+repo pins — `grep '"@event-calendar/core"' apps/embed/package.json`) listens on
 `document` and tests `el.contains(jsEvent.target)`. A `document`-level
 listener inside a shadow root sees the event **retargeted to the host** —
 measured here as `OTE-EVENTS`, with the real node only in

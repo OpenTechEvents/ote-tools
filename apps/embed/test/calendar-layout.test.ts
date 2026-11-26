@@ -1,3 +1,14 @@
+// @vitest-environment jsdom
+//
+// Pure functions, but a DOM environment all the same: since
+// @event-calendar/core 5.21.2 the library's compiled bundle imports
+// `svelte/internal/init-operations`, which touches `window` at module
+// evaluation — so merely importing calendar-layout.ts throws
+// `ReferenceError: window is not defined` under the default Node
+// environment. Nothing in the shipped widget is affected (main.ts never
+// imports this module statically; element.ts loads it in a browser), and
+// splitting the helpers out to keep this file on the faster environment
+// would move code around for a test's convenience.
 import { describe, expect, it } from "vitest";
 
 import type { PreviewEvent } from "@opentechevents/preview-feed";

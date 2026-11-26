@@ -29,22 +29,37 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@opentechevents/schema@0.6.0'
 
-# Svelte is a transitive dependency of @event-calendar/core (`svelte: ^5.57.3`)
-# and the two are tightly coupled, in both directions. Measured on
-# 2026-11-25, with `apps/embed/test/calendar-render.test.ts` and confirmed in
-# a real browser with the built widget:
+# Svelte is a transitive dependency of @event-calendar/core and the two are
+# tightly coupled, in both directions: the library ships a bundle compiled
+# against a particular set of Svelte internals, and imports them by subpath.
+# So **moving either version means moving both**, and which pairs work is a
+# measurement, not a reading of the semver ranges.
 #
-#   - calendar 5.18.1 (what we ship) + svelte 5.59.1 → the calendar mounts and
-#     throws `TypeError: Cannot read properties of undefined (reading 'call')`
-#     inside its own compiled template. A visitor gets that sentence where the
-#     month should be.
-#   - calendar 5.21.2 + svelte 5.57.3 → `Missing "./internal/init-operations"
-#     specifier in "svelte"`: the newer calendar needs newer Svelte internals.
-#   - calendar 5.18.1 + svelte 5.57.3 → renders. This is the pin.
+# Measured with `apps/embed/test/calendar-layout.test.ts` and
+# `calendar-render.test.ts`, and confirmed in a real browser with the built
+# widget (2026-11-25, extended 2026-11-26):
 #
-# So svelte is pinned exactly, because it is not ours to float: nothing in
-# this repo imports it, and a lockfile refresh that bumps it silently breaks a
-# public widget layout. Moving either version means moving both, and the
-# rendered-calendar test is what says whether the pair works.
+#   - calendar 5.18.1 + svelte 5.59.1 → the calendar mounts and throws
+#     `TypeError: Cannot read properties of undefined (reading 'call')`
+#     inside its own compiled template. A visitor gets that sentence where
+#     the month should be.
+#   - calendar 5.21.2+ + svelte 5.57.3 → the **build** fails:
+#     `Could not resolve "svelte/internal/init-operations"`. That subpath is
+#     new in the library's 5.21.2 bundle and absent from Svelte 5.57.3's
+#     `exports`. This is what a Dependabot bump of the library alone looks
+#     like (#192).
+#   - calendar 5.18.1 + svelte 5.57.3 → renders. The pin until 2026-11-26.
+#   - calendar 5.22.0 + svelte 5.59.1 → renders, and is the pin now. The
+#     library asks for `svelte: ^5.59.1`; the exact version is ours to
+#     choose because nothing in this repo imports Svelte directly.
+#
+# Which versions those are today, rather than when this was written:
+#
+#   grep '"@event-calendar/core"' apps/embed/package.json
+#   grep -A1 '^overrides:' pnpm-workspace.yaml
+#
+# Pinned exactly, because Svelte is not ours to float: a lockfile refresh
+# that bumps it silently breaks a public widget's layout, and the
+# rendered-calendar tests are what say whether the pair works.
 overrides:
-  svelte: 5.57.3
+  svelte: 5.59.1
