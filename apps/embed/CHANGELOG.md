@@ -1,6 +1,21 @@
 # @opentechevents/embed changelog
 
-## Unreleased
+## 0.9.0 — 2026-11-26
+
+### Changed
+
+- **Three defaults of `layout="calendar"` moved**, so an embed that sets no
+  attribute renders differently after this release. Each is the fix for a
+  reported defect and each has an opt-out, but a calendar that was tuned
+  around the old behaviour should be checked once:
+
+  | before | now | opt out with |
+  | --- | --- | --- |
+  | a day stacked every event it had | at most 3, rest in the `+N more` popover | `max-per-day="off"` |
+  | always opened on the current month | opens on the month of the next event | `initial-date="today"` |
+  | the month grid at every width | the list view below 600px of container width | `responsive="off"` |
+
+  Details and the reasoning for each are under Added below.
 
 ### Added
 
