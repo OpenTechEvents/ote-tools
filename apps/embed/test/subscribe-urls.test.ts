@@ -124,10 +124,27 @@ describe("buildGoogleCalendarUrl: a feed URL that carries its own query string (
     );
   });
 
+  // The order the real consumer emits: opentechevents.org's text-language
+  // control builds `feed` first, `lang` second. Truncation there keeps the
+  // feed and drops the *language*, so the visitor subscribes successfully to
+  // the wrong translation — a 200, no error, nothing to report. Both orders
+  // are covered because the failure mode differs, not the cause.
+  const CONSUMER_ICS =
+    "https://convert.opentechevents.org/ics?feed=https%3A%2F%2Fsaraoia.com%2Feventos-ote.json&lang=es";
+
+  it("keeps the chosen language, which truncation dropped silently", () => {
+    const url = buildGoogleCalendarUrl(CONSUMER_ICS);
+    expect(cidOf(url)).toBe(
+      "webcal://convert.opentechevents.org/ics?feed=https%3A%2F%2Fsaraoia.com%2Feventos-ote.json&lang=es",
+    );
+    expect(cidOf(url)).toContain("lang=es");
+  });
+
   it("leaks nothing into a sibling query parameter", () => {
     // The defect: an unencoded cid ended at the feed's own `&`, and the rest
     // arrived as separate parameters that Google ignores.
     expect(otherParams(buildGoogleCalendarUrl(CONVERTED_ICS))).toEqual([]);
+    expect(otherParams(buildGoogleCalendarUrl(CONSUMER_ICS))).toEqual([]);
   });
 
   it("survives a space and a fragment character in the path", () => {

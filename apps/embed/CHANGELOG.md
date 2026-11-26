@@ -8,9 +8,12 @@
   carries a query string** (#166). The `cid` parameter nested the feed URL
   raw, so it ended at that URL's first `&`: Google received a truncated
   address and the organizer saw a broken feed rather than a broken link. A
-  hosted-converter URL — `…/ics?lang=es&feed=…`, which is what a publisher
-  without a static `.ics` file uses — arrived as `…/ics?lang=es`, with the
-  feed itself dropped into a sibling parameter Google ignores. The value is
+  hosted-converter URL — `…/ics?feed=…&lang=es`, which is what
+  opentechevents.org's text-language control hands the widget — arrived as
+  `…/ics?feed=…`, with the chosen **language** dropped into a sibling
+  parameter Google ignores: the subscription succeeds, in the wrong
+  translation, with no error to report. Reverse the two parameters and it is
+  the feed that is lost instead. The value is
   now percent-encoded; the `webcal://` scheme swap is unchanged. Both the
   encoded and the unencoded form were checked against a real Google account
   on 2026-11-26 and both subscribe, so this costs nothing for feeds that
